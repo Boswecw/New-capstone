@@ -1,0 +1,314 @@
+:root {
+  --bluegrass-blue: #2A6F97;
+  --golden-retriever: #F4B942;
+  --turf-green: #6DA34D;
+  --pawprint-gray: #E0E0E0;
+  --tangerine-tail: #FF7043;
+  --charcoal-fur: #333333;
+  --snow-whiskers: #FFFFFF;
+}
+
+body {
+  background-color: var(--pawprint-gray);
+  font-family: 'Segoe UI', sans-serif;
+  margin: 0;
+  padding: 0;
+}
+
+/* Navigation Styling */
+.custom-navbar {
+  background-color: var(--bluegrass-blue) !important;
+}
+
+.navbar-brand, .nav-link {
+  color: var(--snow-whiskers) !important;
+}
+
+.nav-link:hover {
+  color: var(--golden-retriever) !important;
+}
+
+/* Hero Banner */
+.furbabies-banner {
+  background: linear-gradient(135deg, #F4B942, #FF7043, #6DA34D, #2A6F97);
+  background-size: 400% 400%;
+  animation: gradientShift 15s ease infinite;
+  color: var(--snow-whiskers);
+  padding: 4rem 2rem;
+  text-align: center;
+  min-height: 400px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@keyframes gradientShift {
+  0% {background-position: 0% 50%;}
+  50% {background-position: 100% 50%;}
+  100% {background-position: 0% 50%;}
+}
+
+.hero-title {
+  font-size: clamp(2rem, 5vw, 3.5rem);
+  font-weight: 800;
+  margin-bottom: 1rem;
+  text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+}
+
+.hero-subtitle {
+  font-size: clamp(1rem, 3vw, 1.5rem);
+  margin-bottom: 2rem;
+  opacity: 0.9;
+}
+
+.hero-icon {
+  max-height: clamp(40px, 8vw, 80px);
+  filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.1));
+}
+
+/* Buttons */
+.btn-primary {
+  background-color: var(--golden-retriever);
+  border: none;
+  color: var(--charcoal-fur);
+  font-weight: 600;
+}
+
+.btn-primary:hover {
+  background-color: var(--tangerine-tail);
+  color: var(--snow-whiskers);
+}
+
+.btn-light {
+  color: #333;
+  background-color: #fff;
+  border: none;
+  transition: all 0.3s ease;
+}
+
+.btn-light:hover {
+  background-color: var(--tangerine-tail);
+  color: white;
+}
+
+/* Cards */
+.card {
+  border: none;
+  border-radius: 12px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+}
+
+.pet-card {
+  height: 100%;
+}
+
+.card-title {
+  color: var(--bluegrass-blue);
+  font-weight: 600;
+}
+
+.price {
+  color: var(--tangerine-tail);
+  font-weight: bold;
+  font-size: 1.1rem;
+}
+
+.card-img-top {
+  height: 200px;
+  object-fit: contain;
+  padding: 1rem;
+}
+
+/* Info Cards */
+.info-card {
+  background: white;
+  border-radius: 15px;
+  padding: 2rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+  border-left: 4px solid #ff6f61;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.info-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 25px rgba(0,0,0,0.12);
+}
+
+.card-title {
+  color: #3c2a21;
+  font-weight: 600;
+  font-size: 1.3rem;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Paw Love Section */
+.paw-love-section {
+  background: linear-gradient(135deg, #f8f9ff 0%, #e8f4fd 100%);
+  padding: 4rem 0;
+  margin: 2rem 0;
+  border-radius: 40px;
+  position: relative;
+}
+
+.paw-love-title {
+  color: #d45087;
+  font-weight: 700;
+  font-size: clamp(1.5rem, 3vw, 2rem);
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.paw-love-icon {
+  max-height: 80px;
+  filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.1));
+}
+
+/* Bullet Lists */
+.bullet-list {
+  list-style: none;
+  padding-left: 0;
+}
+
+.bullet-list li {
+  color: #5a5a5a;
+  margin-bottom: 0.5rem;
+  padding-left: 1.5rem;
+  position: relative;
+}
+
+.bullet-list li::before {
+  content: '🐾';
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+
+/* Footer */
+footer {
+  background: linear-gradient(135deg, #3c2a21 0%, #2c1810 100%);
+  color: white;
+  padding: 2rem 0;
+  margin-top: 3rem;
+}
+
+.footer-icons a {
+  color: white;
+  font-size: 1.5rem;
+  margin: 0 0.5rem;
+  transition: all 0.3s ease;
+  text-decoration: none;
+}
+
+.footer-icons a:hover {
+  color: #ff6f61;
+  transform: translateY(-3px);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .furbabies-banner {
+    padding: 3rem 1rem;
+  }
+  
+  .hero-title {
+    font-size: 2rem;
+  }
+  
+  .hero-subtitle {
+    font-size: 1.1rem;
+  }
+  
+  .info-card {
+    padding: 1.5rem;
+  }
+  
+  .paw-love-section {
+    margin: 1rem 0;
+    padding: 3rem 0;
+  }
+}
+
+@media (max-width: 576px) {
+  .container {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+  
+  .info-card {
+    padding: 1rem;
+  }
+  
+  .card-img-top {
+    height: 150px;
+  }
+}
+
+/* Loading States */
+.loading-spinner {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 200px;
+}
+
+/* Form Styles */
+.form-control:focus {
+  border-color: var(--golden-retriever);
+  box-shadow: 0 0 0 0.2rem rgba(244, 185, 66, 0.25);
+}
+
+.form-label {
+  font-weight: 600;
+  color: var(--charcoal-fur);
+}
+
+/* Alert Styles */
+.alert {
+  border: none;
+  border-radius: 10px;
+}
+
+/* Badge Styles */
+.badge {
+  font-size: 0.8rem;
+  padding: 0.5rem 0.8rem;
+}
+
+/* Rating Stars */
+.rating-stars {
+  color: #ffc107;
+  margin-right: 0.5rem;
+}
+
+/* Vote Buttons */
+.vote-buttons .btn {
+  border-radius: 50px;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.85rem;
+}
+
+.vote-buttons .btn-outline-success:hover {
+  background-color: #28a745;
+  border-color: #28a745;
+}
+
+.vote-buttons .btn-outline-danger:hover {
+  background-color: #dc3545;
+  border-color: #dc3545;
+}
+
+html {
+  scroll-behavior: smooth;
+}
