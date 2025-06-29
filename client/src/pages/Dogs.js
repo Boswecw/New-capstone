@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Spinner, Alert } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 import PetCard from '../components/PetCard';
+import HeroBanner from '../components/HeroBanner';
 import api from '../services/api';
 
 const Dogs = () => {
@@ -42,24 +43,7 @@ const Dogs = () => {
   return (
     <>
       {/* Hero Banner */}
-      <section className="furbabies-banner">
-        <Container>
-          <Row className="justify-content-center align-items-center">
-            <Col xs={12} md={10}>
-              <h1 className="hero-title">
-                <i className="fas fa-dog me-2"></i>
-                Dogs Available for Adoption
-              </h1>
-              <p className="hero-subtitle">
-                <i className="fas fa-heart me-2"></i>Find Your Perfect Canine Companion
-              </p>
-              <Link to="/browse" className="btn btn-lg btn-light px-4 py-2">
-                <i className="fas fa-search me-2"></i>Browse All Pets
-              </Link>
-            </Col>
-          </Row>
-        </Container>
-      </section>
+     <HeroBanner logoSize="large" />
 
       {/* Dogs Section */}
       <Container className="py-5">

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Spinner, Alert } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 import PetCard from '../components/PetCard';
+import HeroBanner from '../components/HeroBanner';
 import api from '../services/api';
 
 const Aquatics = () => {
@@ -43,24 +44,7 @@ const Aquatics = () => {
   return (
     <>
       {/* Hero Banner */}
-      <section className="furbabies-banner">
-        <Container>
-          <Row className="justify-content-center align-items-center">
-            <Col xs={12} md={10}>
-              <h1 className="hero-title">
-                <i className="fas fa-fish me-2"></i>
-                Aquatic Pets & Supplies
-              </h1>
-              <p className="hero-subtitle">
-                <i className="fas fa-heart me-2"></i>Dive Into Our Aquatic Collection
-              </p>
-              <Link to="/browse" className="btn btn-lg btn-light px-4 py-2">
-                <i className="fas fa-search me-2"></i>Browse All Pets
-              </Link>
-            </Col>
-          </Row>
-        </Container>
-      </section>
+      <HeroBanner logoSize="large" />
 
       {/* Aquatics Section */}
       <Container className="py-5">

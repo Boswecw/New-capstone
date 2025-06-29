@@ -1,3 +1,4 @@
+// client/src/pages/Browse.js
 import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Form, Button, Spinner, Alert } from 'react-bootstrap';
 import PetCard from '../components/PetCard';
@@ -17,30 +18,30 @@ const Browse = () => {
   });
 
   useEffect(() => {
+    const fetchPets = async () => {
+      setLoading(true);
+      setError('');
+      
+      try {
+        const params = new URLSearchParams();
+        Object.entries(filters).forEach(([key, value]) => {
+          if (value && value !== 'all') {
+            params.append(key, value);
+          }
+        });
+
+        const response = await api.get(`/pets?${params.toString()}`);
+        setPets(response.data.data);
+      } catch (error) {
+        setError('Error fetching pets. Please try again.');
+        console.error('Error fetching pets:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
     fetchPets();
   }, [filters]);
-
-  const fetchPets = async () => {
-    setLoading(true);
-    setError('');
-    
-    try {
-      const params = new URLSearchParams();
-      Object.entries(filters).forEach(([key, value]) => {
-        if (value && value !== 'all') {
-          params.append(key, value);
-        }
-      });
-
-      const response = await api.get(`/pets?${params.toString()}`);
-      setPets(response.data.data);
-    } catch (error) {
-      setError('Error fetching pets. Please try again.');
-      console.error('Error fetching pets:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleFilterChange = (field, value) => {
     setFilters(prev => ({
@@ -175,10 +176,11 @@ const Browse = () => {
       )}
 
       {loading ? (
-        <div className="loading-spinner">
-          <Spinner animation="border" role="status">
-            <span className="visually-hidden">Loading...</span>
+        <div className="text-center py-5">
+          <Spinner animation="border" role="status" size="lg">
+            <span className="visually-hidden">Loading pets...</span>
           </Spinner>
+          <p className="mt-3 text-muted">Finding pets that match your criteria...</p>
         </div>
       ) : (
         <>
@@ -201,6 +203,10 @@ const Browse = () => {
               <i className="fas fa-search fa-3x text-muted mb-3"></i>
               <h4>No pets found</h4>
               <p className="text-muted">Try adjusting your filters or search terms.</p>
+              <Button variant="outline-primary" onClick={clearFilters}>
+                <i className="fas fa-refresh me-2"></i>
+                Clear All Filters
+              </Button>
             </div>
           )}
         </>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, Carousel, Button } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
+import HeroBanner from '../components/HeroBanner';
 import PetCard from '../components/PetCard';
 import api from '../services/api';
 
@@ -47,28 +48,7 @@ const Home = () => {
   return (
     <>
       {/* Hero Banner */}
-      <section className="furbabies-banner">
-        <Container>
-          <Row className="justify-content-center align-items-center">
-            <Col xs={12} md={10}>
-              <h1 className="hero-title">
-                <i className="fas fa-paw me-2"></i>
-                <img 
-                  src="/assets/FurBabiesIcon.png" 
-                  alt="FurBabies icon" 
-                  className="hero-icon ms-2" 
-                />
-              </h1>
-              <p className="hero-subtitle">
-                <i className="fas fa-heart me-2"></i>Your One Stop Pet Super Store
-              </p>
-              <Link to="/browse" className="btn btn-lg btn-light px-4 py-2">
-                <i className="fas fa-shopping-bag me-2"></i>Browse Products
-              </Link>
-            </Col>
-          </Row>
-        </Container>
-      </section>
+      <HeroBanner logoSize="large" />
 
       {/* Featured Products */}
       <section id="products" className="py-5">
