@@ -1,14 +1,27 @@
 // client/src/utils/imageUtils.js
 /**
- * Google Cloud Storage Image Utilities
+ * Fixed Google Cloud Storage Image Utilities
  * Handles all image URL generation, optimization, and fallback logic
  */
 
-// Environment configuration
+// Environment configuration with better defaults
 const GCS_CONFIG = {
   bucketName: process.env.REACT_APP_GCS_BUCKET_NAME || 'furbabies-petstore',
   baseUrl: process.env.REACT_APP_GCS_BASE_URL || 'https://storage.googleapis.com',
   cdnUrl: process.env.REACT_APP_GCS_CDN_URL, // Optional CDN URL for better performance
+};
+
+// Local fallback paths (in public folder)
+const LOCAL_FALLBACKS = {
+  'brand/FurBabiesIcon.png': '/images/logo.png',
+  'brand/PawLoveicon.png': '/images/paw-icon.png',
+  'defaults/default-pet.png': '/images/default-pet.png',
+  'defaults/default-dog.png': '/images/default-dog.png',
+  'defaults/default-cat.png': '/images/default-cat.png',
+  'defaults/default-fish.png': '/images/default-fish.png',
+  'defaults/default-bird.png': '/images/default-bird.png',
+  'defaults/default-smallpet.png': '/images/default-smallpet.png',
+  'defaults/default-supply.png': '/images/default-supply.png',
 };
 
 // Image size configurations for responsive images
@@ -21,14 +34,19 @@ const IMAGE_SIZES = {
 };
 
 /**
- * Generate optimized Google Cloud Storage URL
- * @param {string} imagePath - Original image path (e.g., '/assets/GoldenRetriever.png')
- * @param {string} size - Image size variant ('thumbnail', 'small', 'medium', 'large', 'hero')
- * @param {object} options - Additional options (webp, quality, etc.)
- * @returns {string} - Optimized GCS URL
+ * Check if we should use GCS (properly configured)
  */
-export const getGoogleStorageUrl = (imagePath, size = 'medium', options = {}) => {
-  if (!imagePath) return getDefaultPetImage();
+const shouldUseGCS = () => {
+  // Only use GCS if we have a real bucket name (not the default)
+  return process.env.REACT_APP_GCS_BUCKET_NAME && 
+         process.env.REACT_APP_GCS_BUCKET_NAME !== 'furbabies-petstore';
+};
+
+/**
+ * Generate Google Cloud Storage URL (only if properly configured)
+ */
+const generateGCSUrl = (imagePath, size = 'medium', options = {}) => {
+  if (!shouldUseGCS()) return null;
   
   // Remove leading slash and /assets/ prefix if present
   const cleanPath = imagePath.replace(/^\/?(assets\/)?/, '');
@@ -66,10 +84,33 @@ export const getGoogleStorageUrl = (imagePath, size = 'medium', options = {}) =>
 };
 
 /**
+ * Get local fallback image path
+ */
+const getLocalFallback = (imagePath) => {
+  return LOCAL_FALLBACKS[imagePath] || '/images/placeholder.png';
+};
+
+/**
+ * Main function: Generate optimized image URL with intelligent fallback
+ * Priority: GCS (if configured) → Local fallback
+ */
+export const getGoogleStorageUrl = (imagePath, size = 'medium', options = {}) => {
+  if (!imagePath) return getLocalFallback('defaults/default-pet.png');
+  
+  // Strategy 1: Use GCS if properly configured
+  if (shouldUseGCS()) {
+    const gcsUrl = generateGCSUrl(imagePath, size, options);
+    if (gcsUrl) return gcsUrl;
+  }
+  
+  // Strategy 2: Use local fallback (skip backend to avoid connection errors)
+  const localUrl = getLocalFallback(imagePath);
+  console.log(`Using local fallback: ${localUrl} for ${imagePath}`);
+  return localUrl;
+};
+
+/**
  * Generate srcset for responsive images
- * @param {string} imagePath - Original image path
- * @param {array} sizes - Array of size names to include
- * @returns {string} - Srcset string for responsive images
  */
 export const generateSrcSet = (imagePath, sizes = ['small', 'medium', 'large']) => {
   if (!imagePath) return '';
@@ -85,50 +126,78 @@ export const generateSrcSet = (imagePath, sizes = ['small', 'medium', 'large']) 
 
 /**
  * Get default placeholder image based on pet type
- * @param {string} petType - Type of pet ('dog', 'cat', 'fish', 'bird', 'small-pet', 'supply')
- * @returns {string} - Default image URL
  */
 export const getDefaultPetImage = (petType = 'pet') => {
-  const defaultImages = {
-    dog: getGoogleStorageUrl('defaults/default-dog.png'),
-    cat: getGoogleStorageUrl('defaults/default-cat.png'),
-    fish: getGoogleStorageUrl('defaults/default-fish.png'),
-    bird: getGoogleStorageUrl('defaults/default-bird.png'),
-    'small-pet': getGoogleStorageUrl('defaults/default-smallpet.png'),
-    supply: getGoogleStorageUrl('defaults/default-supply.png'),
-    pet: getGoogleStorageUrl('defaults/default-pet.png')
+  const fallbackMap = {
+    dog: 'defaults/default-dog.png',
+    cat: 'defaults/default-cat.png',
+    fish: 'defaults/default-fish.png',
+    bird: 'defaults/default-bird.png',
+    'small-pet': 'defaults/default-smallpet.png',
+    supply: 'defaults/default-supply.png',
+    pet: 'defaults/default-pet.png'
   };
   
-  return defaultImages[petType] || defaultImages.pet;
+  const imagePath = fallbackMap[petType] || fallbackMap.pet;
+  return getGoogleStorageUrl(imagePath);
 };
 
 /**
  * Handle image loading errors with fallback logic
- * @param {Event} event - Image error event
- * @param {string} petType - Type of pet for fallback
  */
 export const handleImageError = (event, petType = 'pet') => {
   const img = event.target;
   
   // Prevent infinite error loops
-  if (img.dataset.fallbackApplied) {
-    console.warn('Fallback image also failed to load');
+  if (img.dataset.fallbackCount >= 3) {
+    console.warn('All image fallbacks exhausted, hiding image');
+    img.style.display = 'none';
     return;
   }
   
-  // Mark fallback as applied
-  img.dataset.fallbackApplied = 'true';
+  const fallbackCount = parseInt(img.dataset.fallbackCount || '0') + 1;
+  img.dataset.fallbackCount = fallbackCount;
   
-  // Set fallback image
-  img.src = getDefaultPetImage(petType);
-  img.alt = `Default ${petType} image`;
-  
-  console.warn(`Image failed to load, using fallback for ${petType}`);
+  // Try different fallbacks
+  switch (fallbackCount) {
+    case 1:
+      // Try pet-type specific local fallback
+      img.src = getLocalFallback(`defaults/default-${petType}.png`);
+      console.warn(`Image failed, trying pet-specific fallback: ${img.src}`);
+      break;
+    case 2:
+      // Try generic local fallback
+      img.src = getLocalFallback('defaults/default-pet.png');
+      console.warn(`Pet-specific fallback failed, trying generic: ${img.src}`);
+      break;
+    case 3:
+      // Try absolute generic fallback
+      img.src = '/images/placeholder.png';
+      console.warn(`Generic fallback failed, trying placeholder: ${img.src}`);
+      break;
+    default:
+      // Give up
+      img.style.display = 'none';
+      console.error('All image fallbacks failed');
+  }
+};
+
+/**
+ * Get brand logo URL
+ */
+export const getBrandLogo = (size = 'medium') => {
+  return getGoogleStorageUrl('brand/FurBabiesIcon.png', size);
+};
+
+/**
+ * Get paw love icon URL
+ */
+export const getPawLoveIcon = () => {
+  return getGoogleStorageUrl('brand/PawLoveicon.png');
 };
 
 /**
  * Check if browser supports WebP format
- * @returns {boolean} - True if WebP is supported
  */
 export const supportsWebP = () => {
   if (typeof window === 'undefined') return false;
@@ -150,8 +219,6 @@ export const supportsWebP = () => {
 
 /**
  * Preload critical images for better performance
- * @param {array} imagePaths - Array of image paths to preload
- * @param {string} size - Size variant to preload
  */
 export const preloadImages = (imagePaths, size = 'medium') => {
   imagePaths.forEach(path => {
@@ -164,31 +231,14 @@ export const preloadImages = (imagePaths, size = 'medium') => {
 };
 
 /**
- * Get brand logo URL
- * @param {string} size - Size variant
- * @returns {string} - Brand logo URL
- */
-export const getBrandLogo = (size = 'medium') => {
-  return getGoogleStorageUrl('brand/FurBabiesIcon.png', size);
-};
-
-/**
- * Get paw love icon URL
- * @returns {string} - Paw love icon URL
- */
-export const getPawLoveIcon = () => {
-  return getGoogleStorageUrl('brand/PawLoveicon.png');
-};
-
-/**
- * Validate GCS configuration
- * @returns {object} - Configuration status and any issues
+ * Validate configuration and provide helpful debugging
  */
 export const validateGCSConfig = () => {
   const issues = [];
   
-  if (!GCS_CONFIG.bucketName) {
-    issues.push('REACT_APP_GCS_BUCKET_NAME is not configured');
+  if (!shouldUseGCS()) {
+    issues.push('GCS not properly configured - using local fallbacks');
+    issues.push('Set REACT_APP_GCS_BUCKET_NAME to enable GCS');
   }
   
   if (!GCS_CONFIG.baseUrl) {
@@ -196,9 +246,14 @@ export const validateGCSConfig = () => {
   }
   
   return {
-    isValid: issues.length === 0,
+    isValid: shouldUseGCS(),
+    usingGCS: shouldUseGCS(),
+    usingLocal: !shouldUseGCS(),
     issues,
-    config: GCS_CONFIG
+    config: { 
+      gcs: GCS_CONFIG,
+      localFallbacks: Object.keys(LOCAL_FALLBACKS).length 
+    }
   };
 };
 
@@ -206,8 +261,10 @@ export const validateGCSConfig = () => {
 export const debugImageConfig = () => {
   if (process.env.NODE_ENV === 'development') {
     console.group('🖼️ Image Configuration Debug');
-    console.log('GCS Config:', GCS_CONFIG);
     console.log('Validation:', validateGCSConfig());
+    console.log('Environment Variables:');
+    console.log('- REACT_APP_GCS_BUCKET_NAME:', process.env.REACT_APP_GCS_BUCKET_NAME);
+    console.log('- REACT_APP_GCS_BASE_URL:', process.env.REACT_APP_GCS_BASE_URL);
     console.log('WebP Support:', supportsWebP());
     console.groupEnd();
   }

@@ -1,13 +1,26 @@
+// services/api.js
 import axios from 'axios';
 
-// Create axios instance with base configuration
+// Create axios instance
 const api = axios.create({
   baseURL: process.env.REACT_APP_API_URL || 'http://localhost:5000/api',
-  timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
   },
+  timeout: 5000, // 5 second timeout
 });
+
+// Helper function to generate image URLs with fallbacks
+export const getImageUrl = (imagePath, fallback = '/images/placeholder.png') => {
+  if (!imagePath) return fallback;
+  
+  // If it's already a full URL, return as is
+  if (imagePath.startsWith('http')) return imagePath;
+  
+  // Build backend URL
+  const baseURL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+  return `${baseURL.replace('/api', '')}/${imagePath}`;
+};
 
 // Request interceptor to add auth token
 api.interceptors.request.use(
@@ -23,7 +36,7 @@ api.interceptors.request.use(
   }
 );
 
-// Response interceptor to handle errors
+// Response interceptor for handling auth errors
 api.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -35,76 +48,126 @@ api.interceptors.response.use(
   }
 );
 
-// Pet API functions
-export const getPets = async (category = '') => {
-  try {
-    const endpoint = category ? `/pets?category=${category}` : '/pets';
-    const response = await api.get(endpoint);
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching pets:', error);
-    throw new Error(error.response?.data?.message || 'Failed to fetch pets');
-  }
-};
-
-export const getPetById = async (id) => {
-  try {
-    const response = await api.get(`/pets/${id}`);
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching pet:', error);
-    throw new Error(error.response?.data?.message || 'Failed to fetch pet details');
-  }
-};
-
-export const searchPets = async (query) => {
-  try {
-    const response = await api.get(`/pets/search?q=${encodeURIComponent(query)}`);
-    return response.data;
-  } catch (error) {
-    console.error('Error searching pets:', error);
-    throw new Error(error.response?.data?.message || 'Failed to search pets');
-  }
-};
-
-// Auth API functions
-export const login = async (credentials) => {
-  try {
+// Auth functions
+export const authAPI = {
+  login: async (credentials) => {
     const response = await api.post('/auth/login', credentials);
-    const { token, user } = response.data;
-    
-    if (token) {
-      localStorage.setItem('token', token);
-    }
-    
-    return { token, user };
-  } catch (error) {
-    console.error('Login error:', error);
-    throw new Error(error.response?.data?.message || 'Login failed');
-  }
-};
-
-export const register = async (userData) => {
-  try {
+    return response.data;
+  },
+  
+  register: async (userData) => {
     const response = await api.post('/auth/register', userData);
     return response.data;
-  } catch (error) {
-    console.error('Registration error:', error);
-    throw new Error(error.response?.data?.message || 'Registration failed');
+  },
+  
+  logout: async () => {
+    const response = await api.post('/auth/logout');
+    localStorage.removeItem('token');
+    return response.data;
+  },
+  
+  forgotPassword: async (email) => {
+    const response = await api.post('/auth/forgot-password', { email });
+    return response.data;
+  },
+  
+  resetPassword: async (token, password) => {
+    const response = await api.post('/auth/reset-password', { token, password });
+    return response.data;
+  },
+  
+  getProfile: async () => {
+    const response = await api.get('/auth/profile');
+    return response.data;
+  },
+  
+  updateProfile: async (userData) => {
+    const response = await api.put('/auth/profile', userData);
+    return response.data;
   }
 };
 
-export const logout = () => {
-  localStorage.removeItem('token');
+// Pet functions
+export const petAPI = {
+  getAllPets: async (params) => {
+    const response = await api.get('/pets', { params });
+    return response.data;
+  },
+  
+  getPetById: async (id) => {
+    const response = await api.get(`/pets/${id}`);
+    return response.data;
+  },
+  
+  createPet: async (petData) => {
+    const response = await api.post('/pets', petData);
+    return response.data;
+  },
+  
+  updatePet: async (id, petData) => {
+    const response = await api.put(`/pets/${id}`, petData);
+    return response.data;
+  },
+  
+  deletePet: async (id) => {
+    const response = await api.delete(`/pets/${id}`);
+    return response.data;
+  },
+  
+  addToFavorites: async (petId) => {
+    const response = await api.post(`/pets/${petId}/favorite`);
+    return response.data;
+  },
+  
+  removeFromFavorites: async (petId) => {
+    const response = await api.delete(`/pets/${petId}/favorite`);
+    return response.data;
+  }
 };
 
-export const getCurrentUser = async () => {
-  try {
-    const response = await api.get('/auth/me');
+// Contact functions
+export const contactAPI = {
+  submitContact: async (contactData) => {
+    const response = await api.post('/contact', contactData);
     return response.data;
-  } catch (error) {
-    console.error('Error fetching current user:', error);
-    throw new Error(error.response?.data?.message || 'Failed to fetch user data');
+  },
+  
+  getAllContacts: async () => {
+    const response = await api.get('/admin/contacts');
+    return response.data;
+  },
+  
+  updateContactStatus: async (id, status) => {
+    const response = await api.put(`/admin/contacts/${id}`, { status });
+    return response.data;
+  },
+  
+  deleteContact: async (id) => {
+    const response = await api.delete(`/admin/contacts/${id}`);
+    return response.data;
+  }
+};
+
+// Admin functions
+export const adminAPI = {
+  getDashboardStats: async () => {
+    const response = await api.get('/admin/dashboard');
+    return response.data;
+  },
+  
+  getAllUsers: async () => {
+    const response = await api.get('/admin/users');
+    return response.data;
+  },
+  
+  updateUserRole: async (userId, role) => {
+    const response = await api.put(`/admin/users/${userId}/role`, { role });
+    return response.data;
+  },
+  
+  deleteUser: async (userId) => {
+    const response = await api.delete(`/admin/users/${userId}`);
+    return response.data;
   }
 };
 
