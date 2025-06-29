@@ -1,6 +1,6 @@
 import React from 'react';
 import { Navbar as BootstrapNavbar, Nav, Container, NavDropdown } from 'react-bootstrap';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom'; // Use regular React Router
 import { useAuth } from '../contexts/AuthContext';
 
 const Navbar = () => {
@@ -9,7 +9,6 @@ const Navbar = () => {
 
   const handleLogout = () => {
     logout();
-    navigate('/'); // Redirect to home after logout
   };
 
   return (
@@ -42,34 +41,7 @@ const Navbar = () => {
               <i className="fas fa-envelope me-1"></i>Contact
             </Nav.Link>
             
-            {user ? (
-              <NavDropdown 
-                title={
-                  <span>
-                    <i className="fas fa-user me-1"></i>
-                    {user.username}
-                  </span>
-                } 
-                id="user-dropdown"
-              >
-                <NavDropdown.Item as={Link} to="/profile">
-                  <i className="fas fa-user me-1"></i>Profile
-                </NavDropdown.Item>
-                <NavDropdown.Divider />
-                <NavDropdown.Item onClick={handleLogout}>
-                  <i className="fas fa-sign-out-alt me-1"></i>Logout
-                </NavDropdown.Item>
-              </NavDropdown>
-            ) : (
-              <>
-                <Nav.Link as={Link} to="/login">
-                  <i className="fas fa-sign-in-alt me-1"></i>Login
-                </Nav.Link>
-                <Nav.Link as={Link} to="/register">
-                  <i className="fas fa-user-plus me-1"></i>Register
-                </Nav.Link>
-              </>
-            )}
+            {/* Rest of your navbar */}
           </Nav>
         </BootstrapNavbar.Collapse>
       </Container>
@@ -77,4 +49,4 @@ const Navbar = () => {
   );
 };
 
-export default Navbar;
+export default Navbar; // Add this line!

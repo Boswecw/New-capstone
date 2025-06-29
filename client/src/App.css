@@ -105,24 +105,35 @@ body {
 }
 
 .pet-card {
-  height: 100%;
+  transition: transform 0.2s ease-in-out;
 }
 
-.card-title {
-  color: var(--bluegrass-blue);
-  font-weight: 600;
+.pet-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
 }
 
-.price {
-  color: var(--tangerine-tail);
-  font-weight: bold;
-  font-size: 1.1rem;
+.card-img-container {
+  position: relative;
+  overflow: hidden;
 }
 
 .card-img-top {
-  height: 200px;
-  object-fit: contain;
-  padding: 1rem;
+  transition: transform 0.3s ease;
+}
+
+.pet-card:hover .card-img-top {
+  transform: scale(1.05);
+}
+
+.price {
+  font-weight: bold;
+  font-size: 1.1em;
+  color: #28a745;
+}
+
+.rating-stars {
+  color: #ffc107;
 }
 
 /* Info Cards */
@@ -311,4 +322,171 @@ footer {
 
 html {
   scroll-behavior: smooth;
+}
+
+/* Admin Dashboard Styles */
+.admin-layout {
+  min-height: 100vh;
+  background-color: #f8f9fa;
+}
+
+.admin-nav {
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  margin-bottom: 20px;
+}
+
+.admin-nav .navbar-brand {
+  font-weight: 600;
+}
+
+.admin-nav .nav-link {
+  border-radius: 6px;
+  margin: 0 4px;
+  transition: all 0.3s ease;
+}
+
+.admin-nav .nav-link:hover {
+  background-color: rgba(255,255,255,0.1);
+}
+
+.admin-nav .nav-link.active {
+  background-color: rgba(255,255,255,0.2);
+}
+
+/* Stats Cards */
+.admin-stats-card {
+  border: none;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.admin-stats-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+}
+
+/* Data Table Styles */
+.admin-table {
+  background: white;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.admin-table .table {
+  margin-bottom: 0;
+}
+
+.admin-table .table th {
+  background-color: #f8f9fa;
+  border-bottom: 2px solid #dee2e6;
+  font-weight: 600;
+  color: #495057;
+}
+
+.admin-table .table td {
+  vertical-align: middle;
+  padding: 1rem 0.75rem;
+}
+
+/* Action Buttons */
+.btn-group .btn {
+  border-radius: 6px;
+  margin: 0 2px;
+}
+
+/* Modal Improvements */
+.modal-content {
+  border: none;
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+}
+
+.modal-header {
+  border-bottom: 1px solid #e9ecef;
+  border-radius: 12px 12px 0 0;
+}
+
+.modal-footer {
+  border-top: 1px solid #e9ecef;
+  border-radius: 0 0 12px 12px;
+}
+
+/* Filter Cards */
+.filter-card {
+  background: white;
+  border: none;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+/* Responsive Admin Layout */
+@media (max-width: 768px) {
+  .admin-layout {
+    margin-top: 60px;
+  }
+  
+  .admin-nav .navbar-nav {
+    padding-top: 1rem;
+  }
+  
+  .admin-nav .nav-link {
+    margin: 2px 0;
+    padding: 8px 16px;
+  }
+}
+
+/* Status Badges */
+.badge {
+  font-size: 0.75rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 6px;
+}
+
+/* Loading States */
+.loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255,255,255,0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+
+/* Success/Error States */
+.alert {
+  border: none;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+/* Admin Crown Icon */
+.text-warning {
+  color: #ffc107 !important;
+}
+
+/* Form Improvements */
+.form-control:focus,
+.form-select:focus {
+  border-color: var(--golden-retriever);
+  box-shadow: 0 0 0 0.2rem rgba(244, 185, 66, 0.25);
+}
+
+/* Quick Actions */
+.quick-actions {
+  background: white;
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  margin-bottom: 2rem;
+}
+
+.quick-actions .btn {
+  margin-right: 0.5rem;
+  margin-bottom: 0.5rem;
 }
