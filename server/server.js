@@ -1,14 +1,18 @@
+import express from 'express';
+import mongoose from 'mongoose';
+import cors from 'cors';
+import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-const express = require('express');
-const mongoose = require('mongoose');
-const cors = require('cors');
-const dotenv = require('dotenv');
-const path = require('path');
+// ES module equivalent of __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-// Load environment variables from root directory using absolute path
+// Load environment variables from root directory
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
 
-// Debug environment variables (remove this after fixing)
+// Debug environment variables
 console.log('=== ENVIRONMENT DEBUG ===');
 console.log('Current directory:', __dirname);
 console.log('Env file path:', path.join(__dirname, '..', '.env'));
@@ -17,12 +21,6 @@ console.log('PORT:', process.env.PORT);
 console.log('NODE_ENV:', process.env.NODE_ENV);
 console.log('========================');
 
-// Import routes - Updated paths
-const petRoutes = require('./routes/pets');
-const userRoutes = require('./routes/users');
-const contactRoutes = require('./routes/contact');
-const adminRoutes = require('./routes/admin');
-
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -30,10 +28,8 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use('/api/admin', adminRoutes);
 
-
-// Database connection with error checking
+// Database connection
 if (!process.env.MONGODB_URI) {
   console.error('❌ MONGODB_URI is not defined in environment variables');
   console.error('Make sure your .env file exists in the project root and contains MONGODB_URI');
@@ -50,11 +46,6 @@ mongoose.connect(process.env.MONGODB_URI)
     process.exit(1);
   });
 
-// Routes
-app.use('/api/pets', petRoutes);
-app.use('/api/users', userRoutes);
-app.use('/api/contact', contactRoutes);
-
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({ 
@@ -65,14 +56,10 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Serve static files from React app in production
-if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, '../client/build')));
-  
-  app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, '../client/build', 'index.html'));
-  });
-}
+// Basic route for testing
+app.get('/', (req, res) => {
+  res.json({ message: 'FurBabies Server is running!' });
+});
 
 // Error handling middleware
 app.use((error, req, res, next) => {
@@ -88,6 +75,3 @@ app.listen(PORT, () => {
   console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
   console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
 });
-
-
-// I will have to update this file before deployment

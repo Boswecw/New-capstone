@@ -1,5 +1,5 @@
 // client/src/pages/Browse.js
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Container, Row, Col, Form, Button, Spinner, Alert } from 'react-bootstrap';
 import PetCard from '../components/PetCard';
 import api from '../services/api';
@@ -17,11 +17,13 @@ const Browse = () => {
     sort: 'newest'
   });
 
+  const searchInputRef = useRef(null);
+
   useEffect(() => {
     const fetchPets = async () => {
       setLoading(true);
       setError('');
-      
+
       try {
         const params = new URLSearchParams();
         Object.entries(filters).forEach(([key, value]) => {
@@ -42,6 +44,12 @@ const Browse = () => {
 
     fetchPets();
   }, [filters]);
+
+  useEffect(() => {
+    if (searchInputRef.current) {
+      searchInputRef.current.focus();
+    }
+  }, []);
 
   const handleFilterChange = (field, value) => {
     setFilters(prev => ({
@@ -79,7 +87,7 @@ const Browse = () => {
   return (
     <Container className="py-5" style={{ marginTop: '80px' }}>
       <h2 className="text-center mb-4">Browse All Pets</h2>
-      
+
       {/* Filters */}
       <Row className="mb-4">
         <Col>
@@ -100,7 +108,7 @@ const Browse = () => {
                   <option value="supply">Supplies</option>
                 </Form.Select>
               </Col>
-              
+
               <Col md={2}>
                 <Form.Label>Size</Form.Label>
                 <Form.Select
@@ -114,7 +122,7 @@ const Browse = () => {
                   <option value="extra-large">Extra Large</option>
                 </Form.Select>
               </Col>
-              
+
               <Col md={1}>
                 <Form.Label>Min Price</Form.Label>
                 <Form.Control
@@ -124,7 +132,7 @@ const Browse = () => {
                   onChange={(e) => handleFilterChange('minPrice', e.target.value)}
                 />
               </Col>
-              
+
               <Col md={1}>
                 <Form.Label>Max Price</Form.Label>
                 <Form.Control
@@ -134,7 +142,7 @@ const Browse = () => {
                   onChange={(e) => handleFilterChange('maxPrice', e.target.value)}
                 />
               </Col>
-              
+
               <Col md={2}>
                 <Form.Label>Sort By</Form.Label>
                 <Form.Select
@@ -147,17 +155,18 @@ const Browse = () => {
                   <option value="popular">Most Popular</option>
                 </Form.Select>
               </Col>
-              
+
               <Col md={3}>
                 <Form.Label>Search</Form.Label>
                 <Form.Control
+                  ref={searchInputRef}
                   type="text"
                   placeholder="Search pets..."
                   value={filters.search}
                   onChange={(e) => handleFilterChange('search', e.target.value)}
                 />
               </Col>
-              
+
               <Col md={1} className="d-flex align-items-end">
                 <Button variant="outline-secondary" onClick={clearFilters}>
                   Clear
@@ -186,10 +195,10 @@ const Browse = () => {
         <>
           <div className="mb-3">
             <span className="text-muted">
-              {pets.length} pet{pets.length !== 1 ? 's' : ''} found
+              {pets?.length || 0} pet{pets?.length !== 1 ? 's' : ''} found
             </span>
           </div>
-          
+
           <Row className="g-4">
             {pets.map(pet => (
               <Col key={pet._id} sm={6} md={4} lg={3}>
@@ -197,14 +206,14 @@ const Browse = () => {
               </Col>
             ))}
           </Row>
-          
+
           {pets.length === 0 && (
             <div className="text-center py-5">
               <i className="fas fa-search fa-3x text-muted mb-3"></i>
               <h4>No pets found</h4>
               <p className="text-muted">Try adjusting your filters or search terms.</p>
               <Button variant="outline-primary" onClick={clearFilters}>
-                <i className="fas fa-refresh me-2"></i>
+                <i className="fas fa-rotate-right me-2"></i>
                 Clear All Filters
               </Button>
             </div>

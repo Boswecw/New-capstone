@@ -40,6 +40,7 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    console.error('API error:', error);
     if (error.response?.status === 401) {
       localStorage.removeItem('token');
       window.location.href = '/login';
@@ -47,6 +48,7 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
 
 // Auth functions
 export const authAPI = {

@@ -1,7 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const userController = require('../controllers/userController');
-const auth = require('../middleware/auth');
+const { auth } = require('../middleware/auth');
+console.log('Type of auth middleware:', typeof auth);
 
 // Public routes
 router.post('/register', userController.register);
