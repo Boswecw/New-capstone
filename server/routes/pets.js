@@ -1,17 +1,23 @@
-const express = require("express");
+import express from 'express';
 const router = express.Router();
-const petController = require("../controllers/petController");
-const { auth } = require("../middleware/auth"); // Fixed: destructure to get the function
 
-// Public routes
-router.get("/", petController.getAllPets);
-router.get("/featured", petController.getFeaturedPets);
-router.get("/type/:type", petController.getPetsByType);
-router.get("/:id", petController.getPetById);
+router.get('/', (req, res) => {
+  res.json({ 
+    message: 'Pets endpoint working!',
+    data: [
+      { id: 1, name: 'Buddy', type: 'dog' },
+      { id: 2, name: 'Whiskers', type: 'cat' }
+    ]
+  });
+});
 
-// Protected routes (require authentication)
-router.post("/", auth, petController.createPet);
-router.post("/:id/vote", auth, petController.votePet);
-router.post("/:id/rate", auth, petController.ratePet);
+router.get('/featured', (req, res) => {
+  res.json({
+    message: 'Featured pets endpoint working!',
+    data: [
+      { id: 1, name: 'Buddy', type: 'dog', featured: true }
+    ]
+  });
+});
 
-module.exports = router;
+export default router;

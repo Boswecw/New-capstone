@@ -3,11 +3,10 @@ import React from "react";
 import { Container, Row, Col } from "react-bootstrap";
 import { Link } from "react-router-dom";
 import PropTypes from "prop-types";
-import { getBrandLogo } from "../utils/imageUtils";
 
 /**
- * Reusable HeroBanner component
- * Maintains exact styling while providing flexibility for different pages
+ * Reusable HeroBanner component with manual FurBabies icon input
+ * Maintains exact styling while using direct Google Cloud Storage URL
  */
 const HeroBanner = ({
   title = "FurBabies",
@@ -25,9 +24,19 @@ const HeroBanner = ({
   logoSize = "medium",
   ...props
 }) => {
+  // Direct URL to FurBabies icon in Google Cloud Storage
+  const furBabiesIconUrl = "https://storage.googleapis.com/FurBabies-petstore/brand/FurBabiesicon.png";
+
+  // Helper to get icon URL based on logoSize
+  const getFurBabiesiconUrl = (size) => {
+    // You can customize URLs for different sizes if needed
+    // For now, return the same URL for all sizes
+    return furBabiesIconUrl;
+  };
+
   const handleImageError = (e) => {
-    // Fallback to smaller logo if large version fails
-    e.target.src = getBrandLogo("medium");
+    // Fallback to local asset if cloud storage fails
+    e.target.src = "/assets/brand/FurBabiesicon.png";
   };
 
   return (
@@ -42,8 +51,8 @@ const HeroBanner = ({
                 {title}
                 {showLogo && (
                   <img
-                    src={getBrandLogo(logoSize)}
-                    alt="FurBabies icon"
+                    src={getFurBabiesiconUrl(logoSize)}
+                    alt="FurBabies icon" 
                     className="hero-icon ms-2"
                     onError={handleImageError}
                   />

@@ -1,80 +1,166 @@
-const mongoose = require('mongoose');
+// ===== server/models/Pet.js =====
+import mongoose from 'mongoose';
 
 const petSchema = new mongoose.Schema({
   name: {
     type: String,
-    required: true,
-    trim: true
+    required: [true, 'Pet name is required'],
+    trim: true,
+    maxlength: [100, 'Pet name cannot exceed 100 characters']
   },
-  type: {
+  species: {
     type: String,
-    required: true,
-    enum: ['dog', 'cat', 'fish', 'bird', 'small-pet', 'supply']
+    required: [true, 'Species is required'],
+    enum: ['dog', 'cat', 'bird', 'rabbit', 'fish', 'reptile', 'other'],
+    lowercase: true
   },
   breed: {
     type: String,
-    required: true
+    trim: true,
+    maxlength: [100, 'Breed cannot exceed 100 characters']
   },
   age: {
-    type: String,
-    required: true
-  },
-  price: {
-    type: Number,
-    required: true
-  },
-  description: {
-    type: String,
-    required: true
-  },
-  image: {
-    type: String,
-    required: true
-  },
-  available: {
-    type: Boolean,
-    default: true
-  },
-  votes: {
-    up: { type: Number, default: 0 },
-    down: { type: Number, default: 0 }
-  },
-  ratings: [{
-    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-    rating: { type: Number, min: 1, max: 5 },
-    comment: String,
-    createdAt: { type: Date, default: Date.now }
-  }],
-  size: {
-    type: String,
-    enum: ['small', 'medium', 'large', 'extra-large'],
-    required: function() { 
-      // Only require size for animals, not supplies
-      return this.type !== 'supply';
+    value: {
+      type: Number,
+      min: 0,
+      max: 50
+    },
+    unit: {
+      type: String,
+      enum: ['months', 'years'],
+      default: 'years'
     }
   },
   gender: {
     type: String,
-    enum: ['male', 'female'],
-    required: function() { 
-      // Only require gender for dogs, cats, birds, and small-pets
-      // NOT for fish or supplies
-      return ['dog', 'cat', 'bird', 'small-pet'].includes(this.type);
+    enum: ['male', 'female', 'unknown'],
+    required: true
+  },
+  size: {
+    type: String,
+    enum: ['small', 'medium', 'large', 'extra-large'],
+    required: function() {
+      return this.species === 'dog' || this.species === 'cat';
     }
   },
-  createdBy: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
+  color: {
+    type: String,
+    trim: true
+  },
+  description: {
+    type: String,
+    required: [true, 'Description is required'],
+    maxlength: [2000, 'Description cannot exceed 2000 characters']
+  },
+  images: [{
+    url: String,
+    alt: String,
+    isPrimary: {
+      type: Boolean,
+      default: false
+    }
+  }],
+  location: {
+    shelter: {
+      type: String,
+      required: true
+    },
+    city: {
+      type: String,
+      required: true
+    },
+    state: {
+      type: String,
+      required: true
+    },
+    zipCode: String
+  },
+  medicalInfo: {
+    vaccinated: {
+      type: Boolean,
+      default: false
+    },
+    spayedNeutered: {
+      type: Boolean,
+      default: false
+    },
+    specialNeeds: {
+      type: String,
+      maxlength: [500, 'Special needs description cannot exceed 500 characters']
+    },
+    medications: [{
+      name: String,
+      dosage: String,
+      frequency: String
+    }]
+  },
+  temperament: [{
+    type: String,
+    enum: [
+      'friendly', 'energetic', 'calm', 'playful', 'independent',
+      'social', 'gentle', 'protective', 'curious', 'affectionate'
+    ]
+  }],
+  goodWith: {
+    children: {
+      type: Boolean,
+      default: null
+    },
+    dogs: {
+      type: Boolean,
+      default: null
+    },
+    cats: {
+      type: Boolean,
+      default: null
+    }
+  },
+  adoptionStatus: {
+    type: String,
+    enum: ['available', 'pending', 'adopted', 'not-available'],
+    default: 'available'
+  },
+  featured: {
+    type: Boolean,
+    default: false
+  },
+  adoptionFee: {
+    type: Number,
+    min: 0,
+    default: 0
+  },
+  datePosted: {
+    type: Date,
+    default: Date.now
+  },
+  views: {
+    type: Number,
+    default: 0
   }
 }, {
   timestamps: true
 });
 
-// Virtual for average rating
-petSchema.virtual('averageRating').get(function() {
-  if (this.ratings.length === 0) return 0;
-  const total = this.ratings.reduce((sum, rating) => sum + rating.rating, 0);
-  return (total / this.ratings.length).toFixed(1);
+// Index for search functionality
+petSchema.index({
+  name: 'text',
+  breed: 'text',
+  description: 'text'
 });
 
-module.exports = mongoose.model('Pet', petSchema);
+// Virtual for age display
+petSchema.virtual('ageDisplay').get(function() {
+  if (!this.age.value) return 'Unknown';
+  return `${this.age.value} ${this.age.unit}`;
+});
+
+// Virtual for primary image
+petSchema.virtual('primaryImage').get(function() {
+  const primary = this.images.find(img => img.isPrimary);
+  return primary || this.images[0] || null;
+});
+
+// Ensure virtual fields are serialized
+petSchema.set('toJSON', { virtuals: true });
+
+export default mongoose.model('Pet', petSchema);

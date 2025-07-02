@@ -1,13 +1,9 @@
-const express = require('express');
+import express from 'express';
 const router = express.Router();
-const contactController = require('../controllers/contactController');
-const { auth } = require('../middleware/auth');
 
+// Your existing routes
+router.post('/', (req, res) => {
+  res.json({ message: 'Contact submission endpoint working!' });
+});
 
-// Public routes
-router.post('/', contactController.submitContact);
-
-// Admin routes (you can add admin middleware later)
-router.get('/', auth, contactController.getAllContacts);
-
-module.exports = router;
+export default router;

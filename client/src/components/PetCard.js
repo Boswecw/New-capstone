@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'react-toastify';
 import api from '../services/api';
-import { getGoogleStorageUrl, generateSrcSet, getDefaultPetImage, handleImageError } from '../utils/imageUtils';
+import { getGoogleStorageUrl, generateSrcSet } from '../utils/imageUtils';
 
 const PetCard = ({ pet, onVote, showEditButton = false, showDeleteButton = false, onPetUpdated }) => {
   const { user } = useAuth();
@@ -16,7 +16,6 @@ const PetCard = ({ pet, onVote, showEditButton = false, showDeleteButton = false
 
   const handleVote = async (voteType) => {
     if (!user || voting) return;
-
     setVoting(true);
     try {
       await api.post(`/pets/${pet._id}/vote`, { voteType });
@@ -32,7 +31,6 @@ const PetCard = ({ pet, onVote, showEditButton = false, showDeleteButton = false
 
   const handleDelete = async () => {
     if (!window.confirm(`Are you sure you want to delete ${pet.name}?`)) return;
-
     setDeleting(true);
     try {
       await api.delete(`/pets/${pet._id}`);
@@ -46,12 +44,7 @@ const PetCard = ({ pet, onVote, showEditButton = false, showDeleteButton = false
     }
   };
 
-  const formatPrice = (price) => {
-    if (typeof price === 'number') {
-      return `$${price.toLocaleString()}`;
-    }
-    return price;
-  };
+  const formatPrice = (price) => typeof price === 'number' ? `$${price.toLocaleString()}` : price;
 
   const handleImageLoad = () => {
     setImageLoading(false);
@@ -61,13 +54,12 @@ const PetCard = ({ pet, onVote, showEditButton = false, showDeleteButton = false
   const handleImageErrorEvent = (event) => {
     setImageLoading(false);
     setImageError(true);
-    handleImageError(event, pet.type);
+    event.currentTarget.src = '/images/pet/default-pet.png';
   };
 
-  const imagePath = pet.image || 'pet/default-pet.png';
+  const imagePath = pet.image || 'images/pet/default-pet.png';
   const imageUrl = getGoogleStorageUrl(imagePath, 'medium');
   const imageSrcSet = generateSrcSet(imagePath);
-  const fallbackImage = getDefaultPetImage(pet.type);
 
   const daysSincePosted = Math.floor((new Date() - new Date(pet.createdAt)) / (1000 * 60 * 60 * 24));
 
@@ -82,7 +74,7 @@ const PetCard = ({ pet, onVote, showEditButton = false, showDeleteButton = false
 
         <Card.Img
           variant="top"
-          src={imageError ? fallbackImage : imageUrl}
+          src={imageError ? '/images/pet/default-pet.png' : imageUrl}
           srcSet={!imageError ? imageSrcSet : undefined}
           sizes="(max-width: 576px) 100vw, (max-width: 768px) 50vw, 33vw"
           alt={pet.name}
@@ -135,7 +127,6 @@ const PetCard = ({ pet, onVote, showEditButton = false, showDeleteButton = false
             {pet.size && <><strong>Size:</strong> <span className="text-capitalize">{pet.size}</span><br /></>}
             {pet.gender && <><strong>Gender:</strong> <span className="text-capitalize">{pet.gender}</span><br /></>}
           </div>
-
           {pet.description && (
             <div className="text-muted" style={{ fontSize: '0.85rem' }}>
               {pet.description.length > 80 ? `${pet.description.substring(0, 80)}...` : pet.description}

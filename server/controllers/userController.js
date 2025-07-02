@@ -1,6 +1,7 @@
-const User = require('../models/User');
-const Pet = require('../models/Pet');
-const jwt = require('jsonwebtoken');
+// server/controllers/userController.js
+import User from '../models/User.js';
+import Pet from '../models/Pet.js';
+import jwt from 'jsonwebtoken';
 
 // Generate JWT token
 const generateToken = (userId) => {
@@ -10,7 +11,7 @@ const generateToken = (userId) => {
 };
 
 // Register user
-const register = async (req, res) => {
+export const register = async (req, res) => {
   try {
     const { username, email, password, firstName, lastName } = req.body;
     
@@ -66,7 +67,7 @@ const register = async (req, res) => {
 };
 
 // Login user
-const login = async (req, res) => {
+export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
     
@@ -115,7 +116,7 @@ const login = async (req, res) => {
 };
 
 // Get user profile
-const getProfile = async (req, res) => {
+export const getProfile = async (req, res) => {
   try {
     const user = await User.findById(req.user.id)
       .select('-password')
@@ -135,7 +136,7 @@ const getProfile = async (req, res) => {
 };
 
 // Update user profile
-const updateProfile = async (req, res) => {
+export const updateProfile = async (req, res) => {
   try {
     const updates = req.body;
     
@@ -165,7 +166,7 @@ const updateProfile = async (req, res) => {
 };
 
 // Get user favorites
-const getFavorites = async (req, res) => {
+export const getFavorites = async (req, res) => {
   try {
     const user = await User.findById(req.user.id)
       .populate('favoritesPets')
@@ -185,7 +186,7 @@ const getFavorites = async (req, res) => {
 };
 
 // Add pet to favorites
-const addToFavorites = async (req, res) => {
+export const addToFavorites = async (req, res) => {
   try {
     const petId = req.params.petId;
     const userId = req.user.id;
@@ -220,7 +221,7 @@ const addToFavorites = async (req, res) => {
 };
 
 // Remove pet from favorites
-const removeFromFavorites = async (req, res) => {
+export const removeFromFavorites = async (req, res) => {
   try {
     const petId = req.params.petId;
     const userId = req.user.id;
@@ -244,7 +245,8 @@ const removeFromFavorites = async (req, res) => {
   }
 };
 
-module.exports = {
+// Default export
+const userController = {
   register,
   login,
   getProfile,
@@ -253,3 +255,5 @@ module.exports = {
   addToFavorites,
   removeFromFavorites
 };
+
+export default userController;
