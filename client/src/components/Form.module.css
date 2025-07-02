@@ -1,0 +1,186 @@
+/* =============================================================================
+   components/Form.module.css
+   ============================================================================= */
+
+.formGroup {
+  margin-bottom: var(--space-lg);
+}
+
+.label {
+  display: block;
+  margin-bottom: var(--space-xs);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-medium);
+  color: var(--color-text-primary);
+}
+
+.input,
+.textarea,
+.select {
+  width: 100%;
+  padding: var(--space-sm) var(--space-md);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-base);
+  font-family: inherit;
+  background-color: var(--color-surface);
+  color: var(--color-text-primary);
+  transition: all var(--transition-fast);
+}
+
+.input:focus,
+.textarea:focus,
+.select:focus {
+  outline: none;
+  border-color: var(--color-secondary);
+  box-shadow: 0 0 0 3px rgba(244, 185, 66, 0.1);
+}
+
+.input:invalid,
+.textarea:invalid,
+.select:invalid {
+  border-color: var(--color-danger);
+}
+
+.input:invalid:focus,
+.textarea:invalid:focus,
+.select:invalid:focus {
+  box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.1);
+}
+
+.textarea {
+  resize: vertical;
+  min-height: 100px;
+}
+
+.inputGroup {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+}
+
+.inputGroupText {
+  display: flex;
+  align-items: center;
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-gray-100);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.inputGroupText:first-child {
+  border-right: none;
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
+}
+
+.inputGroupText:last-child {
+  border-left: none;
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+}
+
+.inputGroup .input {
+  border-radius: 0;
+}
+
+.inputGroup .input:first-child {
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
+}
+
+.inputGroup .input:last-child {
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+}
+
+.helpText {
+  margin-top: var(--space-xs);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.errorText {
+  margin-top: var(--space-xs);
+  font-size: var(--font-size-sm);
+  color: var(--color-danger);
+}
+
+/* Checkbox and Radio Styles */
+.checkbox,
+.radio {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-sm);
+  cursor: pointer;
+}
+
+.checkboxInput,
+.radioInput {
+  position: absolute;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.checkboxLabel,
+.radioLabel {
+  position: relative;
+  padding-left: var(--space-lg);
+  font-size: var(--font-size-base);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  line-height: var(--leading-normal);
+}
+
+.checkboxLabel::before,
+.radioLabel::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 2px;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--color-border);
+  background: var(--color-surface);
+  transition: all var(--transition-fast);
+}
+
+.checkboxLabel::before {
+  border-radius: var(--radius-sm);
+}
+
+.radioLabel::before {
+  border-radius: 50%;
+}
+
+.checkboxInput:checked + .checkboxLabel::before,
+.radioInput:checked + .radioLabel::before {
+  background: var(--color-secondary);
+  border-color: var(--color-secondary);
+}
+
+.checkboxInput:checked + .checkboxLabel::after {
+  content: '✓';
+  position: absolute;
+  left: 3px;
+  top: 1px;
+  font-size: 12px;
+  font-weight: bold;
+  color: var(--color-gray-900);
+}
+
+.radioInput:checked + .radioLabel::after {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 7px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-gray-900);
+}
+
+.checkboxInput:focus + .checkboxLabel::before,
+.radioInput:focus + .radioLabel::before {
+  box-shadow: 0 0 0 3px rgba(244, 185, 66, 0.1);
+}

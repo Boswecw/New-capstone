@@ -1,0 +1,89 @@
+/* =============================================================================
+   components/Card.module.css
+   ============================================================================= */
+
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-md);
+  transition: all var(--transition-base);
+  overflow: hidden;
+  position: relative;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--color-secondary), var(--color-warning), var(--color-accent));
+  opacity: 0;
+  transition: opacity var(--transition-base);
+}
+
+.card:hover {
+  transform: translateY(-8px);
+  box-shadow: var(--shadow-xl);
+  border-color: var(--color-border-hover);
+}
+
+.card:hover::before {
+  opacity: 1;
+}
+
+.cardHeader {
+  padding: var(--space-lg);
+  border-bottom: 1px solid var(--color-border);
+  background: linear-gradient(135deg, var(--color-gray-50), var(--color-gray-100));
+}
+
+.cardBody {
+  padding: var(--space-lg);
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.cardFooter {
+  padding: var(--space-lg);
+  border-top: 1px solid var(--color-border);
+  background: var(--color-gray-50);
+}
+
+.cardTitle {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-semibold);
+  color: var(--color-text-primary);
+  line-height: var(--leading-tight);
+}
+
+.cardText {
+  color: var(--color-text-secondary);
+  line-height: var(--leading-normal);
+  margin-bottom: var(--space-md);
+}
+
+/* Card Variants */
+.elevated {
+  box-shadow: var(--shadow-lg);
+}
+
+.elevated:hover {
+  box-shadow: var(--shadow-2xl);
+}
+
+.bordered {
+  border: 2px solid var(--color-border);
+}
+
+.borderless {
+  border: none;
+  box-shadow: none;
+}

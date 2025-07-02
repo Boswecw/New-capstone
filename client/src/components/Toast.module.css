@@ -1,0 +1,83 @@
+/* =============================================================================
+   components/Toast.module.css
+   ============================================================================= */
+
+.toastContainer {
+  position: fixed;
+  top: var(--space-lg);
+  right: var(--space-lg);
+  z-index: var(--z-tooltip);
+  max-width: 400px;
+}
+
+.toast {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  margin-bottom: var(--space-md);
+  overflow: hidden;
+  animation: slideInToast 0.3s ease-out;
+}
+
+@keyframes slideInToast {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.toastHeader {
+  padding: var(--space-md) var(--space-lg);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.toastTitle {
+  font-weight: var(--font-semibold);
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+.toastCloseButton {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: var(--space-xs);
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+}
+
+.toastCloseButton:hover {
+  background: var(--color-gray-100);
+  color: var(--color-text-primary);
+}
+
+.toastBody {
+  padding: var(--space-md) var(--space-lg);
+  color: var(--color-text-secondary);
+}
+
+/* Toast Variants */
+.success {
+  border-left: 4px solid var(--color-success);
+}
+
+.error {
+  border-left: 4px solid var(--color-danger);
+}
+
+.warning {
+  border-left: 4px solid var(--color-warning);
+}
+
+.info {
+  border-left: 4px solid var(--color-info);
+}
