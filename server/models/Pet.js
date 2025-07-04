@@ -1,81 +1,77 @@
-// ===== server/models/Pet.js =====
-import mongoose from 'mongoose';
+const mongoose = require('mongoose');
 
 const petSchema = new mongoose.Schema({
   name: {
     type: String,
     required: [true, 'Pet name is required'],
     trim: true,
-    maxlength: [100, 'Pet name cannot exceed 100 characters']
+    maxlength: [50, 'Pet name cannot exceed 50 characters']
   },
-  species: {
+  type: {
     type: String,
-    required: [true, 'Species is required'],
-    enum: ['dog', 'cat', 'bird', 'rabbit', 'fish', 'reptile', 'other'],
+    required: [true, 'Pet type is required'],
+    enum: {
+      values: ['dog', 'cat', 'bird', 'fish', 'rabbit', 'hamster', 'other'],
+      message: 'Pet type must be one of: dog, cat, bird, fish, rabbit, hamster, other'
+    },
+    lowercase: true
+  },
+  category: {
+    type: String,
+    required: [true, 'Pet category is required'],
+    enum: {
+      values: ['dog', 'cat', 'aquatic', 'other'],
+      message: 'Pet category must be one of: dog, cat, aquatic, other'
+    },
     lowercase: true
   },
   breed: {
     type: String,
+    required: [true, 'Pet breed is required'],
     trim: true,
-    maxlength: [100, 'Breed cannot exceed 100 characters']
+    maxlength: [50, 'Breed cannot exceed 50 characters']
   },
   age: {
-    value: {
-      type: Number,
-      min: 0,
-      max: 50
-    },
-    unit: {
-      type: String,
-      enum: ['months', 'years'],
-      default: 'years'
-    }
+    type: Number,
+    required: [true, 'Pet age is required'],
+    min: [0, 'Age cannot be negative'],
+    max: [30, 'Age cannot exceed 30 years']
   },
   gender: {
     type: String,
-    enum: ['male', 'female', 'unknown'],
-    required: true
+    enum: {
+      values: ['male', 'female', 'unknown'],
+      message: 'Gender must be male, female, or unknown'
+    },
+    lowercase: true,
+    default: 'unknown'
   },
   size: {
     type: String,
-    enum: ['small', 'medium', 'large', 'extra-large'],
-    required: function() {
-      return this.species === 'dog' || this.species === 'cat';
-    }
+    enum: {
+      values: ['small', 'medium', 'large', 'extra-large'],
+      message: 'Size must be small, medium, large, or extra-large'
+    },
+    lowercase: true,
+    default: 'medium'
   },
   color: {
     type: String,
-    trim: true
+    trim: true,
+    maxlength: [30, 'Color cannot exceed 30 characters']
   },
   description: {
     type: String,
-    required: [true, 'Description is required'],
-    maxlength: [2000, 'Description cannot exceed 2000 characters']
+    required: [true, 'Pet description is required'],
+    trim: true,
+    maxlength: [500, 'Description cannot exceed 500 characters']
   },
-  images: [{
-    url: String,
-    alt: String,
-    isPrimary: {
-      type: Boolean,
-      default: false
-    }
+  personalityTraits: [{
+    type: String,
+    trim: true,
+    maxlength: [30, 'Personality trait cannot exceed 30 characters']
   }],
-  location: {
-    shelter: {
-      type: String,
-      required: true
-    },
-    city: {
-      type: String,
-      required: true
-    },
-    state: {
-      type: String,
-      required: true
-    },
-    zipCode: String
-  },
-  medicalInfo: {
+  healthInfo: {
     vaccinated: {
       type: Boolean,
       default: false
@@ -86,38 +82,38 @@ const petSchema = new mongoose.Schema({
     },
     specialNeeds: {
       type: String,
-      maxlength: [500, 'Special needs description cannot exceed 500 characters']
+      trim: true,
+      maxlength: [200, 'Special needs cannot exceed 200 characters']
     },
-    medications: [{
-      name: String,
-      dosage: String,
-      frequency: String
-    }]
-  },
-  temperament: [{
-    type: String,
-    enum: [
-      'friendly', 'energetic', 'calm', 'playful', 'independent',
-      'social', 'gentle', 'protective', 'curious', 'affectionate'
-    ]
-  }],
-  goodWith: {
-    children: {
-      type: Boolean,
-      default: null
-    },
-    dogs: {
-      type: Boolean,
-      default: null
-    },
-    cats: {
-      type: Boolean,
-      default: null
+    lastVetVisit: {
+      type: Date
     }
   },
-  adoptionStatus: {
+  imageUrl: {
     type: String,
-    enum: ['available', 'pending', 'adopted', 'not-available'],
+    trim: true,
+    default: 'https://via.placeholder.com/300x200?text=Pet+Photo'
+  },
+  imagePublicId: {
+    type: String,
+    trim: true
+  },
+  additionalImages: [{
+    url: {
+      type: String,
+      trim: true
+    },
+    publicId: {
+      type: String,
+      trim: true
+    }
+  }],
+  status: {
+    type: String,
+    enum: {
+      values: ['available', 'pending', 'adopted', 'not-available'],
+      message: 'Status must be available, pending, adopted, or not-available'
+    },
     default: 'available'
   },
   featured: {
@@ -126,41 +122,131 @@ const petSchema = new mongoose.Schema({
   },
   adoptionFee: {
     type: Number,
-    min: 0,
+    min: [0, 'Adoption fee cannot be negative'],
     default: 0
   },
-  datePosted: {
-    type: Date,
-    default: Date.now
+  location: {
+    shelter: {
+      type: String,
+      trim: true,
+      maxlength: [100, 'Shelter name cannot exceed 100 characters']
+    },
+    city: {
+      type: String,
+      trim: true,
+      maxlength: [50, 'City cannot exceed 50 characters']
+    },
+    state: {
+      type: String,
+      trim: true,
+      maxlength: [50, 'State cannot exceed 50 characters']
+    }
+  },
+  contactInfo: {
+    email: {
+      type: String,
+      trim: true,
+      lowercase: true,
+      match: [/^[^\s@]+@[^\s@]+\.[^\s@]+$/, 'Please provide a valid email']
+    },
+    phone: {
+      type: String,
+      trim: true,
+      maxlength: [20, 'Phone number cannot exceed 20 characters']
+    }
   },
   views: {
     type: Number,
     default: 0
+  },
+  favorites: {
+    type: Number,
+    default: 0
+  },
+  adoptedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null
+  },
+  adoptedAt: {
+    type: Date,
+    default: null
+  },
+  createdBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
   }
 }, {
-  timestamps: true
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
 });
 
-// Index for search functionality
-petSchema.index({
-  name: 'text',
-  breed: 'text',
-  description: 'text'
+// Indexes for better query performance
+petSchema.index({ type: 1, status: 1 });
+petSchema.index({ category: 1, status: 1 });
+petSchema.index({ status: 1, featured: 1 });
+petSchema.index({ createdAt: -1 });
+petSchema.index({ adoptedAt: -1 });
+
+// Virtual for age in words
+petSchema.virtual('ageInWords').get(function() {
+  if (this.age === 0) return 'Less than 1 year';
+  if (this.age === 1) return '1 year';
+  return `${this.age} years`;
 });
 
-// Virtual for age display
-petSchema.virtual('ageDisplay').get(function() {
-  if (!this.age.value) return 'Unknown';
-  return `${this.age.value} ${this.age.unit}`;
+// Virtual for days since posted
+petSchema.virtual('daysSincePosted').get(function() {
+  const now = new Date();
+  const diffTime = Math.abs(now - this.createdAt);
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  return diffDays;
 });
 
-// Virtual for primary image
-petSchema.virtual('primaryImage').get(function() {
-  const primary = this.images.find(img => img.isPrimary);
-  return primary || this.images[0] || null;
+// Pre-save middleware to set category based on type
+petSchema.pre('save', function(next) {
+  if (this.isModified('type')) {
+    switch (this.type) {
+      case 'dog':
+        this.category = 'dog';
+        break;
+      case 'cat':
+        this.category = 'cat';
+        break;
+      case 'fish':
+        this.category = 'aquatic';
+        break;
+      default:
+        this.category = 'other';
+    }
+  }
+  next();
 });
 
-// Ensure virtual fields are serialized
-petSchema.set('toJSON', { virtuals: true });
+// Static method to get available pets
+petSchema.statics.getAvailable = function() {
+  return this.find({ status: 'available' }).sort({ createdAt: -1 });
+};
 
-export default mongoose.model('Pet', petSchema);
+// Static method to get featured pets
+petSchema.statics.getFeatured = function() {
+  return this.find({ status: 'available', featured: true }).sort({ createdAt: -1 });
+};
+
+// Method to increment views
+petSchema.methods.incrementViews = function() {
+  this.views += 1;
+  return this.save();
+};
+
+// Method to mark as adopted
+petSchema.methods.markAsAdopted = function(userId) {
+  this.status = 'adopted';
+  this.adoptedBy = userId;
+  this.adoptedAt = new Date();
+  return this.save();
+};
+
+module.exports = mongoose.model('Pet', petSchema);
