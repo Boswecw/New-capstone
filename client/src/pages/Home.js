@@ -1,8 +1,12 @@
+// client/src/pages/Home.js - FIXED VERSION
 import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, Carousel, Button, Spinner, Alert } from 'react-bootstrap';
+import { Container, Row, Col, Card, Button, Spinner, Alert } from 'react-bootstrap';
+
 import { Link } from 'react-router-dom';
+import Navbar from '../components/Navbar';
 import HeroBanner from '../components/HeroBanner';
 import PetCard from '../components/PetCard';
+import Footer from '../components/Footer';
 import api from '../services/api';
 import { bucketFolders, findBestMatchingImage } from '../utils/bucketUtils';
 
@@ -60,7 +64,8 @@ const Home = () => {
   const fetchProductImages = async () => {
     setImageLoading(true);
     try {
-      const response = await api.get(`/gcs/buckets/FurBabies-petstore/images?prefix=${bucketFolders.PRODUCT}/&public=true`);
+      // ✅ FIXED: Using correct bucket name (all lowercase)
+      const response = await api.get(`/gcs/buckets/furbabies-petstore/images?prefix=${bucketFolders.PRODUCT}/&public=true`);
       if (response.data.success) {
         setProductImages(response.data.data);
       }
@@ -93,168 +98,124 @@ const Home = () => {
     {
       name: "Linda M.",
       text: "Excellent customer service and a wide variety of pet products. Highly recommended!",
-      icon: "fa-fish",
+      icon: "fa-heart",
       rating: 5.0
     }
   ];
 
   return (
-    <>
-      {/* Hero Banner */}
-      <HeroBanner logoSize="large" />
-
-      {/* Featured Products */}
-      <section id="products" className="py-5">
-        <Container>
-          <Row className="align-items-center mb-4">
-            <Col>
-              <h2 className="text-center mb-0">
-                <i className="fas fa-star me-2"></i>Featured Products
-              </h2>
-            </Col>
-          </Row>
-
-          {/* Product Images Status */}
-          {imageLoading && (
-            <Row className="mb-3">
-              <Col className="text-center">
-                <small className="text-muted">
-                  <Spinner animation="border" size="sm" className="me-2" />
-                  Loading product images from FurBabies-petstore...
-                </small>
-              </Col>
+    <div className="home-page">
+       <Navbar />
+      <HeroBanner />
+      
+      <Container className="py-5">
+        {/* Featured Pets Section */}
+        <section className="featured-pets mb-5">
+          <h2 className="text-center mb-4">Featured Pets</h2>
+          
+          {loading ? (
+            <div className="text-center">
+              <Spinner animation="border" variant="primary" />
+              <p className="mt-2">Loading featured pets...</p>
+            </div>
+          ) : error ? (
+            <Alert variant="danger" className="text-center">
+              {error}
+            </Alert>
+          ) : featuredPets.length > 0 ? (
+            <Row className="g-4">
+              {featuredPets.slice(0, 3).map(pet => (
+                <Col key={pet._id} md={4}>
+                  <PetCard pet={pet} />
+                </Col>
+              ))}
             </Row>
-          )}
-
-          {error && (
-            <Alert variant="warning" className="mb-4">
-              <i className="fas fa-exclamation-triangle me-2"></i>
-              {error} - Using fallback images
+          ) : (
+            <Alert variant="info" className="text-center">
+              No featured pets available at the moment.
             </Alert>
           )}
+          
+          <div className="text-center mt-4">
+            <Link to="/pets">
+              <Button variant="primary" size="lg">
+                View All Pets
+              </Button>
+            </Link>
+          </div>
+        </section>
 
+        {/* Featured Products Section */}
+        <section className="featured-products mb-5">
+          <h2 className="text-center mb-4">Featured Products</h2>
+          
+          {imageLoading ? (
+            <div className="text-center">
+              <Spinner animation="border" variant="primary" />
+              <p className="mt-2">Loading products...</p>
+            </div>
+          ) : (
+            <Row className="g-4">
+              {featuredProducts.map(product => {
+                const productImage = findProductImage(product);
+                return (
+                  <Col key={product.id} md={4}>
+                    <Card className="h-100 shadow-sm">
+                      <Card.Img 
+                        variant="top" 
+                        src={productImage} 
+                        alt={product.title}
+                        style={{ height: '200px', objectFit: 'cover' }}
+                      />
+                      <Card.Body className="d-flex flex-column">
+                        <Card.Title className="d-flex align-items-center">
+                          <i className={`fas ${product.icon} me-2 text-primary`}></i>
+                          {product.title}
+                        </Card.Title>
+                        <Card.Text className="text-muted flex-grow-1">
+                          High-quality {product.title.toLowerCase()} for your beloved pet.
+                        </Card.Text>
+                        <div className="d-flex justify-content-between align-items-center">
+                          <span className="h5 text-primary mb-0">${product.price}</span>
+                          <Button variant="outline-primary" size="sm">
+                            View Details
+                          </Button>
+                        </div>
+                      </Card.Body>
+                    </Card>
+                  </Col>
+                );
+              })}
+            </Row>
+          )}
+        </section>
+
+        {/* Testimonials Section */}
+        <section className="testimonials">
+          <h2 className="text-center mb-4">What Our Customers Say</h2>
           <Row className="g-4">
-            {featuredProducts.map((product, index) => (
-              <Col key={product.id} md={4}>
-                <Card className="p-3 h-100">
-                  <div style={{ position: 'relative' }}>
-                    <Card.Img 
-                      variant="top" 
-                      src={findProductImage(product)} 
-                      alt={product.title}
-                      style={{ 
-                        height: '200px', 
-                        objectFit: 'cover',
-                        transition: 'transform 0.3s ease'
-                      }}
-                      onError={(e) => {
-                        // Fallback to local asset if bucket image fails
-                        e.target.src = product.fallbackImage;
-                      }}
-                    />
-                    {!imageLoading && productImages.length > 0 && (
-                      <small className="position-absolute top-0 end-0 bg-success text-white px-2 py-1 rounded-start">
-                        <i className="fas fa-cloud me-1"></i>Cloud
-                      </small>
-                    )}
-                  </div>
-                  <Card.Body className="d-flex flex-column">
-                    <Card.Title>
-                      <i className={`fas ${product.icon} me-2`}></i>{product.title}
-                    </Card.Title>
-                    <p className="price flex-grow-1">
-                      <i className="fas fa-tag me-1"></i>${product.price}
-                    </p>
-                    <Button variant="primary" className="w-100">
-                      <i className="fas fa-cart-plus me-2"></i>Add to Cart
-                    </Button>
+            {testimonials.map((testimonial, index) => (
+              <Col key={index} md={4}>
+                <Card className="h-100 text-center shadow-sm">
+                  <Card.Body>
+                    <i className={`fas ${testimonial.icon} fa-3x text-primary mb-3`}></i>
+                    <Card.Text>"{testimonial.text}"</Card.Text>
+                    <Card.Title className="h6">{testimonial.name}</Card.Title>
+                    <div className="text-warning">
+                      {'★'.repeat(Math.floor(testimonial.rating))}
+                      {testimonial.rating % 1 !== 0 && '☆'}
+                      <span className="ms-2 text-muted">({testimonial.rating})</span>
+                    </div>
                   </Card.Body>
                 </Card>
               </Col>
             ))}
           </Row>
-
-          {/* Product Image Management Link */}
-          <Row className="mt-4">
-            <Col className="text-center">
-              <small className="text-muted">
-                <i className="fas fa-info-circle me-1"></i>
-                Product images are loaded from <strong>FurBabies-petstore/product/</strong> folder
-              </small>
-              <br />
-              <Link to="/browse" className="btn btn-outline-secondary btn-sm mt-2">
-                <i className="fas fa-images me-2"></i>
-                Manage Product Images
-              </Link>
-            </Col>
-          </Row>
-        </Container>
-      </section>
-
-      {/* Featured Pets */}
-      {featuredPets.length > 0 && (
-        <section className="py-5 bg-light">
-          <Container>
-            <h2 className="text-center mb-4">
-              <i className="fas fa-heart me-2"></i>Featured Pets
-            </h2>
-            {loading ? (
-              <div className="text-center py-5">
-                <Spinner animation="border" role="status" size="lg">
-                  <span className="visually-hidden">Loading pets...</span>
-                </Spinner>
-                <p className="mt-3 text-muted">Finding the perfect companions...</p>
-              </div>
-            ) : (
-              <Row className="g-4">
-                {featuredPets.slice(0, 3).map(pet => (
-                  <Col key={pet._id} md={4}>
-                    <PetCard pet={pet} />
-                  </Col>
-                ))}
-              </Row>
-            )}
-            <div className="text-center mt-4">
-              <Link to="/browse" className="btn btn-primary">
-                <i className="fas fa-paw me-2"></i>
-                View All Pets
-              </Link>
-            </div>
-          </Container>
         </section>
-      )}
+      </Container>
 
-      {/* Customer Reviews */}
-      <section id="reviews" className="py-5">
-        <Container>
-          <h2 className="text-center mb-5">
-            <i className="fas fa-comments me-2"></i>What Our Customers Say
-          </h2>
-          
-          <Carousel indicators={false} className="testimonial-carousel">
-            {testimonials.map((testimonial, index) => (
-              <Carousel.Item key={index}>
-                <div className="d-flex justify-content-center">
-                  <Card className="p-4 shadow" style={{ maxWidth: '700px' }}>
-                    <Card.Body className="text-center">
-                      <i className="fas fa-quote-left fa-2x text-muted mb-3"></i>
-                      <p className="lead">{testimonial.text}</p>
-                      <div className="mt-4">
-                        <i className={`fas ${testimonial.icon} fa-2x text-warning mb-2`}></i>
-                        <h5 className="mb-0">{testimonial.name}</h5>
-                        <small className="text-muted">
-                          <i className="fas fa-star text-warning"></i> {testimonial.rating} | Verified Buyer
-                        </small>
-                      </div>
-                    </Card.Body>
-                  </Card>
-                </div>
-              </Carousel.Item>
-            ))}
-          </Carousel>
-        </Container>
-      </section>
-    </>
+       <Footer />
+    </div>
   );
 };
 
