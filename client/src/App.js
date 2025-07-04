@@ -18,7 +18,7 @@ import Footer from './components/Footer';
 import Home from './pages/Home';
 import About from './pages/About';
 import Pets from './pages/Pets';
-import PetDetails from './pages/PetDetails';
+import PetDetail from './pages/PetDetail'; // ✅ FIXED: Singular, not PetDetails
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Profile from './pages/Profile';
@@ -29,7 +29,8 @@ import NotFound from './pages/NotFound';
 // Styles
 import './App.css';
 
-function App() {
+// ✅ FIXED: Using const declaration instead of function
+const App = () => {
   return (
     <ErrorBoundary>
       <AuthProvider>
@@ -44,7 +45,7 @@ function App() {
                 <Route path="/" element={<Home />} />
                 <Route path="/about" element={<About />} />
                 <Route path="/pets" element={<Pets />} />
-                <Route path="/pets/:id" element={<PetDetails />} />
+                <Route path="/pets/:id" element={<PetDetail />} /> {/* ✅ FIXED */}
                 <Route path="/contact" element={<Contact />} />
                 <Route path="/login" element={<Login />} />
                 <Route path="/register" element={<Register />} />
@@ -87,6 +88,6 @@ function App() {
       </AuthProvider>
     </ErrorBoundary>
   );
-}
+};
 
 export default App;

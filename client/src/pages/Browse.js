@@ -14,7 +14,7 @@ const Browse = () => {
   const [showImageModal, setShowImageModal] = useState(false);
   const [selectedPetId, setSelectedPetId] = useState(null);
   const [bucketImages, setBucketImages] = useState([]);
-  const [selectedBucket] = useState('FurBabies-petstore');
+ const [selectedBucket] = useState('furbabies-petstore');
   const [selectedFolder, setSelectedFolder] = useState(bucketFolders.PET);
   const [availableFolders] = useState(Object.values(bucketFolders));
   const [filters, setFilters] = useState({
@@ -35,7 +35,7 @@ const Browse = () => {
     setImageLoading(true);
     try {
       const prefix = folder ? `${folder}/` : '';
-      const response = await api.get(`/gcs/buckets/${bucketName}/images?prefix=${prefix}&public=true`);
+      const response = await api.get(`/gcs/buckets/furbabies-petstore/images?prefix=${prefix}&public=true`);
       if (response.data.success) {
         setBucketImages(response.data.data);
       }

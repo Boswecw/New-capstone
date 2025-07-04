@@ -1,9 +1,9 @@
 // client/src/utils/bucketUtils.js
 /**
- * Utilities for FurBabies-petstore public bucket operations
+ * Utilities for furbabies-petstore public bucket operations
  */
 
-const BUCKET_NAME = 'FurBabies-petstore';
+const BUCKET_NAME = 'furbabies-petstore'; // ✅ FIXED: All lowercase
 const BUCKET_BASE_URL = `https://storage.googleapis.com/${BUCKET_NAME}`;
 
 export const bucketFolders = {
@@ -11,7 +11,6 @@ export const bucketFolders = {
   PET: 'pet', 
   PRODUCT: 'product'
 };
-
 /**
  * Generate public URL for bucket file
  * @param {string} fileName - Full file path (e.g., "pet/pet123_1640995200000_image.jpg")
