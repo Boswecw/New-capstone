@@ -76,7 +76,7 @@ const PetCard = ({ pet, onVote, showEditButton = false, showDeleteButton = false
 
   return (
     <Card className={`h-100 shadow-sm fade-in ${styles.card}`}>
-      <div className={styles.cardImgContainer}>
+      <div className={styles.petImgContainer}>
         {imageLoading && (
           <div className="position-absolute top-50 start-50 translate-middle">
             <Spinner animation="border" size="sm" variant="primary" />

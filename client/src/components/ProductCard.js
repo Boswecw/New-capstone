@@ -1,51 +1,47 @@
-// components/ProductCard.js
-// ProductCard.js – Updated to use Card.module.css
 import React from 'react';
 import { Card, Button } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
-import styles from './Card.module.css';
+import styles from './Card.module.css'; // Adjust if in different folder
 
 const ProductCard = ({ product }) => {
-  if (!product) return null;
-
-  const formatPrice = (price) => {
-    return typeof price === 'number'
-      ? `$${price.toFixed(2)}`
-      : '$0.00';
-  };
+  const formatPrice = (price) =>
+    typeof price === 'number' ? `$${price.toFixed(2)}` : 'N/A';
 
   return (
-    <Card className="h-100 shadow-sm">
-      <div className={styles.cardImgContainer}>
+    <Card className={`h-100 shadow-sm ${styles.card}`}>
+      {/* ✅ Image Container */}
+      <div className={styles.productImgContainer}>
         <Card.Img
-          variant="top"
-          src={product.imageUrl || 'https://via.placeholder.com/300x200?text=Product+Image'}
+          src={
+            product.imageUrl ||
+            'https://via.placeholder.com/300x200?text=Product+Image'
+          }
           alt={product.name || 'Product Image'}
-          className={styles.cardImgTop}
+          className={styles.productImg}
           onError={(e) => {
-            e.target.src = 'https://via.placeholder.com/300x200?text=Product+Image';
+            e.target.src =
+              'https://via.placeholder.com/300x200?text=Product+Image';
           }}
         />
       </div>
-      <Card.Body className="d-flex flex-column">
-        <Card.Title className="d-flex align-items-center">
-          <i className="fas fa-box-open me-2 text-primary"></i>
+
+      {/* ✅ Body */}
+      <Card.Body className={`d-flex flex-column ${styles.cardBody}`}>
+        <Card.Title className={`${styles.cardTitle}`}>
           {product.name || 'Unnamed Product'}
         </Card.Title>
-        <Card.Text className="text-muted flex-grow-1">
-          {product.description || 'No description available.'}
+        <Card.Text className={`${styles.cardText} flex-grow-1`}>
+          {product.description || 'No description available'}
         </Card.Text>
-        <div className="d-flex justify-content-between align-items-center mt-auto">
-          <span className="h5 text-primary mb-0">
-            {formatPrice(product.price)}
-          </span>
+        <div className="d-flex justify-content-between align-items-center">
+          <span className="text-success fw-bold">{formatPrice(product.price)}</span>
           <Button
             as={Link}
             to={`/products/${product._id}`}
             variant="outline-primary"
             size="sm"
           >
-            View Details
+            View
           </Button>
         </div>
       </Card.Body>

@@ -32,15 +32,15 @@ const Navbar = () => {
               <i className="fas fa-home me-1"></i>Home
             </Nav.Link>
 
-            {/* 🐾 Dropdown Menu */}
+            {/* 🐾 Shop by Pet Dropdown */}
             <NavDropdown title="Shop by Pet" id="nav-dropdown-pets">
-              <NavDropdown.Item as={Link} to="/dogs">
+              <NavDropdown.Item as={Link} to="/browse?type=dog">
                 <i className="fas fa-dog me-2"></i>Dogs
               </NavDropdown.Item>
-              <NavDropdown.Item as={Link} to="/cats">
+              <NavDropdown.Item as={Link} to="/browse?type=cat">
                 <i className="fas fa-cat me-2"></i>Cats
               </NavDropdown.Item>
-              <NavDropdown.Item as={Link} to="/aquatics">
+              <NavDropdown.Item as={Link} to="/browse?type=fish">
                 <i className="fas fa-fish me-2"></i>Aquatics
               </NavDropdown.Item>
             </NavDropdown>
@@ -53,7 +53,6 @@ const Navbar = () => {
               <i className="fas fa-envelope me-1"></i>Contact
             </Nav.Link>
 
-            {/* 👤 Account or Auth */}
             {user ? (
               <NavDropdown title={user.displayName || 'Account'} id="nav-dropdown-account">
                 <NavDropdown.Item as={Link} to="/profile">Profile</NavDropdown.Item>

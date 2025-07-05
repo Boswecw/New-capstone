@@ -1,132 +1,48 @@
-/* =============================================================================
-   components/Card.module.css - Enhanced for PetCard layout
-   ============================================================================= */
-
-/* Core Card Layout */
+/* ✅ Tighten the entire card */
 .card {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-md);
-  transition: all var(--transition-base);
-  overflow: hidden;
-  position: relative;
   height: 100%;
+  max-height: 420px;           /* Limit total height */
   display: flex;
   flex-direction: column;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  transition: all var(--transition-fast);
 }
 
-/* Top accent bar (on hover) */
-.card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 4px;
-  background: linear-gradient(90deg, var(--color-secondary), var(--color-warning), var(--color-accent));
-  opacity: 0;
-  transition: opacity var(--transition-base);
+/* ✅ Image Container: Shrink */
+.productImgContainer,
+.cardImgContainer {
+  height: 160px;                /* Shrink image box */
+  overflow: hidden;
+  background-color: #f8f9fa;
 }
 
-.card:hover {
-  transform: translateY(-6px);
-  box-shadow: var(--shadow-xl);
-  border-color: var(--color-border-hover);
+/* ✅ Image: Fill and crop */
+.productImg,
+.cardImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
 }
 
-.card:hover::before {
-  opacity: 1;
-}
-
-/* Header, Body, Footer */
-.cardHeader {
-  padding: var(--space-lg);
-  border-bottom: 1px solid var(--color-border);
-  background: linear-gradient(135deg, var(--color-gray-50), var(--color-gray-100));
-}
-
+/* ✅ Body Padding: Reduce vertical space */
 .cardBody {
-  padding: var(--space-lg);
-  flex: 1;
+  padding: 0.75rem;             /* Reduce from var(--space-lg) */
   display: flex;
   flex-direction: column;
+  justify-content: space-between;
 }
 
-.cardFooter {
-  padding: var(--space-lg);
-  border-top: 1px solid var(--color-border);
-  background: var(--color-gray-50);
-}
-
-/* Title & Text */
+/* ✅ Title & Text: Reduce font size & margin */
 .cardTitle {
-  margin: 0;
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-semibold);
-  color: var(--color-text-primary);
-  line-height: var(--leading-tight);
+  font-size: var(--font-size-base);
+  margin-bottom: 0.25rem;
 }
 
 .cardText {
-  color: var(--color-text-secondary);
-  line-height: var(--leading-normal);
-  margin-bottom: var(--space-md);
-}
-
-/* For ProductCard - smaller squareish ratio */
-.productImgContainer {
-  position: relative;
-  width: 100%;
-  padding-top: 66.66%; /* 3:2 aspect ratio */
-  overflow: hidden;
-  background-color: #f8f9fa;
-}
-
-.productImg {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: center;
-}
-
-/* For PetCard - taller container */
-.petImgContainer {
-  position: relative;
-  width: 100%;
-  padding-top: 75%; /* ~4:3 ratio, slightly taller */
-  overflow: hidden;
-  background-color: #f8f9fa;
-}
-
-.petImg {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: center;
-}
-
-
-/* Card Variants */
-.elevated {
-  box-shadow: var(--shadow-lg);
-}
-
-.elevated:hover {
-  box-shadow: var(--shadow-2xl);
-}
-
-.bordered {
-  border: 2px solid var(--color-border);
-}
-
-.borderless {
-  border: none;
-  box-shadow: none;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  margin-bottom: 0.5rem;
 }

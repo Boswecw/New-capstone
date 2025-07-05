@@ -158,7 +158,6 @@ const Contact = () => {
             </Col>
           </Row>
         </Container>
-        <Footer />
       </div>
     </>
   );
