@@ -1,8 +1,16 @@
-// Fixed ProductImageManager.js - Complete implementation
 import React, { useState, useEffect } from 'react';
-import { Modal, Row, Col, Card, Button, Form, Spinner, Alert, Badge } from 'react-bootstrap';
+import {
+  Modal, Row, Col, Card, Button, Form, Spinner, Alert, Badge,
+} from 'react-bootstrap';
 import api from '../services/api';
-import { getPublicImageUrl, bucketFolders, isValidImage, isValidFileSize, formatFileSize } from '../utils/bucketUtils';
+import {
+  getPublicImageUrl,
+  bucketFolders,
+  isValidImage,
+  isValidFileSize,
+  formatFileSize,
+} from '../utils/bucketUtils';
+import styles from './Card.module.css'; // ✅ Import shared card styles
 
 const ProductImageManager = ({ show, onHide, productId, productName }) => {
   const [productImages, setProductImages] = useState([]);
@@ -14,51 +22,33 @@ const ProductImageManager = ({ show, onHide, productId, productName }) => {
   const [uploadFile, setUploadFile] = useState(null);
 
   useEffect(() => {
-    if (show) {
-      fetchProductImages();
-    }
+    if (show) fetchProductImages();
   }, [show]);
 
   const fetchProductImages = async () => {
     setLoading(true);
     setError('');
-    
     try {
-      console.log('Fetching product images...');
-      const response = await api.get(`/gcs/buckets/furbabies-petstore/images?prefix=${bucketFolders.PRODUCT}/&public=true`);
-      
-      console.log('Product images response:', response.data);
-      
-      if (response.data.success) {
-        setProductImages(response.data.data || []);
-        console.log('Loaded product images:', response.data.data?.length || 0);
-      } else {
-        throw new Error(response.data.message || 'Failed to fetch images');
-      }
-    } catch (error) {
-      console.error('Error fetching product images:', error);
-      setError(`Failed to fetch product images: ${error.response?.data?.message || error.message}`);
+      const res = await api.get(`/gcs/buckets/furbabies-petstore/images?prefix=${bucketFolders.PRODUCT}/&public=true`);
+      if (res.data.success) setProductImages(res.data.data || []);
+      else throw new Error(res.data.message);
+    } catch (err) {
+      setError(`Fetch failed: ${err.message}`);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleImageUpload = async (event) => {
-    const file = event.target.files[0];
-    if (!file || !productId) return;
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
 
-    console.log('File selected:', file.name, 'Size:', formatFileSize(file.size));
-
-    // Validate file
     if (!isValidImage(file)) {
-      setError('Please select a valid image file (JPEG, PNG, GIF, WebP)');
-      return;
+      return setError('Invalid image type. JPEG, PNG, GIF, WebP only.');
     }
 
-    // ✅ FIXED: Complete file size validation with proper error message
     if (!isValidFileSize(file)) {
-      setError(`File size too large. Maximum size is 10MB. Your file: ${formatFileSize(file.size)}`);
-      return;
+      return setError(`File too large. Max: 10MB. Yours: ${formatFileSize(file.size)}`);
     }
 
     setUploadFile(file);
@@ -72,86 +62,52 @@ const ProductImageManager = ({ show, onHide, productId, productName }) => {
     setUploading(true);
     setError('');
     setSuccess('');
-    
-    try {
-      console.log(`Uploading ${uploadFile.name} to product folder...`);
-      
-      const formData = new FormData();
-      formData.append('image', uploadFile);
-      formData.append('entityId', productId);
-      formData.append('bucketName', 'furbabies-petstore');
-      formData.append('folder', bucketFolders.PRODUCT);
-      formData.append('public', 'true');
 
-      const response = await api.post('/gcs/upload', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
+    const formData = new FormData();
+    formData.append('image', uploadFile);
+    formData.append('entityId', productId);
+    formData.append('bucketName', 'furbabies-petstore');
+    formData.append('folder', bucketFolders.PRODUCT);
+    formData.append('public', 'true');
+
+    try {
+      const res = await api.post('/gcs/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
       });
 
-      console.log('Upload response:', response.data);
-
-      if (response.data.success) {
-        setSuccess(`Image uploaded successfully: ${response.data.data.fileName}`);
+      if (res.data.success) {
+        setSuccess(`Uploaded: ${res.data.data.fileName}`);
         setUploadFile(null);
-        
-        // Reset file input
-        const fileInput = document.getElementById('imageUpload');
-        if (fileInput) fileInput.value = '';
-        
-        // Refresh image list
-        await fetchProductImages();
+        document.getElementById('imageUpload').value = '';
+        fetchProductImages();
       } else {
-        throw new Error(response.data.message || 'Upload failed');
+        throw new Error(res.data.message);
       }
-    } catch (error) {
-      console.error('Error uploading image:', error);
-      setError(`Failed to upload image: ${error.response?.data?.message || error.message}`);
+    } catch (err) {
+      setError(`Upload failed: ${err.message}`);
     } finally {
       setUploading(false);
     }
   };
 
   const assignImageToProduct = async (imageName) => {
-    if (!productId || !imageName) return;
-
     try {
-      console.log(`Assigning image ${imageName} to product ${productId}`);
       const publicUrl = getPublicImageUrl(imageName);
-      console.log('Generated public URL:', publicUrl);
-      
-      // Update product with image URL
-      const response = await api.patch(`/products/${productId}`, {
-        image: imageName,          // ✅ Consistent field naming
-        imageUrl: publicUrl,       // ✅ Full URL
-        imageName: imageName       // ✅ File name reference
+      const res = await api.patch(`/products/${productId}`, {
+        image: imageName,
+        imageUrl: publicUrl,
+        imageName,
       });
 
-      console.log('Product update response:', response.data);
-
-      setSuccess(`Image assigned to ${productName} successfully`);
-      setSelectedImage({ name: imageName, url: publicUrl });
-      
-      // Close modal after successful assignment
-      setTimeout(() => {
-        onHide();
-      }, 1500);
-      
-    } catch (error) {
-      console.error('Error assigning image to product:', error);
-      setError(`Failed to assign image to product: ${error.response?.data?.message || error.message}`);
-    }
-  };
-
-  const handleImageSelect = (imageName) => {
-    setSelectedImage({ name: imageName, url: getPublicImageUrl(imageName) });
-    setError('');
-    setSuccess('');
-  };
-
-  const handleAssignImage = () => {
-    if (selectedImage) {
-      assignImageToProduct(selectedImage.name);
+      if (res.data.success) {
+        setSuccess(`Assigned ${imageName} to ${productName}`);
+        setSelectedImage({ name: imageName, url: publicUrl });
+        setTimeout(onHide, 1500);
+      } else {
+        throw new Error(res.data.message);
+      }
+    } catch (err) {
+      setError(`Assignment failed: ${err.message}`);
     }
   };
 
@@ -164,202 +120,134 @@ const ProductImageManager = ({ show, onHide, productId, productName }) => {
     <Modal show={show} onHide={onHide} size="lg" centered>
       <Modal.Header closeButton>
         <Modal.Title>
-          <i className="fas fa-images me-2"></i>
-          Image Manager - {productName}
+          <i className="fas fa-images me-2" /> Image Manager - {productName}
         </Modal.Title>
       </Modal.Header>
-      
+
       <Modal.Body>
-        {/* Alert Messages */}
-        {error && (
-          <Alert variant="danger" dismissible onClose={clearMessages}>
-            <i className="fas fa-exclamation-triangle me-2"></i>
-            {error}
-          </Alert>
-        )}
-        {success && (
-          <Alert variant="success" dismissible onClose={clearMessages}>
-            <i className="fas fa-check-circle me-2"></i>
-            {success}
-          </Alert>
-        )}
-        
+        {error && <Alert variant="danger" dismissible onClose={clearMessages}>{error}</Alert>}
+        {success && <Alert variant="success" dismissible onClose={clearMessages}>{success}</Alert>}
+
         {/* Upload Section */}
         <div className="mb-4">
-          <h5 className="mb-3">
-            <i className="fas fa-upload me-2"></i>
-            Upload New Image
-          </h5>
+          <h5><i className="fas fa-upload me-2" />Upload New Image</h5>
           <Row className="g-3">
             <Col md={8}>
               <Form.Control
-                type="file"
                 id="imageUpload"
+                type="file"
                 accept="image/*"
                 onChange={handleImageUpload}
                 disabled={uploading}
               />
-              <small className="text-muted">
-                Supported formats: JPEG, PNG, GIF, WebP (Max: 10MB)
-              </small>
+              <small className="text-muted">Supported: JPG, PNG, GIF, WebP — Max 10MB</small>
             </Col>
             <Col md={4}>
               <Button
                 variant="primary"
-                onClick={uploadImageToBucket}
-                disabled={!uploadFile || uploading}
                 className="w-100"
+                disabled={!uploadFile || uploading}
+                onClick={uploadImageToBucket}
               >
-                {uploading ? (
-                  <>
-                    <Spinner animation="border" size="sm" className="me-2" />
-                    Uploading...
-                  </>
-                ) : (
-                  <>
-                    <i className="fas fa-cloud-upload-alt me-2"></i>
-                    Upload
-                  </>
-                )}
+                {uploading ? <Spinner animation="border" size="sm" className="me-2" /> : <i className="fas fa-cloud-upload-alt me-2" />}
+                {uploading ? 'Uploading...' : 'Upload'}
               </Button>
             </Col>
           </Row>
-          
           {uploadFile && (
-            <div className="mt-2">
-              <small className="text-info">
-                <i className="fas fa-file-image me-1"></i>
-                Selected: {uploadFile.name} ({formatFileSize(uploadFile.size)})
-              </small>
-            </div>
+            <small className="text-info mt-2 d-block">
+              <i className="fas fa-file-image me-1" />
+              Selected: {uploadFile.name} ({formatFileSize(uploadFile.size)})
+            </small>
           )}
         </div>
 
         <hr />
 
-        {/* Existing Images Section */}
-        <div className="mb-4">
-          <h5 className="mb-3">
-            <i className="fas fa-folder-open me-2"></i>
-            Available Product Images
-            <Badge bg="secondary" className="ms-2">
-              {productImages.length}
-            </Badge>
-          </h5>
-          
-          {loading ? (
-            <div className="text-center py-4">
-              <Spinner animation="border" />
-              <p className="mt-2">Loading images...</p>
-            </div>
-          ) : productImages.length === 0 ? (
-            <Alert variant="info" className="text-center">
-              <i className="fas fa-info-circle me-2"></i>
-              No product images found. Upload some images to get started.
-            </Alert>
-          ) : (
-            <Row className="g-3">
-              {productImages.map((imageName, index) => (
-                <Col key={index} md={4} sm={6}>
-                  <Card className={`h-100 ${selectedImage?.name === imageName ? 'border-primary' : ''}`}>
-                    <div style={{ position: 'relative', height: '150px' }}>
-                      <Card.Img 
-                        variant="top" 
-                        src={getPublicImageUrl(imageName)}
-                        style={{ 
-                          height: '150px', 
-                          objectFit: 'cover',
-                          cursor: 'pointer'
-                        }}
-                        alt={`Product image ${index + 1}`}
-                        onClick={() => handleImageSelect(imageName)}
+        {/* Image Gallery */}
+        <h5><i className="fas fa-folder-open me-2" />Available Images <Badge bg="secondary">{productImages.length}</Badge></h5>
+        {loading ? (
+          <div className="text-center py-4">
+            <Spinner animation="border" />
+            <p className="mt-2">Loading images...</p>
+          </div>
+        ) : productImages.length === 0 ? (
+          <Alert variant="info" className="text-center">
+            No images found. Upload some to begin.
+          </Alert>
+        ) : (
+          <Row className="g-3">
+            {productImages.map((imageName, i) => {
+              const imageUrl = getPublicImageUrl(imageName);
+              const isSelected = selectedImage?.name === imageName;
+
+              return (
+                <Col md={4} sm={6} key={i}>
+                  <Card className={`h-100 ${isSelected ? 'border-primary' : ''}`}>
+                    <div className={styles.cardImgContainer}>
+                      <Card.Img
+                        src={imageUrl}
+                        className={styles.cardImg}
+                        alt={`Product image ${i + 1}`}
+                        onClick={() => setSelectedImage({ name: imageName, url: imageUrl })}
+                        style={{ cursor: 'pointer' }}
                         onError={(e) => {
-                          console.error('Product image failed to load:', e.target.src);
+                          console.warn('Failed to load image:', e.target.src);
                           e.target.style.display = 'none';
                         }}
                       />
-                      {selectedImage?.name === imageName && (
+                      {isSelected && (
                         <div className="position-absolute top-0 end-0 m-2">
-                          <Badge bg="primary">
-                            <i className="fas fa-check"></i>
-                          </Badge>
+                          <Badge bg="primary"><i className="fas fa-check" /></Badge>
                         </div>
                       )}
                     </div>
                     <Card.Body className="p-2">
-                      <small className="text-muted d-block mb-2" title={imageName}>
-                        {imageName.length > 30 ? `${imageName.substring(0, 30)}...` : imageName}
+                      <small className="text-muted d-block mb-2">
+                        {imageName.length > 30 ? `${imageName.slice(0, 30)}...` : imageName}
                       </small>
                       <Button
-                        variant={selectedImage?.name === imageName ? 'success' : 'outline-primary'}
                         size="sm"
                         className="w-100"
+                        variant={isSelected ? 'success' : 'outline-primary'}
                         onClick={() => assignImageToProduct(imageName)}
                       >
-                        {selectedImage?.name === imageName ? (
-                          <>
-                            <i className="fas fa-check me-1"></i>
-                            Use This Image
-                          </>
-                        ) : (
-                          'Select & Use'
-                        )}
+                        {isSelected ? <><i className="fas fa-check me-1" /> Use This</> : 'Select & Use'}
                       </Button>
                     </Card.Body>
                   </Card>
                 </Col>
-              ))}
-            </Row>
-          )}
-        </div>
+              );
+            })}
+          </Row>
+        )}
 
-        {/* Selected Image Preview */}
+        {/* Preview */}
         {selectedImage && (
-          <div className="mb-3">
+          <div className="mt-4">
             <h6>Selected Image:</h6>
             <div className="d-flex align-items-center">
-              <img 
-                src={selectedImage.url} 
-                alt="Selected" 
-                style={{ width: '50px', height: '50px', objectFit: 'cover' }}
+              <img
+                src={selectedImage.url}
+                alt="Preview"
                 className="me-2 rounded"
+                style={{ width: '50px', height: '50px', objectFit: 'cover' }}
               />
               <div>
                 <small className="text-muted d-block">{selectedImage.name}</small>
-                <Button
-                  variant="success"
-                  size="sm"
-                  onClick={handleAssignImage}
-                >
-                  <i className="fas fa-check me-1"></i>
-                  Assign to Product
+                <Button size="sm" variant="success" onClick={() => assignImageToProduct(selectedImage.name)}>
+                  <i className="fas fa-check me-1" /> Assign to Product
                 </Button>
               </div>
             </div>
           </div>
         )}
       </Modal.Body>
-      
+
       <Modal.Footer>
-        <Button variant="secondary" onClick={onHide}>
-          Close
-        </Button>
-        <Button 
-          variant="primary" 
-          onClick={() => fetchProductImages()}
-          disabled={loading}
-        >
-          {loading ? (
-            <>
-              <Spinner animation="border" size="sm" className="me-2" />
-              Refreshing...
-            </>
-          ) : (
-            <>
-              <i className="fas fa-sync me-2"></i>
-              Refresh Images
-            </>
-          )}
+        <Button variant="secondary" onClick={onHide}>Close</Button>
+        <Button variant="primary" onClick={fetchProductImages} disabled={loading}>
+          {loading ? <><Spinner animation="border" size="sm" className="me-2" />Refreshing...</> : <><i className="fas fa-sync me-2" />Refresh</>}
         </Button>
       </Modal.Footer>
     </Modal>

@@ -1,4 +1,3 @@
-// Fixed PetCard.js - Field mismatch resolved
 import React, { useState } from 'react';
 import { Card, Button, Badge, Spinner } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
@@ -6,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'react-toastify';
 import api from '../services/api';
 import { getPublicImageUrl } from '../utils/bucketUtils';
+import styles from '../components/Card.module.css'; // Adjust path if needed
 
 const PetCard = ({ pet, onVote, showEditButton = false, showDeleteButton = false, onPetUpdated }) => {
   const { user } = useAuth();
@@ -58,32 +58,25 @@ const PetCard = ({ pet, onVote, showEditButton = false, showDeleteButton = false
     event.currentTarget.src = '/images/pet/default-pet.png';
   };
 
-  // ✅ FIXED: Check multiple possible image fields
   const getImageUrl = () => {
-    // Check for imageUrl first (from GCS), then image, then imageName
+    let url = '/images/pet/default-pet.png';
     if (pet.imageUrl) {
-      return pet.imageUrl;
+      url = pet.imageUrl;
+    } else if (pet.image) {
+      url = pet.image.startsWith('http') ? pet.image : getPublicImageUrl(pet.image);
+    } else if (pet.imageName) {
+      url = getPublicImageUrl(pet.imageName);
     }
-    if (pet.image) {
-      // If it's already a full URL, use it
-      if (pet.image.startsWith('http')) {
-        return pet.image;
-      }
-      // If it's a GCS path, convert to public URL
-      return getPublicImageUrl(pet.image);
-    }
-    if (pet.imageName) {
-      return getPublicImageUrl(pet.imageName);
-    }
-    return '/images/pet/default-pet.png';
+    console.log(`🐾 [${pet.name}] image resolved to:`, url);
+    return url;
   };
 
   const imageUrl = getImageUrl();
   const daysSincePosted = Math.floor((new Date() - new Date(pet.createdAt)) / (1000 * 60 * 60 * 24));
 
   return (
-    <Card className="h-100 pet-card shadow-sm fade-in">
-      <div className="position-relative overflow-hidden" style={{ height: '200px' }}>
+    <Card className={`h-100 shadow-sm fade-in ${styles.card}`}>
+      <div className={styles.cardImgContainer}>
         {imageLoading && (
           <div className="position-absolute top-50 start-50 translate-middle">
             <Spinner animation="border" size="sm" variant="primary" />
@@ -91,15 +84,9 @@ const PetCard = ({ pet, onVote, showEditButton = false, showDeleteButton = false
         )}
 
         <Card.Img
-          variant="top"
           src={imageUrl}
           alt={pet.name}
-          className={`card-img-top ${imageLoading ? 'opacity-0' : 'opacity-100'}`}
-          style={{
-            height: '200px',
-            objectFit: 'cover',
-            transition: 'opacity 0.3s ease, transform 0.3s ease'
-          }}
+          className={`${styles.cardImg} ${imageLoading ? 'opacity-0' : 'opacity-100'}`}
           onLoad={handleImageLoad}
           onError={handleImageErrorEvent}
           loading="lazy"
@@ -127,15 +114,17 @@ const PetCard = ({ pet, onVote, showEditButton = false, showDeleteButton = false
         )}
       </div>
 
-      <Card.Body className="d-flex flex-column">
+      <Card.Body className={`d-flex flex-column ${styles.cardBody}`}>
         <div className="d-flex justify-content-between align-items-start mb-2">
-          <Card.Title className="text-primary mb-0" style={{ fontSize: '1.1rem' }}>{pet.name}</Card.Title>
+          <Card.Title className={`text-primary mb-0 ${styles.cardTitle}`}>
+            {pet.name}
+          </Card.Title>
           <Badge bg={pet.available ? 'success' : 'secondary'} className="ms-2">
             {pet.available ? 'Available' : 'Adopted'}
           </Badge>
         </div>
 
-        <Card.Text className="small flex-grow-1 mb-3">
+        <div className="small flex-grow-1 mb-3">
           <div className="mb-2">
             <strong>Breed:</strong> {pet.breed}<br />
             <strong>Age:</strong> {pet.age}<br />
@@ -144,13 +133,12 @@ const PetCard = ({ pet, onVote, showEditButton = false, showDeleteButton = false
           </div>
           {pet.description && (
             <div className="text-muted" style={{ fontSize: '0.85rem' }}>
-              {pet.description.length > 80 ? 
-                `${pet.description.substring(0, 80)}...` : 
-                pet.description
-              }
+              {pet.description.length > 80
+                ? `${pet.description.substring(0, 80)}...`
+                : pet.description}
             </div>
           )}
-        </Card.Text>
+        </div>
 
         <div className="d-flex justify-content-between align-items-center">
           <div className="d-flex align-items-center">
@@ -164,51 +152,28 @@ const PetCard = ({ pet, onVote, showEditButton = false, showDeleteButton = false
               </small>
             )}
           </div>
-          
+
           <div className="d-flex gap-2">
             {user && (
               <>
-                <Button
-                  variant="outline-success"
-                  size="sm"
-                  onClick={() => handleVote('up')}
-                  disabled={voting}
-                >
+                <Button variant="outline-success" size="sm" onClick={() => handleVote('up')} disabled={voting}>
                   <i className="fas fa-thumbs-up"></i>
                 </Button>
-                <Button
-                  variant="outline-danger"
-                  size="sm"
-                  onClick={() => handleVote('down')}
-                  disabled={voting}
-                >
+                <Button variant="outline-danger" size="sm" onClick={() => handleVote('down')} disabled={voting}>
                   <i className="fas fa-thumbs-down"></i>
                 </Button>
               </>
             )}
-            
-            <Button
-              as={Link}
-              to={`/pets/${pet._id}`}
-              variant="primary"
-              size="sm"
-            >
+            <Button as={Link} to={`/pets/${pet._id}`} variant="primary" size="sm">
               Details
             </Button>
           </div>
         </div>
 
-        {/* Admin Controls */}
         {(showEditButton || showDeleteButton) && (
           <div className="mt-3 d-flex gap-2">
             {showEditButton && (
-              <Button
-                as={Link}
-                to={`/admin/pets/${pet._id}/edit`}
-                variant="outline-primary"
-                size="sm"
-                className="flex-fill"
-              >
+              <Button as={Link} to={`/admin/pets/${pet._id}/edit`} variant="outline-primary" size="sm" className="flex-fill">
                 <i className="fas fa-edit me-1"></i>Edit
               </Button>
             )}
