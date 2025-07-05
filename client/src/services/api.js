@@ -22,12 +22,15 @@ export const getImageUrl = (imagePath, fallback = '/images/placeholder.png') => 
   return `${baseURL.replace('/api', '')}/${imagePath}`;
 };
 
-// Request interceptor to add auth token
+// Request interceptor to add auth token - SAFER VERSION
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+    // Check if localStorage is available (browser environment)
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const token = localStorage.getItem('token');
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
     }
     return config;
   },
@@ -36,19 +39,20 @@ api.interceptors.request.use(
   }
 );
 
-// Response interceptor for handling auth errors
+// Response interceptor for handling auth errors - SAFER VERSION
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     console.error('API error:', error);
-    if (error.response?.status === 401) {
+    
+    // Check if we're in browser environment before accessing localStorage/window
+    if (typeof window !== 'undefined' && error.response?.status === 401) {
       localStorage.removeItem('token');
       window.location.href = '/login';
     }
     return Promise.reject(error);
   }
 );
-
 
 // Auth functions
 export const authAPI = {

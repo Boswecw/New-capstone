@@ -1,130 +1,24 @@
+// server/routes/pets.js - Updated with random featured pets
 const express = require('express');
 const router = express.Router();
 const Pet = require('../models/Pet');
 const { protect, optionalAuth } = require('../middleware/auth');
 const { validatePetQuery, validateObjectId } = require('../middleware/validation');
 
-// GET /api/pets - Get all pets with filtering and pagination
-router.get('/', validatePetQuery, optionalAuth, async (req, res) => {
-  try {
-    const {
-      category,
-      type,
-      age,
-      size,
-      gender,
-      search,
-      featured,
-      limit = 12,
-      page = 1,
-      sort = 'createdAt'
-    } = req.query;
-
-    // Build query object
-    const query = { status: 'available' };
-
-    // Add filters
-    if (category && category !== 'all') {
-      query.category = category;
-    }
-
-    if (type) {
-      query.type = type;
-    }
-
-    if (age) {
-      query.age = { $lte: parseInt(age) };
-    }
-
-    if (size) {
-      query.size = size;
-    }
-
-    if (gender) {
-      query.gender = gender;
-    }
-
-    if (featured === 'true') {
-      query.featured = true;
-    }
-
-    // Add search functionality
-    if (search) {
-      query.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { breed: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } }
-      ];
-    }
-
-    // Calculate pagination
-    const limitNum = parseInt(limit);
-    const skip = (parseInt(page) - 1) * limitNum;
-
-    // Sort options
-    const sortOptions = {};
-    switch (sort) {
-      case 'name':
-        sortOptions.name = 1;
-        break;
-      case 'age':
-        sortOptions.age = 1;
-        break;
-      case 'newest':
-        sortOptions.createdAt = -1;
-        break;
-      case 'oldest':
-        sortOptions.createdAt = 1;
-        break;
-      default:
-        sortOptions.createdAt = -1;
-    }
-
-    // Execute query
-    const pets = await Pet.find(query)
-      .sort(sortOptions)
-      .limit(limitNum)
-      .skip(skip)
-      .populate('createdBy', 'name email')
-      .lean();
-
-    // Get total count for pagination
-    const totalPets = await Pet.countDocuments(query);
-    const totalPages = Math.ceil(totalPets / limitNum);
-
-    res.json({
-      success: true,
-      data: pets,
-      pagination: {
-        currentPage: parseInt(page),
-        totalPages,
-        totalPets,
-        hasNext: page < totalPages,
-        hasPrev: page > 1
-      },
-      message: 'Pets retrieved successfully'
-    });
-  } catch (error) {
-    console.error('Error fetching pets:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching pets',
-      error: error.message
-    });
-  }
-});
-
-// GET /api/pets/featured - Get featured pets
+// GET /api/pets/featured - Get random pets as featured
 router.get('/featured', async (req, res) => {
   try {
-    const featuredPets = await Pet.find({
-      status: 'available',
-      featured: true
-    })
-      .sort({ createdAt: -1 })
-      .limit(6)
-      .populate('createdBy', 'name email')
-      .lean();
+    console.log('🌟 Fetching random featured pets...');
+    
+    const { limit = 6 } = req.query;
+    
+    // Get random available pets using MongoDB aggregation
+    const featuredPets = await Pet.aggregate([
+      { $match: { status: 'available' } }, // Only available pets
+      { $sample: { size: parseInt(limit) } } // Randomly sample pets
+    ]);
+
+    console.log(`✅ Found ${featuredPets.length} random featured pets`);
 
     res.json({
       success: true,
@@ -195,19 +89,167 @@ router.get('/stats', async (req, res) => {
   }
 });
 
+// GET /api/pets - Get all pets with filtering and pagination
+router.get('/', validatePetQuery, optionalAuth, async (req, res) => {
+  try {
+    const {
+      category,
+      type,
+      age,
+      size,
+      gender,
+      search,
+      featured,
+      limit = 12,
+      page = 1,
+      sort = 'createdAt'
+    } = req.query;
+
+    console.log('🐾 Pets API called with params:', req.query);
+
+    // If featured is requested, redirect to featured endpoint
+    if (featured === 'true') {
+      console.log('🔄 Redirecting to featured pets endpoint');
+      try {
+        const featuredPets = await Pet.aggregate([
+          { $match: { status: 'available' } },
+          { $sample: { size: parseInt(limit) } }
+        ]);
+        
+        return res.json({
+          success: true,
+          data: featuredPets,
+          pagination: {
+            currentPage: 1,
+            totalPages: 1,
+            totalPets: featuredPets.length,
+            hasNext: false,
+            hasPrev: false
+          },
+          message: 'Featured pets retrieved successfully'
+        });
+      } catch (error) {
+        console.error('Error fetching featured pets:', error);
+        return res.status(500).json({
+          success: false,
+          message: 'Error fetching featured pets'
+        });
+      }
+    }
+
+    // Build query object
+    const query = { status: 'available' };
+
+    // Add filters
+    if (category && category !== 'all') {
+      query.category = category;
+    }
+
+    if (type) {
+      query.type = type;
+    }
+
+    if (age) {
+      query.age = { $lte: parseInt(age) };
+    }
+
+    if (size) {
+      query.size = size;
+    }
+
+    if (gender) {
+      query.gender = gender;
+    }
+
+    // Add search functionality
+    if (search) {
+      query.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { breed: { $regex: search, $options: 'i' } },
+        { description: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    // Calculate pagination
+    const limitNum = parseInt(limit);
+    const skip = (parseInt(page) - 1) * limitNum;
+
+    // Sort options
+    const sortOptions = {};
+    switch (sort) {
+      case 'name':
+        sortOptions.name = 1;
+        break;
+      case 'age':
+        sortOptions.age = 1;
+        break;
+      case 'newest':
+        sortOptions.createdAt = -1;
+        break;
+      case 'oldest':
+        sortOptions.createdAt = 1;
+        break;
+      default:
+        sortOptions.createdAt = -1;
+    }
+
+    console.log('🔍 MongoDB query:', query);
+    console.log('📊 Sort:', sortOptions);
+
+    // Execute query
+    const pets = await Pet.find(query)
+      .sort(sortOptions)
+      .limit(limitNum)
+      .skip(skip)
+      .populate('createdBy', 'name email')
+      .lean();
+
+    // Get total count for pagination
+    const totalPets = await Pet.countDocuments(query);
+    const totalPages = Math.ceil(totalPets / limitNum);
+
+    console.log(`✅ Found ${pets.length} pets`);
+
+    res.json({
+      success: true,
+      data: pets,
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages,
+        totalPets,
+        hasNext: page < totalPages,
+        hasPrev: page > 1
+      },
+      message: 'Pets retrieved successfully'
+    });
+  } catch (error) {
+    console.error('Error fetching pets:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching pets',
+      error: error.message
+    });
+  }
+});
+
 // GET /api/pets/:id - Get single pet by ID
 router.get('/:id', validateObjectId, async (req, res) => {
   try {
+    console.log('🔍 Fetching pet with ID:', req.params.id);
+    
     const pet = await Pet.findById(req.params.id)
       .populate('createdBy', 'name email profile.phone')
       .populate('adoptedBy', 'name email');
 
     if (!pet) {
+      console.log('❌ Pet not found:', req.params.id);
       return res.status(404).json({
         success: false,
         message: 'Pet not found'
       });
     }
+
+    console.log('✅ Pet found:', pet.name);
 
     // Increment view count
     await pet.incrementViews();
@@ -222,6 +264,51 @@ router.get('/:id', validateObjectId, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error fetching pet',
+      error: error.message
+    });
+  }
+});
+
+// GET /api/pets/:id/similar - Get similar pets
+router.get('/:id/similar', validateObjectId, async (req, res) => {
+  try {
+    console.log('🔗 Fetching similar pets for ID:', req.params.id);
+    
+    const pet = await Pet.findById(req.params.id);
+
+    if (!pet) {
+      return res.status(404).json({
+        success: false,
+        message: 'Pet not found'
+      });
+    }
+
+    // Find similar pets based on type, category, and age
+    const similarPets = await Pet.find({
+      _id: { $ne: pet._id },
+      status: 'available',
+      $or: [
+        { type: pet.type },
+        { category: pet.category },
+        { age: { $gte: pet.age - 2, $lte: pet.age + 2 } }
+      ]
+    })
+      .limit(6)
+      .populate('createdBy', 'name email')
+      .lean();
+
+    console.log(`✅ Found ${similarPets.length} similar pets`);
+
+    res.json({
+      success: true,
+      data: similarPets,
+      message: 'Similar pets retrieved successfully'
+    });
+  } catch (error) {
+    console.error('Error fetching similar pets:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching similar pets',
       error: error.message
     });
   }
@@ -288,47 +375,6 @@ router.delete('/:id/favorite', protect, validateObjectId, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error removing from favorites',
-      error: error.message
-    });
-  }
-});
-
-// GET /api/pets/:id/similar - Get similar pets
-router.get('/:id/similar', validateObjectId, async (req, res) => {
-  try {
-    const pet = await Pet.findById(req.params.id);
-
-    if (!pet) {
-      return res.status(404).json({
-        success: false,
-        message: 'Pet not found'
-      });
-    }
-
-    // Find similar pets based on type, category, and age
-    const similarPets = await Pet.find({
-      _id: { $ne: pet._id },
-      status: 'available',
-      $or: [
-        { type: pet.type },
-        { category: pet.category },
-        { age: { $gte: pet.age - 2, $lte: pet.age + 2 } }
-      ]
-    })
-      .limit(6)
-      .populate('createdBy', 'name email')
-      .lean();
-
-    res.json({
-      success: true,
-      data: similarPets,
-      message: 'Similar pets retrieved successfully'
-    });
-  } catch (error) {
-    console.error('Error fetching similar pets:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching similar pets',
       error: error.message
     });
   }

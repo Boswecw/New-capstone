@@ -1,20 +1,20 @@
-// server/server.js - CLEANED & CORRECTED
-
+// server/server.js - Updated with products route
 const path = require('path');
-require('dotenv').config({ path: path.resolve(__dirname, '../.env') }); // ✅ Load env vars early
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-const multer = require('multer'); // ✅ Required for image upload
+const multer = require('multer');
 
 // Import routes
 const petRoutes = require('./routes/pets');
 const userRoutes = require('./routes/users');
 const contactRoutes = require('./routes/contact');
 const adminRoutes = require('./routes/admin');
+const productsRoutes = require('./routes/products'); // ✅ ADD THIS LINE
 
-// ✅ Optional GCS route setup
+// Optional GCS route setup
 let gcsRoutes;
 try {
   gcsRoutes = require('./routes/gcs');
@@ -31,7 +31,7 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// 🔐 Required environment variables check
+// Required environment variables check
 if (!process.env.MONGODB_URI) {
   console.error('❌ MONGODB_URI is not defined. Check your .env file.');
   process.exit(1);
@@ -46,20 +46,20 @@ if (!process.env.GOOGLE_CLOUD_PROJECT_ID || !process.env.GOOGLE_CLOUD_KEY_FILE) 
   console.warn('⚠️  GCS configuration is incomplete. Image upload will not work.');
 }
 
-// 📡 Connect to MongoDB
+// Connect to MongoDB
 console.log('🔌 Connecting to MongoDB...');
 mongoose.connect(process.env.MONGODB_URI)
-  .then(() => console.log('✅ Connected to MongoDB Atlas'))
-  .catch((err) => {
-    console.error('❌ MongoDB connection error:', err);
-    process.exit(1);
-  });
+  .then(() => {
+    console.log('✅ Connected to MongoDB Atlas');
+    console.log('🗃️  Database name:', mongoose.connection.db.databaseName); // ADD THIS LINE
+  })
 
 // API routes
 app.use('/api/pets', petRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/contact', contactRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/products', productsRoutes); // ✅ ADD THIS LINE
 
 if (gcsRoutes) {
   app.use('/api/gcs', gcsRoutes);
@@ -88,7 +88,7 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
-// 🔥 Error handling middleware
+// Error handling middleware
 app.use((err, req, res, next) => {
   console.error('💥 Server error:', err);
 
@@ -129,7 +129,7 @@ app.use((err, req, res, next) => {
   });
 });
 
-// 🧹 Graceful shutdown
+// Graceful shutdown
 ['SIGTERM', 'SIGINT'].forEach(signal =>
   process.on(signal, () => {
     console.log(`${signal} received. Closing MongoDB connection...`);
@@ -140,10 +140,11 @@ app.use((err, req, res, next) => {
   })
 );
 
-// 🚀 Start server
+// Start server
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
   console.log(`🌍 Env: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🗃️  GCS configured: ${!!(process.env.GOOGLE_CLOUD_PROJECT_ID && process.env.GOOGLE_CLOUD_KEY_FILE)}`);
+  console.log(`🛒 Products API: http://localhost:${PORT}/api/products`); // ✅ ADD THIS LINE
 });

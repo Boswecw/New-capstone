@@ -1,4 +1,4 @@
-// client/src/pages/Home.js - UPDATED VERSION TO USE REAL DATA FROM MONGO
+// client/src/pages/Home.js - UPDATED AND FIXED VERSION
 
 import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, Button, Spinner, Alert } from 'react-bootstrap';
@@ -26,10 +26,18 @@ const Home = () => {
 
   const fetchFeaturedPets = async () => {
     try {
-      const response = await api.get('/pets?limit=6');
-      setFeaturedPets(response.data.data || []);
+      console.log('🐾 Fetching featured pets...');
+      const response = await api.get('/pets/featured?limit=6');
+      console.log('✅ Pets response:', response.data);
+      
+      if (response.data && response.data.success) {
+        setFeaturedPets(response.data.data || []);
+      } else {
+        console.error('❌ Invalid pets response format:', response.data);
+        setFeaturedPets([]);
+      }
     } catch (error) {
-      console.error('Error fetching pets:', error);
+      console.error('❌ Error fetching featured pets:', error);
       setFeaturedPets([]);
     } finally {
       setLoading(false);
@@ -38,10 +46,18 @@ const Home = () => {
 
   const fetchFeaturedProducts = async () => {
     try {
-      const response = await api.get('/products?featured=true&limit=3');
-      setFeaturedProducts(response.data.data || []);
+      console.log('📦 Fetching featured products...');
+      const response = await api.get('/products/featured?limit=3');
+      console.log('✅ Products response:', response.data);
+      
+      if (response.data && response.data.success) {
+        setFeaturedProducts(response.data.data || []);
+      } else {
+        console.error('❌ Invalid products response format:', response.data);
+        setFeaturedProducts([]);
+      }
     } catch (error) {
-      console.error('Error fetching featured products:', error);
+      console.error('❌ Error fetching featured products:', error);
       setFeaturedProducts([]);
     }
   };
@@ -49,20 +65,48 @@ const Home = () => {
   const fetchProductImages = async () => {
     setImageLoading(true);
     try {
+      console.log('🖼️ Fetching product images...');
       const response = await api.get(`/gcs/buckets/furbabies-petstore/images?prefix=${bucketFolders.PRODUCT}/&public=true`);
-      if (response.data.success) {
-        setProductImages(response.data.data);
+      
+      if (response.data && response.data.success) {
+        setProductImages(response.data.data || []);
+        console.log('✅ Product images loaded:', response.data.data.length);
+      } else {
+        console.warn('⚠️ Product images not available');
+        setProductImages([]);
       }
     } catch (error) {
-      console.error('Error fetching product images:', error);
+      console.error('❌ Error fetching product images:', error);
       setError('Failed to load product images');
+      setProductImages([]);
     } finally {
       setImageLoading(false);
     }
   };
 
   const findProductImage = (product) => {
-    return findBestMatchingImage(productImages, [product.name, product.category, product.brand], product.image);
+    if (!product) return 'product/placeholder.png';
+    
+    try {
+      return findBestMatchingImage(
+        productImages, 
+        [product.name, product.category, product.brand], 
+        product.image
+      );
+    } catch (error) {
+      console.error('Error finding product image:', error);
+      return product.image || 'product/placeholder.png';
+    }
+  };
+
+  const getProductImageUrl = (product) => {
+    // Use the imageUrl from API if available, otherwise build URL
+    if (product.imageUrl) {
+      return product.imageUrl;
+    }
+    
+    const imagePath = findProductImage(product);
+    return `https://storage.googleapis.com/furbabies-petstore/${imagePath}`;
   };
 
   const testimonials = [
@@ -105,13 +149,15 @@ const Home = () => {
             <Alert variant="danger" className="text-center">
               {error}
             </Alert>
-          ) : featuredPets.length > 0 ? (
+          ) : featuredPets && featuredPets.length > 0 ? (
             <Row className="g-4">
-              {featuredPets.slice(0, 3).map(pet => (
-                <Col key={pet._id} md={4}>
-                  <PetCard pet={pet} />
-                </Col>
-              ))}
+              {featuredPets.slice(0, 3).map(pet => 
+                pet && pet._id ? (
+                  <Col key={pet._id} md={4}>
+                    <PetCard pet={pet} />
+                  </Col>
+                ) : null
+              )}
             </Row>
           ) : (
             <Alert variant="info" className="text-center">
@@ -137,29 +183,33 @@ const Home = () => {
               <Spinner animation="border" variant="primary" />
               <p className="mt-2">Loading products...</p>
             </div>
-          ) : (
+          ) : featuredProducts && featuredProducts.length > 0 ? (
             <Row className="g-4">
-              {featuredProducts.map(product => {
-                const productImage = findProductImage(product);
-                return (
+              {featuredProducts.map(product => 
+                product && product._id ? (
                   <Col key={product._id} md={4}>
                     <Card className="h-100 shadow-sm">
                       <Card.Img
                         variant="top"
-                        src={`https://storage.googleapis.com/furbabies-petstore/${productImage}`}
-                        alt={product.name}
+                        src={getProductImageUrl(product)}
+                        alt={product.name || 'Product'}
                         style={{ height: '200px', objectFit: 'cover' }}
+                        onError={(e) => {
+                          e.target.src = 'https://via.placeholder.com/300x200?text=Product+Image';
+                        }}
                       />
                       <Card.Body className="d-flex flex-column">
                         <Card.Title className="d-flex align-items-center">
                           <i className="fas fa-box-open me-2 text-primary"></i>
-                          {product.name}
+                          {product.name || 'Unknown Product'}
                         </Card.Title>
                         <Card.Text className="text-muted flex-grow-1">
-                          {product.description}
+                          {product.description || 'No description available'}
                         </Card.Text>
                         <div className="d-flex justify-content-between align-items-center">
-                          <span className="h5 text-primary mb-0">${product.price.toFixed(2)}</span>
+                          <span className="h5 text-primary mb-0">
+                            ${product.price ? product.price.toFixed(2) : '0.00'}
+                          </span>
                           <Button variant="outline-primary" size="sm">
                             View Details
                           </Button>
@@ -167,10 +217,22 @@ const Home = () => {
                       </Card.Body>
                     </Card>
                   </Col>
-                );
-              })}
+                ) : null
+              )}
             </Row>
+          ) : (
+            <Alert variant="info" className="text-center">
+              No featured products available at the moment.
+            </Alert>
           )}
+
+          <div className="text-center mt-4">
+            <Link to="/products">
+              <Button variant="outline-secondary" size="lg">
+                View All Products
+              </Button>
+            </Link>
+          </div>
         </section>
 
         {/* Testimonials Section */}
