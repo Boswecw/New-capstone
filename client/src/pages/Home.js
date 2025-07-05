@@ -1,70 +1,54 @@
-// client/src/pages/Home.js - FIXED VERSION
+// client/src/pages/Home.js - UPDATED VERSION TO USE REAL DATA FROM MONGO
+
 import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, Button, Spinner, Alert } from 'react-bootstrap';
-
 import { Link } from 'react-router-dom';
+
 import Navbar from '../components/Navbar';
 import HeroBanner from '../components/HeroBanner';
 import PetCard from '../components/PetCard';
-import Footer from '../components/Footer';
 import api from '../services/api';
 import { bucketFolders, findBestMatchingImage } from '../utils/bucketUtils';
 
 const Home = () => {
   const [featuredPets, setFeaturedPets] = useState([]);
+  const [featuredProducts, setFeaturedProducts] = useState([]);
   const [productImages, setProductImages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [imageLoading, setImageLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // Featured products configuration
-  const featuredProducts = [
-    {
-      id: 'dog-food',
-      title: 'Premium Dog Food',
-      price: 29.99,
-      icon: 'fa-bone',
-      searchTerms: ['dog', 'food', 'premium'],
-      fallbackImage: '/assets/Dogfood.png'
-    },
-    {
-      id: 'cat-toys',
-      title: 'Interactive Cat Toys',
-      price: 14.99,
-      icon: 'fa-mouse',
-      searchTerms: ['cat', 'toy', 'interactive'],
-      fallbackImage: '/assets/interactivecattoy.png'
-    },
-    {
-      id: 'aquarium-kit',
-      title: 'Aquarium Starter Kit',
-      price: 49.99,
-      icon: 'fa-fish',
-      searchTerms: ['aquarium', 'fish', 'tank', 'starter'],
-      fallbackImage: '/assets/Aquarium.png'
-    }
-  ];
-
   useEffect(() => {
     fetchFeaturedPets();
+    fetchFeaturedProducts();
     fetchProductImages();
   }, []);
 
   const fetchFeaturedPets = async () => {
     try {
-      const response = await api.get('/pets/featured');
-      setFeaturedPets(response.data.data);
+      const response = await api.get('/pets?limit=6');
+      setFeaturedPets(response.data.data || []);
     } catch (error) {
-      console.error('Error fetching featured pets:', error);
+      console.error('Error fetching pets:', error);
+      setFeaturedPets([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchFeaturedProducts = async () => {
+    try {
+      const response = await api.get('/products?featured=true&limit=3');
+      setFeaturedProducts(response.data.data || []);
+    } catch (error) {
+      console.error('Error fetching featured products:', error);
+      setFeaturedProducts([]);
     }
   };
 
   const fetchProductImages = async () => {
     setImageLoading(true);
     try {
-      // ✅ FIXED: Using correct bucket name (all lowercase)
       const response = await api.get(`/gcs/buckets/furbabies-petstore/images?prefix=${bucketFolders.PRODUCT}/&public=true`);
       if (response.data.success) {
         setProductImages(response.data.data);
@@ -77,9 +61,8 @@ const Home = () => {
     }
   };
 
-  // Find best matching image for a product
   const findProductImage = (product) => {
-    return findBestMatchingImage(productImages, product.searchTerms, product.fallbackImage);
+    return findBestMatchingImage(productImages, [product.name, product.category, product.brand], product.image);
   };
 
   const testimonials = [
@@ -105,14 +88,14 @@ const Home = () => {
 
   return (
     <div className="home-page">
-       <Navbar />
+      <Navbar />
       <HeroBanner />
-      
+
       <Container className="py-5">
         {/* Featured Pets Section */}
         <section className="featured-pets mb-5">
           <h2 className="text-center mb-4">Featured Pets</h2>
-          
+
           {loading ? (
             <div className="text-center">
               <Spinner animation="border" variant="primary" />
@@ -135,7 +118,7 @@ const Home = () => {
               No featured pets available at the moment.
             </Alert>
           )}
-          
+
           <div className="text-center mt-4">
             <Link to="/pets">
               <Button variant="primary" size="lg">
@@ -148,7 +131,7 @@ const Home = () => {
         {/* Featured Products Section */}
         <section className="featured-products mb-5">
           <h2 className="text-center mb-4">Featured Products</h2>
-          
+
           {imageLoading ? (
             <div className="text-center">
               <Spinner animation="border" variant="primary" />
@@ -159,24 +142,24 @@ const Home = () => {
               {featuredProducts.map(product => {
                 const productImage = findProductImage(product);
                 return (
-                  <Col key={product.id} md={4}>
+                  <Col key={product._id} md={4}>
                     <Card className="h-100 shadow-sm">
-                      <Card.Img 
-                        variant="top" 
-                        src={productImage} 
-                        alt={product.title}
+                      <Card.Img
+                        variant="top"
+                        src={`https://storage.googleapis.com/furbabies-petstore/${productImage}`}
+                        alt={product.name}
                         style={{ height: '200px', objectFit: 'cover' }}
                       />
                       <Card.Body className="d-flex flex-column">
                         <Card.Title className="d-flex align-items-center">
-                          <i className={`fas ${product.icon} me-2 text-primary`}></i>
-                          {product.title}
+                          <i className="fas fa-box-open me-2 text-primary"></i>
+                          {product.name}
                         </Card.Title>
                         <Card.Text className="text-muted flex-grow-1">
-                          High-quality {product.title.toLowerCase()} for your beloved pet.
+                          {product.description}
                         </Card.Text>
                         <div className="d-flex justify-content-between align-items-center">
-                          <span className="h5 text-primary mb-0">${product.price}</span>
+                          <span className="h5 text-primary mb-0">${product.price.toFixed(2)}</span>
                           <Button variant="outline-primary" size="sm">
                             View Details
                           </Button>
@@ -213,8 +196,6 @@ const Home = () => {
           </Row>
         </section>
       </Container>
-
-       <Footer />
     </div>
   );
 };

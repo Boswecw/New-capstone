@@ -2,7 +2,6 @@
   "name": "furbabies-petstore",
   "version": "1.0.0",
   "description": "FurBabies Pet Store MERN Application",
-  "type": "module",
   "main": "server/server.js",
   "scripts": {
     "start": "node server/server.js",
@@ -25,12 +24,13 @@
   "license": "MIT",
   "dependencies": {
     "@google-cloud/storage": "^7.16.0",
+    "axios": "^1.10.0",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
+    "dotenv": "^16.6.1",
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
-    "mongoose": "^8.8.3",
+    "mongoose": "^8.16.1",
     "morgan": "^1.10.0",
     "multer": "^2.0.1",
     "react-toastify": "^11.0.5"

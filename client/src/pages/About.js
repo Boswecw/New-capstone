@@ -2,7 +2,6 @@ import React from 'react';
 import { Container, Row, Col, Card } from 'react-bootstrap';
 import Navbar from '../components/Navbar';
 import HeroBanner from '../components/HeroBanner';
-import Footer from '../components/Footer';
 
 const About = () => {
   return (
@@ -151,7 +150,6 @@ const About = () => {
           </Row>
         </Container>
 
-        <Footer />
       </div>
     </>
   );

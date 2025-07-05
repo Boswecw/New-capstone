@@ -1,88 +1,65 @@
 // client/src/components/HeroBanner.js
+
 import React from "react";
 import { Container, Row, Col } from "react-bootstrap";
 import { Link } from "react-router-dom";
 import PropTypes from "prop-types";
+import './HeroBanner.css';
 
-/**
- * Reusable HeroBanner component with manual FurBabies icon input
- * Maintains exact styling while using direct Google Cloud Storage URL
- */
 const HeroBanner = ({
-  title = "FurBabies",
   subtitle = "Your One Stop Pet Super Store",
   showLogo = true,
-  showPawIcon = true,
   showHeartIcon = true,
   buttonText = null,
   buttonLink = null,
   buttonIcon = null,
   customContent = null,
   className = "",
-  titleIcon = "fas fa-paw",
   subtitleIcon = "fas fa-heart",
-  logoSize = "medium",
   ...props
 }) => {
-  // Direct URL to FurBabies icon in Google Cloud Storage
-  const furBabiesIconUrl = "https://storage.googleapis.com/FurBabies-petstore/brand/FurBabiesicon.png";
-
-  // Helper to get icon URL based on logoSize
-  const getFurBabiesiconUrl = (size) => {
-    // You can customize URLs for different sizes if needed
-    // For now, return the same URL for all sizes
-    return furBabiesIconUrl;
-  };
+  const furBabiesIconUrl =
+    "https://storage.googleapis.com/furbabies-petstore/brand/FurBabieicon.png";
 
   const handleImageError = (e) => {
-    // Fallback to local asset if cloud storage fails
-    e.target.src = "/assets/brand/FurBabiesicon.png";
+    e.target.src = "/images/brand/FurBabiesicon.png"; // fallback
   };
 
   return (
     <section className={`furbabies-banner ${className}`} {...props}>
       <Container>
-        <Row className="justify-content-center align-items-center">
+        <Row className="justify-content-center text-center">
           <Col xs={12} md={10}>
-            <div className="hero-content">
-              {/* Hero Title */}
-              <h1 className="hero-title">
-                {showPawIcon && <i className={`${titleIcon} me-2`}></i>}
-                {title}
-                {showLogo && (
-                  <img
-                    src={getFurBabiesiconUrl(logoSize)}
-                    alt="FurBabies icon" 
-                    className="hero-icon ms-2"
-                    onError={handleImageError}
-                  />
-                )}
-              </h1>
+            {/* FurBabies Icon */}
+            {showLogo && (
+              <img
+                src={furBabiesIconUrl}
+                alt="FurBabies icon"
+                onError={handleImageError}
+                className="hero-icon bounce-loop"
+              />
+            )}
 
-              {/* Hero Subtitle */}
-              {subtitle && (
-                <p className="hero-subtitle">
-                  {showHeartIcon && <i className={`${subtitleIcon} me-2`}></i>}
-                  {subtitle}
-                </p>
-              )}
+            {/* Subtitle */}
+            {subtitle && (
+              <p className="hero-subtitle">
+                {showHeartIcon && <i className={`${subtitleIcon} me-2`}></i>}
+                {subtitle}
+              </p>
+            )}
 
-              {/* Call-to-Action Button */}
-              {buttonText && buttonLink && (
-                <Link
-                  to={buttonLink}
-                  className="btn btn-lg btn-light px-4 py-2"
-                >
-                  {buttonIcon && <i className={`${buttonIcon} me-2`}></i>}
-                  {buttonText}
-                </Link>
-              )}
+            {/* Call-to-Action Button */}
+            {buttonText && buttonLink && (
+              <Link to={buttonLink} className="btn btn-lg btn-light px-4 py-2">
+                {buttonIcon && <i className={`${buttonIcon} me-2`}></i>}
+                {buttonText}
+              </Link>
+            )}
 
-              {/* Custom Content Slot */}
-              {customContent && (
-                <div className="hero-custom-content">{customContent}</div>
-              )}
-            </div>
+            {/* Custom Content */}
+            {customContent && (
+              <div className="hero-custom-content mt-4">{customContent}</div>
+            )}
           </Col>
         </Row>
       </Container>
@@ -91,26 +68,13 @@ const HeroBanner = ({
 };
 
 HeroBanner.propTypes = {
-  // Text content
-  title: PropTypes.string,
   subtitle: PropTypes.string,
-
-  // Icon visibility
   showLogo: PropTypes.bool,
-  showPawIcon: PropTypes.bool,
   showHeartIcon: PropTypes.bool,
-
-  // Icon customization
-  titleIcon: PropTypes.string,
   subtitleIcon: PropTypes.string,
-  logoSize: PropTypes.oneOf(["small", "medium", "large", "hero"]),
-
-  // Button configuration
   buttonText: PropTypes.string,
   buttonLink: PropTypes.string,
   buttonIcon: PropTypes.string,
-
-  // Advanced customization
   customContent: PropTypes.node,
   className: PropTypes.string,
 };

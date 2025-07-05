@@ -24,12 +24,12 @@ const ProductImageManager = ({ show, onHide, productId, productName }) => {
     setError('');
     
     try {
-      // ✅ FIXED: Using correct bucket name (all lowercase)
+      // FIXED: Using correct bucket name (all lowercase)
       const response = await api.get(`/gcs/buckets/furbabies-petstore/images?prefix=${bucketFolders.PRODUCT}/&public=true`);
       
       if (response.data.success) {
         setProductImages(response.data.data);
-        console.log('📸 Loaded product images:', response.data.data.length);
+        console.log('Loaded product images:', response.data.data.length);
       } else {
         throw new Error(response.data.message || 'Failed to fetch images');
       }
@@ -51,9 +51,9 @@ const ProductImageManager = ({ show, onHide, productId, productName }) => {
       return;
     }
 
-    // ✅ FIXED: Complete the file size validation
+    // FIXED: Complete the file size validation
     if (!isValidFileSize(file)) {
-      setError(`File size too large. Maximum size is 10MB. Your file: ${formatFileSize(file.size)}`);
+      setError('File size too large. Maximum size is 10MB.');
       return;
     }
 
@@ -72,7 +72,7 @@ const ProductImageManager = ({ show, onHide, productId, productName }) => {
       const formData = new FormData();
       formData.append('image', uploadFile);
       formData.append('entityId', productId);
-      formData.append('bucketName', 'furbabies-petstore'); // ✅ FIXED: Correct bucket name
+      formData.append('bucketName', 'furbabies-petstore'); // FIXED: Correct bucket name
       formData.append('folder', bucketFolders.PRODUCT);
       formData.append('public', 'true');
 
@@ -83,7 +83,7 @@ const ProductImageManager = ({ show, onHide, productId, productName }) => {
       });
 
       if (response.data.success) {
-        setSuccess(`✅ Image uploaded successfully: ${response.data.data.fileName}`);
+        setSuccess(`Image uploaded successfully: ${response.data.data.fileName}`);
         setUploadFile(null);
         // Reset file input
         const fileInput = document.getElementById('imageUpload');
@@ -114,7 +114,7 @@ const ProductImageManager = ({ show, onHide, productId, productName }) => {
         imageName: imageData.name
       });
 
-      setSuccess(`✅ Image assigned to ${productName} successfully`);
+      setSuccess(`Image assigned to ${productName} successfully`);
       setSelectedImage(imageData);
       
       // Close modal after successful assignment

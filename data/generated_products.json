@@ -1,0 +1,152 @@
+[
+  {
+    "_id": "prod_001",
+    "name": "Clicker",
+    "category": "general",
+    "brand": "Generic",
+    "price": 9.99,
+    "inStock": true,
+    "description": "Clicker product description goes here.",
+    "image": "product/clicker.png"
+  },
+  {
+    "_id": "prod_002",
+    "name": "Covered Litter Box",
+    "category": "general",
+    "brand": "Generic",
+    "price": 9.99,
+    "inStock": true,
+    "description": "Covered Litter Box product description goes here.",
+    "image": "product/covered-litter-box.png"
+  },
+  {
+    "_id": "prod_003",
+    "name": "Dog Harness",
+    "category": "general",
+    "brand": "Generic",
+    "price": 9.99,
+    "inStock": true,
+    "description": "Dog Harness product description goes here.",
+    "image": "product/dog-harness.png"
+  },
+  {
+    "_id": "prod_004",
+    "name": "Harness",
+    "category": "general",
+    "brand": "Generic",
+    "price": 9.99,
+    "inStock": true,
+    "description": "Harness product description goes here.",
+    "image": "product/harness.png"
+  },
+  {
+    "_id": "prod_005",
+    "name": "Interactive Cat Toy",
+    "category": "general",
+    "brand": "Generic",
+    "price": 9.99,
+    "inStock": true,
+    "description": "Interactive Cat Toy product description goes here.",
+    "image": "product/interactive-cat-toy.png"
+  },
+  {
+    "_id": "prod_006",
+    "name": "Kibble Dog Food",
+    "category": "general",
+    "brand": "Generic",
+    "price": 9.99,
+    "inStock": true,
+    "description": "Kibble Dog Food product description goes here.",
+    "image": "product/kibble-dog-food.png"
+  },
+  {
+    "_id": "prod_007",
+    "name": "Large Breed Dog Bed",
+    "category": "general",
+    "brand": "Generic",
+    "price": 9.99,
+    "inStock": true,
+    "description": "Large Breed Dog Bed product description goes here.",
+    "image": "product/large-breed-dog-bed.png"
+  },
+  {
+    "_id": "prod_008",
+    "name": "Large Fish Tank",
+    "category": "general",
+    "brand": "Generic",
+    "price": 9.99,
+    "inStock": true,
+    "description": "Large Fish Tank product description goes here.",
+    "image": "product/large-fish-tank.png"
+  },
+  {
+    "_id": "prod_009",
+    "name": "Leash",
+    "category": "general",
+    "brand": "Generic",
+    "price": 9.99,
+    "inStock": true,
+    "description": "Leash product description goes here.",
+    "image": "product/leash.png"
+  },
+  {
+    "_id": "prod_010",
+    "name": "Litter Box",
+    "category": "general",
+    "brand": "Generic",
+    "price": 9.99,
+    "inStock": true,
+    "description": "Litter Box product description goes here.",
+    "image": "product/litter-box.png"
+  },
+  {
+    "_id": "prod_011",
+    "name": "Medium Fish Tank",
+    "category": "general",
+    "brand": "Generic",
+    "price": 9.99,
+    "inStock": true,
+    "description": "Medium Fish Tank product description goes here.",
+    "image": "product/medium-fish-tank.png"
+  },
+  {
+    "_id": "prod_012",
+    "name": "Nail Trimmers",
+    "category": "general",
+    "brand": "Generic",
+    "price": 9.99,
+    "inStock": true,
+    "description": "Nail Trimmers product description goes here.",
+    "image": "product/nail-trimmers.png"
+  },
+  {
+    "_id": "prod_013",
+    "name": "Premum Dog Food",
+    "category": "general",
+    "brand": "Generic",
+    "price": 9.99,
+    "inStock": true,
+    "description": "Premum Dog Food product description goes here.",
+    "image": "product/premum-dog-food.png"
+  },
+  {
+    "_id": "prod_014",
+    "name": "Red Spinner Cat Toy",
+    "category": "general",
+    "brand": "Generic",
+    "price": 9.99,
+    "inStock": true,
+    "description": "Red Spinner Cat Toy product description goes here.",
+    "image": "product/red-spinner-cat-toy.png"
+  },
+  {
+    "_id": "prod_015",
+    "name": "Small Fish Tank",
+    "category": "general",
+    "brand": "Generic",
+    "price": 9.99,
+    "inStock": true,
+    "description": "Small Fish Tank product description goes here.",
+    "image": "product/Small-fish-tank.png"
+  }
+]
