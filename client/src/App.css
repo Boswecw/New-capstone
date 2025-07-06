@@ -935,3 +935,68 @@ footer {
     animation-timing-function: cubic-bezier(0, 0, 0.2, 1);
   }
 }
+
+/* Search Bar Styles in Navbar */
+.custom-navbar .form-control {
+  border-radius: 20px 0 0 20px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background-color: rgba(255, 255, 255, 0.1);
+  color: white;
+  backdrop-filter: blur(10px);
+}
+
+.custom-navbar .form-control::placeholder {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.custom-navbar .form-control:focus {
+  background-color: rgba(255, 255, 255, 0.2);
+  border-color: var(--color-secondary);
+  color: white;
+  box-shadow: 0 0 0 0.2rem rgba(255, 255, 255, 0.25);
+}
+
+.custom-navbar .btn-outline-light {
+  border-radius: 0 20px 20px 0;
+  border-left: none;
+  border-color: rgba(255, 255, 255, 0.3);
+  background-color: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+}
+
+.custom-navbar .btn-outline-light:hover {
+  background-color: var(--color-secondary);
+  border-color: var(--color-secondary);
+  color: white;
+}
+
+.custom-navbar .btn-outline-light:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Responsive search bar */
+@media (max-width: 768px) {
+  .custom-navbar .form-control {
+    min-width: 150px;
+  }
+  
+  .custom-navbar .d-flex {
+    margin-bottom: 10px;
+  }
+}
+
+/* Search input focus animation */
+.custom-navbar .form-control:focus {
+  transform: scale(1.02);
+  transition: all 0.2s ease;
+}
+
+/* Search button hover effect */
+.custom-navbar .btn-outline-light {
+  transition: all 0.2s ease;
+}
+
+.custom-navbar .btn-outline-light:hover {
+  transform: translateY(-1px);
+}

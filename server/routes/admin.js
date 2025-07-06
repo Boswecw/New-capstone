@@ -255,14 +255,59 @@ router.get('/users', async (req, res) => {
 // GET /api/admin/pets - Get all pets for admin management
 router.get('/pets', async (req, res) => {
   try {
+    console.log('🔍 Admin pets route hit with query:', req.query);
+    
     const {
       search,
       category,
+      type,        // ✅ ADDED - The missing filter!
       status,
+      available,
       limit = 20,
       page = 1,
       sort = 'createdAt'
     } = req.query;
+
+    // ✅ TEMPORARY DEBUG ROUTE - Remove after testing
+router.get('/pets/debug', async (req, res) => {
+  try {
+    console.log('🐛 Debug route hit - checking database...');
+    
+    // Test basic database connection
+    const totalPets = await Pet.countDocuments();
+    console.log('📊 Total pets in database:', totalPets);
+    
+    // Get some sample pets without filters
+    const samplePets = await Pet.find().limit(5);
+    console.log('🐾 Sample pets:', samplePets.map(p => ({ name: p.name, type: p.type })));
+    
+    // Test type breakdown
+    const typeStats = await Pet.aggregate([
+      { $group: { _id: '$type', count: { $sum: 1 } } }
+    ]);
+    console.log('📈 Pet types:', typeStats);
+    
+    res.json({
+      success: true,
+      debug: {
+        totalPets,
+        samplePets: samplePets.map(p => ({ 
+          name: p.name, 
+          type: p.type, 
+          _id: p._id 
+        })),
+        typeBreakdown: typeStats
+      }
+    });
+  } catch (error) {
+    console.error('❌ Debug route error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      stack: error.stack
+    });
+  }
+});
 
     // Build query
     const query = {};
@@ -279,8 +324,17 @@ router.get('/pets', async (req, res) => {
       query.category = category;
     }
 
+    // ✅ TYPE FILTERING - This was the missing piece!
+    if (type) {
+      query.type = type;
+    }
+
     if (status) {
       query.status = status;
+    }
+
+    if (available !== undefined && available !== '') {
+      query.available = available === 'true';
     }
 
     // Pagination
@@ -306,6 +360,8 @@ router.get('/pets', async (req, res) => {
         sortOptions.createdAt = -1;
     }
 
+    console.log('🔍 MongoDB query:', query);
+
     const pets = await Pet.find(query)
       .sort(sortOptions)
       .limit(limitNum)
@@ -316,6 +372,8 @@ router.get('/pets', async (req, res) => {
     const totalPets = await Pet.countDocuments(query);
     const totalPages = Math.ceil(totalPets / limitNum);
 
+    console.log('✅ Found pets:', totalPets);
+
     res.json({
       success: true,
       data: pets,
@@ -323,13 +381,13 @@ router.get('/pets', async (req, res) => {
         currentPage: parseInt(page),
         totalPages,
         totalPets,
-        hasNext: page < totalPages,
-        hasPrev: page > 1
+        hasNext: parseInt(page) < totalPages,
+        hasPrev: parseInt(page) > 1
       },
       message: 'Pets retrieved successfully'
     });
   } catch (error) {
-    console.error('Error fetching pets:', error);
+    console.error('❌ Error fetching pets for admin:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching pets',

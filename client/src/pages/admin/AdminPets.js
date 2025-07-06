@@ -9,7 +9,9 @@ const AdminPets = () => {
   const [pagination, setPagination] = useState({});
   const [filters, setFilters] = useState({
     search: '',
+    category: '',
     type: '',
+    status: '',
     available: ''
   });
   const [showEditModal, setShowEditModal] = useState(false);
@@ -47,7 +49,6 @@ const AdminPets = () => {
     setTimeout(() => setAlert({ show: false, message: '', variant: '' }), 5000);
   };
 
-  // ... rest of the component remains the same
   const handleEdit = (pet) => {
     setEditingPet({
       ...pet,
@@ -93,7 +94,34 @@ const AdminPets = () => {
   };
 
   const clearFilters = () => {
-    setFilters({ search: '', type: '', available: '' });
+    setFilters({ 
+      search: '', 
+      category: '', 
+      type: '', 
+      status: '', 
+      available: '' 
+    });
+  };
+
+  // Helper function to get badge variant for type
+  const getTypeBadgeVariant = (value) => {
+    const variants = {
+      dog: 'primary',
+      cat: 'success',
+      fish: 'info',
+      bird: 'warning',
+      'small-pet': 'secondary',
+      supply: 'dark'
+    };
+    return variants[value] || 'primary';
+  };
+
+  // Helper function to normalize type display
+  const normalizeTypeDisplay = (type) => {
+    if (type === 'small-pet') {
+      return 'Small Pet';
+    }
+    return type.charAt(0).toUpperCase() + type.slice(1);
   };
 
   const columns = [
@@ -117,17 +145,12 @@ const AdminPets = () => {
       header: 'Type',
       accessor: 'type',
       type: 'badge',
-      badgeVariant: (value) => {
-        const variants = {
-          dog: 'primary',
-          cat: 'success',
-          fish: 'info',
-          bird: 'warning',
-          'small-pet': 'secondary',
-          supply: 'dark'
-        };
-        return variants[value] || 'primary';
-      }
+      badgeVariant: getTypeBadgeVariant,
+      render: (pet) => (
+        <Badge bg={getTypeBadgeVariant(pet.type)}>
+          {normalizeTypeDisplay(pet.type)}
+        </Badge>
+      )
     },
     {
       header: 'Breed',
@@ -138,9 +161,25 @@ const AdminPets = () => {
       accessor: 'age'
     },
     {
+      header: 'Size',
+      accessor: 'size',
+      render: (pet) => (
+        <Badge variant="outline-secondary" className="text-capitalize">
+          {pet.size}
+        </Badge>
+      )
+    },
+    {
+      header: 'Gender',
+      accessor: 'gender',
+      render: (pet) => (
+        <span className="text-capitalize">{pet.gender || 'Unknown'}</span>
+      )
+    },
+    {
       header: 'Price',
       accessor: 'price',
-      render: (pet) => `$${pet.price?.toLocaleString()}`
+      render: (pet) => pet.price ? `$${pet.price.toLocaleString()}` : 'N/A'
     },
     {
       header: 'Status',
@@ -186,11 +225,11 @@ const AdminPets = () => {
         </Alert>
       )}
 
-      {/* Filters */}
+      {/* Enhanced Filters */}
       <Card className="mb-4">
         <Card.Body>
           <Row className="g-3">
-            <Col md={4}>
+            <Col md={3}>
               <Form.Label>Search</Form.Label>
               <Form.Control
                 type="text"
@@ -199,7 +238,7 @@ const AdminPets = () => {
                 onChange={(e) => handleFilterChange('search', e.target.value)}
               />
             </Col>
-            <Col md={3}>
+            <Col md={2}>
               <Form.Label>Type</Form.Label>
               <Form.Select
                 value={filters.type}
@@ -214,7 +253,20 @@ const AdminPets = () => {
                 <option value="supply">Supplies</option>
               </Form.Select>
             </Col>
-            <Col md={3}>
+            <Col md={2}>
+              <Form.Label>Category</Form.Label>
+              <Form.Select
+                value={filters.category}
+                onChange={(e) => handleFilterChange('category', e.target.value)}
+              >
+                <option value="">All Categories</option>
+                <option value="dog">Dog</option>
+                <option value="cat">Cat</option>
+                <option value="aquatic">Aquatic</option>
+                <option value="other">Other</option>
+              </Form.Select>
+            </Col>
+            <Col md={2}>
               <Form.Label>Availability</Form.Label>
               <Form.Select
                 value={filters.available}
@@ -225,9 +277,21 @@ const AdminPets = () => {
                 <option value="false">Adopted</option>
               </Form.Select>
             </Col>
-            <Col md={2} className="d-flex align-items-end">
-              <Button variant="outline-secondary" onClick={clearFilters}>
-                Clear Filters
+            <Col md={2}>
+              <Form.Label>Status</Form.Label>
+              <Form.Select
+                value={filters.status}
+                onChange={(e) => handleFilterChange('status', e.target.value)}
+              >
+                <option value="">All Status</option>
+                <option value="available">Available</option>
+                <option value="pending">Pending</option>
+                <option value="adopted">Adopted</option>
+              </Form.Select>
+            </Col>
+            <Col md={1} className="d-flex align-items-end">
+              <Button variant="outline-secondary" onClick={clearFilters} size="sm">
+                Clear
               </Button>
             </Col>
           </Row>
@@ -275,6 +339,7 @@ const AdminPets = () => {
                       value={editingPet.type || ''}
                       onChange={(e) => setEditingPet({...editingPet, type: e.target.value})}
                     >
+                      <option value="">Select Type</option>
                       <option value="dog">Dog</option>
                       <option value="cat">Cat</option>
                       <option value="fish">Fish</option>
@@ -285,7 +350,7 @@ const AdminPets = () => {
                   </Form.Group>
                 </Col>
               </Row>
-              
+
               <Row>
                 <Col md={6}>
                   <Form.Group className="mb-3">
@@ -310,17 +375,7 @@ const AdminPets = () => {
               </Row>
 
               <Row>
-                <Col md={6}>
-                  <Form.Group className="mb-3">
-                    <Form.Label>Price</Form.Label>
-                    <Form.Control
-                      type="number"
-                      value={editingPet.price || ''}
-                      onChange={(e) => setEditingPet({...editingPet, price: parseFloat(e.target.value)})}
-                    />
-                  </Form.Group>
-                </Col>
-                <Col md={6}>
+                <Col md={4}>
                   <Form.Group className="mb-3">
                     <Form.Label>Size</Form.Label>
                     <Form.Select
@@ -331,14 +386,10 @@ const AdminPets = () => {
                       <option value="small">Small</option>
                       <option value="medium">Medium</option>
                       <option value="large">Large</option>
-                      <option value="extra-large">Extra Large</option>
                     </Form.Select>
                   </Form.Group>
                 </Col>
-              </Row>
-
-              <Row>
-                <Col md={6}>
+                <Col md={4}>
                   <Form.Group className="mb-3">
                     <Form.Label>Gender</Form.Label>
                     <Form.Select
@@ -348,19 +399,18 @@ const AdminPets = () => {
                       <option value="">Select Gender</option>
                       <option value="male">Male</option>
                       <option value="female">Female</option>
+                      <option value="unknown">Unknown</option>
                     </Form.Select>
                   </Form.Group>
                 </Col>
-                <Col md={6}>
+                <Col md={4}>
                   <Form.Group className="mb-3">
-                    <Form.Label>Availability</Form.Label>
-                    <Form.Select
-                      value={editingPet.available?.toString() || 'true'}
-                      onChange={(e) => setEditingPet({...editingPet, available: e.target.value === 'true'})}
-                    >
-                      <option value="true">Available</option>
-                      <option value="false">Adopted</option>
-                    </Form.Select>
+                    <Form.Label>Price ($)</Form.Label>
+                    <Form.Control
+                      type="number"
+                      value={editingPet.price || ''}
+                      onChange={(e) => setEditingPet({...editingPet, price: e.target.value})}
+                    />
                   </Form.Group>
                 </Col>
               </Row>
@@ -375,14 +425,30 @@ const AdminPets = () => {
                 />
               </Form.Group>
 
-              <Form.Group className="mb-3">
-                <Form.Label>Image URL</Form.Label>
-                <Form.Control
-                  type="text"
-                  value={editingPet.image || ''}
-                  onChange={(e) => setEditingPet({...editingPet, image: e.target.value})}
-                />
-              </Form.Group>
+              <Row>
+                <Col md={8}>
+                  <Form.Group className="mb-3">
+                    <Form.Label>Image URL</Form.Label>
+                    <Form.Control
+                      type="text"
+                      value={editingPet.image || ''}
+                      onChange={(e) => setEditingPet({...editingPet, image: e.target.value})}
+                    />
+                  </Form.Group>
+                </Col>
+                <Col md={4}>
+                  <Form.Group className="mb-3">
+                    <Form.Label>Available</Form.Label>
+                    <Form.Check
+                      type="switch"
+                      id="available-switch"
+                      checked={editingPet.available || false}
+                      onChange={(e) => setEditingPet({...editingPet, available: e.target.checked})}
+                      label={editingPet.available ? "Available" : "Not Available"}
+                    />
+                  </Form.Group>
+                </Col>
+              </Row>
             </Form>
           )}
         </Modal.Body>

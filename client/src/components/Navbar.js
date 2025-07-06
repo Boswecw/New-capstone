@@ -32,7 +32,7 @@ const Navbar = () => {
               <i className="fas fa-home me-1"></i>Home
             </Nav.Link>
 
-            {/* 🐾 Shop by Pet Dropdown */}
+            {/* 🐾 Shop by Pet Dropdown - NOW INCLUDES SMALL PETS! */}
             <NavDropdown title="Shop by Pet" id="nav-dropdown-pets">
               <NavDropdown.Item as={Link} to="/browse?type=dog">
                 <i className="fas fa-dog me-2"></i>Dogs
@@ -42,6 +42,16 @@ const Navbar = () => {
               </NavDropdown.Item>
               <NavDropdown.Item as={Link} to="/browse?type=fish">
                 <i className="fas fa-fish me-2"></i>Aquatics
+              </NavDropdown.Item>
+              <NavDropdown.Item as={Link} to="/browse?type=small-pet">
+                <i className="fas fa-star me-2"></i>Small Pets
+              </NavDropdown.Item>
+              <NavDropdown.Item as={Link} to="/browse?type=bird">
+                <i className="fas fa-dove me-2"></i>Birds
+              </NavDropdown.Item>
+              <NavDropdown.Divider />
+              <NavDropdown.Item as={Link} to="/browse">
+                <i className="fas fa-th me-2"></i>Browse All
               </NavDropdown.Item>
             </NavDropdown>
 
