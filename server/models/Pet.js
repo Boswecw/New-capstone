@@ -250,7 +250,7 @@ petSchema.methods.incrementViews = function() {
   return this.save();
 };
 
-// Method to mark as adopted
+// Method to mark as adopte
 petSchema.methods.markAsAdopted = function(userId) {
   this.status = 'adopted';
   this.adoptedBy = userId;
