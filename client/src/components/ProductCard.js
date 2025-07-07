@@ -1,33 +1,27 @@
 import React from 'react';
 import { Card, Button } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
-import styles from './Card.module.css'; // Adjust if in different folder
+import styles from './Card.module.css'; // Make sure this path is correct
 
-const ProductCard = ({ product }) => {
+const ProductCard = ({ product, imageUrl }) => {
   const formatPrice = (price) =>
     typeof price === 'number' ? `$${price.toFixed(2)}` : 'N/A';
 
   return (
     <Card className={`h-100 shadow-sm ${styles.card}`}>
-      {/* ✅ Image Container */}
       <div className={styles.productImgContainer}>
         <Card.Img
-          src={
-            product.imageUrl ||
-            'https://via.placeholder.com/300x200?text=Product+Image'
-          }
+          src={imageUrl || 'https://via.placeholder.com/300x200?text=Product+Image'}
           alt={product.name || 'Product Image'}
           className={styles.productImg}
           onError={(e) => {
-            e.target.src =
-              'https://via.placeholder.com/300x200?text=Product+Image';
+            e.target.src = 'https://via.placeholder.com/300x200?text=Product+Image';
           }}
         />
       </div>
 
-      {/* ✅ Body */}
       <Card.Body className={`d-flex flex-column ${styles.cardBody}`}>
-        <Card.Title className={`${styles.cardTitle}`}>
+        <Card.Title className={styles.cardTitle}>
           {product.name || 'Unnamed Product'}
         </Card.Title>
         <Card.Text className={`${styles.cardText} flex-grow-1`}>

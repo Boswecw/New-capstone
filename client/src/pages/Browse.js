@@ -4,7 +4,7 @@ import { Container, Row, Col, Spinner, Alert, Form, Button, InputGroup } from 'r
 import { useSearchParams, useLocation } from 'react-router-dom';
 import { FaSearch, FaFilter, FaTimes } from 'react-icons/fa';
 import PetCard from '../components/PetCard';
-import * as petService from '../services/petService';
+import { petAPI } from '../services/api';
 
 const Browse = () => {
   const [pets, setPets] = useState([]);
@@ -48,7 +48,7 @@ const Browse = () => {
         ...(ageRange && { age: ageRange })
       };
 
-      const response = await petService.searchPets(params);
+      const response = await petAPI.getAllPets(params);
       setPets(response.data || []);
     } catch (err) {
       console.error('Error fetching pets:', err);

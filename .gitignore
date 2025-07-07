@@ -1,19 +1,10 @@
-# =============================================================================
-# Enhanced .gitignore for FurBabies Pet Store - Security & Performance Focused
-# =============================================================================
-
-# Dependencies and Lock Files (CRITICAL FOR SECURITY)
+# Node.js dependencies
 node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-lerna-debug.log*
-.pnpm-debug.log*
-
-# LOCK FILES - Prevent massive files from being committed
 package-lock.json
-yarn.lock
-pnpm-lock.yaml
+.npm
 
 # Runtime data
 pids
@@ -21,89 +12,48 @@ pids
 *.seed
 *.pid.lock
 
-# Coverage directory used by tools like istanbul
-coverage/
-*.lcov
-.nyc_output
-
-# Grunt intermediate storage
-.grunt
-
-# Bower dependency directory
-bower_components
-
-# node-waf configuration
-.lock-wscript
-
-# Compiled binary addons
-build/Release
-
-# Dependency directories
-jspm_packages/
-
-# Snowpack dependency directory
-web_modules/
-
-# TypeScript cache
-*.tsbuildinfo
-
-# Optional npm cache directory
-.npm
-
-# Optional eslint cache
-.eslintcache
-
-# Optional stylelint cache
-.stylelintcache
-
-# Microbundle cache
-.rpt2_cache/
-.rts2_cache_cjs/
-.rts2_cache_es/
-.rts2_cache_umd/
-
-# Optional REPL history
-.node_repl_history
-
-# Output of 'npm pack'
-*.tgz
-
-# Yarn Integrity file
-.yarn-integrity
-
 # =============================================================================
-# ENVIRONMENT VARIABLES & SECRETS (CRITICAL SECURITY)
+# SECURITY & CREDENTIALS (CRITICAL)
 # =============================================================================
 
-# Environment files
+# Environment files with secrets
 .env
 .env.local
-.env.development.local
-.env.test.local
-.env.production.local
 .env.development
-.env.production
 .env.test
-.env.backup
-.env.bak
-.env.orig
-.env.save
+.env.production
+.env.staging
+*.env
 
-# Google Cloud & AWS credentials
-*.json
-!package*.json
-!tsconfig*.json
-!manifest.json
-google-cloud-key.json
-service-account-key.json
-gcp-credentials.json
-key.json
+# Database scripts with potential credentials
+server/migrations/
+server/scripts/setup/
+server/scripts/seed/
+**/create-admin*.js
+**/setup-admin*.js
+**/seed-admin*.js
+**/fix-*.js
+**/migrate-*.js
+
+# Admin setup scripts (contain credentials)
+**/admin-setup.js
+**/user-setup.js
+**/initial-setup.js
+
+# Configuration files that might contain secrets
+config/production.js
+config/staging.js
+config/local.js
+secrets.json
 credentials.json
-aws-credentials.json
-.aws/
-gcloud/
 
-# SSL certificates
+# Backup files that might contain sensitive data
+*.backup
+*.dump
+*.sql
+database-backup-*
+
+# Security keys and certificates
 *.pem
 *.key
 *.crt
@@ -111,88 +61,10 @@ gcloud/
 *.p12
 *.pfx
 
-# API keys and secrets
-secrets.txt
+# API keys and tokens
 api-keys.txt
-.secrets
-config/secrets.js
-config/keys.js
-
-# JWT secrets
-jwt-secret.txt
-private.key
-public.key
-
-# Database credentials
-database.json
-db-config.json
-
-# =============================================================================
-# BUILD OUTPUTS & GENERATED FILES
-# =============================================================================
-
-# React build outputs
-client/build/
-client/dist/
-build/
-dist/
-out/
-
-# Static files
-public/static/
-static/
-
-# Next.js build output
-.next
-out
-
-# Nuxt.js build / generate output
-.nuxt
-dist
-
-# Gatsby files
-.cache/
-public
-
-# Vuepress build output
-.vuepress/dist
-
-# Serverless directories
-.serverless/
-
-# FuseBox cache
-.fusebox/
-
-# DynamoDB Local files
-.dynamodb/
-
-# TernJS port file
-.tern-port
-
-# Stores VSCode versions used for testing VSCode extensions
-.vscode-test
-
-# =============================================================================
-# LOGS & DEBUGGING
-# =============================================================================
-
-# Logs
-logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-lerna-debug.log*
-.pnpm-debug.log*
-
-# Diagnostic reports
-report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
-
-# Runtime data
-pids
-*.pid
-*.seed
-*.pid.lock
+tokens.txt
+secrets.txt
 
 # =============================================================================
 # TEMPORARY & CACHE FILES
@@ -375,7 +247,7 @@ storage/
 .dockerignore
 Dockerfile
 docker-compose.yml
-docker-compose.*.yml
+docker-compose.override.yml
 .docker/
 
 # Kubernetes
@@ -413,15 +285,34 @@ coverage.xml
 .pytest_cache/
 
 # =============================================================================
-# MISCELLANEOUS SECURITY
+# LOGGING & MONITORING
 # =============================================================================
 
-# Backup files
-*.backup
-*.bak
-*.old
-*.orig
-*.save
+# Log files that might contain sensitive information
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Performance monitoring
+.lighthouse/
+lighthouse-results.json
+
+# =============================================================================
+# PROJECT-SPECIFIC EXCLUSIONS
+# =============================================================================
+
+# One-time migration scripts (as identified in review)
+server/fixExistingPets.js
+server/create-schema-correct-admin.js
+server/create-fresh-admin.js
+server/check-admin-role.js
+
+# Generated documentation
+docs/build/
+documentation/build/
 
 # Archive files
 *.zip
@@ -431,37 +322,3 @@ coverage.xml
 *.gz
 *.bz2
 *.xz
-
-# Sensitive data files
-passwords.txt
-users.txt
-admin.txt
-.htpasswd
-.htaccess
-
-# Configuration files that might contain secrets
-config.json
-settings.json
-local.json
-development.json
-production.json
-
-# =============================================================================
-# PROJECT-SPECIFIC EXCLUSIONS
-# =============================================================================
-
-# One-time migration scripts (as identified in review)
-server/fixExistingPets.js
-server/migrations/
-scripts/one-time/
-
-# Redundant placeholder files
-client/src/pages/Pets.js
-
-# Generated documentation
-docs/build/
-documentation/build/
-
-# Performance monitoring
-.lighthouse/
-lighthouse-results.json
