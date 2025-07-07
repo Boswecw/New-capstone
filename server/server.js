@@ -1,6 +1,6 @@
-// server/server.js - Updated with products route
+// server/server.js - Fixed for separate deployment
 const path = require("path");
-require("dotenv").config({ path: path.resolve(__dirname, "../.env") });
+require("dotenv").config({ path: path.resolve(__dirname, ".env") }); // ✅ FIXED: Look for .env in server directory
 
 const express = require("express");
 const mongoose = require("mongoose");
@@ -12,22 +12,34 @@ const petRoutes = require("./routes/pets");
 const userRoutes = require("./routes/users");
 const contactRoutes = require("./routes/contact");
 const adminRoutes = require("./routes/admin");
-const productsRoutes = require("./routes/products"); // ✅ ADD THIS LINE
+const productsRoutes = require("./routes/products");
 
-// Optional GCS route setup
+// ✅ UPDATED: GCS routes for public bucket access
 let gcsRoutes;
 try {
   gcsRoutes = require("./routes/gcs");
+  console.log("✅ GCS routes loaded for public bucket access");
 } catch (error) {
-  console.warn("⚠️  GCS routes not found. Image upload will be limited.");
+  console.warn("⚠️  GCS routes not found. Image features will be limited.");
   gcsRoutes = null;
 }
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// ✅ FIXED: CORS configuration for separate deployments
+const corsOptions = {
+  origin: [
+    'http://localhost:3000',  // Local development
+    'https://furbabies-frontend.onrender.com',  // ✅ Your actual frontend domain
+    process.env.APP_URL || 'https://furbabies-frontend.onrender.com'  // ✅ Use from .env
+  ],
+  credentials: true,
+  optionsSuccessStatus: 200
+};
+
 // Middleware
-app.use(cors());
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -42,42 +54,34 @@ if (!process.env.JWT_SECRET) {
   process.exit(1);
 }
 
-if (
-  !process.env.GOOGLE_CLOUD_PROJECT_ID ||
-  !process.env.GOOGLE_CLOUD_KEY_FILE
-) {
-  console.warn(
-    "⚠️  GCS configuration is incomplete. Image upload will not work."
-  );
-}
+// ✅ REMOVED: GCS authentication check - using public GCS
 
 // Connect to MongoDB
 console.log("🔌 Connecting to MongoDB...");
 mongoose.connect(process.env.MONGODB_URI).then(() => {
   console.log("✅ Connected to MongoDB Atlas");
-  console.log("🗃️  Database name:", mongoose.connection.db.databaseName); // ADD THIS LINE
+  console.log("🗃️  Database name:", mongoose.connection.db.databaseName);
+}).catch(err => {
+  console.error("❌ MongoDB connection failed:", err);
+  process.exit(1);
 });
 
-if (process.env.NODE_ENV === "production") {
-  // Serve static files from React build
-  app.use(express.static(path.join(__dirname, "../client/build")));
-
-  // Catch all handler for React Router
-  app.get("*", (req, res) => {
-    res.sendFile(path.join(__dirname, "../client/build", "index.html"));
-  });
-}
+// ✅ REMOVED: Frontend serving logic - not needed for separate deployments
+// No longer serving static files or catch-all routes
 
 // API routes
 app.use("/api/pets", petRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api/auth", userRoutes); // ✅ ADDED: Map /auth to userRoutes for frontend compatibility
 app.use("/api/contact", contactRoutes);
 app.use("/api/admin", adminRoutes);
-app.use("/api/products", productsRoutes); // ✅ ADD THIS LINE
+app.use("/api/products", productsRoutes);
 
 if (gcsRoutes) {
   app.use("/api/gcs", gcsRoutes);
-  console.log("✅ GCS routes enabled");
+  console.log("✅ GCS routes enabled for public bucket access");
+} else {
+  console.log("ℹ️  GCS routes not available - image features limited");
 }
 
 // Health check route
@@ -89,21 +93,29 @@ app.get("/api/health", (req, res) => {
       mongoose.connection.readyState === 1 ? "Connected" : "Disconnected",
     environment: process.env.NODE_ENV || "development",
     gcs: {
-      configured: !!(
-        process.env.GOOGLE_CLOUD_PROJECT_ID && process.env.GOOGLE_CLOUD_KEY_FILE
-      ),
-      projectId: process.env.GOOGLE_CLOUD_PROJECT_ID || "Not configured",
+      enabled: !!gcsRoutes,
+      type: "public-bucket-access"
     },
   });
 });
 
-// Serve frontend in production
-if (process.env.NODE_ENV === "production") {
-  app.use(express.static(path.join(__dirname, "../client/build")));
-  app.get("*", (req, res) => {
-    res.sendFile(path.join(__dirname, "../client/build", "index.html"));
+// ✅ ADDED: Root route for API-only server
+app.get("/", (req, res) => {
+  res.json({
+    message: "FurBabies API Server",
+    version: "1.0.0",
+    status: "running",
+    endpoints: {
+      health: "/api/health",
+      auth: "/api/auth",
+      pets: "/api/pets",
+      users: "/api/users",
+      contact: "/api/contact",
+      admin: "/api/admin",
+      products: "/api/products"
+    }
   });
-}
+});
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -165,10 +177,7 @@ app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
   console.log(`🌍 Env: ${process.env.NODE_ENV || "development"}`);
-  console.log(
-    `🗃️  GCS configured: ${!!(
-      process.env.GOOGLE_CLOUD_PROJECT_ID && process.env.GOOGLE_CLOUD_KEY_FILE
-    )}`
-  );
-  console.log(`🛒 Products API: http://localhost:${PORT}/api/products`); // ✅ ADD THIS LINE
+  console.log(`🗃️  GCS: ${gcsRoutes ? "✅ Public bucket access enabled" : "❌ Not available"}`);
+  console.log(`🛒 Products API: http://localhost:${PORT}/api/products`);
+  console.log(`🔗 API available at: http://localhost:${PORT}`);
 });
