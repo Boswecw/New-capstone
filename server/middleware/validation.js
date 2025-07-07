@@ -90,8 +90,9 @@ const validatePetCreation = [
     .withMessage('Pet name must be between 1 and 50 characters'),
   
   body('type')
-    .isIn(['dog', 'cat', 'bird', 'fish', 'rabbit', 'hamster', 'other'])
-    .withMessage('Pet type must be one of: dog, cat, bird, fish, rabbit, hamster, other'),
+    // ✅ FIXED: Added 'small-pet' to allowed types
+    .isIn(['dog', 'cat', 'bird', 'fish', 'rabbit', 'hamster', 'small-pet', 'other'])
+    .withMessage('Pet type must be one of: dog, cat, bird, fish, rabbit, hamster, small-pet, other'),
   
   body('breed')
     .trim()
@@ -134,8 +135,9 @@ const validatePetUpdate = [
   
   body('type')
     .optional()
-    .isIn(['dog', 'cat', 'bird', 'fish', 'rabbit', 'hamster', 'other'])
-    .withMessage('Pet type must be one of: dog, cat, bird, fish, rabbit, hamster, other'),
+    // ✅ FIXED: Added 'small-pet' to allowed types
+    .isIn(['dog', 'cat', 'bird', 'fish', 'rabbit', 'hamster', 'small-pet', 'other'])
+    .withMessage('Pet type must be one of: dog, cat, bird, fish, rabbit, hamster, small-pet, other'),
   
   body('breed')
     .optional()
@@ -222,8 +224,9 @@ const validatePetQuery = [
   
   query('type')
     .optional()
-    .isIn(['dog', 'cat', 'bird', 'fish', 'rabbit', 'hamster', 'other'])
-    .withMessage('Type must be dog, cat, bird, fish, rabbit, hamster, or other'),
+    // ✅ FIXED: Added 'small-pet' to allowed types
+    .isIn(['dog', 'cat', 'bird', 'fish', 'rabbit', 'hamster', 'small-pet', 'other'])
+    .withMessage('Type must be dog, cat, bird, fish, rabbit, hamster, small-pet, or other'),
   
   query('age')
     .optional()

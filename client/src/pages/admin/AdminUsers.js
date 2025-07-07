@@ -1,78 +1,70 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Row, Col, Card, Form, Button, Modal, Alert, Badge } from 'react-bootstrap';
-import DataTable from '../../components/admin/DataTable';
-import api from '../../services/api';
+import React, { useState, useEffect } from 'react';
+import { Card, CardBody, Badge, Button, Alert, Spinner } from 'react-bootstrap';
+import DataTable from '../../components/DataTable'; // Make sure DataTable.js is in the same directory
 
 const AdminUsers = () => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [pagination, setPagination] = useState({});
-  const [filters, setFilters] = useState({
-    search: '',
-    role: ''
-  });
-  const [showRoleModal, setShowRoleModal] = useState(false);
-  const [editingUser, setEditingUser] = useState(null);
-  const [alert, setAlert] = useState({ show: false, message: '', variant: '' });
+  const [error, setError] = useState(null);
 
-  const fetchUsers = useCallback(async (page = 1) => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams({
-        page,
-        limit: 10,
-        ...filters
-      });
-
-      const response = await api.get(`/admin/users?${params.toString()}`);
-      setUsers(response.data.data);
-      setPagination(response.data.pagination);
-    } catch (error) {
-      showAlert('Error fetching users', 'danger');
-      console.error('Error fetching users:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, [filters]);
-
+  // Mock data for testing (replace with actual API call)
   useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        // Replace this mock data with your actual API call
+        // const response = await fetch('/api/admin/users');
+        // const userData = await response.json();
+        
+        // Mock data for testing
+        const mockUsers = [
+          {
+            id: 1,
+            username: 'john_doe',
+            email: 'john@example.com',
+            profile: { firstName: 'John', lastName: 'Doe' },
+            role: 'admin',
+            status: 'active',
+            createdAt: '2024-01-15T10:30:00Z'
+          },
+          {
+            id: 2,
+            username: 'jane_smith',
+            email: 'jane@example.com',
+            profile: { firstName: 'Jane', lastName: 'Smith' },
+            role: 'user',
+            status: 'active',
+            createdAt: '2024-02-20T14:45:00Z'
+          },
+          {
+            id: 3,
+            username: null, // Testing null username
+            email: 'test@example.com',
+            profile: null, // Testing null profile
+            role: 'user',
+            status: 'inactive',
+            createdAt: '2024-03-10T09:15:00Z'
+          }
+        ];
+        
+        // Simulate API delay
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        setUsers(mockUsers);
+      } catch (err) {
+        console.error('Error fetching users:', err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
     fetchUsers();
-  }, [fetchUsers]);
+  }, []);
 
-  // ... rest of the component stays the same
-  const showAlert = (message, variant) => {
-    setAlert({ show: true, message, variant });
-    setTimeout(() => setAlert({ show: false, message: '', variant: '' }), 5000);
-  };
-
-  const handleEditRole = (user) => {
-    setEditingUser({ ...user, newRole: user.role });
-    setShowRoleModal(true);
-  };
-
-  const handleSaveRole = async () => {
-    try {
-      await api.put(`/admin/users/${editingUser._id}/role`, {
-        role: editingUser.newRole
-      });
-      showAlert('User role updated successfully', 'success');
-      setShowRoleModal(false);
-      setEditingUser(null);
-      fetchUsers();
-    } catch (error) {
-      showAlert('Error updating user role', 'danger');
-      console.error('Error updating user role:', error);
-    }
-  };
-
-  const handleFilterChange = (field, value) => {
-    setFilters(prev => ({ ...prev, [field]: value }));
-  };
-
-  const clearFilters = () => {
-    setFilters({ search: '', role: '' });
-  };
-
+  // Define columns with proper null checking
   const columns = [
     {
       header: 'Avatar',
@@ -80,19 +72,21 @@ const AdminUsers = () => {
       render: (user) => (
         <div 
           className="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center fw-bold"
-          style={{ width: '50px', height: '50px' }}
+          style={{ width: '40px', height: '40px', fontSize: '14px' }}
         >
-          {user.username.charAt(0).toUpperCase()}
+          {(user.username || user.email || '').charAt(0).toUpperCase() || '?'}
         </div>
       )
     },
     {
       header: 'Username',
-      accessor: 'username'
+      accessor: 'username',
+      render: (user) => user.username || '-'
     },
     {
       header: 'Email',
-      accessor: 'email'
+      accessor: 'email',
+      render: (user) => user.email || '-'
     },
     {
       header: 'Name',
@@ -100,135 +94,157 @@ const AdminUsers = () => {
       render: (user) => {
         const firstName = user.profile?.firstName || '';
         const lastName = user.profile?.lastName || '';
-        return `${firstName} ${lastName}`.trim() || '-';
+        const fullName = `${firstName} ${lastName}`.trim();
+        return fullName || '-';
       }
     },
     {
       header: 'Role',
       accessor: 'role',
-      type: 'badge',
-      badgeVariant: (value) => value === 'admin' ? 'danger' : 'primary',
       render: (user) => (
         <Badge bg={user.role === 'admin' ? 'danger' : 'primary'}>
-          {user.role}
+          {user.role || 'user'}
         </Badge>
       )
     },
     {
-      header: 'Favorites',
-      accessor: 'favoritesPets',
-      render: (user) => user.favoritesPets?.length || 0
+      header: 'Status',
+      accessor: 'status',
+      render: (user) => (
+        <Badge bg={user.status === 'active' ? 'success' : 'secondary'}>
+          {user.status || 'inactive'}
+        </Badge>
+      )
     },
     {
-      header: 'Phone',
-      accessor: 'profile.phone',
-      render: (user) => user.profile?.phone || '-'
-    },
-    {
-      header: 'Joined',
+      header: 'Created',
       accessor: 'createdAt',
-      type: 'date'
+      render: (user) => {
+        if (!user.createdAt) return '-';
+        try {
+          return new Date(user.createdAt).toLocaleDateString();
+        } catch (e) {
+          return '-';
+        }
+      }
+    },
+    {
+      header: 'Actions',
+      accessor: 'actions',
+      render: (user) => (
+        <div className="d-flex gap-2">
+          <Button 
+            size="sm" 
+            variant="outline-primary"
+            onClick={() => handleEditUser(user)}
+          >
+            Edit
+          </Button>
+          <Button 
+            size="sm" 
+            variant="outline-danger"
+            onClick={() => handleDeleteUser(user.id)}
+            disabled={user.role === 'admin'} // Prevent deleting admin users
+          >
+            Delete
+          </Button>
+        </div>
+      )
     }
   ];
 
+  // Handle edit user
+  const handleEditUser = (user) => {
+    console.log('Edit user:', user);
+    alert(`Edit user: ${user.username || user.email}`);
+    // Implement edit functionality here
+  };
+
+  // Handle delete user
+  const handleDeleteUser = async (userId) => {
+    if (!userId) {
+      console.error('No user ID provided');
+      return;
+    }
+
+    if (!window.confirm('Are you sure you want to delete this user?')) {
+      return;
+    }
+
+    try {
+      // Replace with actual API call
+      // await fetch(`/api/admin/users/${userId}`, { method: 'DELETE' });
+      
+      // For now, just remove from local state
+      setUsers(prevUsers => prevUsers.filter(user => user.id !== userId));
+      alert('User deleted successfully');
+    } catch (err) {
+      console.error('Error deleting user:', err);
+      setError('Failed to delete user. Please try again.');
+    }
+  };
+
+  // Handle add new user
+  const handleAddUser = () => {
+    console.log('Add new user');
+    alert('Add new user functionality not implemented yet');
+    // Implement add user functionality
+  };
+
+  // Handle refresh
+  const handleRefresh = () => {
+    window.location.reload();
+  };
+
+  if (loading) {
+    return (
+      <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '400px' }}>
+        <Spinner animation="border" role="status">
+          <span className="visually-hidden">Loading...</span>
+        </Spinner>
+      </div>
+    );
+  }
+
   return (
-    <>
+    <div className="admin-users">
       <div className="d-flex justify-content-between align-items-center mb-4">
-        <h1><i className="fas fa-users me-2"></i>User Management</h1>
+        <h2>User Management</h2>
+        <div className="d-flex gap-2">
+          <Button variant="outline-secondary" onClick={handleRefresh}>
+            Refresh
+          </Button>
+          <Button variant="primary" onClick={handleAddUser}>
+            Add New User
+          </Button>
+        </div>
       </div>
 
-      {alert.show && (
-        <Alert variant={alert.variant} className="mb-4">
-          {alert.message}
+      {error && (
+        <Alert variant="danger" dismissible onClose={() => setError(null)}>
+          {error}
         </Alert>
       )}
 
-      {/* Filters */}
-      <Card className="mb-4">
-        <Card.Body>
-          <Row className="g-3">
-            <Col md={6}>
-              <Form.Label>Search</Form.Label>
-              <Form.Control
-                type="text"
-                placeholder="Search by username or email..."
-                value={filters.search}
-                onChange={(e) => handleFilterChange('search', e.target.value)}
-              />
-            </Col>
-            <Col md={4}>
-              <Form.Label>Role</Form.Label>
-              <Form.Select
-                value={filters.role}
-                onChange={(e) => handleFilterChange('role', e.target.value)}
-              >
-                <option value="">All Roles</option>
-                <option value="user">User</option>
-                <option value="admin">Admin</option>
-              </Form.Select>
-            </Col>
-            <Col md={2} className="d-flex align-items-end">
-              <Button variant="outline-secondary" onClick={clearFilters}>
-                Clear Filters
-              </Button>
-            </Col>
-          </Row>
-        </Card.Body>
-      </Card>
-
-      {/* Data Table */}
       <Card>
-        <Card.Body>
-          <DataTable
-            data={users}
-            columns={columns}
-            onEdit={handleEditRole}
-            pagination={pagination}
-            onPageChange={fetchUsers}
-            loading={loading}
-          />
-        </Card.Body>
-      </Card>
-
-      {/* Edit Role Modal */}
-      <Modal show={showRoleModal} onHide={() => setShowRoleModal(false)}>
-        <Modal.Header closeButton>
-          <Modal.Title>Edit User Role</Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          {editingUser && (
-            <div>
-              <div className="mb-3">
-                <h6>User: {editingUser.username}</h6>
-                <p className="text-muted mb-0">Email: {editingUser.email}</p>
-              </div>
-              
-              <Form.Group>
-                <Form.Label>Role</Form.Label>
-                <Form.Select
-                  value={editingUser.newRole}
-                  onChange={(e) => setEditingUser({...editingUser, newRole: e.target.value})}
-                >
-                  <option value="user">User</option>
-                  <option value="admin">Admin</option>
-                </Form.Select>
-                <Form.Text className="text-muted">
-                  Admins have full access to the admin dashboard and can manage all content.
-                </Form.Text>
-              </Form.Group>
+        <CardBody>
+          {users.length === 0 && !loading ? (
+            <div className="text-center py-4">
+              <p className="text-muted">No users found.</p>
             </div>
+          ) : (
+            <DataTable 
+              data={users} 
+              columns={columns}
+              searchable={true}
+              sortable={true}
+              pagination={true}
+              pageSize={10}
+            />
           )}
-        </Modal.Body>
-        <Modal.Footer>
-          <Button variant="secondary" onClick={() => setShowRoleModal(false)}>
-            Cancel
-          </Button>
-          <Button variant="primary" onClick={handleSaveRole}>
-            Update Role
-          </Button>
-        </Modal.Footer>
-      </Modal>
-    </>
+        </CardBody>
+      </Card>
+    </div>
   );
 };
 

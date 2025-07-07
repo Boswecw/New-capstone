@@ -1,3 +1,6 @@
+// server/models/Pet.js - Complete corrected section
+// Replace your current Pet model with this corrected version:
+
 const mongoose = require('mongoose');
 
 const petSchema = new mongoose.Schema({
@@ -11,8 +14,8 @@ const petSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Pet type is required'],
     enum: {
-      values: ['dog', 'cat', 'bird', 'fish', 'rabbit', 'hamster', 'other'],
-      message: 'Pet type must be one of: dog, cat, bird, fish, rabbit, hamster, other'
+      values: ['dog', 'cat', 'bird', 'fish', 'rabbit', 'hamster', 'small-pet', 'other'],
+      message: 'Pet type must be one of: dog, cat, bird, fish, rabbit, hamster, small-pet, other'
     },
     lowercase: true
   },
@@ -217,6 +220,12 @@ petSchema.pre('save', function(next) {
         break;
       case 'fish':
         this.category = 'aquatic';
+        break;
+      case 'small-pet':  // ✅ Handle small-pet type
+      case 'bird':
+      case 'rabbit':
+      case 'hamster':
+        this.category = 'other';
         break;
       default:
         this.category = 'other';

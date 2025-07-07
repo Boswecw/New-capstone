@@ -1,16 +1,24 @@
-import React, { useState } from 'react';
-import { Container, Row, Col, Card, Form, Button, Alert } from 'react-bootstrap';
-import { Link, Navigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import React, { useState } from "react";
+import {
+  Container,
+  Row,
+  Col,
+  Card,
+  Form,
+  Button,
+  Alert,
+} from "react-bootstrap";
+import { Link, Navigate } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
 
 const Login = () => {
   const { user, login } = useAuth();
   const [formData, setFormData] = useState({
-    email: '',
-    password: ''
+    email: "",
+    password: "",
   });
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
   // Redirect if already logged in
   if (user) {
@@ -20,32 +28,40 @@ const Login = () => {
   const handleChange = (e) => {
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value
+      [e.target.name]: e.target.value,
     });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    setError('');
+    setError("");
 
-    const result = await login(formData.email, formData.password);
-    
-    if (!result.success) {
-      setError(result.message);
+    console.log("Form data before login:", formData); // ADD THIS LINE
+
+    try {
+      const result = await login(formData); // Make sure you changed this line
+
+      if (!result.success) {
+        setError(result.message);
+      }
+    } catch (error) {
+      setError(error.message);
     }
-    
+
     setLoading(false);
   };
 
   return (
-    <Container className="py-5" style={{ marginTop: '80px' }}>
+    <Container className="py-5" style={{ marginTop: "80px" }}>
       <Row className="justify-content-center">
         <Col md={6} lg={4}>
           <Card>
             <Card.Body>
               <div className="text-center mb-4">
-                <h2><i className="fas fa-paw me-2"></i>FurBabies Login</h2>
+                <h2>
+                  <i className="fas fa-paw me-2"></i>FurBabies Login
+                </h2>
                 <p className="text-muted">Sign in to your account</p>
               </div>
 
@@ -76,13 +92,13 @@ const Login = () => {
                   />
                 </Form.Group>
 
-                <Button 
-                  type="submit" 
-                  variant="primary" 
+                <Button
+                  type="submit"
+                  variant="primary"
                   className="w-100 mb-3"
                   disabled={loading}
                 >
-                  {loading ? 'Signing In...' : 'Sign In'}
+                  {loading ? "Signing In..." : "Sign In"}
                 </Button>
               </Form>
 
@@ -94,8 +110,10 @@ const Login = () => {
 
               <div className="mt-3">
                 <Alert variant="info">
-                  <strong>Demo Accounts:</strong><br />
-                  Admin: admin@furbabies.com / admin123<br />
+                  <strong>Demo Accounts:</strong>
+                  <br />
+                  Admin: admin@furbabies.com / admin123
+                  <br />
                   User: test@example.com / password123
                 </Alert>
               </div>

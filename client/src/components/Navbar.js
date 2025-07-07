@@ -32,7 +32,7 @@ const Navbar = () => {
               <i className="fas fa-home me-1"></i>Home
             </Nav.Link>
 
-            {/* 🐾 Shop by Pet Dropdown - NOW INCLUDES SMALL PETS! */}
+            {/* 🐾 Shop by Pet Dropdown */}
             <NavDropdown title="Shop by Pet" id="nav-dropdown-pets">
               <NavDropdown.Item as={Link} to="/browse?type=dog">
                 <i className="fas fa-dog me-2"></i>Dogs
@@ -64,9 +64,64 @@ const Navbar = () => {
             </Nav.Link>
 
             {user ? (
-              <NavDropdown title={user.displayName || 'Account'} id="nav-dropdown-account">
-                <NavDropdown.Item as={Link} to="/profile">Profile</NavDropdown.Item>
-                <NavDropdown.Item onClick={handleLogout}>Logout</NavDropdown.Item>
+              <NavDropdown 
+                title={
+                  <span>
+                    <i className="fas fa-user me-1"></i>
+                    {user.name || user.email || 'Account'}
+                    {user.role === 'admin' && (
+                      <span className="badge bg-danger ms-1" style={{ fontSize: '10px' }}>ADMIN</span>
+                    )}
+                  </span>
+                } 
+                id="nav-dropdown-account"
+              >
+                <NavDropdown.Item as={Link} to="/profile">
+                  <i className="fas fa-user me-2"></i>Profile
+                </NavDropdown.Item>
+                
+                {/* Admin Section - Only show for admin users */}
+                {user.role === 'admin' && (
+                  <>
+                    <NavDropdown.Divider />
+                    <NavDropdown.Header>
+                      <i className="fas fa-cog me-2"></i>Admin Panel
+                    </NavDropdown.Header>
+                    
+                    <NavDropdown.Item as={Link} to="/admin">
+                      <i className="fas fa-chart-line me-2"></i>Dashboard
+                    </NavDropdown.Item>
+                    
+                    <NavDropdown.Item as={Link} to="/admin/users">
+                      <i className="fas fa-users me-2"></i>User Management
+                    </NavDropdown.Item>
+                    
+                    <NavDropdown.Item as={Link} to="/admin/pets">
+                      <i className="fas fa-paw me-2"></i>Pet Management
+                    </NavDropdown.Item>
+                    
+                    <NavDropdown.Item as={Link} to="/admin/contacts">
+                      <i className="fas fa-envelope me-2"></i>Contact Management
+                    </NavDropdown.Item>
+                    
+                    <NavDropdown.Item as={Link} to="/admin/analytics">
+                      <i className="fas fa-chart-bar me-2"></i>Analytics
+                    </NavDropdown.Item>
+                    
+                    <NavDropdown.Item as={Link} to="/admin/reports">
+                      <i className="fas fa-file-alt me-2"></i>Reports
+                    </NavDropdown.Item>
+                    
+                    <NavDropdown.Item as={Link} to="/admin/settings">
+                      <i className="fas fa-cogs me-2"></i>Settings
+                    </NavDropdown.Item>
+                  </>
+                )}
+                
+                <NavDropdown.Divider />
+                <NavDropdown.Item onClick={handleLogout}>
+                  <i className="fas fa-sign-out-alt me-2"></i>Logout
+                </NavDropdown.Item>
               </NavDropdown>
             ) : (
               <Nav.Link as={Link} to="/login">

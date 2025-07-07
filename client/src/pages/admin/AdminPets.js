@@ -1,44 +1,56 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Row, Col, Card, Form, Button, Modal, Alert, Badge } from 'react-bootstrap';
-import DataTable from '../../components/admin/DataTable';
-import api from '../../services/api';
+import React, { useState, useEffect, useCallback } from "react";
+import {
+  Row,
+  Col,
+  Card,
+  Form,
+  Button,
+  Modal,
+  Alert,
+  Badge,
+} from "react-bootstrap";
+import DataTable from "../../components/DataTable";
+import api from "../../services/api";
 
 const AdminPets = () => {
   const [pets, setPets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState({});
   const [filters, setFilters] = useState({
-    search: '',
-    category: '',
-    type: '',
-    status: '',
-    available: ''
+    search: "",
+    category: "",
+    type: "",
+    status: "",
+    available: "",
   });
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingPet, setEditingPet] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deletingPet, setDeletingPet] = useState(null);
-  const [alert, setAlert] = useState({ show: false, message: '', variant: '' });
+  const [alert, setAlert] = useState({ show: false, message: "", variant: "" });
 
-  const fetchPets = useCallback(async (page = 1) => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams({
-        page,
-        limit: 10,
-        ...filters
-      });
+  const fetchPets = useCallback(
+    async (page = 1) => {
+      setLoading(true);
+      try {
+        const params = new URLSearchParams({
+          page,
+          limit: 10,
+          ...filters,
+        });
 
-      const response = await api.get(`/admin/pets?${params.toString()}`);
-      setPets(response.data.data);
-      setPagination(response.data.pagination);
-    } catch (error) {
-      showAlert('Error fetching pets', 'danger');
-      console.error('Error fetching pets:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, [filters]);
+        const response = await api.get(`/admin/pets?${params.toString()}`);
+        setPets(response.data.data);
+        setPagination(response.data.pagination);
+      } catch (error) {
+        showAlert("Error fetching pets", "danger");
+        console.error("Error fetching pets:", error);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [filters]
+  );
 
   useEffect(() => {
     fetchPets();
@@ -46,13 +58,13 @@ const AdminPets = () => {
 
   const showAlert = (message, variant) => {
     setAlert({ show: true, message, variant });
-    setTimeout(() => setAlert({ show: false, message: '', variant: '' }), 5000);
+    setTimeout(() => setAlert({ show: false, message: "", variant: "" }), 5000);
   };
 
   const handleEdit = (pet) => {
     setEditingPet({
       ...pet,
-      originalPet: pet
+      originalPet: pet,
     });
     setShowEditModal(true);
   };
@@ -66,135 +78,135 @@ const AdminPets = () => {
     try {
       const { originalPet, ...updateData } = editingPet;
       await api.put(`/admin/pets/${editingPet._id}`, updateData);
-      showAlert('Pet updated successfully', 'success');
+      showAlert("Pet updated successfully", "success");
       setShowEditModal(false);
       setEditingPet(null);
       fetchPets();
     } catch (error) {
-      showAlert('Error updating pet', 'danger');
-      console.error('Error updating pet:', error);
+      showAlert("Error updating pet", "danger");
+      console.error("Error updating pet:", error);
     }
   };
 
   const handleConfirmDelete = async () => {
     try {
       await api.delete(`/admin/pets/${deletingPet._id}`);
-      showAlert('Pet deleted successfully', 'success');
+      showAlert("Pet deleted successfully", "success");
       setShowDeleteModal(false);
       setDeletingPet(null);
       fetchPets();
     } catch (error) {
-      showAlert('Error deleting pet', 'danger');
-      console.error('Error deleting pet:', error);
+      showAlert("Error deleting pet", "danger");
+      console.error("Error deleting pet:", error);
     }
   };
 
   const handleFilterChange = (field, value) => {
-    setFilters(prev => ({ ...prev, [field]: value }));
+    setFilters((prev) => ({ ...prev, [field]: value }));
   };
 
   const clearFilters = () => {
-    setFilters({ 
-      search: '', 
-      category: '', 
-      type: '', 
-      status: '', 
-      available: '' 
+    setFilters({
+      search: "",
+      category: "",
+      type: "",
+      status: "",
+      available: "",
     });
   };
 
   // Helper function to get badge variant for type
   const getTypeBadgeVariant = (value) => {
     const variants = {
-      dog: 'primary',
-      cat: 'success',
-      fish: 'info',
-      bird: 'warning',
-      'small-pet': 'secondary',
-      supply: 'dark'
+      dog: "primary",
+      cat: "success",
+      fish: "info",
+      bird: "warning",
+      "small-pet": "secondary",
+      supply: "dark",
     };
-    return variants[value] || 'primary';
+    return variants[value] || "primary";
   };
 
   // Helper function to normalize type display
   const normalizeTypeDisplay = (type) => {
-    if (type === 'small-pet') {
-      return 'Small Pet';
+    if (type === "small-pet") {
+      return "Small Pet";
     }
     return type.charAt(0).toUpperCase() + type.slice(1);
   };
 
   const columns = [
     {
-      header: 'Image',
-      accessor: 'image',
+      header: "Image",
+      accessor: "image",
       render: (pet) => (
-        <img 
-          src={pet.image} 
+        <img
+          src={pet.image}
           alt={pet.name}
           className="rounded"
-          style={{ width: '60px', height: '60px', objectFit: 'cover' }}
+          style={{ width: "60px", height: "60px", objectFit: "cover" }}
         />
-      )
+      ),
     },
     {
-      header: 'Name',
-      accessor: 'name'
+      header: "Name",
+      accessor: "name",
     },
     {
-      header: 'Type',
-      accessor: 'type',
-      type: 'badge',
+      header: "Type",
+      accessor: "type",
+      type: "badge",
       badgeVariant: getTypeBadgeVariant,
       render: (pet) => (
         <Badge bg={getTypeBadgeVariant(pet.type)}>
           {normalizeTypeDisplay(pet.type)}
         </Badge>
-      )
+      ),
     },
     {
-      header: 'Breed',
-      accessor: 'breed'
+      header: "Breed",
+      accessor: "breed",
     },
     {
-      header: 'Age',
-      accessor: 'age'
+      header: "Age",
+      accessor: "age",
     },
     {
-      header: 'Size',
-      accessor: 'size',
+      header: "Size",
+      accessor: "size",
       render: (pet) => (
         <Badge variant="outline-secondary" className="text-capitalize">
           {pet.size}
         </Badge>
-      )
+      ),
     },
     {
-      header: 'Gender',
-      accessor: 'gender',
+      header: "Gender",
+      accessor: "gender",
       render: (pet) => (
-        <span className="text-capitalize">{pet.gender || 'Unknown'}</span>
-      )
+        <span className="text-capitalize">{pet.gender || "Unknown"}</span>
+      ),
     },
     {
-      header: 'Price',
-      accessor: 'price',
-      render: (pet) => pet.price ? `$${pet.price.toLocaleString()}` : 'N/A'
+      header: "Price",
+      accessor: "price",
+      render: (pet) => (pet.price ? `$${pet.price.toLocaleString()}` : "N/A"),
     },
     {
-      header: 'Status',
-      accessor: 'available',
-      type: 'badge',
-      badgeVariant: (value) => value ? 'success' : 'danger',
+      header: "Status",
+      accessor: "available",
+      type: "badge",
+      badgeVariant: (value) => (value ? "success" : "danger"),
       render: (pet) => (
-        <Badge bg={pet.available ? 'success' : 'danger'}>
-          {pet.available ? 'Available' : 'Adopted'}
+        <Badge bg={pet.available ? "success" : "danger"}>
+          {pet.available ? "Available" : "Adopted"}
         </Badge>
-      )
+      ),
     },
     {
-      header: 'Votes',
-      accessor: 'votes',
+      header: "Votes",
+      accessor: "votes",
       render: (pet) => (
         <div>
           <span className="text-success">
@@ -204,19 +216,21 @@ const AdminPets = () => {
             <i className="fas fa-thumbs-down"></i> {pet.votes?.down || 0}
           </span>
         </div>
-      )
+      ),
     },
     {
-      header: 'Created',
-      accessor: 'createdAt',
-      type: 'date'
-    }
+      header: "Created",
+      accessor: "createdAt",
+      type: "date",
+    },
   ];
 
   return (
     <>
       <div className="d-flex justify-content-between align-items-center mb-4">
-        <h1><i className="fas fa-paw me-2"></i>Pet Management</h1>
+        <h1>
+          <i className="fas fa-paw me-2"></i>Pet Management
+        </h1>
       </div>
 
       {alert.show && (
@@ -235,14 +249,14 @@ const AdminPets = () => {
                 type="text"
                 placeholder="Search by name or breed..."
                 value={filters.search}
-                onChange={(e) => handleFilterChange('search', e.target.value)}
+                onChange={(e) => handleFilterChange("search", e.target.value)}
               />
             </Col>
             <Col md={2}>
               <Form.Label>Type</Form.Label>
               <Form.Select
                 value={filters.type}
-                onChange={(e) => handleFilterChange('type', e.target.value)}
+                onChange={(e) => handleFilterChange("type", e.target.value)}
               >
                 <option value="">All Types</option>
                 <option value="dog">Dogs</option>
@@ -257,7 +271,7 @@ const AdminPets = () => {
               <Form.Label>Category</Form.Label>
               <Form.Select
                 value={filters.category}
-                onChange={(e) => handleFilterChange('category', e.target.value)}
+                onChange={(e) => handleFilterChange("category", e.target.value)}
               >
                 <option value="">All Categories</option>
                 <option value="dog">Dog</option>
@@ -270,7 +284,9 @@ const AdminPets = () => {
               <Form.Label>Availability</Form.Label>
               <Form.Select
                 value={filters.available}
-                onChange={(e) => handleFilterChange('available', e.target.value)}
+                onChange={(e) =>
+                  handleFilterChange("available", e.target.value)
+                }
               >
                 <option value="">All</option>
                 <option value="true">Available</option>
@@ -281,7 +297,7 @@ const AdminPets = () => {
               <Form.Label>Status</Form.Label>
               <Form.Select
                 value={filters.status}
-                onChange={(e) => handleFilterChange('status', e.target.value)}
+                onChange={(e) => handleFilterChange("status", e.target.value)}
               >
                 <option value="">All Status</option>
                 <option value="available">Available</option>
@@ -290,7 +306,11 @@ const AdminPets = () => {
               </Form.Select>
             </Col>
             <Col md={1} className="d-flex align-items-end">
-              <Button variant="outline-secondary" onClick={clearFilters} size="sm">
+              <Button
+                variant="outline-secondary"
+                onClick={clearFilters}
+                size="sm"
+              >
                 Clear
               </Button>
             </Col>
@@ -314,7 +334,11 @@ const AdminPets = () => {
       </Card>
 
       {/* Edit Pet Modal */}
-      <Modal show={showEditModal} onHide={() => setShowEditModal(false)} size="lg">
+      <Modal
+        show={showEditModal}
+        onHide={() => setShowEditModal(false)}
+        size="lg"
+      >
         <Modal.Header closeButton>
           <Modal.Title>Edit Pet</Modal.Title>
         </Modal.Header>
@@ -327,8 +351,10 @@ const AdminPets = () => {
                     <Form.Label>Name</Form.Label>
                     <Form.Control
                       type="text"
-                      value={editingPet.name || ''}
-                      onChange={(e) => setEditingPet({...editingPet, name: e.target.value})}
+                      value={editingPet.name || ""}
+                      onChange={(e) =>
+                        setEditingPet({ ...editingPet, name: e.target.value })
+                      }
                     />
                   </Form.Group>
                 </Col>
@@ -336,8 +362,10 @@ const AdminPets = () => {
                   <Form.Group className="mb-3">
                     <Form.Label>Type</Form.Label>
                     <Form.Select
-                      value={editingPet.type || ''}
-                      onChange={(e) => setEditingPet({...editingPet, type: e.target.value})}
+                      value={editingPet.type || ""}
+                      onChange={(e) =>
+                        setEditingPet({ ...editingPet, type: e.target.value })
+                      }
                     >
                       <option value="">Select Type</option>
                       <option value="dog">Dog</option>
@@ -357,8 +385,10 @@ const AdminPets = () => {
                     <Form.Label>Breed</Form.Label>
                     <Form.Control
                       type="text"
-                      value={editingPet.breed || ''}
-                      onChange={(e) => setEditingPet({...editingPet, breed: e.target.value})}
+                      value={editingPet.breed || ""}
+                      onChange={(e) =>
+                        setEditingPet({ ...editingPet, breed: e.target.value })
+                      }
                     />
                   </Form.Group>
                 </Col>
@@ -367,8 +397,10 @@ const AdminPets = () => {
                     <Form.Label>Age</Form.Label>
                     <Form.Control
                       type="text"
-                      value={editingPet.age || ''}
-                      onChange={(e) => setEditingPet({...editingPet, age: e.target.value})}
+                      value={editingPet.age || ""}
+                      onChange={(e) =>
+                        setEditingPet({ ...editingPet, age: e.target.value })
+                      }
                     />
                   </Form.Group>
                 </Col>
@@ -379,8 +411,10 @@ const AdminPets = () => {
                   <Form.Group className="mb-3">
                     <Form.Label>Size</Form.Label>
                     <Form.Select
-                      value={editingPet.size || ''}
-                      onChange={(e) => setEditingPet({...editingPet, size: e.target.value})}
+                      value={editingPet.size || ""}
+                      onChange={(e) =>
+                        setEditingPet({ ...editingPet, size: e.target.value })
+                      }
                     >
                       <option value="">Select Size</option>
                       <option value="small">Small</option>
@@ -393,8 +427,10 @@ const AdminPets = () => {
                   <Form.Group className="mb-3">
                     <Form.Label>Gender</Form.Label>
                     <Form.Select
-                      value={editingPet.gender || ''}
-                      onChange={(e) => setEditingPet({...editingPet, gender: e.target.value})}
+                      value={editingPet.gender || ""}
+                      onChange={(e) =>
+                        setEditingPet({ ...editingPet, gender: e.target.value })
+                      }
                     >
                       <option value="">Select Gender</option>
                       <option value="male">Male</option>
@@ -408,8 +444,10 @@ const AdminPets = () => {
                     <Form.Label>Price ($)</Form.Label>
                     <Form.Control
                       type="number"
-                      value={editingPet.price || ''}
-                      onChange={(e) => setEditingPet({...editingPet, price: e.target.value})}
+                      value={editingPet.price || ""}
+                      onChange={(e) =>
+                        setEditingPet({ ...editingPet, price: e.target.value })
+                      }
                     />
                   </Form.Group>
                 </Col>
@@ -420,8 +458,13 @@ const AdminPets = () => {
                 <Form.Control
                   as="textarea"
                   rows={3}
-                  value={editingPet.description || ''}
-                  onChange={(e) => setEditingPet({...editingPet, description: e.target.value})}
+                  value={editingPet.description || ""}
+                  onChange={(e) =>
+                    setEditingPet({
+                      ...editingPet,
+                      description: e.target.value,
+                    })
+                  }
                 />
               </Form.Group>
 
@@ -431,8 +474,10 @@ const AdminPets = () => {
                     <Form.Label>Image URL</Form.Label>
                     <Form.Control
                       type="text"
-                      value={editingPet.image || ''}
-                      onChange={(e) => setEditingPet({...editingPet, image: e.target.value})}
+                      value={editingPet.image || ""}
+                      onChange={(e) =>
+                        setEditingPet({ ...editingPet, image: e.target.value })
+                      }
                     />
                   </Form.Group>
                 </Col>
@@ -443,8 +488,15 @@ const AdminPets = () => {
                       type="switch"
                       id="available-switch"
                       checked={editingPet.available || false}
-                      onChange={(e) => setEditingPet({...editingPet, available: e.target.checked})}
-                      label={editingPet.available ? "Available" : "Not Available"}
+                      onChange={(e) =>
+                        setEditingPet({
+                          ...editingPet,
+                          available: e.target.checked,
+                        })
+                      }
+                      label={
+                        editingPet.available ? "Available" : "Not Available"
+                      }
                     />
                   </Form.Group>
                 </Col>
@@ -470,7 +522,10 @@ const AdminPets = () => {
         <Modal.Body>
           {deletingPet && (
             <div>
-              <p>Are you sure you want to delete <strong>{deletingPet.name}</strong>?</p>
+              <p>
+                Are you sure you want to delete{" "}
+                <strong>{deletingPet.name}</strong>?
+              </p>
               <p className="text-muted">This action cannot be undone.</p>
             </div>
           )}

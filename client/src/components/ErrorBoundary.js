@@ -1,10 +1,15 @@
 // components/ErrorBoundary.js
 import React from 'react';
+import { Container, Alert, Button } from 'react-bootstrap';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false, error: null, errorInfo: null };
+    this.state = { 
+      hasError: false, 
+      error: null, 
+      errorInfo: null 
+    };
   }
 
   static getDerivedStateFromError(error) {
@@ -17,64 +22,102 @@ class ErrorBoundary extends React.Component {
       errorInfo
     });
     
-    // You can log the error to an error reporting service here
+    // Log the error to console
     console.error('ErrorBoundary caught an error:', error, errorInfo);
+  }
+
+  handleRefresh = () => {
+    window.location.reload();
+  }
+
+  handleReset = () => {
+    this.setState({ 
+      hasError: false, 
+      error: null, 
+      errorInfo: null 
+    });
   }
 
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50">
-          <div className="max-w-md w-full bg-white shadow-lg rounded-lg p-6">
-            <div className="text-center">
-              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100">
-                <svg
-                  className="h-6 w-6 text-red-600"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"
-                  />
-                </svg>
-              </div>
-              <h3 className="mt-4 text-lg font-medium text-gray-900">
+        <Container className="py-5 text-center">
+          <div className="max-w-md mx-auto">
+            <Alert variant="danger" className="p-4">
+              <Alert.Heading>
+                <i className="fas fa-exclamation-triangle me-2"></i>
                 Something went wrong
-              </h3>
-              <p className="mt-2 text-sm text-gray-500">
-                We're sorry, but something unexpected happened. Please try refreshing the page.
+              </Alert.Heading>
+              
+              <p className="mb-3">
+                We're sorry, but something unexpected happened. 
+                Please try refreshing the page or contact support if the problem persists.
               </p>
-              <div className="mt-6">
-                <button
-                  onClick={() => window.location.reload()}
-                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              
+              <div className="d-flex gap-2 justify-content-center">
+                <Button 
+                  variant="outline-danger" 
+                  onClick={this.handleReset}
+                  size="sm"
                 >
+                  <i className="fas fa-redo me-1"></i>
+                  Try Again
+                </Button>
+                
+                <Button 
+                  variant="danger" 
+                  onClick={this.handleRefresh}
+                  size="sm"
+                >
+                  <i className="fas fa-sync me-1"></i>
                   Refresh Page
-                </button>
+                </Button>
               </div>
               
+              {/* Development Error Details */}
               {process.env.NODE_ENV === 'development' && (
-                <details className="mt-4 text-left">
-                  <summary className="cursor-pointer text-sm text-gray-600 hover:text-gray-800">
-                    Error Details (Development)
+                <details className="mt-4 text-start">
+                  <summary className="cursor-pointer text-muted">
+                    <small>Error Details (Development Only)</small>
                   </summary>
-                  <div className="mt-2 p-4 bg-gray-100 rounded text-xs font-mono overflow-auto max-h-40">
-                    <div className="text-red-600 font-semibold mb-2">
-                      {this.state.error && this.state.error.toString()}
-                    </div>
-                    <div className="whitespace-pre-wrap">
-                      {this.state.errorInfo.componentStack}
-                    </div>
+                  
+                  <div className="mt-3 p-3 bg-light rounded">
+                    {/* Safe error display */}
+                    {this.state.error && (
+                      <div className="mb-2">
+                        <strong className="text-danger">Error:</strong>
+                        <pre className="small text-muted mt-1 mb-0">
+                          {this.state.error.toString()}
+                        </pre>
+                      </div>
+                    )}
+                    
+                    {/* Safe component stack display */}
+                    {this.state.errorInfo && this.state.errorInfo.componentStack && (
+                      <div>
+                        <strong className="text-danger">Component Stack:</strong>
+                        <pre className="small text-muted mt-1 mb-0" style={{ 
+                          maxHeight: '200px', 
+                          overflow: 'auto',
+                          fontSize: '11px'
+                        }}>
+                          {this.state.errorInfo.componentStack}
+                        </pre>
+                      </div>
+                    )}
+                    
+                    {/* Fallback if no detailed error info */}
+                    {(!this.state.error && !this.state.errorInfo) && (
+                      <small className="text-muted">
+                        No detailed error information available.
+                      </small>
+                    )}
                   </div>
                 </details>
               )}
-            </div>
+            </Alert>
           </div>
-        </div>
+        </Container>
       );
     }
 
