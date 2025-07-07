@@ -1,465 +1,281 @@
-import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Form, Button, Spinner, Alert, Modal, Card } from 'react-bootstrap';
-import { useLocation, useNavigate } from 'react-router-dom';
+// client/src/pages/Browse.js - Enhanced with consolidated functionality
+import React, { useState, useEffect, useCallback } from 'react';
+import { Container, Row, Col, Spinner, Alert, Form, Button, InputGroup } from 'react-bootstrap';
+import { useSearchParams, useLocation } from 'react-router-dom';
+import { FaSearch, FaFilter, FaTimes } from 'react-icons/fa';
 import PetCard from '../components/PetCard';
-import api from '../services/api';
-import { getPublicImageUrl, bucketFolders, isValidImage, isValidFileSize, formatFileSize } from '../utils/bucketUtils';
+import * as petService from '../services/petService';
 
 const Browse = () => {
-  const location = useLocation();
-  const navigate = useNavigate();
   const [pets, setPets] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [imageLoading, setImageLoading] = useState(false);
-  const [showImageModal, setShowImageModal] = useState(false);
-  const [selectedPetId, setSelectedPetId] = useState(null);
-  const [bucketImages, setBucketImages] = useState([]);
-  const [selectedBucket] = useState('furbabies-petstore');
-  // Fixed: Now both selectedFolder and setSelectedFolder are used
-  const [selectedFolder, setSelectedFolder] = useState(bucketFolders.PET);
-  const availableFolders = Object.values(bucketFolders);
-  const [filters, setFilters] = useState({
-    type: 'all',
-    size: '',
-    minPrice: '',
-    maxPrice: '',
-    search: '',
-    sort: 'newest',
-    available: '',
-    featured: ''
-  });
+  const [error, setError] = useState(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
 
-  // Parse URL parameters and update filters
-  useEffect(() => {
-    const parseUrlParams = () => {
-      const queryParams = new URLSearchParams(location.search);
-      const newFilters = {
-        type: queryParams.get('type') || 'all',
-        size: queryParams.get('size') || '',
-        minPrice: queryParams.get('minPrice') || '',
-        maxPrice: queryParams.get('maxPrice') || '',
-        search: queryParams.get('search') || '',
-        sort: queryParams.get('sort') || 'newest',
-        available: queryParams.get('available') || '',
-        featured: queryParams.get('featured') || ''
+  // Search and filter states
+  const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
+  const [selectedCategory, setSelectedCategory] = useState(searchParams.get('category') || '');
+  const [selectedBreed, setSelectedBreed] = useState(searchParams.get('breed') || '');
+  const [ageRange, setAgeRange] = useState(searchParams.get('age') || '');
+  const [showFilters, setShowFilters] = useState(false);
+
+  // Available filter options
+  const categories = [
+    { value: '', label: 'All Categories' },
+    { value: 'dog', label: 'Dogs' },
+    { value: 'cat', label: 'Cats' },
+    { value: 'aquatic', label: 'Aquatic' }
+  ];
+  const ageRanges = [
+    { value: '', label: 'Any Age' },
+    { value: 'puppy', label: 'Puppy/Kitten (0-1 year)' },
+    { value: 'young', label: 'Young (1-3 years)' },
+    { value: 'adult', label: 'Adult (3-7 years)' },
+    { value: 'senior', label: 'Senior (7+ years)' }
+  ];
+
+  // Fetch pets based on current filters
+  const fetchPets = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const params = {
+        ...(searchTerm && { search: searchTerm }),
+        ...(selectedCategory && { category: selectedCategory }),
+        ...(selectedBreed && { breed: selectedBreed }),
+        ...(ageRange && { age: ageRange })
       };
-      
-      console.log('🔍 Parsed URL params:', newFilters);
-      setFilters(newFilters);
-    };
 
-    parseUrlParams();
-  }, [location.search]);
+      const response = await petService.searchPets(params);
+      setPets(response.data || []);
+    } catch (err) {
+      console.error('Error fetching pets:', err);
+      setError('Failed to load pets. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  }, [searchTerm, selectedCategory, selectedBreed, ageRange]);
+
+  // Update URL params when filters change
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (searchTerm) params.set('search', searchTerm);
+    if (selectedCategory) params.set('category', selectedCategory);
+    if (selectedBreed) params.set('breed', selectedBreed);
+    if (ageRange) params.set('age', ageRange);
+    
+    setSearchParams(params);
+  }, [searchTerm, selectedCategory, selectedBreed, ageRange, setSearchParams]);
 
   // Fetch pets when filters change
   useEffect(() => {
-    const fetchPets = async () => {
-      console.log('🐾 Fetching pets with filters:', filters);
-      setLoading(true);
-      setError('');
-      
-      try {
-        const params = new URLSearchParams();
-        
-        // Add all non-empty filter parameters
-        Object.entries(filters).forEach(([key, value]) => {
-          if (value && value !== 'all' && value !== '') {
-            params.append(key, value);
-          }
-        });
-        
-        console.log('🔗 API call: /pets?' + params.toString());
-        const response = await api.get(`/pets?${params.toString()}`);
-        
-        console.log('📊 API response:', response.data);
-        
-        if (response.data.success) {
-          setPets(response.data.data || []);
-        } else {
-          setPets([]);
-          setError('No pets found matching your criteria');
-        }
-      } catch (error) {
-        console.error('❌ Error fetching pets:', error);
-        setError(`Error fetching pets: ${error.response?.data?.message || error.message}`);
-        setPets([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchPets();
-  }, [filters]);
+  }, [fetchPets]);
 
-  // Update URL when filters change locally
-  const updateFiltersAndUrl = (newFilters) => {
-    setFilters(newFilters);
-    
-    // Update URL to reflect current filters
-    const params = new URLSearchParams();
-    Object.entries(newFilters).forEach(([key, value]) => {
-      if (value && value !== 'all' && value !== '') {
-        params.set(key, value);
-      }
-    });
-    
-    const newUrl = `/browse${params.toString() ? '?' + params.toString() : ''}`;
-    navigate(newUrl, { replace: true });
+  // Handle search form submission
+  const handleSearch = (e) => {
+    e.preventDefault();
+    fetchPets();
   };
 
-  const handleFilterChange = (filterType, value) => {
-    const newFilters = { ...filters, [filterType]: value };
-    updateFiltersAndUrl(newFilters);
-  };
-
+  // Clear all filters
   const clearFilters = () => {
-    const clearedFilters = {
-      type: 'all',
-      size: '',
-      minPrice: '',
-      maxPrice: '',
-      search: '',
-      sort: 'newest',
-      available: '',
-      featured: ''
-    };
-    updateFiltersAndUrl(clearedFilters);
+    setSearchTerm('');
+    setSelectedCategory('');
+    setSelectedBreed('');
+    setAgeRange('');
+    setSearchParams({});
   };
 
-  const fetchBucketImages = async (bucketName, folder) => {
-    if (!bucketName) return;
-    setImageLoading(true);
-    setError('');
-    try {
-      const prefix = folder ? `${folder}/` : '';
-      const response = await api.get(`/gcs/buckets/${bucketName}/images?prefix=${prefix}&public=true`);
-      if (response.data.success) {
-        setBucketImages(response.data.data || []);
-      } else {
-        throw new Error(response.data.message || 'Failed to fetch images');
-      }
-    } catch (error) {
-      setError(`Failed to fetch images from bucket: ${error.response?.data?.message || error.message}`);
-    } finally {
-      setImageLoading(false);
-    }
-  };
-
-  const assignImageToPet = async (petId, imageFileName) => {
-    try {
-      const publicUrl = getPublicImageUrl(imageFileName);
-      await api.patch(`/pets/${petId}`, {
-        image: imageFileName,
-        imageUrl: publicUrl,
-        imageName: imageFileName
-      });
-      setPets(prev => prev.map(pet => pet._id === petId ? 
-        { ...pet, image: imageFileName, imageUrl: publicUrl, imageName: imageFileName } : pet));
-      setShowImageModal(false);
-      setSelectedPetId(null);
-    } catch (error) {
-      setError(`Failed to assign image to pet: ${error.response?.data?.message || error.message}`);
-    }
-  };
-
-  const uploadImageToBucket = async (file, petId) => {
-    try {
-      const formData = new FormData();
-      formData.append('image', file);
-      formData.append('petId', petId);
-      formData.append('bucketName', selectedBucket);
-      formData.append('folder', selectedFolder);
-      formData.append('public', 'true');
-
-      const response = await api.post('/gcs/upload', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        }
-      });
-      if (response.data.success) {
-        return response.data.data;
-      } else {
-        throw new Error(response.data.message || 'Upload failed');
-      }
-    } catch (error) {
-      throw error;
-    }
-  };
-
-  const handleImageUpload = async (event) => {
-    const file = event.target.files[0];
-    if (!file || !selectedPetId) return;
-    if (!isValidImage(file)) {
-      setError('Please select a valid image file (JPEG, PNG, GIF, WebP)');
-      return;
-    }
-    if (!isValidFileSize(file)) {
-      setError(`File size too large. Max: 10MB. Yours: ${formatFileSize(file.size)}`);
-      return;
-    }
-    setImageLoading(true);
-    setError('');
-    try {
-      const uploadResult = await uploadImageToBucket(file, selectedPetId);
-      await assignImageToPet(selectedPetId, uploadResult.fileName);
-      await fetchBucketImages(selectedBucket, selectedFolder);
-    } catch (error) {
-      setError(`Failed to upload image: ${error.response?.data?.message || error.message}`);
-    } finally {
-      setImageLoading(false);
-    }
-  };
-
-  // Handle folder change
-  const handleFolderChange = (newFolder) => {
-    setSelectedFolder(newFolder);
-    fetchBucketImages(selectedBucket, newFolder);
-  };
-
-  useEffect(() => {
-    fetchBucketImages(selectedBucket, selectedFolder);
-  }, [selectedBucket, selectedFolder]);
-
-  const openImageModal = (petId) => {
-    setSelectedPetId(petId);
-    setShowImageModal(true);
-  };
-
+  // Determine page title based on route
   const getPageTitle = () => {
-    if (filters.featured === 'true') return 'Featured Pets';
-    if (filters.search) return `Search Results for "${filters.search}"`;
-    if (filters.type !== 'all') {
-      return `Browse ${filters.type.charAt(0).toUpperCase() + filters.type.slice(1)}s`;
-    }
-    return 'Browse All Pets';
+    if (location.pathname.includes('/pets')) return 'Available Pets';
+    if (selectedCategory) return `${selectedCategory.charAt(0).toUpperCase() + selectedCategory.slice(1)}s for Adoption`;
+    return 'Browse Pets for Adoption';
+  };
+
+  const getPageSubtitle = () => {
+    const totalPets = pets.length;
+    if (totalPets === 0) return 'No pets found matching your criteria';
+    if (totalPets === 1) return '1 pet found';
+    return `${totalPets} pets found`;
   };
 
   return (
-    <Container className="py-5" style={{ marginTop: '80px' }}>
+    <Container className="py-4">
+      {/* Page Header */}
+      <div className="text-center mb-4">
+        <h1 className="display-4 text-primary mb-2">{getPageTitle()}</h1>
+        <p className="lead text-muted">{getPageSubtitle()}</p>
+      </div>
+
+      {/* Search and Filter Section */}
       <Row className="mb-4">
-        <Col>
-          <h2 className="text-center mb-4">{getPageTitle()}</h2>
-          
-          {/* Filter Controls */}
-          <Card className="mb-4">
-            <Card.Body>
-              <Row className="g-3">
-                <Col md={3}>
-                  <Form.Label>Search</Form.Label>
+        <Col lg={8} className="mx-auto">
+          {/* Search Form */}
+          <Form onSubmit={handleSearch} className="mb-3">
+            <InputGroup>
+              <Form.Control
+                type="text"
+                placeholder="Search by pet name, breed, or description..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                aria-label="Search pets"
+              />
+              <Button 
+                variant="primary" 
+                type="submit"
+                disabled={loading}
+                aria-label="Search"
+              >
+                <FaSearch />
+              </Button>
+              <Button
+                variant="outline-secondary"
+                onClick={() => setShowFilters(!showFilters)}
+                aria-label={showFilters ? 'Hide filters' : 'Show filters'}
+                aria-expanded={showFilters}
+              >
+                <FaFilter />
+              </Button>
+            </InputGroup>
+          </Form>
+
+          {/* Advanced Filters */}
+          {showFilters && (
+            <div className="p-3 bg-light rounded mb-3">
+              <Row>
+                <Col md={4} className="mb-2">
+                  <Form.Select
+                    value={selectedCategory}
+                    onChange={(e) => setSelectedCategory(e.target.value)}
+                    aria-label="Filter by pet category"
+                  >
+                    {categories.map(category => (
+                      <option key={category.value} value={category.value}>
+                        {category.label}
+                      </option>
+                    ))}
+                  </Form.Select>
+                </Col>
+                <Col md={4} className="mb-2">
                   <Form.Control
                     type="text"
-                    placeholder="Search pets..."
-                    value={filters.search}
-                    onChange={(e) => handleFilterChange('search', e.target.value)}
+                    placeholder="Breed (optional)"
+                    value={selectedBreed}
+                    onChange={(e) => setSelectedBreed(e.target.value)}
+                    aria-label="Filter by breed"
                   />
                 </Col>
-                <Col md={2}>
-                  <Form.Label>Type</Form.Label>
+                <Col md={4} className="mb-2">
                   <Form.Select
-                    value={filters.type}
-                    onChange={(e) => handleFilterChange('type', e.target.value)}
+                    value={ageRange}
+                    onChange={(e) => setAgeRange(e.target.value)}
+                    aria-label="Filter by age range"
                   >
-                    <option value="all">All Types</option>
-                    <option value="dog">Dogs</option>
-                    <option value="cat">Cats</option>
-                    <option value="fish">Fish</option>
-                    <option value="bird">Birds</option>
-                    <option value="small-pet">Small Pets</option>
-                    <option value="supply">Supplies</option>
+                    {ageRanges.map(age => (
+                      <option key={age.value} value={age.value}>{age.label}</option>
+                    ))}
                   </Form.Select>
-                </Col>
-                <Col md={2}>
-                  <Form.Label>Size</Form.Label>
-                  <Form.Select
-                    value={filters.size}
-                    onChange={(e) => handleFilterChange('size', e.target.value)}
-                  >
-                    <option value="">Any Size</option>
-                    <option value="small">Small</option>
-                    <option value="medium">Medium</option>
-                    <option value="large">Large</option>
-                  </Form.Select>
-                </Col>
-                <Col md={2}>
-                  <Form.Label>Min Price</Form.Label>
-                  <Form.Control
-                    type="number"
-                    placeholder="Min"
-                    value={filters.minPrice}
-                    onChange={(e) => handleFilterChange('minPrice', e.target.value)}
-                  />
-                </Col>
-                <Col md={2}>
-                  <Form.Label>Max Price</Form.Label>
-                  <Form.Control
-                    type="number"
-                    placeholder="Max"
-                    value={filters.maxPrice}
-                    onChange={(e) => handleFilterChange('maxPrice', e.target.value)}
-                  />
-                </Col>
-                <Col md={1} className="d-flex align-items-end">
-                  <Button variant="outline-secondary" onClick={clearFilters}>
-                    Clear
-                  </Button>
                 </Col>
               </Row>
-            </Card.Body>
-          </Card>
+              <div className="text-end">
+                <Button 
+                  variant="outline-secondary" 
+                  size="sm" 
+                  onClick={clearFilters}
+                  className="d-inline-flex align-items-center gap-1"
+                >
+                  <FaTimes /> Clear Filters
+                </Button>
+              </div>
+            </div>
+          )}
         </Col>
       </Row>
 
-      {/* Error Display */}
+      {/* Active Filters Display */}
+      {(searchTerm || selectedCategory || selectedBreed || ageRange) && (
+        <Row className="mb-3">
+          <Col>
+            <div className="d-flex flex-wrap gap-2 align-items-center">
+              <small className="text-muted">Active filters:</small>
+              {searchTerm && (
+                <span className="badge bg-primary">Search: {searchTerm}</span>
+              )}
+              {selectedCategory && (
+                <span className="badge bg-secondary">
+                  Category: {categories.find(c => c.value === selectedCategory)?.label}
+                </span>
+              )}
+              {selectedBreed && (
+                <span className="badge bg-secondary">Breed: {selectedBreed}</span>
+              )}
+              {ageRange && (
+                <span className="badge bg-secondary">
+                  Age: {ageRanges.find(a => a.value === ageRange)?.label}
+                </span>
+              )}
+            </div>
+          </Col>
+        </Row>
+      )}
+
+      {/* Error Message */}
       {error && (
-        <Alert variant="danger" className="mb-4">
-          <i className="fas fa-exclamation-triangle me-2"></i>{error}
-          <Button variant="link" size="sm" className="ms-2" onClick={() => setError('')}>
-            Dismiss
-          </Button>
+        <Alert variant="danger" dismissible onClose={() => setError(null)}>
+          {error}
         </Alert>
       )}
 
       {/* Loading State */}
-      {loading ? (
+      {loading && (
         <div className="text-center py-5">
-          <Spinner animation="border" role="status" size="lg" />
-          <p className="mt-3 text-muted">Finding pets that match your criteria...</p>
+          <Spinner animation="border" role="status" variant="primary">
+            <span className="visually-hidden">Loading pets...</span>
+          </Spinner>
+          <p className="mt-2 text-muted">Finding amazing pets for you...</p>
         </div>
-      ) : (
-        <>
-          {/* Results Count */}
-          <div className="mb-3">
-            <span className="text-muted">
-              {pets.length} pet{pets.length !== 1 ? 's' : ''} found
-            </span>
-          </div>
+      )}
 
-          {/* Pet Grid */}
-          <Row className="g-4">
-            {pets.length > 0 ? (
-              pets.map(pet => (
-                <Col key={pet._id} sm={6} md={4} lg={3}>
-                  <div style={{ position: 'relative' }}>
-                    <PetCard pet={pet} onVote={() => {}} />
-                    <Button 
-                      variant="outline-primary" 
-                      size="sm" 
-                      className="mt-2 w-100" 
-                      onClick={() => openImageModal(pet._id)}
-                    >
-                      <i className="fas fa-images me-2"></i>Manage Images
-                    </Button>
-                  </div>
-                </Col>
-              ))
-            ) : (
-              <Col xs={12}>
-                <div className="text-center py-5">
-                  <i className="fas fa-search fa-3x text-muted mb-3"></i>
-                  <h4>No pets found</h4>
-                  <p className="text-muted mb-3">
-                    Try adjusting your search criteria or browse all available pets.
-                  </p>
-                  <Button variant="primary" onClick={clearFilters}>
-                    <i className="fas fa-paw me-2"></i>Browse All Pets
+      {/* Pet Results */}
+      {!loading && (
+        <>
+          {pets.length === 0 ? (
+            <div className="text-center py-5">
+              <div className="mb-4">
+                <i className="fas fa-paw fa-3x text-muted mb-3"></i>
+                <h3 className="text-muted">No pets found</h3>
+                <p className="text-muted">
+                  Try adjusting your search criteria or{' '}
+                  <Button variant="link" onClick={clearFilters} className="p-0">
+                    clear all filters
                   </Button>
-                </div>
-              </Col>
-            )}
-          </Row>
+                </p>
+              </div>
+            </div>
+          ) : (
+            <Row>
+              {pets.map((pet) => (
+                <Col key={pet._id} sm={6} md={4} lg={3} className="mb-4">
+                  <PetCard pet={pet} />
+                </Col>
+              ))}
+            </Row>
+          )}
         </>
       )}
 
-      {/* Image Management Modal with Folder Selection */}
-      <Modal show={showImageModal} onHide={() => setShowImageModal(false)} size="lg">
-        <Modal.Header closeButton>
-          <Modal.Title>Manage Images - {selectedFolder.charAt(0).toUpperCase() + selectedFolder.slice(1)} Folder</Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          {/* Folder Selection */}
-          <Row className="mb-3">
-            <Col md={6}>
-              <Form.Label>Select Folder</Form.Label>
-              <Form.Select 
-                value={selectedFolder} 
-                onChange={(e) => handleFolderChange(e.target.value)}
-              >
-                {availableFolders.map(folder => (
-                  <option key={folder} value={folder}>
-                    {folder.charAt(0).toUpperCase() + folder.slice(1)} Images
-                  </option>
-                ))}
-              </Form.Select>
-            </Col>
-            <Col md={6}>
-              <Form.Label>Upload New Image</Form.Label>
-              <Form.Control 
-                type="file" 
-                accept="image/*" 
-                onChange={handleImageUpload} 
-                disabled={imageLoading} 
-              />
-            </Col>
-          </Row>
-
-          {imageLoading && (
-            <div className="text-center mb-3">
-              <Spinner animation="border" size="sm" className="me-2" />
-              <span>Loading images...</span>
-            </div>
-          )}
-
-          <Row className="g-3">
-            {bucketImages.length > 0 ? (
-              bucketImages.map((imageName, index) => (
-                <Col key={index} xs={6} md={4}>
-                  <Card className="h-100">
-                    <div style={{ height: '150px', overflow: 'hidden' }}>
-                      <Card.Img
-                        variant="top"
-                        src={getPublicImageUrl(imageName)}
-                        style={{ height: '150px', objectFit: 'cover', cursor: 'pointer' }}
-                        onClick={() => assignImageToPet(selectedPetId, imageName)}
-                        onError={(e) => (e.target.style.display = 'none')}
-                      />
-                    </div>
-                    <Card.Body className="p-2">
-                      <small className="text-muted d-block mb-2" title={imageName}>
-                        {imageName.length > 30 ? 
-                          `${imageName.substring(0, 30)}...` : 
-                          imageName
-                        }
-                      </small>
-                      <Button
-                        variant="outline-success"
-                        size="sm"
-                        className="w-100"
-                        onClick={() => assignImageToPet(selectedPetId, imageName)}
-                      >
-                        <i className="fas fa-check me-1"></i>Use This Image
-                      </Button>
-                    </Card.Body>
-                  </Card>
-                </Col>
-              ))
-            ) : (
-              <Col xs={12}>
-                <div className="text-center py-4">
-                  <i className="fas fa-image fa-3x text-muted mb-3"></i>
-                  <h5>No images found in {selectedFolder} folder</h5>
-                  <p className="text-muted">Upload an image to get started</p>
-                </div>
-              </Col>
-            )}
-          </Row>
-        </Modal.Body>
-        <Modal.Footer>
-          <Button variant="secondary" onClick={() => setShowImageModal(false)}>
-            Close
+      {/* Load More / Pagination could be added here */}
+      {pets.length > 0 && pets.length % 12 === 0 && (
+        <div className="text-center mt-4">
+          <Button variant="outline-primary" size="lg">
+            Load More Pets
           </Button>
-        </Modal.Footer>
-      </Modal>
+        </div>
+      )}
     </Container>
   );
 };
