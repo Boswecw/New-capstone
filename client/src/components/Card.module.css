@@ -1,7 +1,4 @@
-/* ===========================
-   Card.module.css
-   =========================== */
-
+/* ===========================    Card.module.css    =========================== */
 .card {
   display: flex;
   flex-direction: column;
@@ -10,7 +7,7 @@
   border-radius: 1rem;
   overflow: hidden;
   border: 1px solid rgba(0, 0, 0, 0.1);
-  transition: transform 0.2s ease-in-out;
+  transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
   position: relative;
 }
 
@@ -24,16 +21,17 @@
 .petImgContainer,
 .productImgContainer {
   width: 100%;
-  aspect-ratio: 4 / 3;        /* Responsive container */
+  aspect-ratio: 4 / 3;
   overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
   background-color: #f8f9fa;
   border-bottom: 1px solid #dee2e6;
+  position: relative;
 }
 
-/* ==== Images ==== */
+/* ==== Images - Improved Fitting ==== */
 .cardImg,
 .petImg,
 .productImg {
@@ -42,14 +40,58 @@
   object-fit: cover;
   object-position: center;
   display: block;
-  transition: transform 0.3s ease;
+  transition: transform 0.3s ease, filter 0.3s ease;
+  /* Ensure images maintain aspect ratio */
+  min-width: 100%;
+  min-height: 100%;
 }
 
+/* Enhanced hover effects */
 .card:hover .cardImg,
 .card:hover .petImg,
 .card:hover .productImg {
   transform: scale(1.05);
   filter: brightness(1.05) contrast(1.05);
+}
+
+/* Fallback for images that don't load */
+.cardImgContainer::before,
+.petImgContainer::before,
+.productImgContainer::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  z-index: -1;
+}
+
+/* Image loading placeholder */
+.cardImg[src=""],
+.petImg[src=""],
+.productImg[src=""],
+.cardImg:not([src]),
+.petImg:not([src]),
+.productImg:not([src]) {
+  opacity: 0;
+}
+
+.cardImg[src=""]:after,
+.petImg[src=""]:after,
+.productImg[src=""]:after,
+.cardImg:not([src]):after,
+.petImg:not([src]):after,
+.productImg:not([src]):after {
+  content: '📷';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 2rem;
+  color: #adb5bd;
+  opacity: 1;
 }
 
 /* ==== Card Content ==== */
@@ -58,6 +100,7 @@
   padding: 1.25rem;
   display: flex;
   flex-direction: column;
+  justify-content: space-between;
 }
 
 /* ==== Titles & Text ==== */
@@ -70,7 +113,9 @@
   text-overflow: ellipsis;
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
+  line-height: 1.4;
 }
 
 .cardText {
@@ -81,7 +126,10 @@
   text-overflow: ellipsis;
   display: -webkit-box;
   -webkit-line-clamp: 3;
+  line-clamp: 3;
   -webkit-box-orient: vertical;
+  line-height: 1.5;
+  flex-grow: 1;
 }
 
 /* ==== Badge Styling ==== */
@@ -97,13 +145,33 @@
   -webkit-backdrop-filter: blur(10px);
   backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.2);
+  z-index: 10;
 }
 
-.statusBadge.available { background: #28a745; color: #fff; }
-.statusBadge.adopted { background: #6c757d; color: #fff; }
-.statusBadge.pending { background: #ffc107; color: #212529; }
+.statusBadge.available {
+  background: rgba(40, 167, 69, 0.9);
+  color: #fff;
+}
 
-/* ==== Responsive ==== */
+.statusBadge.adopted {
+  background: rgba(108, 117, 125, 0.9);
+  color: #fff;
+}
+
+.statusBadge.pending {
+  background: rgba(255, 193, 7, 0.9);
+  color: #212529;
+}
+
+/* ==== Card Footer (if needed) ==== */
+.cardFooter {
+  padding: 1rem 1.25rem;
+  border-top: 1px solid #dee2e6;
+  background-color: #f8f9fa;
+  margin-top: auto;
+}
+
+/* ==== Responsive Design ==== */
 @media (max-width: 768px) {
   .cardImgContainer,
   .petImgContainer,
@@ -113,11 +181,18 @@
 
   .cardTitle {
     font-size: 1rem;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
   }
 
   .cardText {
     font-size: 0.875rem;
     -webkit-line-clamp: 2;
+    line-clamp: 2;
+  }
+
+  .cardBody {
+    padding: 1rem;
   }
 }
 
@@ -130,12 +205,65 @@
 
   .cardTitle {
     font-size: 0.95rem;
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
   }
 
   .cardText {
     font-size: 0.85rem;
     -webkit-line-clamp: 2;
+    line-clamp: 2;
   }
+
+  .cardBody {
+    padding: 0.875rem;
+  }
+
+  .statusBadge {
+    top: 0.5rem;
+    right: 0.5rem;
+    font-size: 0.7rem;
+    padding: 0.2rem 0.4rem;
+  }
+}
+
+/* ==== Image Aspect Ratio Variations ==== */
+.cardImgContainer.square,
+.petImgContainer.square,
+.productImgContainer.square {
+  aspect-ratio: 1 / 1;
+}
+
+.cardImgContainer.wide,
+.petImgContainer.wide,
+.productImgContainer.wide {
+  aspect-ratio: 16 / 9;
+}
+
+.cardImgContainer.tall,
+.petImgContainer.tall,
+.productImgContainer.tall {
+  aspect-ratio: 3 / 4;
+}
+
+/* ==== Image Fit Variations ==== */
+.cardImg.contain,
+.petImg.contain,
+.productImg.contain {
+  object-fit: contain;
+  background-color: #f8f9fa;
+}
+
+.cardImg.fill,
+.petImg.fill,
+.productImg.fill {
+  object-fit: fill;
+}
+
+.cardImg.scaleDown,
+.petImg.scaleDown,
+.productImg.scaleDown {
+  object-fit: scale-down;
 }
 
 /* ==== Dark Mode Support ==== */
@@ -154,4 +282,62 @@
 
 [data-theme='dark'] .cardText:hover {
   color: #cbd5e0;
+}
+
+[data-theme='dark'] .cardImgContainer,
+[data-theme='dark'] .petImgContainer,
+[data-theme='dark'] .productImgContainer {
+  background-color: #4a5568;
+  border-bottom-color: #2d3748;
+}
+
+[data-theme='dark'] .cardFooter {
+  background-color: #4a5568;
+  border-top-color: #2d3748;
+}
+
+[data-theme='dark'] .cardImgContainer::before,
+[data-theme='dark'] .petImgContainer::before,
+[data-theme='dark'] .productImgContainer::before {
+  background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%);
+}
+
+/* ==== Accessibility ==== */
+.card:focus-within {
+  outline: 2px solid #0d6efd;
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .cardImg,
+  .petImg,
+  .productImg {
+    transition: none;
+  }
+  
+  .card:hover .cardImg,
+  .card:hover .petImg,
+  .card:hover .productImg {
+    transform: none;
+    filter: none;
+  }
+}
+
+/* ==== Loading State ==== */
+.card.loading {
+  pointer-events: none;
+}
+
+.card.loading .cardImgContainer,
+.card.loading .petImgContainer,
+.card.loading .productImgContainer {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: loading 1.5s infinite;
+}
+
+@keyframes loading {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
