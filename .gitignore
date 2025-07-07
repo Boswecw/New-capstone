@@ -321,4 +321,8 @@ documentation/build/
 *.tar
 *.gz
 *.bz2
-*.xz
+*.xz# Additional security
+*.log
+.env.local
+.env.production
+
