@@ -19,7 +19,7 @@ const HeroBanner = ({
   ...props
 }) => {
   const furBabiesIconUrl =
-    "https://storage.googleapis.com/furbabies-petstore/brand/FurBabieicon.png";
+    "https://storage.googleapis.com/furbabies-petstore/brand/FurBabiesicon.png";
 
   const handleImageError = (e) => {
     e.target.src = "/images/brand/FurBabiesicon.png"; // fallback
