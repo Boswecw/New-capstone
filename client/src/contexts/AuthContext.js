@@ -136,7 +136,7 @@ export const AuthProvider = ({ children }) => {
     try {
       console.log('Attempting registration to:', `${API_BASE_URL}/users/register`);
 
-      const response = await fetch(`${API_BASE_URL}/users/register`, {
+      const response = await fetch(`${API_BASE_URL}/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
