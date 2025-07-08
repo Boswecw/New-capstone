@@ -1,7 +1,7 @@
 // client/src/pages/Browse.js - Fixed filtering to match actual pet data
 import React, { useState, useEffect, useCallback } from 'react';
 import { Container, Row, Col, Spinner, Alert, Form, Button, InputGroup } from 'react-bootstrap';
-import { useSearchParams, useLocation } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { FaSearch, FaFilter, FaTimes } from 'react-icons/fa';
 import PetCard from '../components/PetCard';
 import { petAPI } from '../services/api';
@@ -11,7 +11,6 @@ const Browse = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchParams, setSearchParams] = useSearchParams();
-  const location = useLocation();
 
   // Search and filter states - FIXED: Use 'type' instead of 'category'
   const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
@@ -75,6 +74,15 @@ const Browse = () => {
     
     setSearchParams(params);
   }, [searchTerm, selectedType, selectedBreed, ageRange, setSearchParams]);
+
+  // ✅ FIX: Listen for URL parameter changes and update local state
+  // This was the missing piece that prevented navbar filtering from working!
+  useEffect(() => {
+    setSearchTerm(searchParams.get('search') || '');
+    setSelectedType(searchParams.get('type') || '');
+    setSelectedBreed(searchParams.get('breed') || '');
+    setAgeRange(searchParams.get('age') || '');
+  }, [searchParams]); // This triggers when URL parameters change
 
   // Fetch pets when filters change
   useEffect(() => {
@@ -191,93 +199,65 @@ const Browse = () => {
                 <span className="badge bg-primary">Search: {searchTerm}</span>
               )}
               {selectedType && (
-                <span className="badge bg-secondary">
-                  Type: {petTypes.find(t => t.value === selectedType)?.label}
-                </span>
+                <span className="badge bg-success">Type: {petTypes.find(t => t.value === selectedType)?.label}</span>
               )}
               {selectedBreed && (
-                <span className="badge bg-secondary">Breed: {selectedBreed}</span>
+                <span className="badge bg-info">Breed: {selectedBreed}</span>
               )}
               {ageRange && (
-                <span className="badge bg-secondary">
-                  Age: {ageRanges.find(a => a.value === ageRange)?.label}
-                </span>
+                <span className="badge bg-warning">Age: {ageRanges.find(a => a.value === ageRange)?.label}</span>
               )}
             </div>
           </Col>
         </Row>
       )}
 
-      {/* Error Message */}
-      {error && (
-        <Row className="justify-content-center">
-          <Col xl={10}>
-            <Alert variant="danger" dismissible onClose={() => setError(null)}>
+      {/* Results Section */}
+      <Row className="justify-content-center">
+        <Col xl={10}>
+          {loading && (
+            <div className="text-center py-5">
+              <Spinner animation="border" variant="primary" size="lg" />
+              <p className="mt-3 text-muted">Loading pets...</p>
+            </div>
+          )}
+
+          {error && (
+            <Alert variant="danger" className="text-center">
+              <i className="fas fa-exclamation-triangle me-2"></i>
               {error}
             </Alert>
-          </Col>
-        </Row>
-      )}
+          )}
 
-      {/* Loading State */}
-      {loading && (
-        <div className="text-center py-5">
-          <Spinner animation="border" role="status" variant="primary">
-            <span className="visually-hidden">Loading pets...</span>
-          </Spinner>
-          <p className="mt-2 text-muted">Finding amazing pets for you...</p>
-        </div>
-      )}
+          {!loading && !error && (
+            <>
+              <div className="d-flex justify-content-between align-items-center mb-3">
+                <h5 className="mb-0">
+                  {pets.length} {pets.length === 1 ? 'Pet' : 'Pets'} Found
+                </h5>
+              </div>
 
-      {/* Pet Results */}
-      {!loading && (
-        <Row className="justify-content-center">
-          <Col xl={10}>
-            {pets.length === 0 ? (
-              <div className="text-center py-5">
-                <div className="mb-4">
-                  <i className="fas fa-paw fa-3x text-muted mb-3"></i>
-                  <h3 className="text-muted">No pets found</h3>
+              {pets.length === 0 ? (
+                <div className="text-center py-5">
+                  <i className="fas fa-search fa-3x text-muted mb-3"></i>
+                  <h4 className="text-muted">No pets found</h4>
                   <p className="text-muted">
-                    Try adjusting your search criteria or{' '}
-                    <Button variant="link" onClick={clearFilters} className="p-0">
-                      clear all filters
-                    </Button>
+                    Try adjusting your search criteria or <Button variant="link" onClick={clearFilters} className="p-0">clear all filters</Button>
                   </p>
                 </div>
-              </div>
-            ) : (
-              <>
-                <div className="mb-3">
-                  <small className="text-muted">
-                    {pets.length} pet{pets.length !== 1 ? 's' : ''} found
-                  </small>
-                </div>
+              ) : (
                 <Row>
                   {pets.map((pet) => (
-                    <Col key={pet._id} sm={6} md={4} lg={3} className="mb-4">
+                    <Col key={pet._id} xs={12} sm={6} md={4} lg={3} className="mb-4">
                       <PetCard pet={pet} />
                     </Col>
                   ))}
                 </Row>
-              </>
-            )}
-          </Col>
-        </Row>
-      )}
-
-      {/* Load More / Pagination */}
-      {pets.length > 0 && pets.length % 12 === 0 && (
-        <Row className="justify-content-center">
-          <Col xl={10}>
-            <div className="text-center mt-4">
-              <Button variant="outline-primary" size="lg">
-                Load More Pets
-              </Button>
-            </div>
-          </Col>
-        </Row>
-      )}
+              )}
+            </>
+          )}
+        </Col>
+      </Row>
     </Container>
   );
 };
