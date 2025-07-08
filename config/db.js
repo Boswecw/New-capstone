@@ -1,4 +1,6 @@
-require('dotenv').config();
+const path = require('path');
+// ✅ FIXED: Look for .env in server directory (matches server.js configuration)
+require('dotenv').config({ path: path.resolve(__dirname, '../server/.env') });
 const mongoose = require('mongoose');
 
 const connectDB = async () => {

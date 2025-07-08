@@ -7,6 +7,9 @@ const mongoose = require("mongoose");
 const cors = require("cors");
 const multer = require("multer");
 
+// ✅ IMPORT DATABASE CONNECTION
+const connectDB = require("../config/db"); // Import the fixed db.js
+
 // Import routes
 const petRoutes = require("./routes/pets");
 const userRoutes = require("./routes/users");
@@ -54,20 +57,10 @@ if (!process.env.JWT_SECRET) {
   process.exit(1);
 }
 
-// ✅ REMOVED: GCS authentication check - using public GCS
+// ✅ SINGLE DATABASE CONNECTION
+connectDB(); // Use the config/db.js connection
 
-// Connect to MongoDB
-console.log("🔌 Connecting to MongoDB...");
-mongoose.connect(process.env.MONGODB_URI).then(() => {
-  console.log("✅ Connected to MongoDB Atlas");
-  console.log("🗃️  Database name:", mongoose.connection.db.databaseName);
-}).catch(err => {
-  console.error("❌ MongoDB connection failed:", err);
-  process.exit(1);
-});
-
-// ✅ REMOVED: Frontend serving logic - not needed for separate deployments
-// No longer serving static files or catch-all routes
+// ✅ REMOVED: Duplicate mongoose.connect() call that was causing conflicts
 
 // API routes
 app.use("/api/pets", petRoutes);
