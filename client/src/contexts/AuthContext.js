@@ -147,12 +147,29 @@ export const AuthProvider = ({ children }) => {
     try {
       console.log('📝 Attempting registration to:', `${API_BASE_URL}/users/register`);
 
+      // ✅ FIX: Transform frontend data to match backend expectations
+      const requestData = {
+        // Combine firstName and lastName into name, or use existing name field
+        name: userData.firstName && userData.lastName 
+          ? `${userData.firstName} ${userData.lastName}`.trim()
+          : userData.name || userData.username || userData.firstName || userData.lastName || '',
+        email: userData.email,
+        password: userData.password
+      };
+
+      // Validate required fields
+      if (!requestData.name || !requestData.email || !requestData.password) {
+        throw new Error('Name, email, and password are required');
+      }
+
+      console.log('📝 Sending registration data:', requestData);
+
       const response = await fetch(`${API_BASE_URL}/users/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(userData),
+        body: JSON.stringify(requestData),
       });
 
       // ✅ IMPROVED: Better error handling for non-JSON responses
