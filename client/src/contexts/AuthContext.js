@@ -1,4 +1,4 @@
-// contexts/AuthContext.js
+// client/src/contexts/AuthContext.js
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
 const AuthContext = createContext();
@@ -17,8 +17,10 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Get API base URL from environment or default
+  // ✅ FIXED: Consistent API base URL configuration
   const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+  
+  console.log('🔧 API_BASE_URL:', API_BASE_URL); // Debug logging
 
   // Memoized function to validate token
   const validateToken = useCallback(async (token) => {
@@ -71,16 +73,16 @@ export const AuthProvider = ({ children }) => {
     };
 
     checkAuthStatus();
-  }, [validateToken]); // ✅ Fixed: Added validateToken to dependencies
+  }, [validateToken]);
 
   // Debug logging for user state changes
   useEffect(() => {
     console.log('🎯 CURRENT USER STATE:', user);
     if (user) {
       console.log('🎯 CURRENT USER ROLE:', user.role);
-      console.log('🎯 IS ADMIN?:', user.role === 'admin');
+      console.log('🎯 IS ADMIN?', user.role === 'admin');
     }
-  }, [user]); // ✅ Fixed: Added user to dependencies
+  }, [user]);
 
   const login = async (credentials) => {
     try {
@@ -90,7 +92,7 @@ export const AuthProvider = ({ children }) => {
         password: credentials.password
       };
 
-      console.log('Attempting login to:', `${API_BASE_URL}/users/login`);
+      console.log('🔐 Attempting login to:', `${API_BASE_URL}/users/login`);
       console.log('Login data being sent:', loginData);
 
       const response = await fetch(`${API_BASE_URL}/users/login`, {
@@ -101,7 +103,16 @@ export const AuthProvider = ({ children }) => {
         body: JSON.stringify(loginData),
       });
 
-      const data = await response.json();
+      // ✅ IMPROVED: Better error handling for non-JSON responses
+      let data;
+      try {
+        data = await response.json();
+      } catch (jsonError) {
+        console.error('Failed to parse JSON response:', jsonError);
+        console.error('Response status:', response.status);
+        console.error('Response statusText:', response.statusText);
+        throw new Error(`Server returned invalid response (${response.status}). Please check your connection and try again.`);
+      }
 
       if (response.ok && data.success) {
         // Store token and user data
@@ -112,7 +123,7 @@ export const AuthProvider = ({ children }) => {
         console.log('🎯 LOGIN SUCCESS - User data:', data.data.user);
         console.log('🎯 LOGIN SUCCESS - User role:', data.data.user.role);
         
-        console.log('Login successful:', data.message);
+        console.log('✅ Login successful:', data.message);
         return {
           success: true,
           user: data.data.user,
@@ -122,7 +133,7 @@ export const AuthProvider = ({ children }) => {
       } else {
         // Login failed
         const errorMessage = data.message || 'Login failed';
-        console.error('Login failed:', errorMessage);
+        console.error('❌ Login failed:', errorMessage);
         throw new Error(errorMessage);
       }
     } catch (error) {
@@ -134,9 +145,9 @@ export const AuthProvider = ({ children }) => {
 
   const register = async (userData) => {
     try {
-      console.log('Attempting registration to:', `${API_BASE_URL}/users/register`);
+      console.log('📝 Attempting registration to:', `${API_BASE_URL}/users/register`);
 
-      const response = await fetch(`${API_BASE_URL}/register`, {
+      const response = await fetch(`${API_BASE_URL}/users/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -144,14 +155,30 @@ export const AuthProvider = ({ children }) => {
         body: JSON.stringify(userData),
       });
 
-      const data = await response.json();
+      // ✅ IMPROVED: Better error handling for non-JSON responses
+      let data;
+      try {
+        data = await response.json();
+      } catch (jsonError) {
+        console.error('Failed to parse JSON response:', jsonError);
+        console.error('Response status:', response.status);
+        console.error('Response statusText:', response.statusText);
+        console.error('Response headers:', response.headers);
+        
+        // If we get HTML instead of JSON, it's likely a 404 or server error
+        if (response.status === 404) {
+          throw new Error('Registration endpoint not found. Please check server configuration.');
+        } else {
+          throw new Error(`Server returned invalid response (${response.status}). Please check your connection and try again.`);
+        }
+      }
 
       if (response.ok && data.success) {
         // Auto-login after successful registration
         localStorage.setItem('token', data.data.token);
         setUser(data.data.user);
         
-        console.log('Registration successful:', data.message);
+        console.log('✅ Registration successful:', data.message);
         return {
           success: true,
           user: data.data.user,
@@ -160,7 +187,7 @@ export const AuthProvider = ({ children }) => {
         };
       } else {
         const errorMessage = data.message || 'Registration failed';
-        console.error('Registration failed:', errorMessage);
+        console.error('❌ Registration failed:', errorMessage);
         throw new Error(errorMessage);
       }
     } catch (error) {
@@ -169,12 +196,28 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const logout = useCallback(() => {
+  const logout = () => {
     localStorage.removeItem('token');
     setUser(null);
-    console.log('User logged out');
-  }, []);
+    console.log('👋 User logged out');
+  };
 
+  // Get current user info
+  const getCurrentUser = () => {
+    return user;
+  };
+
+  // Check if user is authenticated
+  const isAuthenticated = () => {
+    return !!user;
+  };
+
+  // Check if user is admin
+  const isAdmin = () => {
+    return user?.role === 'admin';
+  };
+
+  // Update user profile
   const updateProfile = async (profileData) => {
     try {
       const token = localStorage.getItem('token');
@@ -185,8 +228,8 @@ export const AuthProvider = ({ children }) => {
       const response = await fetch(`${API_BASE_URL}/users/profile`, {
         method: 'PUT',
         headers: {
-          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify(profileData),
       });
@@ -195,59 +238,61 @@ export const AuthProvider = ({ children }) => {
 
       if (response.ok && data.success) {
         setUser(data.data);
-        return data;
+        console.log('✅ Profile updated successfully');
+        return {
+          success: true,
+          user: data.data,
+          message: data.message
+        };
       } else {
         throw new Error(data.message || 'Profile update failed');
       }
     } catch (error) {
       console.error('Profile update error:', error);
-      throw error;
+      throw new Error(error.message || 'Network error during profile update');
     }
   };
 
-  // Check if user has specific role
-  const hasRole = useCallback((role) => {
-    return user && user.role === role;
-  }, [user]); // ✅ Fixed: Added user to dependencies
+  // Request password reset
+  const requestPasswordReset = async (email) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/users/forgot-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
 
-  // Check if user is admin
-  const isAdmin = useCallback(() => {
-    return hasRole('admin');
-  }, [hasRole]); // ✅ Fixed: Added hasRole to dependencies
+      const data = await response.json();
 
-  // Check if user is authenticated
-  const isAuthenticated = useCallback(() => {
-    return !!user && !!localStorage.getItem('token');
-  }, [user]); // ✅ Fixed: Added user to dependencies
-
-  // Refresh user data (useful for admin operations)
-  const refreshUser = useCallback(async () => {
-    const token = localStorage.getItem('token');
-    if (token && user) {
-      try {
-        const userData = await validateToken(token);
-        if (userData) {
-          setUser(userData);
-        }
-      } catch (error) {
-        console.error('Failed to refresh user data:', error);
+      if (response.ok && data.success) {
+        console.log('✅ Password reset email sent');
+        return {
+          success: true,
+          message: data.message
+        };
+      } else {
+        throw new Error(data.message || 'Password reset request failed');
       }
+    } catch (error) {
+      console.error('Password reset error:', error);
+      throw new Error(error.message || 'Network error during password reset');
     }
-  }, [user, validateToken]); // ✅ Fixed: Added dependencies
+  };
 
   const value = {
     user,
-    loading,
     login,
     register,
     logout,
-    updateProfile,
-    hasRole,
-    isAdmin,
+    loading,
+    getCurrentUser,
     isAuthenticated,
-    refreshUser,
-    // Expose API base URL for other components if needed
-    apiBaseUrl: API_BASE_URL
+    isAdmin,
+    updateProfile,
+    requestPasswordReset,
+    validateToken
   };
 
   return (
@@ -257,4 +302,5 @@ export const AuthProvider = ({ children }) => {
   );
 };
 
-export default AuthContext;
+// Default export for the provider (optional - if you prefer default import)
+export default AuthProvider;
