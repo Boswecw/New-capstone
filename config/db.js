@@ -27,14 +27,13 @@ const connectDB = async () => {
     console.log('🔌 Attempting to connect to MongoDB...');
     console.log('🌐 Connection string format:', uri.startsWith('mongodb+srv://') ? 'MongoDB Atlas (SRV)' : 'Standard MongoDB');
     
-    // Connect with improved options
+    // Connect with improved options (compatible with Mongoose 8.x)
     const conn = await mongoose.connect(uri, {
       // These options help with connection stability
       maxPoolSize: 10, // Maintain up to 10 socket connections
       serverSelectionTimeoutMS: 5000, // Keep trying to send operations for 5 seconds
-      socketTimeoutMS: 45000, // Close sockets after 45 seconds of inactivity
-      bufferCommands: false, // Disable mongoose buffering
-      bufferMaxEntries: 0 // Disable mongoose buffering
+      socketTimeoutMS: 45000 // Close sockets after 45 seconds of inactivity
+      // ✅ REMOVED: bufferCommands and bufferMaxEntries (deprecated in Mongoose 8.x)
     });
 
     console.log(`✅ MongoDB Connected Successfully!`);
