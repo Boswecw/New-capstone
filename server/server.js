@@ -60,8 +60,6 @@ if (!process.env.JWT_SECRET) {
 // ✅ SINGLE DATABASE CONNECTION
 connectDB(); // Use the config/db.js connection
 
-// ✅ REMOVED: Duplicate mongoose.connect() call that was causing conflicts
-
 // API routes
 app.use("/api/pets", petRoutes);
 app.use("/api/users", userRoutes);
@@ -154,14 +152,18 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Graceful shutdown
+// ✅ FIXED: Graceful shutdown compatible with Mongoose 8.x
 ["SIGTERM", "SIGINT"].forEach((signal) =>
-  process.on(signal, () => {
+  process.on(signal, async () => {
     console.log(`${signal} received. Closing MongoDB connection...`);
-    mongoose.connection.close(() => {
-      console.log("MongoDB disconnected.");
+    try {
+      await mongoose.connection.close(); // ✅ No callback, use async/await
+      console.log("✅ MongoDB connection closed successfully.");
       process.exit(0);
-    });
+    } catch (err) {
+      console.error("❌ Error during MongoDB shutdown:", err);
+      process.exit(1);
+    }
   })
 );
 
