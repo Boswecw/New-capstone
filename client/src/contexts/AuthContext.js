@@ -134,6 +134,14 @@ export const AuthProvider = ({ children }) => {
         // Login failed
         const errorMessage = data.message || 'Login failed';
         console.error('❌ Login failed:', errorMessage);
+        
+        // ✅ IMPROVED: Show detailed validation errors if available
+        if (data.errors && Array.isArray(data.errors)) {
+          const detailedErrors = data.errors.map(err => `${err.field}: ${err.message}`).join(', ');
+          console.error('📋 Login validation details:', detailedErrors);
+          throw new Error(`Login failed: ${detailedErrors}`);
+        }
+        
         throw new Error(errorMessage);
       }
     } catch (error) {
@@ -205,6 +213,14 @@ export const AuthProvider = ({ children }) => {
       } else {
         const errorMessage = data.message || 'Registration failed';
         console.error('❌ Registration failed:', errorMessage);
+        
+        // ✅ IMPROVED: Show detailed validation errors if available
+        if (data.errors && Array.isArray(data.errors)) {
+          const detailedErrors = data.errors.map(err => `${err.field}: ${err.message}`).join(', ');
+          console.error('📋 Validation details:', detailedErrors);
+          throw new Error(`Registration failed: ${detailedErrors}`);
+        }
+        
         throw new Error(errorMessage);
       }
     } catch (error) {
@@ -262,6 +278,12 @@ export const AuthProvider = ({ children }) => {
           message: data.message
         };
       } else {
+        // ✅ IMPROVED: Show detailed validation errors if available
+        if (data.errors && Array.isArray(data.errors)) {
+          const detailedErrors = data.errors.map(err => `${err.field}: ${err.message}`).join(', ');
+          throw new Error(`Profile update failed: ${detailedErrors}`);
+        }
+        
         throw new Error(data.message || 'Profile update failed');
       }
     } catch (error) {
@@ -290,12 +312,82 @@ export const AuthProvider = ({ children }) => {
           message: data.message
         };
       } else {
+        // ✅ IMPROVED: Show detailed validation errors if available
+        if (data.errors && Array.isArray(data.errors)) {
+          const detailedErrors = data.errors.map(err => `${err.field}: ${err.message}`).join(', ');
+          throw new Error(`Password reset failed: ${detailedErrors}`);
+        }
+        
         throw new Error(data.message || 'Password reset request failed');
       }
     } catch (error) {
       console.error('Password reset error:', error);
       throw new Error(error.message || 'Network error during password reset');
     }
+  };
+
+  // ✅ NEW: Client-side password validation helper
+  const validatePassword = (password) => {
+    const errors = [];
+    
+    if (!password || password.length < 6) {
+      errors.push('Password must be at least 6 characters long');
+    }
+    
+    if (!/(?=.*[a-z])/.test(password)) {
+      errors.push('Password must contain at least one lowercase letter');
+    }
+    
+    if (!/(?=.*[A-Z])/.test(password)) {
+      errors.push('Password must contain at least one uppercase letter');
+    }
+    
+    if (!/(?=.*\d)/.test(password)) {
+      errors.push('Password must contain at least one number');
+    }
+    
+    return {
+      isValid: errors.length === 0,
+      errors: errors
+    };
+  };
+
+  // ✅ NEW: Client-side name validation helper
+  const validateName = (name) => {
+    const errors = [];
+    
+    if (!name || name.trim().length < 2) {
+      errors.push('Name must be at least 2 characters long');
+    }
+    
+    if (name && name.length > 50) {
+      errors.push('Name cannot exceed 50 characters');
+    }
+    
+    if (name && !/^[a-zA-Z\s]+$/.test(name)) {
+      errors.push('Name can only contain letters and spaces');
+    }
+    
+    return {
+      isValid: errors.length === 0,
+      errors: errors
+    };
+  };
+
+  // ✅ NEW: Client-side email validation helper
+  const validateEmail = (email) => {
+    const errors = [];
+    
+    if (!email) {
+      errors.push('Email is required');
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      errors.push('Please provide a valid email address');
+    }
+    
+    return {
+      isValid: errors.length === 0,
+      errors: errors
+    };
   };
 
   const value = {
@@ -309,7 +401,11 @@ export const AuthProvider = ({ children }) => {
     isAdmin,
     updateProfile,
     requestPasswordReset,
-    validateToken
+    validateToken,
+    // ✅ NEW: Expose validation helpers
+    validatePassword,
+    validateName,
+    validateEmail
   };
 
   return (
