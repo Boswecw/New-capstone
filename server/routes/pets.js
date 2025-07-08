@@ -1,23 +1,10 @@
-// server/routes/pets.js - PRODUCTION READY FIX
+// server/routes/pets.js - BULLETPROOF FIX (NO VALIDATION)
 const express = require('express');
 const router = express.Router();
 const Pet = require('../models/Pet');
 const { protect, optionalAuth } = require('../middleware/auth');
 
-// Custom validation that accepts both MongoDB ObjectIds and custom pet IDs
-const validatePetId = (req, res, next) => {
-  const petId = req.params.id;
-  
-  // Allow any non-empty string - handle errors in the route logic instead
-  if (!petId || petId.trim() === '') {
-    return res.status(400).json({
-      success: false,
-      message: 'Pet ID is required'
-    });
-  }
-  
-  next();
-};
+// 🎯 REMOVED ALL VALIDATION MIDDLEWARE TO FIX THE ISSUE
 
 // GET /api/pets/featured - Get random pets as featured
 router.get('/featured', async (req, res) => {
@@ -38,7 +25,7 @@ router.get('/featured', async (req, res) => {
   }
 });
 
-// GET /api/pets - Get all pets
+// GET /api/pets - Get all pets (NO VALIDATION)
 router.get('/', optionalAuth, async (req, res) => {
   try {
     const {
@@ -151,59 +138,79 @@ router.get('/', optionalAuth, async (req, res) => {
   }
 });
 
-// GET /api/pets/:id - Get single pet by ID 🎯 FIXED VERSION
-router.get('/:id', validatePetId, optionalAuth, async (req, res) => {
+// 🎯 GET /api/pets/:id - Get single pet by ID (NO VALIDATION AT ALL)
+router.get('/:id', async (req, res) => {
   try {
     const petId = req.params.id;
-    console.log(`🔍 Fetching pet with ID: ${petId}`);
+    console.log(`🔍 Fetching pet with ID: ${petId} (no validation)`);
     
-    let pet;
+    // Simple validation - just check if ID exists
+    if (!petId || petId.trim() === '') {
+      return res.status(400).json({
+        success: false,
+        message: 'Pet ID is required'
+      });
+    }
+    
+    let pet = null;
     
     try {
-      // First, try to find by the exact ID (works for both MongoDB ObjectIds and custom IDs)
-      pet = await Pet.findOne({ _id: petId })
+      // Try to find the pet directly by ID
+      pet = await Pet.findById(petId)
         .populate('createdBy', 'name email')
         .populate('adoptedBy', 'name email');
-    } catch (findError) {
-      // If direct find fails, it might be a CastError for custom IDs
-      console.log(`Direct find failed for ${petId}, trying alternative search...`);
+    } catch (mongoError) {
+      // If MongoDB can't find it, it might be a custom ID stored differently
+      console.log(`MongoDB findById failed for ${petId}, trying alternative searches...`);
       
-      // Try to find by treating it as a string field if your database stores custom IDs
-      // This is a fallback in case the _id field contains custom strings
-      pet = await Pet.findOne({
-        $or: [
-          { _id: petId },
-          { customId: petId }, // If you have a separate customId field
-          { petId: petId }     // Alternative field name
-        ]
-      }).populate('createdBy', 'name email')
-        .populate('adoptedBy', 'name email');
+      try {
+        // Try to find by any field that might contain the custom ID
+        pet = await Pet.findOne({
+          $or: [
+            { _id: petId },
+            { id: petId },
+            { petId: petId },
+            { customId: petId }
+          ]
+        }).populate('createdBy', 'name email')
+          .populate('adoptedBy', 'name email');
+      } catch (altError) {
+        console.log(`Alternative search also failed for ${petId}`);
+      }
     }
 
     if (!pet) {
       console.log(`❌ Pet not found: ${petId}`);
       
-      // For debugging: show what pets actually exist
-      const samplePets = await Pet.find().limit(5).select('_id name type');
-      console.log('📋 Sample pets in database:', samplePets.map(p => ({ id: p._id, name: p.name })));
-      
-      return res.status(404).json({
-        success: false,
-        message: 'Pet not found',
-        debug: process.env.NODE_ENV === 'development' ? {
-          searchedId: petId,
-          samplePets: samplePets.map(p => ({ id: p._id, name: p.name, type: p.type }))
-        } : undefined
-      });
+      // For debugging - show what pets actually exist
+      try {
+        const samplePets = await Pet.find().limit(10).select('_id name type');
+        console.log('📋 Available pets in database:', samplePets.map(p => ({ id: p._id, name: p.name })));
+        
+        return res.status(404).json({
+          success: false,
+          message: 'Pet not found',
+          debug: {
+            searchedId: petId,
+            availablePets: samplePets.map(p => ({ id: p._id, name: p.name, type: p.type }))
+          }
+        });
+      } catch (debugError) {
+        return res.status(404).json({
+          success: false,
+          message: 'Pet not found'
+        });
+      }
     }
 
     // Increment view count
-    if (typeof pet.views === 'number') {
-      pet.views += 1;
-    } else {
-      pet.views = 1;
+    try {
+      pet.views = (pet.views || 0) + 1;
+      await pet.save();
+    } catch (saveError) {
+      console.log('Failed to increment view count:', saveError.message);
+      // Don't fail the request if we can't save the view count
     }
-    await pet.save();
 
     console.log(`✅ Pet found: ${pet.name} (${pet.type})`);
     
@@ -215,33 +222,29 @@ router.get('/:id', validatePetId, optionalAuth, async (req, res) => {
     
   } catch (error) {
     console.error('❌ Error fetching pet:', error);
-    
-    // Provide helpful error messages
-    if (error.name === 'CastError') {
-      return res.status(400).json({
-        success: false,
-        message: 'Pet ID format not compatible with database',
-        debug: process.env.NODE_ENV === 'development' ? {
-          providedId: req.params.id,
-          errorType: 'CastError',
-          suggestion: 'The pet ID format may not match what is stored in the database'
-        } : undefined
-      });
-    }
-    
     res.status(500).json({
       success: false,
       message: 'Error fetching pet details',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 });
 
-// POST /api/pets/:id/vote - Vote on a pet
-router.post('/:id/vote', protect, validatePetId, async (req, res) => {
+// 🎯 POST /api/pets/:id/vote - Vote on a pet (NO VALIDATION)
+router.post('/:id/vote', protect, async (req, res) => {
   try {
     const { voteType } = req.body;
     const petId = req.params.id;
+    
+    console.log(`🗳️ Vote attempt for pet ${petId} with vote type: ${voteType}`);
+    
+    if (!petId || petId.trim() === '') {
+      return res.status(400).json({
+        success: false,
+        message: 'Pet ID is required'
+      });
+    }
     
     if (!['up', 'down'].includes(voteType)) {
       return res.status(400).json({
@@ -250,16 +253,18 @@ router.post('/:id/vote', protect, validatePetId, async (req, res) => {
       });
     }
 
-    let pet;
+    let pet = null;
+    
     try {
       pet = await Pet.findById(petId);
-    } catch (findError) {
-      // Fallback search for custom IDs
+    } catch (mongoError) {
+      // Try alternative search for custom IDs
       pet = await Pet.findOne({
         $or: [
           { _id: petId },
-          { customId: petId },
-          { petId: petId }
+          { id: petId },
+          { petId: petId },
+          { customId: petId }
         ]
       });
     }
@@ -279,17 +284,16 @@ router.post('/:id/vote', protect, validatePetId, async (req, res) => {
     }
 
     // Initialize votes object if it doesn't exist
-    if (!pet.votes) {
+    if (!pet.votes || typeof pet.votes !== 'object') {
       pet.votes = { up: 0, down: 0 };
     }
 
-    // Simple voting logic - increment the vote count
+    // Simple voting - just increment the count
     pet.votes[voteType] = (pet.votes[voteType] || 0) + 1;
     
-    // Track user votes if needed (simplified for now)
-    if (!pet.userVotes) pet.userVotes = [];
-    
     await pet.save();
+
+    console.log(`✅ Vote ${voteType} recorded for ${pet.name}`);
 
     res.json({
       success: true,
@@ -305,7 +309,7 @@ router.post('/:id/vote', protect, validatePetId, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error processing vote',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      error: error.message
     });
   }
 });
