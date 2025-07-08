@@ -71,8 +71,12 @@ const Home = () => {
       <Navbar />
       <HeroBanner />
       <Container className="py-5">
+        {/* Featured Pets Section */}
         <section className="featured-pets mb-5">
-          <h2 className="text-center mb-4">Featured Pets</h2>
+          <h2 className="text-center mb-4">
+            <i className="fas fa-paw me-2"></i>
+            Featured Pets
+          </h2>
           {error && (
             <Alert variant="warning" className="text-center">
               <i className="fas fa-exclamation-triangle me-2"></i>
@@ -104,6 +108,8 @@ const Home = () => {
               </div>
             </Alert>
           )}
+          
+          {/* PETS BUTTON - Correctly links to /pets */}
           <div className="text-center mt-4">
             <Link to="/pets">
               <Button variant="primary" size="lg">
@@ -114,8 +120,12 @@ const Home = () => {
           </div>
         </section>
 
+        {/* Featured Products Section */}
         <section className="featured-products mb-5">
-          <h2 className="text-center mb-4">Featured Products</h2>
+          <h2 className="text-center mb-4">
+            <i className="fas fa-shopping-cart me-2"></i>
+            Featured Products
+          </h2>
           {loadingProducts ? (
             <div className="text-center">
               <Spinner animation="border" variant="primary" />
@@ -125,7 +135,10 @@ const Home = () => {
             <Row className="g-4">
               {featuredProducts.map((product) => (
                 <Col key={product._id} md={4}>
-                  <ProductCard product={product} imageUrl={getProductImageUrl(product)} />
+                  <ProductCard 
+                    product={product} 
+                    imageUrl={getProductImageUrl(product)} 
+                  />
                 </Col>
               ))}
             </Row>
@@ -133,13 +146,87 @@ const Home = () => {
             <Alert variant="info" className="text-center">
               <i className="fas fa-info-circle me-2"></i>
               No featured products available at the moment.
+              <div className="mt-2">
+                <Button variant="outline-primary" size="sm" onClick={fetchFeaturedProducts}>
+                  <i className="fas fa-refresh me-1"></i>
+                  Try Again
+                </Button>
+              </div>
             </Alert>
           )}
+          
+          {/* PRODUCTS BUTTON - Now correctly links to /products */}
           <div className="text-center mt-4">
             <Link to="/products">
               <Button variant="outline-primary" size="lg">
                 <i className="fas fa-shopping-cart me-2"></i>
                 View All Products
+              </Button>
+            </Link>
+          </div>
+        </section>
+
+        {/* Call to Action Section */}
+        <section className="cta-section text-center py-5 bg-light rounded">
+          <Container>
+            <h3 className="mb-3">Ready to Find Your Perfect Companion?</h3>
+            <p className="lead text-muted mb-4">
+              Browse our available pets or explore our products to give your furry friends the best care.
+            </p>
+            <div className="d-flex flex-column flex-md-row gap-3 justify-content-center">
+              <Link to="/browse">
+                <Button variant="success" size="lg" className="px-4">
+                  <i className="fas fa-search me-2"></i>
+                  Browse All
+                </Button>
+              </Link>
+              <Link to="/contact">
+                <Button variant="outline-primary" size="lg" className="px-4">
+                  <i className="fas fa-envelope me-2"></i>
+                  Contact Us
+                </Button>
+              </Link>
+            </div>
+          </Container>
+        </section>
+
+        {/* About Section */}
+        <section className="about-preview mt-5 text-center">
+          <h3 className="mb-4">Why Choose FurBabies?</h3>
+          <Row className="g-4">
+            <Col md={4}>
+              <div className="feature-card p-4">
+                <i className="fas fa-heart fa-3x text-danger mb-3"></i>
+                <h5>Ethical Adoption</h5>
+                <p className="text-muted">
+                  We partner with trusted rescues and ethical breeders to ensure every pet finds a loving home.
+                </p>
+              </div>
+            </Col>
+            <Col md={4}>
+              <div className="feature-card p-4">
+                <i className="fas fa-shield-alt fa-3x text-success mb-3"></i>
+                <h5>Health Guarantee</h5>
+                <p className="text-muted">
+                  All our pets receive proper veterinary care and come with health documentation.
+                </p>
+              </div>
+            </Col>
+            <Col md={4}>
+              <div className="feature-card p-4">
+                <i className="fas fa-users fa-3x text-primary mb-3"></i>
+                <h5>Lifetime Support</h5>
+                <p className="text-muted">
+                  We provide ongoing support and resources to help you and your new companion thrive.
+                </p>
+              </div>
+            </Col>
+          </Row>
+          <div className="mt-4">
+            <Link to="/about">
+              <Button variant="outline-secondary">
+                <i className="fas fa-info-circle me-2"></i>
+                Learn More About Us
               </Button>
             </Link>
           </div>

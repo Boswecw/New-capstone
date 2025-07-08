@@ -1,75 +1,201 @@
-/* HeroBanner.css */
+/* ===================================
+   Hero Banner Styles
+   =================================== */
 
-/* Main section: tighter height, centered content */
+/* CSS Custom Properties */
+:root {
+  --golden-retriever: #d4af37;
+  --tangerine-tail: #ff8c00;
+  --turf-green: #228b22;
+  --bluegrass-blue: #4169e1;
+  --snow-whiskers: #ffffff;
+  --shadow-paw: rgba(0, 0, 0, 0.1);
+  --text-shadow: rgba(0, 0, 0, 0.3);
+}
+
+/* Gradient Animation Keyframes */
+@keyframes gradientShift {
+  0% { 
+    background-position: 0% 50%; 
+  }
+  50% { 
+    background-position: 100% 50%; 
+  }
+  100% { 
+    background-position: 0% 50%; 
+  }
+}
+
+/* Floating Animation for Content */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+/* Main Furbabies Banner */
 .furbabies-banner {
-  padding-top: 1rem;
-  padding-bottom: 1rem;
+  background: linear-gradient(
+    135deg,
+    var(--golden-retriever) 0%,
+    var(--tangerine-tail) 25%,
+    var(--turf-green) 50%,
+    var(--bluegrass-blue) 100%
+  );
+  background-size: 400% 400%;
+  animation: gradientShift 15s ease infinite;
+  color: var(--snow-whiskers);
+  padding: 2rem 2rem;
   text-align: center;
-  background-color: #f8f9fa; /* Optional light background */
+  min-height: 200px;
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 75px !important; /* Set minimum height */
+  position: relative;
+  overflow: hidden;
 }
 
-/* Icon logo: responsive, animated bounce */
-.hero-icon {
-  display: block;
-  height: auto;
-  width: auto;
-  max-height: 500px !important;     /* Double the original ~200px display */
-  margin: 0 auto 1rem;
-  animation: bounce 2s infinite;
-  animation-fill-mode: both;
+/* Banner Content Container */
+.furbabies-banner .banner-content {
+  max-width: 800px;
+  z-index: 2;
+  position: relative;
 }
 
-
-
-
-
-/* Optional: infinite bounce */
-.bounce-loop {
-  animation: bounce 2s infinite;
+/* Banner Heading Styles */
+.furbabies-banner h1 {
+  font-size: 3.5rem;
+  font-weight: bold;
+  margin-bottom: 1rem;
+  text-shadow: 2px 2px 4px var(--text-shadow);
+  animation: float 3s ease-in-out infinite;
 }
 
-/* Subtitle styling */
-.hero-subtitle {
-  font-size: 1.75rem;
+.furbabies-banner h2 {
+  font-size: 2.5rem;
   font-weight: 600;
   margin-bottom: 1rem;
-  color: #333;
+  text-shadow: 2px 2px 4px var(--text-shadow);
 }
 
-/* Call-to-action button */
-.furbabies-banner .btn {
+/* Banner Paragraph Styles */
+.furbabies-banner p {
+  font-size: 1.25rem;
+  margin-bottom: 2rem;
+  text-shadow: 1px 1px 2px var(--text-shadow);
+  line-height: 1.6;
+}
+
+/* Banner Button Styles */
+.furbabies-banner .banner-btn {
+  display: inline-block;
+  background: var(--snow-whiskers);
+  color: var(--turf-green);
+  padding: 1rem 2rem;
+  text-decoration: none;
+  border-radius: 50px;
+  font-weight: 600;
   font-size: 1.1rem;
-  padding: 0.6rem 1.5rem;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px var(--shadow-paw);
+  margin: 0.5rem;
 }
 
-/* Bounce keyframes */
-@keyframes bounce {
-  0%,
-  20%,
-  50%,
-  80%,
-  100% {
-    transform: translateY(0);
+.furbabies-banner .banner-btn:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 20px var(--shadow-paw);
+  background: var(--golden-retriever);
+  color: var(--snow-whiskers);
+}
+
+/* Decorative Elements */
+.furbabies-banner::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0.1) 0%,
+    transparent 50%
+  );
+  animation: float 6s ease-in-out infinite reverse;
+  pointer-events: none;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .furbabies-banner {
+    padding: 1.5rem 1rem;
+    min-height: 150px;
   }
-  40% {
-    transform: translateY(-15px);
+  
+  .furbabies-banner h1 {
+    font-size: 2.5rem;
   }
-  60% {
-    transform: translateY(-8px);
+  
+  .furbabies-banner h2 {
+    font-size: 2rem;
+  }
+  
+  .furbabies-banner p {
+    font-size: 1.1rem;
+  }
+  
+  .furbabies-banner .banner-btn {
+    padding: 0.8rem 1.5rem;
+    font-size: 1rem;
   }
 }
 
-/* Responsive tweaks */
-@media (max-width: 576px) {
-  .hero-icon {
-    max-width: 150px;
+@media (max-width: 480px) {
+  .furbabies-banner {
+    padding: 1rem 1rem;
+    min-height: 120px;
   }
+  
+  .furbabies-banner h1 {
+    font-size: 2rem;
+  }
+  
+  .furbabies-banner h2 {
+    font-size: 1.75rem;
+  }
+  
+  .furbabies-banner p {
+    font-size: 1rem;
+  }
+}
 
-  .hero-subtitle {
-    font-size: 1.4rem;
-  }
+/* Alternative Hero Banner Styles */
+.hero-banner {
+  background: linear-gradient(
+    45deg,
+    var(--bluegrass-blue) 0%,
+    var(--turf-green) 100%
+  );
+  color: var(--snow-whiskers);
+  padding: 3rem 2rem;
+  text-align: center;
+  min-height: 250px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Simple Banner Alternative */
+.simple-banner {
+  background: var(--turf-green);
+  color: var(--snow-whiskers);
+  padding: 1.5rem 2rem;
+  text-align: center;
+  min-height: 125px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }

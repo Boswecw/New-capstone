@@ -1,4 +1,4 @@
-// client/src/pages/Browse.js - Enhanced with consolidated functionality
+// client/src/pages/Browse.js - Fixed filtering to match actual pet data
 import React, { useState, useEffect, useCallback } from 'react';
 import { Container, Row, Col, Spinner, Alert, Form, Button, InputGroup } from 'react-bootstrap';
 import { useSearchParams, useLocation } from 'react-router-dom';
@@ -13,20 +13,23 @@ const Browse = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
 
-  // Search and filter states
+  // Search and filter states - FIXED: Use 'type' instead of 'category'
   const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
-  const [selectedCategory, setSelectedCategory] = useState(searchParams.get('category') || '');
+  const [selectedType, setSelectedType] = useState(searchParams.get('type') || '');
   const [selectedBreed, setSelectedBreed] = useState(searchParams.get('breed') || '');
   const [ageRange, setAgeRange] = useState(searchParams.get('age') || '');
   const [showFilters, setShowFilters] = useState(false);
 
-  // Available filter options
-  const categories = [
-    { value: '', label: 'All Categories' },
+  // ✅ FIXED: Updated to match actual pet types in your database
+  const petTypes = [
+    { value: '', label: 'All Pets' },
     { value: 'dog', label: 'Dogs' },
     { value: 'cat', label: 'Cats' },
-    { value: 'aquatic', label: 'Aquatic' }
+    { value: 'fish', label: 'Fish & Aquatic' },
+    { value: 'bird', label: 'Birds' },
+    { value: 'small-pet', label: 'Small Pets' }
   ];
+
   const ageRanges = [
     { value: '', label: 'Any Age' },
     { value: 'puppy', label: 'Puppy/Kitten (0-1 year)' },
@@ -41,14 +44,18 @@ const Browse = () => {
       setLoading(true);
       setError(null);
 
+      // ✅ FIXED: Send 'type' parameter instead of 'category'
       const params = {
         ...(searchTerm && { search: searchTerm }),
-        ...(selectedCategory && { category: selectedCategory }),
+        ...(selectedType && { type: selectedType }),
         ...(selectedBreed && { breed: selectedBreed }),
         ...(ageRange && { age: ageRange })
       };
 
+      console.log('🔍 Fetching pets with params:', params);
       const response = await petAPI.getAllPets(params);
+      console.log('🐾 Browse pets response:', response);
+      
       setPets(response.data || []);
     } catch (err) {
       console.error('Error fetching pets:', err);
@@ -56,86 +63,64 @@ const Browse = () => {
     } finally {
       setLoading(false);
     }
-  }, [searchTerm, selectedCategory, selectedBreed, ageRange]);
+  }, [searchTerm, selectedType, selectedBreed, ageRange]);
 
-  // Update URL params when filters change
+  // Update URL when filters change
   useEffect(() => {
     const params = new URLSearchParams();
     if (searchTerm) params.set('search', searchTerm);
-    if (selectedCategory) params.set('category', selectedCategory);
+    if (selectedType) params.set('type', selectedType);
     if (selectedBreed) params.set('breed', selectedBreed);
     if (ageRange) params.set('age', ageRange);
     
     setSearchParams(params);
-  }, [searchTerm, selectedCategory, selectedBreed, ageRange, setSearchParams]);
+  }, [searchTerm, selectedType, selectedBreed, ageRange, setSearchParams]);
 
   // Fetch pets when filters change
   useEffect(() => {
     fetchPets();
   }, [fetchPets]);
 
-  // Handle search form submission
+  // Clear all filters
+  const clearFilters = () => {
+    setSearchTerm('');
+    setSelectedType('');
+    setSelectedBreed('');
+    setAgeRange('');
+    setShowFilters(false);
+  };
+
+  // Handle search
   const handleSearch = (e) => {
     e.preventDefault();
     fetchPets();
   };
 
-  // Clear all filters
-  const clearFilters = () => {
-    setSearchTerm('');
-    setSelectedCategory('');
-    setSelectedBreed('');
-    setAgeRange('');
-    setSearchParams({});
-  };
-
-  // Determine page title based on route
-  const getPageTitle = () => {
-    if (location.pathname.includes('/pets')) return 'Available Pets';
-    if (selectedCategory) return `${selectedCategory.charAt(0).toUpperCase() + selectedCategory.slice(1)}s for Adoption`;
-    return 'Browse Pets for Adoption';
-  };
-
-  const getPageSubtitle = () => {
-    const totalPets = pets.length;
-    if (totalPets === 0) return 'No pets found matching your criteria';
-    if (totalPets === 1) return '1 pet found';
-    return `${totalPets} pets found`;
-  };
-
   return (
-    <Container className="py-4">
-      {/* Page Header */}
-      <div className="text-center mb-4">
-        <h1 className="display-4 text-primary mb-2">{getPageTitle()}</h1>
-        <p className="lead text-muted">{getPageSubtitle()}</p>
-      </div>
+    <Container fluid className="py-4">
+      <Row className="justify-content-center">
+        <Col xl={10}>
+          <h1 className="mb-4 text-center">
+            <i className="fas fa-paw me-2"></i>Browse Pets
+          </h1>
 
-      {/* Search and Filter Section */}
-      <Row className="mb-4">
-        <Col lg={8} className="mx-auto">
-          {/* Search Form */}
-          <Form onSubmit={handleSearch} className="mb-3">
-            <InputGroup>
+          {/* Search and Filter Bar */}
+          <Form onSubmit={handleSearch} className="mb-4">
+            <InputGroup size="lg">
               <Form.Control
                 type="text"
-                placeholder="Search by pet name, breed, or description..."
+                placeholder="Search pets by name, breed, or description..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 aria-label="Search pets"
               />
-              <Button 
-                variant="primary" 
-                type="submit"
-                disabled={loading}
-                aria-label="Search"
-              >
+              <Button variant="primary" type="submit">
                 <FaSearch />
               </Button>
               <Button
                 variant="outline-secondary"
                 onClick={() => setShowFilters(!showFilters)}
-                aria-label={showFilters ? 'Hide filters' : 'Show filters'}
+                title={showFilters ? 'Hide filters' : 'Show filters'}
                 aria-expanded={showFilters}
               >
                 <FaFilter />
@@ -149,13 +134,13 @@ const Browse = () => {
               <Row>
                 <Col md={4} className="mb-2">
                   <Form.Select
-                    value={selectedCategory}
-                    onChange={(e) => setSelectedCategory(e.target.value)}
-                    aria-label="Filter by pet category"
+                    value={selectedType}
+                    onChange={(e) => setSelectedType(e.target.value)}
+                    aria-label="Filter by pet type"
                   >
-                    {categories.map(category => (
-                      <option key={category.value} value={category.value}>
-                        {category.label}
+                    {petTypes.map(type => (
+                      <option key={type.value} value={type.value}>
+                        {type.label}
                       </option>
                     ))}
                   </Form.Select>
@@ -197,17 +182,17 @@ const Browse = () => {
       </Row>
 
       {/* Active Filters Display */}
-      {(searchTerm || selectedCategory || selectedBreed || ageRange) && (
-        <Row className="mb-3">
-          <Col>
+      {(searchTerm || selectedType || selectedBreed || ageRange) && (
+        <Row className="justify-content-center mb-3">
+          <Col xl={10}>
             <div className="d-flex flex-wrap gap-2 align-items-center">
               <small className="text-muted">Active filters:</small>
               {searchTerm && (
                 <span className="badge bg-primary">Search: {searchTerm}</span>
               )}
-              {selectedCategory && (
+              {selectedType && (
                 <span className="badge bg-secondary">
-                  Category: {categories.find(c => c.value === selectedCategory)?.label}
+                  Type: {petTypes.find(t => t.value === selectedType)?.label}
                 </span>
               )}
               {selectedBreed && (
@@ -225,9 +210,13 @@ const Browse = () => {
 
       {/* Error Message */}
       {error && (
-        <Alert variant="danger" dismissible onClose={() => setError(null)}>
-          {error}
-        </Alert>
+        <Row className="justify-content-center">
+          <Col xl={10}>
+            <Alert variant="danger" dismissible onClose={() => setError(null)}>
+              {error}
+            </Alert>
+          </Col>
+        </Row>
       )}
 
       {/* Loading State */}
@@ -242,39 +231,52 @@ const Browse = () => {
 
       {/* Pet Results */}
       {!loading && (
-        <>
-          {pets.length === 0 ? (
-            <div className="text-center py-5">
-              <div className="mb-4">
-                <i className="fas fa-paw fa-3x text-muted mb-3"></i>
-                <h3 className="text-muted">No pets found</h3>
-                <p className="text-muted">
-                  Try adjusting your search criteria or{' '}
-                  <Button variant="link" onClick={clearFilters} className="p-0">
-                    clear all filters
-                  </Button>
-                </p>
+        <Row className="justify-content-center">
+          <Col xl={10}>
+            {pets.length === 0 ? (
+              <div className="text-center py-5">
+                <div className="mb-4">
+                  <i className="fas fa-paw fa-3x text-muted mb-3"></i>
+                  <h3 className="text-muted">No pets found</h3>
+                  <p className="text-muted">
+                    Try adjusting your search criteria or{' '}
+                    <Button variant="link" onClick={clearFilters} className="p-0">
+                      clear all filters
+                    </Button>
+                  </p>
+                </div>
               </div>
-            </div>
-          ) : (
-            <Row>
-              {pets.map((pet) => (
-                <Col key={pet._id} sm={6} md={4} lg={3} className="mb-4">
-                  <PetCard pet={pet} />
-                </Col>
-              ))}
-            </Row>
-          )}
-        </>
+            ) : (
+              <>
+                <div className="mb-3">
+                  <small className="text-muted">
+                    {pets.length} pet{pets.length !== 1 ? 's' : ''} found
+                  </small>
+                </div>
+                <Row>
+                  {pets.map((pet) => (
+                    <Col key={pet._id} sm={6} md={4} lg={3} className="mb-4">
+                      <PetCard pet={pet} />
+                    </Col>
+                  ))}
+                </Row>
+              </>
+            )}
+          </Col>
+        </Row>
       )}
 
-      {/* Load More / Pagination could be added here */}
+      {/* Load More / Pagination */}
       {pets.length > 0 && pets.length % 12 === 0 && (
-        <div className="text-center mt-4">
-          <Button variant="outline-primary" size="lg">
-            Load More Pets
-          </Button>
-        </div>
+        <Row className="justify-content-center">
+          <Col xl={10}>
+            <div className="text-center mt-4">
+              <Button variant="outline-primary" size="lg">
+                Load More Pets
+              </Button>
+            </div>
+          </Col>
+        </Row>
       )}
     </Container>
   );

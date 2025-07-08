@@ -16,12 +16,12 @@
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
 }
 
-/* ==== Image Containers ==== */
+/* ==== Image Containers - FIXED ==== */
 .cardImgContainer,
 .petImgContainer,
 .productImgContainer {
   width: 100%;
-  aspect-ratio: 4 / 3;
+  height: 250px; /* Fixed height instead of aspect-ratio */
   overflow: hidden;
   display: flex;
   align-items: center;
@@ -31,26 +31,34 @@
   position: relative;
 }
 
-/* ==== Images - Improved Fitting ==== */
+/* ==== Images - FIXED SIZING ==== */
 .cardImg,
 .petImg,
 .productImg {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain; /* Changed from 'cover' to 'contain' */
   object-position: center;
   display: block;
   transition: transform 0.3s ease, filter 0.3s ease;
-  /* Ensure images maintain aspect ratio */
-  min-width: 100%;
-  min-height: 100%;
+  /* Removed min-width and min-height that were causing issues */
+  max-width: 100%;
+  max-height: 100%;
+}
+
+/* Alternative: If you want some images to fill but not crop as much */
+.cardImg.cover,
+.petImg.cover,
+.productImg.cover {
+  object-fit: cover;
+  object-position: center top; /* Focus on top of image instead of center */
 }
 
 /* Enhanced hover effects */
 .card:hover .cardImg,
 .card:hover .petImg,
 .card:hover .productImg {
-  transform: scale(1.05);
+  transform: scale(1.02); /* Reduced scale to prevent overflow */
   filter: brightness(1.05) contrast(1.05);
 }
 
@@ -171,12 +179,12 @@
   margin-top: auto;
 }
 
-/* ==== Responsive Design ==== */
+/* ==== Responsive Design - UPDATED ==== */
 @media (max-width: 768px) {
   .cardImgContainer,
   .petImgContainer,
   .productImgContainer {
-    aspect-ratio: 3 / 2;
+    height: 200px; /* Smaller height for tablets */
   }
 
   .cardTitle {
@@ -200,7 +208,7 @@
   .cardImgContainer,
   .petImgContainer,
   .productImgContainer {
-    aspect-ratio: 1 / 1;
+    height: 180px; /* Even smaller height for mobile */
   }
 
   .cardTitle {
@@ -227,31 +235,19 @@
   }
 }
 
-/* ==== Image Aspect Ratio Variations ==== */
-.cardImgContainer.square,
-.petImgContainer.square,
-.productImgContainer.square {
-  aspect-ratio: 1 / 1;
-}
-
-.cardImgContainer.wide,
-.petImgContainer.wide,
-.productImgContainer.wide {
-  aspect-ratio: 16 / 9;
-}
-
-.cardImgContainer.tall,
-.petImgContainer.tall,
-.productImgContainer.tall {
-  aspect-ratio: 3 / 4;
-}
-
 /* ==== Image Fit Variations ==== */
 .cardImg.contain,
 .petImg.contain,
 .productImg.contain {
   object-fit: contain;
   background-color: #f8f9fa;
+}
+
+.cardImg.cover,
+.petImg.cover,
+.productImg.cover {
+  object-fit: cover;
+  object-position: center top; /* Show top of image when cropping */
 }
 
 .cardImg.fill,
@@ -264,6 +260,22 @@
 .petImg.scaleDown,
 .productImg.scaleDown {
   object-fit: scale-down;
+}
+
+/* ==== For square images specifically ==== */
+.cardImgContainer.square,
+.petImgContainer.square,
+.productImgContainer.square {
+  height: 250px;
+  width: 250px;
+  margin: 0 auto;
+}
+
+/* ==== For wide images specifically ==== */
+.cardImgContainer.wide,
+.petImgContainer.wide,
+.productImgContainer.wide {
+  height: 200px;
 }
 
 /* ==== Dark Mode Support ==== */

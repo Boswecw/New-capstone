@@ -1,58 +1,47 @@
 /* =============================================================================
-   App.css - FurBabies Pet Store
-   Main application with complete design system
-   ============================================================================= */
-
-/* =============================================================================
-   CSS CUSTOM PROPERTIES (Design System)
+   CSS CUSTOM PROPERTIES (VARIABLES)
    ============================================================================= */
 
 :root {
-  /* === Color System === */
+  /* === Brand Colors === */
+  --color-brand-primary: #ff8c00;    /* Tangerine Orange */
+  --color-brand-secondary: #d4af37;  /* Golden Retriever */
+  --color-brand-tertiary: #228b22;   /* Turf Green */
+  --color-brand-quaternary: #4169e1; /* Bluegrass Blue */
+
+  /* === Semantic Colors === */
   --color-primary: #0d6efd;
   --color-secondary: #6c757d;
-  --color-success: #198754;
+  --color-success: #28a745;
   --color-danger: #dc3545;
   --color-warning: #ffc107;
-  --color-info: #0dcaf0;
+  --color-info: #17a2b8;
   --color-light: #f8f9fa;
   --color-dark: #212529;
 
-  /* Brand Colors */
-  --color-brand-primary: #f4b942;
-  --color-brand-secondary: #e55a2b;
-  --color-brand-accent: #2c5aa0;
-
-  /* Semantic Colors */
+  /* === Surface Colors === */
   --color-background: #ffffff;
   --color-surface: #ffffff;
+  --color-surface-hover: #f8f9fa;
+  --color-surface-pressed: #e9ecef;
+
+  /* === Text Colors === */
   --color-text-primary: #212529;
   --color-text-secondary: #6c757d;
-  --color-text-muted: #6b7280;
-  --color-text-disabled: #9ca3af;
-  --color-border: #e5e7eb;
-  --color-border-light: #f3f4f6;
-  --color-border-dark: #d1d5db;
-  --color-code-bg: #f1f3f5;
+  --color-text-muted: #adb5bd;
+  --color-text-inverse: #ffffff;
 
-  /* Status Colors */
-  --color-available: #10b981;
-  --color-adopted: #6b7280;
-  --color-pending: #f59e0b;
+  /* === Border Colors === */
+  --color-border: #dee2e6;
+  --color-border-light: #e9ecef;
+  --color-border-dark: #adb5bd;
+
+  /* === Code Colors === */
+  --color-code-bg: #f8f9fa;
 
   /* === Typography === */
-  --font-family-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
-  --font-family-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
-
-  /* Font Sizes */
-  --font-size-xs: 0.75rem;      /* 12px */
-  --font-size-sm: 0.875rem;     /* 14px */
-  --font-size-base: 1rem;       /* 16px */
-  --font-size-lg: 1.125rem;     /* 18px */
-  --font-size-xl: 1.25rem;      /* 20px */
-  --font-size-2xl: 1.5rem;      /* 24px */
-  --font-size-3xl: 1.875rem;    /* 30px */
-  --font-size-4xl: 2.25rem;     /* 36px */
+  --font-family-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  --font-family-mono: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Consolas', 'Courier New', monospace;
 
   /* Font Weights */
   --font-light: 300;
@@ -61,10 +50,22 @@
   --font-semibold: 600;
   --font-bold: 700;
 
+  /* Font Sizes */
+  --font-size-xs: 0.75rem;   /* 12px */
+  --font-size-sm: 0.875rem;  /* 14px */
+  --font-size-base: 1rem;    /* 16px */
+  --font-size-lg: 1.125rem;  /* 18px */
+  --font-size-xl: 1.25rem;   /* 20px */
+  --font-size-2xl: 1.5rem;   /* 24px */
+  --font-size-3xl: 1.875rem; /* 30px */
+  --font-size-4xl: 2.25rem;  /* 36px */
+  --font-size-5xl: 3rem;     /* 48px */
+  --font-size-6xl: 3.75rem;  /* 60px */
+
   /* Line Heights */
-  --line-height-tight: 1.25;
+  --line-height-tight: 1.2;
   --line-height-base: 1.5;
-  --line-height-relaxed: 1.75;
+  --line-height-relaxed: 1.625;
 
   /* === Spacing === */
   --space-xs: 0.25rem;    /* 4px */
@@ -233,6 +234,118 @@ body {
   transition: var(--transition-all);
   min-height: 100vh;
   overflow-x: hidden;
+  padding-top: 0; /* Reset any existing padding */
+}
+
+/* =============================================================================
+   NAVBAR LAYOUT FIX
+   ============================================================================= */
+
+/* Fix for fixed navbar overlapping content */
+.App {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.App main {
+  padding-top: 80px; /* Account for fixed navbar height */
+  flex-grow: 1;
+}
+
+/* For pages that need different top spacing */
+.main-content {
+  padding-top: 80px;
+}
+
+.main-content-no-padding {
+  padding-top: 0;
+}
+
+/* =============================================================================
+   RESPONSIVE NAVBAR FIXES
+   ============================================================================= */
+
+/* Adjust for different screen sizes if navbar height changes */
+@media (max-width: 991.98px) {
+  .App main {
+    padding-top: 75px; /* Slightly smaller on mobile if navbar is shorter */
+  }
+}
+
+@media (max-width: 575.98px) {
+  .App main {
+    padding-top: 70px; /* Even smaller on very small screens */
+  }
+}
+
+/* =============================================================================
+   ADMIN LAYOUT OVERRIDES
+   ============================================================================= */
+
+/* Admin layout already has its own margin-top, so we need to adjust */
+.admin-layout {
+  margin-top: 76px !important; /* Keep existing admin layout */
+}
+
+.admin-layout main {
+  padding-top: 0 !important; /* Remove the main padding for admin pages */
+}
+
+/* =============================================================================
+   HERO BANNER ADJUSTMENTS
+   ============================================================================= */
+
+/* If you want the hero banner to go right to the top edge */
+.furbabies-banner.full-height {
+  margin-top: -80px;
+  padding-top: calc(80px + 1rem); /* Add navbar height + original padding */
+}
+
+/* For hero banners that should start below the navbar */
+.furbabies-banner.below-navbar {
+  margin-top: 0;
+  padding-top: 1rem;
+}
+
+/* =============================================================================
+   PAGE-SPECIFIC OVERRIDES
+   ============================================================================= */
+
+/* For pages that need to start immediately below navbar */
+.no-top-spacing main {
+  padding-top: 80px;
+}
+
+/* For pages that need extra spacing */
+.extra-top-spacing main {
+  padding-top: 100px;
+}
+
+/* For full-screen pages (like login/register) */
+.full-screen-page main {
+  padding-top: 0;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* =============================================================================
+   UTILITIES FOR NAVBAR COMPENSATION
+   ============================================================================= */
+
+.navbar-offset {
+  margin-top: 80px;
+}
+
+.navbar-padding {
+  padding-top: 80px;
+}
+
+.no-navbar-offset {
+  margin-top: 0 !important;
+  padding-top: 0 !important;
 }
 
 /* =============================================================================
@@ -459,97 +572,6 @@ pre code {
   box-shadow: var(--shadow-2xl);
 }
 
-.modal-header {
-  border-bottom: 1px solid var(--color-border-light);
-  padding: var(--space-lg);
-}
-
-.modal-body {
-  padding: var(--space-lg);
-}
-
-.modal-footer {
-  border-top: 1px solid var(--color-border-light);
-  padding: var(--space-lg);
-}
-
-/* Alert Enhancements */
-.alert {
-  border: none;
-  border-radius: var(--radius-lg);
-  border-left: 4px solid;
-}
-
-.alert-success {
-  background-color: rgba(16, 185, 129, 0.1);
-  border-left-color: var(--color-success);
-  color: var(--color-success);
-}
-
-.alert-danger {
-  background-color: rgba(239, 68, 68, 0.1);
-  border-left-color: var(--color-danger);
-  color: var(--color-danger);
-}
-
-.alert-warning {
-  background-color: rgba(245, 158, 11, 0.1);
-  border-left-color: var(--color-warning);
-  color: rgb(146, 64, 14);
-}
-
-.alert-info {
-  background-color: rgba(59, 130, 246, 0.1);
-  border-left-color: var(--color-info);
-  color: var(--color-info);
-}
-
-/* =============================================================================
-   RESPONSIVE DESIGN
-   ============================================================================= */
-
-/* Mobile First Approach */
-@media (max-width: 575.98px) {
-  .container {
-    padding: 0 var(--space-sm);
-  }
-  
-  h1 { font-size: var(--font-size-2xl); }
-  h2 { font-size: var(--font-size-xl); }
-  h3 { font-size: var(--font-size-lg); }
-  
-  .grid-cols-2 { grid-template-columns: 1fr; }
-  .grid-cols-3 { grid-template-columns: 1fr; }
-  .grid-cols-4 { grid-template-columns: 1fr; }
-  
-  .custom-card-img {
-    height: 150px;
-  }
-}
-
-@media (min-width: 576px) {
-  .grid-cols-sm-2 { grid-template-columns: repeat(2, 1fr); }
-  .grid-cols-sm-3 { grid-template-columns: repeat(3, 1fr); }
-}
-
-@media (min-width: 768px) {
-  .grid-cols-md-2 { grid-template-columns: repeat(2, 1fr); }
-  .grid-cols-md-3 { grid-template-columns: repeat(3, 1fr); }
-  .grid-cols-md-4 { grid-template-columns: repeat(4, 1fr); }
-}
-
-@media (min-width: 992px) {
-  .grid-cols-lg-3 { grid-template-columns: repeat(3, 1fr); }
-  .grid-cols-lg-4 { grid-template-columns: repeat(4, 1fr); }
-  .grid-cols-lg-5 { grid-template-columns: repeat(5, 1fr); }
-}
-
-@media (min-width: 1200px) {
-  .grid-cols-xl-4 { grid-template-columns: repeat(4, 1fr); }
-  .grid-cols-xl-5 { grid-template-columns: repeat(5, 1fr); }
-  .grid-cols-xl-6 { grid-template-columns: repeat(6, 1fr); }
-}
-
 /* =============================================================================
    UTILITY CLASSES
    ============================================================================= */
@@ -566,63 +588,7 @@ pre code {
 .mb-2 { margin-bottom: var(--space-sm); }
 .mb-3 { margin-bottom: var(--space-md); }
 .mb-4 { margin-bottom: var(--space-lg); }
-.mb-5 { margin-bottom: var(--space-xl); }
-
-.p-0 { padding: 0; }
-.p-1 { padding: var(--space-xs); }
-.p-2 { padding: var(--space-sm); }
-.p-3 { padding: var(--space-md); }
-.p-4 { padding: var(--space-lg); }
-.p-5 { padding: var(--space-xl); }
-
-/* Text Utilities */
-.text-center { text-align: center; }
-.text-left { text-align: left; }
-.text-right { text-align: right; }
-.text-primary { color: var(--color-primary); }
-.text-secondary { color: var(--color-text-secondary); }
-.text-muted { color: var(--color-text-muted); }
-.text-success { color: var(--color-success); }
-.text-danger { color: var(--color-danger); }
-.text-warning { color: var(--color-warning); }
-
-.fw-light { font-weight: var(--font-light); }
-.fw-normal { font-weight: var(--font-normal); }
-.fw-medium { font-weight: var(--font-medium); }
-.fw-semibold { font-weight: var(--font-semibold); }
-.fw-bold { font-weight: var(--font-bold); }
-
-/* Border Utilities */
-.border { border: 1px solid var(--color-border); }
-.border-top { border-top: 1px solid var(--color-border); }
-.border-bottom { border-bottom: 1px solid var(--color-border); }
-.border-0 { border: 0; }
-
-.rounded { border-radius: var(--radius-md); }
-.rounded-sm { border-radius: var(--radius-sm); }
-.rounded-lg { border-radius: var(--radius-lg); }
-.rounded-xl { border-radius: var(--radius-xl); }
-.rounded-full { border-radius: var(--radius-full); }
-
-/* Shadow Utilities */
-.shadow-sm { box-shadow: var(--shadow-sm); }
-.shadow { box-shadow: var(--shadow-md); }
-.shadow-lg { box-shadow: var(--shadow-lg); }
-.shadow-xl { box-shadow: var(--shadow-xl); }
-.shadow-none { box-shadow: none; }
-
-/* Display Utilities */
-.d-none { display: none; }
-.d-block { display: block; }
-.d-inline { display: inline; }
-.d-inline-block { display: inline-block; }
-
-/* Position Utilities */
-.position-relative { position: relative; }
-.position-absolute { position: absolute; }
-.position-fixed { position: fixed; }
-.position-sticky { position: sticky; }
-
+.mb-
 /* =============================================================================
    PERFORMANCE OPTIMIZATIONS
    ============================================================================= */
