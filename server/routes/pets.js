@@ -193,16 +193,25 @@ router.get('/', validatePetQuery, optionalAuth, async (req, res) => {
 });
 
 // GET /api/pets/:id - Get single pet by ID ⭐ FIXED: THIS WAS MISSING!
-router.get('/:id', validateObjectId, optionalAuth, async (req, res) => {
+router.get('/:id', optionalAuth, async (req, res) => {
   try {
-    console.log(`🔍 Fetching pet with ID: ${req.params.id}`);
+    const petId = req.params.id;
+    console.log(`🔍 Fetching pet with ID: ${petId}`);
     
-    const pet = await Pet.findById(req.params.id)
+    // Basic ID validation - accept both MongoDB ObjectIds and custom strings
+    if (!petId || petId.trim() === '') {
+      return res.status(400).json({
+        success: false,
+        message: 'Pet ID is required'
+      });
+    }
+    
+    const pet = await Pet.findById(petId)
       .populate('createdBy', 'name email')
       .populate('adoptedBy', 'name email');
 
     if (!pet) {
-      console.log(`❌ Pet not found: ${req.params.id}`);
+      console.log(`❌ Pet not found: ${petId}`);
       return res.status(404).json({
         success: false,
         message: 'Pet not found'
@@ -222,6 +231,15 @@ router.get('/:id', validateObjectId, optionalAuth, async (req, res) => {
     });
   } catch (error) {
     console.error('❌ Error fetching pet:', error);
+    
+    // Handle specific MongoDB errors
+    if (error.name === 'CastError') {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid pet ID format'
+      });
+    }
+    
     res.status(500).json({
       success: false,
       message: 'Error fetching pet details',
@@ -231,9 +249,18 @@ router.get('/:id', validateObjectId, optionalAuth, async (req, res) => {
 });
 
 // POST /api/pets/:id/vote - Vote on a pet (requires authentication)
-router.post('/:id/vote', protect, validateObjectId, async (req, res) => {
+router.post('/:id/vote', protect, async (req, res) => {
   try {
     const { voteType } = req.body;
+    const petId = req.params.id;
+    
+    // Basic ID validation
+    if (!petId || petId.trim() === '') {
+      return res.status(400).json({
+        success: false,
+        message: 'Pet ID is required'
+      });
+    }
     
     if (!['up', 'down'].includes(voteType)) {
       return res.status(400).json({
@@ -242,7 +269,7 @@ router.post('/:id/vote', protect, validateObjectId, async (req, res) => {
       });
     }
 
-    const pet = await Pet.findById(req.params.id);
+    const pet = await Pet.findById(petId);
     
     if (!pet) {
       return res.status(404).json({
@@ -306,6 +333,15 @@ router.post('/:id/vote', protect, validateObjectId, async (req, res) => {
     });
   } catch (error) {
     console.error('Error voting on pet:', error);
+    
+    // Handle specific MongoDB errors
+    if (error.name === 'CastError') {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid pet ID format'
+      });
+    }
+    
     res.status(500).json({
       success: false,
       message: 'Error processing vote',

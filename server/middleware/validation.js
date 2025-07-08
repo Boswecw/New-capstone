@@ -1,3 +1,4 @@
+// server/middleware/validation.js - UPDATED VERSION
 const { body, param, query, validationResult } = require('express-validator');
 
 // Middleware to handle validation errors
@@ -19,14 +20,35 @@ const handleValidationErrors = (req, res, next) => {
   next();
 };
 
-// User validation rules
+// Helper function to validate MongoDB ObjectId format
+const isValidObjectId = (id) => {
+  const objectIdRegex = /^[0-9a-fA-F]{24}$/;
+  return objectIdRegex.test(id);
+};
+
+// Helper function to validate custom pet ID format (p001, p028, etc.)
+const isValidCustomPetId = (id) => {
+  const customPetIdRegex = /^p\d+$/i; // Matches p001, p028, P123, etc.
+  return customPetIdRegex.test(id);
+};
+
+// Helper function to validate product ID format
+const isValidCustomProductId = (id) => {
+  const customProductIdRegex = /^prod_\d+$/i; // Matches prod_001, prod_028, etc.
+  return customProductIdRegex.test(id);
+};
+
+// =============================================================================
+// USER VALIDATIONS
+// =============================================================================
+
 const validateUserRegistration = [
   body('name')
     .trim()
     .isLength({ min: 2, max: 50 })
     .withMessage('Name must be between 2 and 50 characters')
-    .matches(/^[a-zA-Z\s]+$/)
-    .withMessage('Name can only contain letters and spaces'),
+    .matches(/^[a-zA-Z\s'-]+$/)
+    .withMessage('Name can only contain letters, spaces, apostrophes, and hyphens'),
   
   body('email')
     .isEmail()
@@ -60,7 +82,9 @@ const validateUserProfile = [
     .optional()
     .trim()
     .isLength({ min: 2, max: 50 })
-    .withMessage('Name must be between 2 and 50 characters'),
+    .withMessage('Name must be between 2 and 50 characters')
+    .matches(/^[a-zA-Z\s'-]+$/)
+    .withMessage('Name can only contain letters, spaces, apostrophes, and hyphens'),
   
   body('email')
     .optional()
@@ -76,32 +100,43 @@ const validateUserProfile = [
   body('profile.bio')
     .optional()
     .trim()
-    .isLength({ max: 200 })
-    .withMessage('Bio cannot exceed 200 characters'),
+    .isLength({ max: 500 })
+    .withMessage('Bio cannot exceed 500 characters'),
+  
+  body('profile.location')
+    .optional()
+    .trim()
+    .isLength({ max: 100 })
+    .withMessage('Location cannot exceed 100 characters'),
   
   handleValidationErrors
 ];
 
-// Pet validation rules
+// =============================================================================
+// PET VALIDATIONS
+// =============================================================================
+
 const validatePetCreation = [
   body('name')
     .trim()
     .isLength({ min: 1, max: 50 })
-    .withMessage('Pet name must be between 1 and 50 characters'),
+    .withMessage('Pet name must be between 1 and 50 characters')
+    .matches(/^[a-zA-Z0-9\s'-]+$/)
+    .withMessage('Pet name can only contain letters, numbers, spaces, apostrophes, and hyphens'),
   
   body('type')
-    // ✅ FIXED: Added 'small-pet' to allowed types
-    .isIn(['dog', 'cat', 'bird', 'fish', 'rabbit', 'hamster', 'small-pet', 'other'])
-    .withMessage('Pet type must be one of: dog, cat, bird, fish, rabbit, hamster, small-pet, other'),
+    .isIn(['dog', 'cat', 'bird', 'fish', 'rabbit', 'hamster', 'small-pet', 'reptile', 'other'])
+    .withMessage('Pet type must be one of: dog, cat, bird, fish, rabbit, hamster, small-pet, reptile, other'),
   
   body('breed')
     .trim()
-    .isLength({ min: 1, max: 50 })
-    .withMessage('Breed must be between 1 and 50 characters'),
+    .isLength({ min: 1, max: 100 })
+    .withMessage('Breed must be between 1 and 100 characters'),
   
   body('age')
-    .isInt({ min: 0, max: 30 })
-    .withMessage('Age must be a number between 0 and 30'),
+    .optional()
+    .isLength({ min: 1, max: 20 })
+    .withMessage('Age must be between 1 and 20 characters'),
   
   body('gender')
     .optional()
@@ -114,14 +149,25 @@ const validatePetCreation = [
     .withMessage('Size must be small, medium, large, or extra-large'),
   
   body('description')
+    .optional()
     .trim()
-    .isLength({ min: 10, max: 500 })
-    .withMessage('Description must be between 10 and 500 characters'),
+    .isLength({ max: 2000 })
+    .withMessage('Description cannot exceed 2000 characters'),
+  
+  body('price')
+    .optional()
+    .isFloat({ min: 0, max: 99999 })
+    .withMessage('Price must be a positive number and cannot exceed 99,999'),
   
   body('adoptionFee')
     .optional()
-    .isFloat({ min: 0 })
-    .withMessage('Adoption fee must be a positive number'),
+    .isFloat({ min: 0, max: 99999 })
+    .withMessage('Adoption fee must be a positive number and cannot exceed 99,999'),
+  
+  body('category')
+    .optional()
+    .isIn(['dog', 'cat', 'aquatic', 'other', 'all'])
+    .withMessage('Category must be dog, cat, aquatic, other, or all'),
   
   handleValidationErrors
 ];
@@ -131,45 +177,76 @@ const validatePetUpdate = [
     .optional()
     .trim()
     .isLength({ min: 1, max: 50 })
-    .withMessage('Pet name must be between 1 and 50 characters'),
+    .withMessage('Pet name must be between 1 and 50 characters')
+    .matches(/^[a-zA-Z0-9\s'-]+$/)
+    .withMessage('Pet name can only contain letters, numbers, spaces, apostrophes, and hyphens'),
   
   body('type')
     .optional()
-    // ✅ FIXED: Added 'small-pet' to allowed types
-    .isIn(['dog', 'cat', 'bird', 'fish', 'rabbit', 'hamster', 'small-pet', 'other'])
-    .withMessage('Pet type must be one of: dog, cat, bird, fish, rabbit, hamster, small-pet, other'),
+    .isIn(['dog', 'cat', 'bird', 'fish', 'rabbit', 'hamster', 'small-pet', 'reptile', 'other'])
+    .withMessage('Pet type must be one of: dog, cat, bird, fish, rabbit, hamster, small-pet, reptile, other'),
   
   body('breed')
     .optional()
     .trim()
-    .isLength({ min: 1, max: 50 })
-    .withMessage('Breed must be between 1 and 50 characters'),
+    .isLength({ min: 1, max: 100 })
+    .withMessage('Breed must be between 1 and 100 characters'),
   
   body('age')
     .optional()
-    .isInt({ min: 0, max: 30 })
-    .withMessage('Age must be a number between 0 and 30'),
+    .isLength({ min: 1, max: 20 })
+    .withMessage('Age must be between 1 and 20 characters'),
   
-  body('status')
+  body('gender')
     .optional()
-    .isIn(['available', 'pending', 'adopted', 'not-available'])
-    .withMessage('Status must be available, pending, adopted, or not-available'),
+    .isIn(['male', 'female', 'unknown'])
+    .withMessage('Gender must be male, female, or unknown'),
+  
+  body('size')
+    .optional()
+    .isIn(['small', 'medium', 'large', 'extra-large'])
+    .withMessage('Size must be small, medium, large, or extra-large'),
   
   body('description')
     .optional()
     .trim()
-    .isLength({ min: 10, max: 500 })
-    .withMessage('Description must be between 10 and 500 characters'),
+    .isLength({ max: 2000 })
+    .withMessage('Description cannot exceed 2000 characters'),
+  
+  body('price')
+    .optional()
+    .isFloat({ min: 0, max: 99999 })
+    .withMessage('Price must be a positive number and cannot exceed 99,999'),
+  
+  body('adoptionFee')
+    .optional()
+    .isFloat({ min: 0, max: 99999 })
+    .withMessage('Adoption fee must be a positive number and cannot exceed 99,999'),
+  
+  body('status')
+    .optional()
+    .isIn(['available', 'pending', 'adopted', 'unavailable'])
+    .withMessage('Status must be available, pending, adopted, or unavailable'),
+  
+  body('available')
+    .optional()
+    .isBoolean()
+    .withMessage('Available must be a boolean value'),
   
   handleValidationErrors
 ];
 
-// Contact validation rules
+// =============================================================================
+// CONTACT VALIDATIONS
+// =============================================================================
+
 const validateContactSubmission = [
   body('name')
     .trim()
     .isLength({ min: 2, max: 100 })
-    .withMessage('Name must be between 2 and 100 characters'),
+    .withMessage('Name must be between 2 and 100 characters')
+    .matches(/^[a-zA-Z\s'-]+$/)
+    .withMessage('Name can only contain letters, spaces, apostrophes, and hyphens'),
   
   body('email')
     .isEmail()
@@ -179,34 +256,92 @@ const validateContactSubmission = [
   body('subject')
     .optional()
     .trim()
-    .isLength({ max: 200 })
-    .withMessage('Subject cannot exceed 200 characters'),
+    .isLength({ min: 3, max: 200 })
+    .withMessage('Subject must be between 3 and 200 characters'),
   
   body('message')
     .trim()
-    .isLength({ min: 10, max: 1000 })
-    .withMessage('Message must be between 10 and 1000 characters'),
+    .isLength({ min: 10, max: 2000 })
+    .withMessage('Message must be between 10 and 2000 characters'),
   
   handleValidationErrors
 ];
 
-// Parameter validation
+// =============================================================================
+// PARAMETER VALIDATIONS
+// =============================================================================
+
+// MongoDB ObjectId validation (strict)
 const validateObjectId = [
   param('id')
-    .isMongoId()
-    .withMessage('Invalid ID format'),
+    .custom((value) => {
+      if (!isValidObjectId(value)) {
+        throw new Error('Invalid MongoDB ObjectId format');
+      }
+      return true;
+    }),
   
   handleValidationErrors
 ];
 
+// Flexible Pet ID validation - accepts both MongoDB ObjectIds AND custom pet IDs
 const validatePetId = [
-  param('petId')
-    .isMongoId()
-    .withMessage('Invalid pet ID format'),
+  param('id')
+    .custom((value) => {
+      if (!value || value.trim() === '') {
+        throw new Error('Pet ID is required');
+      }
+      
+      // Accept either MongoDB ObjectId OR custom pet ID format
+      if (!isValidObjectId(value) && !isValidCustomPetId(value)) {
+        throw new Error('Invalid pet ID format. Must be a MongoDB ObjectId or custom pet ID (e.g., p001, p028)');
+      }
+      
+      return true;
+    }),
   
   handleValidationErrors
 ];
 
+// Alternative pet ID validation for route parameters named 'petId'
+const validatePetIdParam = [
+  param('petId')
+    .custom((value) => {
+      if (!value || value.trim() === '') {
+        throw new Error('Pet ID is required');
+      }
+      
+      // Accept either MongoDB ObjectId OR custom pet ID format
+      if (!isValidObjectId(value) && !isValidCustomPetId(value)) {
+        throw new Error('Invalid pet ID format. Must be a MongoDB ObjectId or custom pet ID (e.g., p001, p028)');
+      }
+      
+      return true;
+    }),
+  
+  handleValidationErrors
+];
+
+// Flexible Product ID validation
+const validateProductId = [
+  param('id')
+    .custom((value) => {
+      if (!value || value.trim() === '') {
+        throw new Error('Product ID is required');
+      }
+      
+      // Accept MongoDB ObjectId OR custom product ID format
+      if (!isValidObjectId(value) && !isValidCustomProductId(value)) {
+        throw new Error('Invalid product ID format. Must be a MongoDB ObjectId or custom product ID (e.g., prod_001)');
+      }
+      
+      return true;
+    }),
+  
+  handleValidationErrors
+];
+
+// User ID validation (MongoDB ObjectId only)
 const validateUserId = [
   param('userId')
     .isMongoId()
@@ -215,7 +350,10 @@ const validateUserId = [
   handleValidationErrors
 ];
 
-// Query validation
+// =============================================================================
+// QUERY VALIDATIONS
+// =============================================================================
+
 const validatePetQuery = [
   query('category')
     .optional()
@@ -224,19 +362,38 @@ const validatePetQuery = [
   
   query('type')
     .optional()
-    // ✅ FIXED: Added 'small-pet' to allowed types
-    .isIn(['dog', 'cat', 'bird', 'fish', 'rabbit', 'hamster', 'small-pet', 'other'])
-    .withMessage('Type must be dog, cat, bird, fish, rabbit, hamster, small-pet, or other'),
+    .isIn(['dog', 'cat', 'bird', 'fish', 'rabbit', 'hamster', 'small-pet', 'reptile', 'other'])
+    .withMessage('Type must be dog, cat, bird, fish, rabbit, hamster, small-pet, reptile, or other'),
   
   query('age')
     .optional()
-    .isInt({ min: 0, max: 30 })
-    .withMessage('Age must be a number between 0 and 30'),
+    .isLength({ min: 1, max: 20 })
+    .withMessage('Age parameter is invalid'),
   
   query('size')
     .optional()
     .isIn(['small', 'medium', 'large', 'extra-large'])
     .withMessage('Size must be small, medium, large, or extra-large'),
+  
+  query('gender')
+    .optional()
+    .isIn(['male', 'female', 'unknown'])
+    .withMessage('Gender must be male, female, or unknown'),
+  
+  query('status')
+    .optional()
+    .isIn(['available', 'pending', 'adopted', 'unavailable'])
+    .withMessage('Status must be available, pending, adopted, or unavailable'),
+  
+  query('available')
+    .optional()
+    .isBoolean()
+    .withMessage('Available must be true or false'),
+  
+  query('featured')
+    .optional()
+    .isBoolean()
+    .withMessage('Featured must be true or false'),
   
   query('limit')
     .optional()
@@ -248,19 +405,106 @@ const validatePetQuery = [
     .isInt({ min: 1 })
     .withMessage('Page must be a positive number'),
   
+  query('sort')
+    .optional()
+    .isIn(['name', 'price-low', 'price-high', 'type', 'newest', 'oldest', 'popular', 'createdAt'])
+    .withMessage('Sort must be name, price-low, price-high, type, newest, oldest, popular, or createdAt'),
+  
+  query('search')
+    .optional()
+    .trim()
+    .isLength({ min: 1, max: 100 })
+    .withMessage('Search term must be between 1 and 100 characters'),
+  
+  query('minPrice')
+    .optional()
+    .isFloat({ min: 0 })
+    .withMessage('Minimum price must be a positive number'),
+  
+  query('maxPrice')
+    .optional()
+    .isFloat({ min: 0 })
+    .withMessage('Maximum price must be a positive number'),
+  
   handleValidationErrors
 ];
 
-// Sanitization middleware
+const validateProductQuery = [
+  query('category')
+    .optional()
+    .isIn(['general', 'dog', 'cat', 'bird', 'fish', 'small-pet', 'other'])
+    .withMessage('Category must be general, dog, cat, bird, fish, small-pet, or other'),
+  
+  query('brand')
+    .optional()
+    .trim()
+    .isLength({ min: 1, max: 50 })
+    .withMessage('Brand must be between 1 and 50 characters'),
+  
+  query('inStock')
+    .optional()
+    .isBoolean()
+    .withMessage('InStock must be true or false'),
+  
+  query('featured')
+    .optional()
+    .isBoolean()
+    .withMessage('Featured must be true or false'),
+  
+  query('limit')
+    .optional()
+    .isInt({ min: 1, max: 100 })
+    .withMessage('Limit must be between 1 and 100'),
+  
+  query('page')
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage('Page must be a positive number'),
+  
+  query('sort')
+    .optional()
+    .isIn(['name', 'price-low', 'price-high', 'brand', 'newest', 'oldest', 'popular'])
+    .withMessage('Sort must be name, price-low, price-high, brand, newest, oldest, or popular'),
+  
+  query('search')
+    .optional()
+    .trim()
+    .isLength({ min: 1, max: 100 })
+    .withMessage('Search term must be between 1 and 100 characters'),
+  
+  query('minPrice')
+    .optional()
+    .isFloat({ min: 0 })
+    .withMessage('Minimum price must be a positive number'),
+  
+  query('maxPrice')
+    .optional()
+    .isFloat({ min: 0 })
+    .withMessage('Maximum price must be a positive number'),
+  
+  handleValidationErrors
+];
+
+// =============================================================================
+// SANITIZATION MIDDLEWARE
+// =============================================================================
+
 const sanitizeInput = (req, res, next) => {
   // Remove any potentially dangerous characters from string inputs
   const sanitizeString = (str) => {
     if (typeof str !== 'string') return str;
-    return str.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+    // Remove script tags and other potentially dangerous content
+    return str
+      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+      .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '')
+      .replace(/javascript:/gi, '')
+      .replace(/on\w+\s*=/gi, '');
   };
   
   // Recursively sanitize object properties
   const sanitizeObject = (obj) => {
+    if (!obj || typeof obj !== 'object') return obj;
+    
     for (const key in obj) {
       if (obj.hasOwnProperty(key)) {
         if (typeof obj[key] === 'string') {
@@ -270,6 +514,7 @@ const sanitizeInput = (req, res, next) => {
         }
       }
     }
+    return obj;
   };
   
   if (req.body) {
@@ -280,8 +525,16 @@ const sanitizeInput = (req, res, next) => {
     sanitizeObject(req.query);
   }
   
+  if (req.params) {
+    sanitizeObject(req.params);
+  }
+  
   next();
 };
+
+// =============================================================================
+// EXPORTS
+// =============================================================================
 
 module.exports = {
   // User validations
@@ -294,13 +547,23 @@ module.exports = {
   validatePetUpdate,
   validatePetQuery,
   
+  // Product validations
+  validateProductQuery,
+  
   // Contact validations
   validateContactSubmission,
   
   // Parameter validations
-  validateObjectId,
-  validatePetId,
-  validateUserId,
+  validateObjectId,          // Strict MongoDB ObjectId only
+  validatePetId,            // Flexible: MongoDB ObjectId OR custom pet ID
+  validatePetIdParam,       // Alternative for 'petId' parameter
+  validateProductId,        // Flexible: MongoDB ObjectId OR custom product ID
+  validateUserId,           // Strict MongoDB ObjectId only
+  
+  // Helper functions (exported for testing or reuse)
+  isValidObjectId,
+  isValidCustomPetId,
+  isValidCustomProductId,
   
   // Utility
   handleValidationErrors,
