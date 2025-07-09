@@ -191,7 +191,8 @@ const PetDetail = () => {
                     className="w-100 h-100"
                     size="large"
                     style={{ 
-                      objectFit: 'cover',
+                      objectFit: 'contain',
+                      backgroundColor: '#f8f9fa',
                       transition: 'transform 0.3s ease'
                     }}
                     onError={() => setImageError(true)}
@@ -597,7 +598,7 @@ const PetDetail = () => {
       {/* Custom Styles */}
       <style jsx>{`
         .pet-image-container {
-          height: 300px;
+          height: 250px;
           position: relative;
           overflow: hidden;
           border-radius: 0.375rem;
@@ -606,18 +607,18 @@ const PetDetail = () => {
         
         @media (max-width: 768px) {
           .pet-image-container {
-            height: 250px;
+            height: 200px;
           }
         }
         
         @media (max-width: 576px) {
           .pet-image-container {
-            height: 200px;
+            height: 180px;
           }
         }
         
         .pet-image-container:hover img {
-          transform: scale(1.05);
+          transform: scale(1.02);
         }
         
         .fade-in {
