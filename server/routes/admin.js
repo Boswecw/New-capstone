@@ -90,33 +90,30 @@ router.get('/dashboard', async (req, res) => {
     const recentUsers = await User.find()
       .sort({ createdAt: -1 })
       .limit(5)
-      .select('name email createdAt');
+      .select('name email role createdAt');
 
     const recentContacts = await Contact.find()
       .sort({ createdAt: -1 })
       .limit(5)
       .select('name email subject status createdAt');
 
-    // Get monthly adoption trends
+    // Get adoption trends (last 30 days)
     const adoptionTrends = await Pet.aggregate([
       {
         $match: {
+          status: 'adopted',
           adoptedAt: { $gte: thirtyDaysAgo }
         }
       },
       {
         $group: {
           _id: {
-            year: { $year: '$adoptedAt' },
-            month: { $month: '$adoptedAt' },
-            day: { $dayOfMonth: '$adoptedAt' }
+            $dateToString: { format: '%Y-%m-%d', date: '$adoptedAt' }
           },
           count: { $sum: 1 }
         }
       },
-      {
-        $sort: { '_id.year': 1, '_id.month': 1, '_id.day': 1 }
-      }
+      { $sort: { '_id': 1 } }
     ]);
 
     // Get pet category distribution
@@ -260,54 +257,15 @@ router.get('/pets', async (req, res) => {
     const {
       search,
       category,
-      type,        // ✅ ADDED - The missing filter!
+      type,
+      breed,
       status,
       available,
+      age,
       limit = 20,
       page = 1,
       sort = 'createdAt'
     } = req.query;
-
-    // ✅ TEMPORARY DEBUG ROUTE - Remove after testing
-router.get('/pets/debug', async (req, res) => {
-  try {
-    console.log('🐛 Debug route hit - checking database...');
-    
-    // Test basic database connection
-    const totalPets = await Pet.countDocuments();
-    console.log('📊 Total pets in database:', totalPets);
-    
-    // Get some sample pets without filters
-    const samplePets = await Pet.find().limit(5);
-    console.log('🐾 Sample pets:', samplePets.map(p => ({ name: p.name, type: p.type })));
-    
-    // Test type breakdown
-    const typeStats = await Pet.aggregate([
-      { $group: { _id: '$type', count: { $sum: 1 } } }
-    ]);
-    console.log('📈 Pet types:', typeStats);
-    
-    res.json({
-      success: true,
-      debug: {
-        totalPets,
-        samplePets: samplePets.map(p => ({ 
-          name: p.name, 
-          type: p.type, 
-          _id: p._id 
-        })),
-        typeBreakdown: typeStats
-      }
-    });
-  } catch (error) {
-    console.error('❌ Debug route error:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-      stack: error.stack
-    });
-  }
-});
 
     // Build query
     const query = {};
@@ -324,9 +282,12 @@ router.get('/pets/debug', async (req, res) => {
       query.category = category;
     }
 
-    // ✅ TYPE FILTERING - This was the missing piece!
     if (type) {
       query.type = type;
+    }
+
+    if (breed) {
+      query.breed = { $regex: breed, $options: 'i' };
     }
 
     if (status) {
@@ -335,6 +296,10 @@ router.get('/pets/debug', async (req, res) => {
 
     if (available !== undefined && available !== '') {
       query.available = available === 'true';
+    }
+
+    if (age) {
+      query.age = parseInt(age);
     }
 
     // Pagination
@@ -407,9 +372,6 @@ router.post('/pets', validatePetCreation, async (req, res) => {
     const pet = new Pet(petData);
     await pet.save();
 
-    // Populate the creator info
-    await pet.populate('createdBy', 'name email');
-
     res.status(201).json({
       success: true,
       data: pet,
@@ -428,7 +390,11 @@ router.post('/pets', validatePetCreation, async (req, res) => {
 // PUT /api/admin/pets/:id - Update pet
 router.put('/pets/:id', validateObjectId, validatePetUpdate, async (req, res) => {
   try {
-    const pet = await Pet.findById(req.params.id);
+    const pet = await Pet.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true, runValidators: true }
+    );
 
     if (!pet) {
       return res.status(404).json({
@@ -437,17 +403,9 @@ router.put('/pets/:id', validateObjectId, validatePetUpdate, async (req, res) =>
       });
     }
 
-    // Update pet
-    const updatedPet = await Pet.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      { new: true, runValidators: true }
-    ).populate('createdBy', 'name email')
-     .populate('adoptedBy', 'name email');
-
     res.json({
       success: true,
-      data: updatedPet,
+      data: pet,
       message: 'Pet updated successfully'
     });
   } catch (error) {
@@ -463,7 +421,7 @@ router.put('/pets/:id', validateObjectId, validatePetUpdate, async (req, res) =>
 // DELETE /api/admin/pets/:id - Delete pet
 router.delete('/pets/:id', validateObjectId, async (req, res) => {
   try {
-    const pet = await Pet.findById(req.params.id);
+    const pet = await Pet.findByIdAndDelete(req.params.id);
 
     if (!pet) {
       return res.status(404).json({
@@ -471,16 +429,6 @@ router.delete('/pets/:id', validateObjectId, async (req, res) => {
         message: 'Pet not found'
       });
     }
-
-    // Check if pet is adopted
-    if (pet.status === 'adopted') {
-      return res.status(400).json({
-        success: false,
-        message: 'Cannot delete adopted pet'
-      });
-    }
-
-    await Pet.findByIdAndDelete(req.params.id);
 
     res.json({
       success: true,
@@ -496,27 +444,281 @@ router.delete('/pets/:id', validateObjectId, async (req, res) => {
   }
 });
 
-// POST /api/admin/pets/:id/adopt - Mark pet as adopted
-router.post('/pets/:id/adopt', validateObjectId, async (req, res) => {
-  try {
-    const { userId } = req.body;
+// ===============================
+// CONTACT MANAGEMENT ROUTES
+// ===============================
 
-    if (!userId) {
-      return res.status(400).json({
-        success: false,
-        message: 'User ID is required'
-      });
+// GET /api/admin/contacts - Get all contacts for admin
+router.get('/contacts', async (req, res) => {
+  try {
+    const {
+      status,
+      search,
+      limit = 20,
+      page = 1,
+      sort = 'createdAt'
+    } = req.query;
+
+    // Build query object
+    const query = {};
+
+    if (status) {
+      query.status = status;
     }
 
-    const pet = await Pet.findById(req.params.id);
-    const user = await User.findById(userId);
+    if (search) {
+      query.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } },
+        { subject: { $regex: search, $options: 'i' } },
+        { message: { $regex: search, $options: 'i' } }
+      ];
+    }
 
-    if (!pet) {
+    // Calculate pagination
+    const limitNum = parseInt(limit);
+    const skip = (parseInt(page) - 1) * limitNum;
+
+    // Sort options
+    const sortOptions = {};
+    switch (sort) {
+      case 'name':
+        sortOptions.name = 1;
+        break;
+      case 'email':
+        sortOptions.email = 1;
+        break;
+      case 'status':
+        sortOptions.status = 1;
+        break;
+      case 'oldest':
+        sortOptions.createdAt = 1;
+        break;
+      default:
+        sortOptions.createdAt = -1;
+    }
+
+    // Execute query
+    const contacts = await Contact.find(query)
+      .sort(sortOptions)
+      .limit(limitNum)
+      .skip(skip)
+      .populate('response.respondedBy', 'name email');
+
+    // Get total count for pagination
+    const totalContacts = await Contact.countDocuments(query);
+    const totalPages = Math.ceil(totalContacts / limitNum);
+
+    // Get status counts for stats
+    const statusCounts = await Contact.aggregate([
+      {
+        $group: {
+          _id: '$status',
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+
+    res.json({
+      success: true,
+      data: contacts,
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages,
+        totalContacts,
+        hasNext: page < totalPages,
+        hasPrev: page > 1
+      },
+      stats: {
+        statusCounts: statusCounts.reduce((acc, item) => {
+          acc[item._id] = item.count;
+          return acc;
+        }, {})
+      },
+      message: 'Contact submissions retrieved successfully'
+    });
+  } catch (error) {
+    console.error('Error fetching contacts:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching contacts',
+      error: error.message
+    });
+  }
+});
+
+// GET /api/admin/contacts/:id - Get single contact submission
+router.get('/contacts/:id', validateObjectId, async (req, res) => {
+  try {
+    const contact = await Contact.findById(req.params.id)
+      .populate('response.respondedBy', 'name email');
+
+    if (!contact) {
       return res.status(404).json({
         success: false,
-        message: 'Pet not found'
+        message: 'Contact submission not found'
       });
     }
+
+    // Mark as read if it's new
+    if (contact.status === 'new') {
+      contact.status = 'read';
+      await contact.save();
+    }
+
+    res.json({
+      success: true,
+      data: contact,
+      message: 'Contact submission retrieved successfully'
+    });
+  } catch (error) {
+    console.error('Error fetching contact:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching contact',
+      error: error.message
+    });
+  }
+});
+
+// PUT /api/admin/contacts/:id/status - Update contact status
+router.put('/contacts/:id/status', validateObjectId, async (req, res) => {
+  try {
+    const { status } = req.body;
+
+    // Validate status
+    const validStatuses = ['new', 'read', 'responded', 'resolved'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid status. Must be one of: new, read, responded, resolved'
+      });
+    }
+
+    const contact = await Contact.findById(req.params.id);
+
+    if (!contact) {
+      return res.status(404).json({
+        success: false,
+        message: 'Contact submission not found'
+      });
+    }
+
+    contact.status = status;
+    await contact.save();
+
+    res.json({
+      success: true,
+      data: contact,
+      message: 'Contact status updated successfully'
+    });
+  } catch (error) {
+    console.error('Error updating contact status:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error updating contact status',
+      error: error.message
+    });
+  }
+});
+
+// PUT /api/admin/contacts/:id/respond - Add response to contact
+router.put('/contacts/:id/respond', validateObjectId, async (req, res) => {
+  try {
+    const { message } = req.body;
+
+    if (!message || message.trim() === '') {
+      return res.status(400).json({
+        success: false,
+        message: 'Response message is required'
+      });
+    }
+
+    const contact = await Contact.findById(req.params.id);
+
+    if (!contact) {
+      return res.status(404).json({
+        success: false,
+        message: 'Contact submission not found'
+      });
+    }
+
+    // Add response
+    contact.response = {
+      message: message.trim(),
+      respondedBy: req.user._id,
+      respondedAt: new Date()
+    };
+
+    // Update status to responded
+    contact.status = 'responded';
+    await contact.save();
+
+    // Populate the response
+    await contact.populate('response.respondedBy', 'name email');
+
+    res.json({
+      success: true,
+      data: contact,
+      message: 'Response added successfully'
+    });
+  } catch (error) {
+    console.error('Error adding response:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error adding response',
+      error: error.message
+    });
+  }
+});
+
+// DELETE /api/admin/contacts/:id - Delete contact submission
+router.delete('/contacts/:id', validateObjectId, async (req, res) => {
+  try {
+    const contact = await Contact.findById(req.params.id);
+
+    if (!contact) {
+      return res.status(404).json({
+        success: false,
+        message: 'Contact submission not found'
+      });
+    }
+
+    await Contact.findByIdAndDelete(req.params.id);
+
+    res.json({
+      success: true,
+      message: 'Contact submission deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting contact:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error deleting contact',
+      error: error.message
+    });
+  }
+});
+
+// PUT /api/admin/users/:id/role - Update user role
+router.put('/users/:id/role', validateObjectId, async (req, res) => {
+  try {
+    const { role } = req.body;
+
+    // Validate role
+    const validRoles = ['user', 'admin', 'moderator'];
+    if (!validRoles.includes(role)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid role. Must be one of: user, admin, moderator'
+      });
+    }
+
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      { role },
+      { new: true, runValidators: true }
+    ).select('-password');
 
     if (!user) {
       return res.status(404).json({
@@ -525,262 +727,78 @@ router.post('/pets/:id/adopt', validateObjectId, async (req, res) => {
       });
     }
 
-    if (pet.status !== 'available') {
-      return res.status(400).json({
+    res.json({
+      success: true,
+      data: user,
+      message: 'User role updated successfully'
+    });
+  } catch (error) {
+    console.error('Error updating user role:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error updating user role',
+      error: error.message
+    });
+  }
+});
+
+// PUT /api/admin/users/:id/status - Update user status
+router.put('/users/:id/status', validateObjectId, async (req, res) => {
+  try {
+    const { isActive } = req.body;
+
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      { isActive },
+      { new: true, runValidators: true }
+    ).select('-password');
+
+    if (!user) {
+      return res.status(404).json({
         success: false,
-        message: 'Pet is not available for adoption'
+        message: 'User not found'
       });
     }
 
-    // Mark pet as adopted
-    await pet.markAsAdopted(userId);
-
-    // Add to user's adopted pets
-    user.adoptedPets.push({
-      pet: pet._id,
-      adoptedAt: new Date()
-    });
-    await user.save();
-
     res.json({
       success: true,
-      message: 'Pet marked as adopted successfully'
+      data: user,
+      message: `User ${isActive ? 'activated' : 'deactivated'} successfully`
     });
   } catch (error) {
-    console.error('Error marking pet as adopted:', error);
+    console.error('Error updating user status:', error);
     res.status(500).json({
       success: false,
-      message: 'Error marking pet as adopted',
+      message: 'Error updating user status',
       error: error.message
     });
   }
 });
 
-// GET /api/admin/reports - Generate various reports
-router.get('/reports', async (req, res) => {
+// DELETE /api/admin/users/:id - Delete user
+router.delete('/users/:id', validateObjectId, async (req, res) => {
   try {
-    const { type = 'summary', startDate, endDate } = req.query;
+    const user = await User.findByIdAndDelete(req.params.id);
 
-    // Set date range
-    const start = startDate ? new Date(startDate) : new Date(new Date().getFullYear(), 0, 1);
-    const end = endDate ? new Date(endDate) : new Date();
-
-    let reportData = {};
-
-    switch (type) {
-      case 'adoptions':
-        reportData = await generateAdoptionReport(start, end);
-        break;
-      case 'users':
-        reportData = await generateUserReport(start, end);
-        break;
-      case 'contacts':
-        reportData = await generateContactReport(start, end);
-        break;
-      case 'pets':
-        reportData = await generatePetReport(start, end);
-        break;
-      default:
-        reportData = await generateSummaryReport(start, end);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
     }
 
     res.json({
       success: true,
-      data: reportData,
-      message: 'Report generated successfully'
+      message: 'User deleted successfully'
     });
   } catch (error) {
-    console.error('Error generating report:', error);
+    console.error('Error deleting user:', error);
     res.status(500).json({
       success: false,
-      message: 'Error generating report',
+      message: 'Error deleting user',
       error: error.message
     });
   }
 });
-
-// Helper functions for report generation
-async function generateSummaryReport(startDate, endDate) {
-  const [petStats, userStats, contactStats] = await Promise.all([
-    Pet.aggregate([
-      {
-        $match: { createdAt: { $gte: startDate, $lte: endDate } }
-      },
-      {
-        $group: {
-          _id: null,
-          totalPets: { $sum: 1 },
-          adoptedPets: {
-            $sum: { $cond: [{ $eq: ['$status', 'adopted'] }, 1, 0] }
-          }
-        }
-      }
-    ]),
-    User.aggregate([
-      {
-        $match: { createdAt: { $gte: startDate, $lte: endDate } }
-      },
-      {
-        $group: {
-          _id: null,
-          totalUsers: { $sum: 1 },
-          activeUsers: {
-            $sum: { $cond: [{ $eq: ['$isActive', true] }, 1, 0] }
-          }
-        }
-      }
-    ]),
-    Contact.aggregate([
-      {
-        $match: { createdAt: { $gte: startDate, $lte: endDate } }
-      },
-      {
-        $group: {
-          _id: null,
-          totalContacts: { $sum: 1 },
-          resolvedContacts: {
-            $sum: { $cond: [{ $eq: ['$status', 'resolved'] }, 1, 0] }
-          }
-        }
-      }
-    ])
-  ]);
-
-  return {
-    dateRange: { startDate, endDate },
-    pets: petStats[0] || { totalPets: 0, adoptedPets: 0 },
-    users: userStats[0] || { totalUsers: 0, activeUsers: 0 },
-    contacts: contactStats[0] || { totalContacts: 0, resolvedContacts: 0 }
-  };
-}
-
-async function generateAdoptionReport(startDate, endDate) {
-  const adoptions = await Pet.find({
-    adoptedAt: { $gte: startDate, $lte: endDate },
-    status: 'adopted'
-  })
-    .populate('adoptedBy', 'name email')
-    .populate('createdBy', 'name email')
-    .sort({ adoptedAt: -1 });
-
-  const monthlyAdoptions = await Pet.aggregate([
-    {
-      $match: {
-        adoptedAt: { $gte: startDate, $lte: endDate },
-        status: 'adopted'
-      }
-    },
-    {
-      $group: {
-        _id: {
-          year: { $year: '$adoptedAt' },
-          month: { $month: '$adoptedAt' }
-        },
-        count: { $sum: 1 }
-      }
-    },
-    {
-      $sort: { '_id.year': 1, '_id.month': 1 }
-    }
-  ]);
-
-  return {
-    dateRange: { startDate, endDate },
-    adoptions,
-    monthlyTrends: monthlyAdoptions,
-    totalAdoptions: adoptions.length
-  };
-}
-
-async function generateUserReport(startDate, endDate) {
-  const users = await User.find({
-    createdAt: { $gte: startDate, $lte: endDate }
-  })
-    .select('-password')
-    .sort({ createdAt: -1 });
-
-  const userGrowth = await User.aggregate([
-    {
-      $match: { createdAt: { $gte: startDate, $lte: endDate } }
-    },
-    {
-      $group: {
-        _id: {
-          year: { $year: '$createdAt' },
-          month: { $month: '$createdAt' }
-        },
-        count: { $sum: 1 }
-      }
-    },
-    {
-      $sort: { '_id.year': 1, '_id.month': 1 }
-    }
-  ]);
-
-  return {
-    dateRange: { startDate, endDate },
-    users,
-    growthTrends: userGrowth,
-    totalUsers: users.length
-  };
-}
-
-async function generateContactReport(startDate, endDate) {
-  const contacts = await Contact.find({
-    createdAt: { $gte: startDate, $lte: endDate }
-  }).sort({ createdAt: -1 });
-
-  const statusDistribution = await Contact.aggregate([
-    {
-      $match: { createdAt: { $gte: startDate, $lte: endDate } }
-    },
-    {
-      $group: {
-        _id: '$status',
-        count: { $sum: 1 }
-      }
-    }
-  ]);
-
-  return {
-    dateRange: { startDate, endDate },
-    contacts,
-    statusDistribution: statusDistribution.reduce((acc, item) => {
-      acc[item._id] = item.count;
-      return acc;
-    }, {}),
-    totalContacts: contacts.length
-  };
-}
-
-async function generatePetReport(startDate, endDate) {
-  const pets = await Pet.find({
-    createdAt: { $gte: startDate, $lte: endDate }
-  })
-    .populate('createdBy', 'name email')
-    .sort({ createdAt: -1 });
-
-  const categoryDistribution = await Pet.aggregate([
-    {
-      $match: { createdAt: { $gte: startDate, $lte: endDate } }
-    },
-    {
-      $group: {
-        _id: '$category',
-        count: { $sum: 1 }
-      }
-    }
-  ]);
-
-  return {
-    dateRange: { startDate, endDate },
-    pets,
-    categoryDistribution: categoryDistribution.reduce((acc, item) => {
-      acc[item._id] = item.count;
-      return acc;
-    }, {}),
-    totalPets: pets.length
-  };
-}
 
 module.exports = router;

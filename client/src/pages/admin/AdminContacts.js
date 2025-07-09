@@ -18,6 +18,7 @@ const AdminContacts = () => {
   const [pagination, setPagination] = useState({});
   const [filters, setFilters] = useState({
     status: "",
+    search: "",
   });
   const [showViewModal, setShowViewModal] = useState(false);
   const [showResponseModal, setShowResponseModal] = useState(false);
@@ -32,10 +33,13 @@ const AdminContacts = () => {
         const params = new URLSearchParams({
           page,
           limit: 10,
-          ...filters,
+          // Only include non-empty filter values
+          ...(filters.status && { status: filters.status }),
+          ...(filters.search && { search: filters.search }),
         });
 
-        const response = await api.get(`/admin/contacts?${params.toString()}`);
+        // Fixed: Use /contact route instead of /admin/contacts
+        const response = await api.get(`/contact?${params.toString()}`);
         setContacts(response.data.data);
         setPagination(response.data.pagination);
       } catch (error) {
@@ -52,7 +56,6 @@ const AdminContacts = () => {
     fetchContacts();
   }, [fetchContacts]);
 
-  // ... rest of the component remains the same as in the previous response
   const showAlert = (message, variant) => {
     setAlert({ show: true, message, variant });
     setTimeout(() => setAlert({ show: false, message: "", variant: "" }), 5000);
@@ -76,7 +79,13 @@ const AdminContacts = () => {
 
   const handleSendResponse = async () => {
     try {
-      await api.put(`/admin/contacts/${selectedContact._id}/respond`, {
+      if (!responseMessage.trim()) {
+        showAlert("Please enter a response message", "warning");
+        return;
+      }
+
+      // Fixed: Use /contact route instead of /admin/contacts
+      await api.put(`/contact/${selectedContact._id}/respond`, {
         message: responseMessage,
       });
       showAlert("Response sent successfully", "success");
@@ -92,7 +101,8 @@ const AdminContacts = () => {
 
   const updateContactStatus = async (contactId, status) => {
     try {
-      await api.put(`/admin/contacts/${contactId}/status`, { status });
+      // Fixed: Use /contact route instead of /admin/contacts
+      await api.put(`/contact/${contactId}/status`, { status });
       fetchContacts();
     } catch (error) {
       console.error("Error updating contact status:", error);
@@ -101,7 +111,8 @@ const AdminContacts = () => {
 
   const handleStatusChange = async (contact, newStatus) => {
     try {
-      await api.put(`/admin/contacts/${contact._id}/status`, {
+      // Fixed: Use /contact route instead of /admin/contacts
+      await api.put(`/contact/${contact._id}/status`, {
         status: newStatus,
       });
       showAlert("Contact status updated", "success");
@@ -117,7 +128,20 @@ const AdminContacts = () => {
   };
 
   const clearFilters = () => {
-    setFilters({ status: "" });
+    setFilters({ status: "", search: "" });
+  };
+
+  const handleDelete = async (contact) => {
+    if (window.confirm("Are you sure you want to delete this contact?")) {
+      try {
+        await api.delete(`/contact/${contact._id}`);
+        showAlert("Contact deleted successfully", "success");
+        fetchContacts();
+      } catch (error) {
+        showAlert("Error deleting contact", "danger");
+        console.error("Error deleting contact:", error);
+      }
+    }
   };
 
   const getStatusVariant = (status) => {
@@ -176,6 +200,35 @@ const AdminContacts = () => {
       accessor: "createdAt",
       type: "date",
     },
+    {
+      header: "Actions",
+      accessor: "actions",
+      render: (contact) => (
+        <div className="d-flex gap-2">
+          <Button
+            variant="outline-primary"
+            size="sm"
+            onClick={() => handleView(contact)}
+          >
+            <i className="fas fa-eye"></i>
+          </Button>
+          <Button
+            variant="outline-success"
+            size="sm"
+            onClick={() => handleRespond(contact)}
+          >
+            <i className="fas fa-reply"></i>
+          </Button>
+          <Button
+            variant="outline-danger"
+            size="sm"
+            onClick={() => handleDelete(contact)}
+          >
+            <i className="fas fa-trash"></i>
+          </Button>
+        </div>
+      ),
+    },
   ];
 
   return (
@@ -209,7 +262,16 @@ const AdminContacts = () => {
                 <option value="resolved">Resolved</option>
               </Form.Select>
             </Col>
-            <Col md={2} className="d-flex align-items-end">
+            <Col md={4}>
+              <Form.Label>Search</Form.Label>
+              <Form.Control
+                type="text"
+                placeholder="Search by name, email, subject..."
+                value={filters.search}
+                onChange={(e) => handleFilterChange("search", e.target.value)}
+              />
+            </Col>
+            <Col md={4} className="d-flex align-items-end">
               <Button variant="outline-secondary" onClick={clearFilters}>
                 Clear Filters
               </Button>
@@ -218,27 +280,16 @@ const AdminContacts = () => {
         </Card.Body>
       </Card>
 
-      {/* Data Table */}
+      {/* Contacts Table */}
       <Card>
         <Card.Body>
           <DataTable
-            data={contacts}
             columns={columns}
+            data={contacts}
             loading={loading}
             pagination={pagination}
-            onPageChange={(page) => fetchContacts(page)}
-            rowActions={[
-              {
-                label: "View",
-                onClick: handleView,
-                variant: "info",
-              },
-              {
-                label: "Respond",
-                onClick: handleRespond,
-                variant: "success",
-              },
-            ]}
+            onPageChange={fetchContacts}
+            emptyMessage="No contacts found"
           />
         </Card.Body>
       </Card>
@@ -247,6 +298,7 @@ const AdminContacts = () => {
       <Modal
         show={showViewModal}
         onHide={() => setShowViewModal(false)}
+        size="lg"
         centered
       >
         <Modal.Header closeButton>
@@ -265,8 +317,18 @@ const AdminContacts = () => {
                 <strong>Subject:</strong> {selectedContact.subject}
               </p>
               <p>
-                <strong>Message:</strong> {selectedContact.message}
+                <strong>Message:</strong>
               </p>
+              <div
+                style={{
+                  background: "#f8f9fa",
+                  padding: "15px",
+                  borderRadius: "5px",
+                  marginBottom: "15px",
+                }}
+              >
+                {selectedContact.message}
+              </div>
               <p>
                 <strong>Status:</strong>{" "}
                 <Badge bg={getStatusVariant(selectedContact.status)}>
@@ -277,6 +339,26 @@ const AdminContacts = () => {
                 <strong>Date:</strong>{" "}
                 {new Date(selectedContact.createdAt).toLocaleString()}
               </p>
+              {selectedContact.response && (
+                <>
+                  <hr />
+                  <h6>Response:</h6>
+                  <div
+                    style={{
+                      background: "#e7f3ff",
+                      padding: "15px",
+                      borderRadius: "5px",
+                      marginBottom: "10px",
+                    }}
+                  >
+                    {selectedContact.response.message}
+                  </div>
+                  <small className="text-muted">
+                    Responded by {selectedContact.response.respondedBy?.name} on{" "}
+                    {new Date(selectedContact.response.respondedAt).toLocaleString()}
+                  </small>
+                </>
+              )}
             </>
           )}
         </Modal.Body>
@@ -284,6 +366,17 @@ const AdminContacts = () => {
           <Button variant="secondary" onClick={() => setShowViewModal(false)}>
             Close
           </Button>
+          {selectedContact && selectedContact.status !== "responded" && (
+            <Button
+              variant="primary"
+              onClick={() => {
+                setShowViewModal(false);
+                handleRespond(selectedContact);
+              }}
+            >
+              Respond
+            </Button>
+          )}
         </Modal.Footer>
       </Modal>
 
@@ -291,22 +384,40 @@ const AdminContacts = () => {
       <Modal
         show={showResponseModal}
         onHide={() => setShowResponseModal(false)}
+        size="lg"
         centered
       >
         <Modal.Header closeButton>
           <Modal.Title>Respond to Contact</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          <Form.Group>
-            <Form.Label>Response Message</Form.Label>
-            <Form.Control
-              as="textarea"
-              rows={4}
-              value={responseMessage}
-              onChange={(e) => setResponseMessage(e.target.value)}
-              placeholder="Type your response here..."
-            />
-          </Form.Group>
+          {selectedContact && (
+            <>
+              <div className="mb-3">
+                <strong>Original Message:</strong>
+                <div
+                  style={{
+                    background: "#f8f9fa",
+                    padding: "10px",
+                    borderRadius: "5px",
+                    marginTop: "5px",
+                  }}
+                >
+                  {selectedContact.message}
+                </div>
+              </div>
+              <Form.Group>
+                <Form.Label>Your Response</Form.Label>
+                <Form.Control
+                  as="textarea"
+                  rows={6}
+                  value={responseMessage}
+                  onChange={(e) => setResponseMessage(e.target.value)}
+                  placeholder="Type your response here..."
+                />
+              </Form.Group>
+            </>
+          )}
         </Modal.Body>
         <Modal.Footer>
           <Button
