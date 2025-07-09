@@ -50,19 +50,20 @@ const AdminAnalytics = () => {
   }
 
   return (
-    <div className="max-w-7xl mx-auto p-6">
+    <div className="w-full">
+      {/* Header Section */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-4">
           Analytics Dashboard
         </h1>
 
         {/* Time Range Selector */}
-        <div className="flex space-x-2">
+        <div className="flex flex-wrap gap-2">
           {["7days", "30days", "90days", "1year"].map((range) => (
             <button
               key={range}
               onClick={() => setTimeRange(range)}
-              className={`px-4 py-2 rounded-md text-sm font-medium ${
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors duration-200 ${
                 timeRange === range
                   ? "bg-blue-600 text-white"
                   : "bg-gray-200 text-gray-700 hover:bg-gray-300"
@@ -82,54 +83,55 @@ const AdminAnalytics = () => {
 
       {/* Key Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h3 className="text-sm font-medium text-gray-500">Total Visits</h3>
-          <p className="text-3xl font-bold text-gray-900">
+        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+          <h3 className="text-sm font-medium text-gray-500 mb-2">Total Visits</h3>
+          <p className="text-3xl font-bold text-gray-900 mb-1">
             {analytics.totalVisits.toLocaleString()}
           </p>
           <p className="text-sm text-green-600">+12% from last period</p>
         </div>
 
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h3 className="text-sm font-medium text-gray-500">Unique Visitors</h3>
-          <p className="text-3xl font-bold text-gray-900">
+        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+          <h3 className="text-sm font-medium text-gray-500 mb-2">Unique Visitors</h3>
+          <p className="text-3xl font-bold text-gray-900 mb-1">
             {analytics.uniqueVisitors.toLocaleString()}
           </p>
           <p className="text-sm text-green-600">+8% from last period</p>
         </div>
 
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h3 className="text-sm font-medium text-gray-500">
+        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+          <h3 className="text-sm font-medium text-gray-500 mb-2">
             Adoption Inquiries
           </h3>
-          <p className="text-3xl font-bold text-gray-900">
+          <p className="text-3xl font-bold text-gray-900 mb-1">
             {analytics.adoptionInquiries}
           </p>
           <p className="text-sm text-blue-600">+5% from last period</p>
         </div>
 
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h3 className="text-sm font-medium text-gray-500">
+        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+          <h3 className="text-sm font-medium text-gray-500 mb-2">
             Successful Adoptions
           </h3>
-          <p className="text-3xl font-bold text-gray-900">
+          <p className="text-3xl font-bold text-gray-900 mb-1">
             {analytics.successfulAdoptions}
           </p>
           <p className="text-sm text-green-600">+15% from last period</p>
         </div>
       </div>
 
+      {/* Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Top Pages */}
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">
+        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+          <h2 className="text-lg font-semibold text-gray-900 mb-6">
             Top Pages
           </h2>
-          <div className="space-y-3">
+          <div className="space-y-4">
             {analytics.topPages.map((page, index) => (
-              <div key={index} className="flex justify-between items-center">
-                <span className="text-gray-700">{page.page}</span>
-                <span className="font-semibold text-gray-900">
+              <div key={index} className="flex justify-between items-center py-2">
+                <span className="text-gray-700 font-medium">{page.page}</span>
+                <span className="font-semibold text-gray-900 text-lg">
                   {page.visits.toLocaleString()}
                 </span>
               </div>
@@ -138,22 +140,22 @@ const AdminAnalytics = () => {
         </div>
 
         {/* Age Demographics */}
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">
+        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+          <h2 className="text-lg font-semibold text-gray-900 mb-6">
             Age Demographics
           </h2>
-          <div className="space-y-3">
+          <div className="space-y-4">
             {analytics.demographics.ageGroups.map((group, index) => (
-              <div key={index} className="flex justify-between items-center">
-                <span className="text-gray-700">{group.range}</span>
-                <div className="flex items-center space-x-2">
-                  <div className="w-16 bg-gray-200 rounded-full h-2">
+              <div key={index} className="flex justify-between items-center py-2">
+                <span className="text-gray-700 font-medium">{group.range}</span>
+                <div className="flex items-center space-x-3">
+                  <div className="w-20 bg-gray-200 rounded-full h-3 overflow-hidden">
                     <div
-                      className="bg-blue-600 h-2 rounded-full"
+                      className="bg-blue-600 h-full rounded-full transition-all duration-300"
                       style={{ width: `${group.percentage}%` }}
                     />
                   </div>
-                  <span className="text-sm font-medium text-gray-900">
+                  <span className="text-sm font-semibold text-gray-900 w-10 text-right">
                     {group.percentage}%
                   </span>
                 </div>

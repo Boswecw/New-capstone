@@ -1,17 +1,21 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const Pet = require('../models/Pet');
-const User = require('../models/User');
-const Contact = require('../models/Contact');
-const { protect, admin } = require('../middleware/auth');
-const { validatePetCreation, validatePetUpdate, validateObjectId } = require('../middleware/validation');
+const Pet = require("../models/Pet");
+const User = require("../models/User");
+const Contact = require("../models/Contact");
+const { protect, admin } = require("../middleware/auth");
+const {
+  validatePetCreation,
+  validatePetUpdate,
+  validateObjectId,
+} = require("../middleware/validation");
 
 // Middleware to ensure all admin routes are protected
 router.use(protect);
 router.use(admin);
 
 // GET /api/admin/dashboard - Get dashboard statistics
-router.get('/dashboard', async (req, res) => {
+router.get("/dashboard", async (req, res) => {
   try {
     // Get current date and 30 days ago
     const now = new Date();
@@ -25,16 +29,16 @@ router.get('/dashboard', async (req, res) => {
           _id: null,
           totalPets: { $sum: 1 },
           availablePets: {
-            $sum: { $cond: [{ $eq: ['$status', 'available'] }, 1, 0] }
+            $sum: { $cond: [{ $eq: ["$status", "available"] }, 1, 0] },
           },
           adoptedPets: {
-            $sum: { $cond: [{ $eq: ['$status', 'adopted'] }, 1, 0] }
+            $sum: { $cond: [{ $eq: ["$status", "adopted"] }, 1, 0] },
           },
           pendingPets: {
-            $sum: { $cond: [{ $eq: ['$status', 'pending'] }, 1, 0] }
-          }
-        }
-      }
+            $sum: { $cond: [{ $eq: ["$status", "pending"] }, 1, 0] },
+          },
+        },
+      },
     ]);
 
     // Get user statistics
@@ -44,19 +48,15 @@ router.get('/dashboard', async (req, res) => {
           _id: null,
           totalUsers: { $sum: 1 },
           activeUsers: {
-            $sum: { $cond: [{ $eq: ['$isActive', true] }, 1, 0] }
+            $sum: { $cond: [{ $eq: ["$isActive", true] }, 1, 0] },
           },
           newUsersThisMonth: {
             $sum: {
-              $cond: [
-                { $gte: ['$createdAt', thirtyDaysAgo] },
-                1,
-                0
-              ]
-            }
-          }
-        }
-      }
+              $cond: [{ $gte: ["$createdAt", thirtyDaysAgo] }, 1, 0],
+            },
+          },
+        },
+      },
     ]);
 
     // Get contact statistics
@@ -66,106 +66,115 @@ router.get('/dashboard', async (req, res) => {
           _id: null,
           totalContacts: { $sum: 1 },
           newContacts: {
-            $sum: { $cond: [{ $eq: ['$status', 'new'] }, 1, 0] }
+            $sum: { $cond: [{ $eq: ["$status", "new"] }, 1, 0] },
           },
           pendingContacts: {
             $sum: {
-              $cond: [
-                { $in: ['$status', ['new', 'read']] },
-                1,
-                0
-              ]
-            }
-          }
-        }
-      }
+              $cond: [{ $in: ["$status", ["new", "read"]] }, 1, 0],
+            },
+          },
+        },
+      },
     ]);
 
     // Get recent activities
     const recentPets = await Pet.find()
       .sort({ createdAt: -1 })
       .limit(5)
-      .select('name type status createdAt');
+      .select("name type status createdAt");
 
     const recentUsers = await User.find()
       .sort({ createdAt: -1 })
       .limit(5)
-      .select('name email role createdAt');
+      .select("name email role createdAt");
 
     const recentContacts = await Contact.find()
       .sort({ createdAt: -1 })
       .limit(5)
-      .select('name email subject status createdAt');
+      .select("name email subject status createdAt");
 
     // Get adoption trends (last 30 days)
     const adoptionTrends = await Pet.aggregate([
       {
         $match: {
-          status: 'adopted',
-          adoptedAt: { $gte: thirtyDaysAgo }
-        }
+          status: "adopted",
+          adoptedAt: { $gte: thirtyDaysAgo },
+        },
       },
       {
         $group: {
           _id: {
-            $dateToString: { format: '%Y-%m-%d', date: '$adoptedAt' }
+            $dateToString: { format: "%Y-%m-%d", date: "$adoptedAt" },
           },
-          count: { $sum: 1 }
-        }
+          count: { $sum: 1 },
+        },
       },
-      { $sort: { '_id': 1 } }
+      { $sort: { _id: 1 } },
     ]);
 
     // Get pet category distribution
     const categoryDistribution = await Pet.aggregate([
       {
-        $match: { status: 'available' }
+        $match: { status: "available" },
       },
       {
         $group: {
-          _id: '$category',
-          count: { $sum: 1 }
-        }
-      }
+          _id: "$category",
+          count: { $sum: 1 },
+        },
+      },
     ]);
 
     const dashboardData = {
       stats: {
-        pets: petStats[0] || { totalPets: 0, availablePets: 0, adoptedPets: 0, pendingPets: 0 },
-        users: userStats[0] || { totalUsers: 0, activeUsers: 0, newUsersThisMonth: 0 },
-        contacts: contactStats[0] || { totalContacts: 0, newContacts: 0, pendingContacts: 0 }
+        pets: petStats[0] || {
+          totalPets: 0,
+          availablePets: 0,
+          adoptedPets: 0,
+          pendingPets: 0,
+        },
+        users: userStats[0] || {
+          totalUsers: 0,
+          activeUsers: 0,
+          newUsersThisMonth: 0,
+        },
+        contacts: contactStats[0] || {
+          totalContacts: 0,
+          newContacts: 0,
+          pendingContacts: 0,
+        },
       },
       recentActivities: {
         pets: recentPets,
         users: recentUsers,
-        contacts: recentContacts
+        contacts: recentContacts,
       },
       charts: {
         adoptionTrends,
         categoryDistribution: categoryDistribution.reduce((acc, item) => {
           acc[item._id] = item.count;
           return acc;
-        }, {})
-      }
+        }, {}),
+      },
     };
 
     res.json({
       success: true,
       data: dashboardData,
-      message: 'Dashboard data retrieved successfully'
+      message: "Dashboard data retrieved successfully",
     });
   } catch (error) {
-    console.error('Error fetching dashboard data:', error);
+    console.error("Error fetching dashboard data:", error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching dashboard data',
-      error: error.message
+      message: "Error fetching dashboard data",
+      error: error.message,
     });
   }
 });
 
 // GET /api/admin/users - Get all users with pagination
-router.get('/users', async (req, res) => {
+router.get("/users", async (req, res) => {
   try {
     const {
       search,
@@ -173,7 +182,7 @@ router.get('/users', async (req, res) => {
       isActive,
       limit = 20,
       page = 1,
-      sort = 'createdAt'
+      sort = "createdAt",
     } = req.query;
 
     // Build query
@@ -181,8 +190,8 @@ router.get('/users', async (req, res) => {
 
     if (search) {
       query.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { email: { $regex: search, $options: 'i' } }
+        { name: { $regex: search, $options: "i" } },
+        { email: { $regex: search, $options: "i" } },
       ];
     }
 
@@ -191,7 +200,7 @@ router.get('/users', async (req, res) => {
     }
 
     if (isActive !== undefined) {
-      query.isActive = isActive === 'true';
+      query.isActive = isActive === "true";
     }
 
     // Pagination
@@ -201,16 +210,16 @@ router.get('/users', async (req, res) => {
     // Sort options
     const sortOptions = {};
     switch (sort) {
-      case 'name':
+      case "name":
         sortOptions.name = 1;
         break;
-      case 'email':
+      case "email":
         sortOptions.email = 1;
         break;
-      case 'role':
+      case "role":
         sortOptions.role = 1;
         break;
-      case 'oldest':
+      case "oldest":
         sortOptions.createdAt = 1;
         break;
       default:
@@ -221,8 +230,8 @@ router.get('/users', async (req, res) => {
       .sort(sortOptions)
       .limit(limitNum)
       .skip(skip)
-      .select('-password')
-      .populate('adoptedPets.pet', 'name type breed');
+      .select("-password")
+      .populate("adoptedPets.pet", "name type breed");
 
     const totalUsers = await User.countDocuments(query);
     const totalPages = Math.ceil(totalUsers / limitNum);
@@ -235,25 +244,25 @@ router.get('/users', async (req, res) => {
         totalPages,
         totalUsers,
         hasNext: page < totalPages,
-        hasPrev: page > 1
+        hasPrev: page > 1,
       },
-      message: 'Users retrieved successfully'
+      message: "Users retrieved successfully",
     });
   } catch (error) {
-    console.error('Error fetching users:', error);
+    console.error("Error fetching users:", error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching users',
-      error: error.message
+      message: "Error fetching users",
+      error: error.message,
     });
   }
 });
 
 // GET /api/admin/pets - Get all pets for admin management
-router.get('/pets', async (req, res) => {
+router.get("/pets", async (req, res) => {
   try {
-    console.log('🔍 Admin pets route hit with query:', req.query);
-    
+    console.log("🔍 Admin pets route hit with query:", req.query);
+
     const {
       search,
       category,
@@ -264,7 +273,7 @@ router.get('/pets', async (req, res) => {
       age,
       limit = 20,
       page = 1,
-      sort = 'createdAt'
+      sort = "createdAt",
     } = req.query;
 
     // Build query
@@ -272,9 +281,9 @@ router.get('/pets', async (req, res) => {
 
     if (search) {
       query.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { breed: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } }
+        { name: { $regex: search, $options: "i" } },
+        { breed: { $regex: search, $options: "i" } },
+        { description: { $regex: search, $options: "i" } },
       ];
     }
 
@@ -287,15 +296,15 @@ router.get('/pets', async (req, res) => {
     }
 
     if (breed) {
-      query.breed = { $regex: breed, $options: 'i' };
+      query.breed = { $regex: breed, $options: "i" };
     }
 
     if (status) {
       query.status = status;
     }
 
-    if (available !== undefined && available !== '') {
-      query.available = available === 'true';
+    if (available !== undefined && available !== "") {
+      query.available = available === "true";
     }
 
     if (age) {
@@ -309,35 +318,35 @@ router.get('/pets', async (req, res) => {
     // Sort options
     const sortOptions = {};
     switch (sort) {
-      case 'name':
+      case "name":
         sortOptions.name = 1;
         break;
-      case 'age':
+      case "age":
         sortOptions.age = 1;
         break;
-      case 'status':
+      case "status":
         sortOptions.status = 1;
         break;
-      case 'oldest':
+      case "oldest":
         sortOptions.createdAt = 1;
         break;
       default:
         sortOptions.createdAt = -1;
     }
 
-    console.log('🔍 MongoDB query:', query);
+    console.log("🔍 MongoDB query:", query);
 
     const pets = await Pet.find(query)
       .sort(sortOptions)
       .limit(limitNum)
       .skip(skip)
-      .populate('createdBy', 'name email')
-      .populate('adoptedBy', 'name email');
+      .populate("createdBy", "name email")
+      .populate("adoptedBy", "name email");
 
     const totalPets = await Pet.countDocuments(query);
     const totalPages = Math.ceil(totalPets / limitNum);
 
-    console.log('✅ Found pets:', totalPets);
+    console.log("✅ Found pets:", totalPets);
 
     res.json({
       success: true,
@@ -347,26 +356,26 @@ router.get('/pets', async (req, res) => {
         totalPages,
         totalPets,
         hasNext: parseInt(page) < totalPages,
-        hasPrev: parseInt(page) > 1
+        hasPrev: parseInt(page) > 1,
       },
-      message: 'Pets retrieved successfully'
+      message: "Pets retrieved successfully",
     });
   } catch (error) {
-    console.error('❌ Error fetching pets for admin:', error);
+    console.error("❌ Error fetching pets for admin:", error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching pets',
-      error: error.message
+      message: "Error fetching pets",
+      error: error.message,
     });
   }
 });
 
 // POST /api/admin/pets - Add new pet
-router.post('/pets', validatePetCreation, async (req, res) => {
+router.post("/pets", validatePetCreation, async (req, res) => {
   try {
     const petData = {
       ...req.body,
-      createdBy: req.user._id
+      createdBy: req.user._id,
     };
 
     const pet = new Pet(petData);
@@ -375,71 +384,75 @@ router.post('/pets', validatePetCreation, async (req, res) => {
     res.status(201).json({
       success: true,
       data: pet,
-      message: 'Pet added successfully'
+      message: "Pet added successfully",
     });
   } catch (error) {
-    console.error('Error adding pet:', error);
+    console.error("Error adding pet:", error);
     res.status(500).json({
       success: false,
-      message: 'Error adding pet',
-      error: error.message
+      message: "Error adding pet",
+      error: error.message,
     });
   }
 });
 
 // PUT /api/admin/pets/:id - Update pet
-router.put('/pets/:id', validateObjectId, validatePetUpdate, async (req, res) => {
-  try {
-    const pet = await Pet.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      { new: true, runValidators: true }
-    );
+router.put(
+  "/pets/:id",
+  validateObjectId,
+  validatePetUpdate,
+  async (req, res) => {
+    try {
+      const pet = await Pet.findByIdAndUpdate(req.params.id, req.body, {
+        new: true,
+        runValidators: true,
+      });
 
-    if (!pet) {
-      return res.status(404).json({
+      if (!pet) {
+        return res.status(404).json({
+          success: false,
+          message: "Pet not found",
+        });
+      }
+
+      res.json({
+        success: true,
+        data: pet,
+        message: "Pet updated successfully",
+      });
+    } catch (error) {
+      console.error("Error updating pet:", error);
+      res.status(500).json({
         success: false,
-        message: 'Pet not found'
+        message: "Error updating pet",
+        error: error.message,
       });
     }
-
-    res.json({
-      success: true,
-      data: pet,
-      message: 'Pet updated successfully'
-    });
-  } catch (error) {
-    console.error('Error updating pet:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error updating pet',
-      error: error.message
-    });
   }
-});
+);
 
 // DELETE /api/admin/pets/:id - Delete pet
-router.delete('/pets/:id', validateObjectId, async (req, res) => {
+router.delete("/pets/:id", validateObjectId, async (req, res) => {
   try {
     const pet = await Pet.findByIdAndDelete(req.params.id);
 
     if (!pet) {
       return res.status(404).json({
         success: false,
-        message: 'Pet not found'
+        message: "Pet not found",
       });
     }
 
     res.json({
       success: true,
-      message: 'Pet deleted successfully'
+      message: "Pet deleted successfully",
     });
   } catch (error) {
-    console.error('Error deleting pet:', error);
+    console.error("Error deleting pet:", error);
     res.status(500).json({
       success: false,
-      message: 'Error deleting pet',
-      error: error.message
+      message: "Error deleting pet",
+      error: error.message,
     });
   }
 });
@@ -449,14 +462,14 @@ router.delete('/pets/:id', validateObjectId, async (req, res) => {
 // ===============================
 
 // GET /api/admin/contacts - Get all contacts for admin
-router.get('/contacts', async (req, res) => {
+router.get("/contacts", async (req, res) => {
   try {
     const {
       status,
       search,
       limit = 20,
       page = 1,
-      sort = 'createdAt'
+      sort = "createdAt",
     } = req.query;
 
     // Build query object
@@ -468,10 +481,10 @@ router.get('/contacts', async (req, res) => {
 
     if (search) {
       query.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { email: { $regex: search, $options: 'i' } },
-        { subject: { $regex: search, $options: 'i' } },
-        { message: { $regex: search, $options: 'i' } }
+        { name: { $regex: search, $options: "i" } },
+        { email: { $regex: search, $options: "i" } },
+        { subject: { $regex: search, $options: "i" } },
+        { message: { $regex: search, $options: "i" } },
       ];
     }
 
@@ -482,16 +495,16 @@ router.get('/contacts', async (req, res) => {
     // Sort options
     const sortOptions = {};
     switch (sort) {
-      case 'name':
+      case "name":
         sortOptions.name = 1;
         break;
-      case 'email':
+      case "email":
         sortOptions.email = 1;
         break;
-      case 'status':
+      case "status":
         sortOptions.status = 1;
         break;
-      case 'oldest':
+      case "oldest":
         sortOptions.createdAt = 1;
         break;
       default:
@@ -503,7 +516,7 @@ router.get('/contacts', async (req, res) => {
       .sort(sortOptions)
       .limit(limitNum)
       .skip(skip)
-      .populate('response.respondedBy', 'name email');
+      .populate("response.respondedBy", "name email");
 
     // Get total count for pagination
     const totalContacts = await Contact.countDocuments(query);
@@ -513,10 +526,10 @@ router.get('/contacts', async (req, res) => {
     const statusCounts = await Contact.aggregate([
       {
         $group: {
-          _id: '$status',
-          count: { $sum: 1 }
-        }
-      }
+          _id: "$status",
+          count: { $sum: 1 },
+        },
+      },
     ]);
 
     res.json({
@@ -527,71 +540,74 @@ router.get('/contacts', async (req, res) => {
         totalPages,
         totalContacts,
         hasNext: page < totalPages,
-        hasPrev: page > 1
+        hasPrev: page > 1,
       },
       stats: {
         statusCounts: statusCounts.reduce((acc, item) => {
           acc[item._id] = item.count;
           return acc;
-        }, {})
+        }, {}),
       },
-      message: 'Contact submissions retrieved successfully'
+      message: "Contact submissions retrieved successfully",
     });
   } catch (error) {
-    console.error('Error fetching contacts:', error);
+    console.error("Error fetching contacts:", error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching contacts',
-      error: error.message
+      message: "Error fetching contacts",
+      error: error.message,
     });
   }
 });
 
 // GET /api/admin/contacts/:id - Get single contact submission
-router.get('/contacts/:id', validateObjectId, async (req, res) => {
+router.get("/contacts/:id", validateObjectId, async (req, res) => {
   try {
-    const contact = await Contact.findById(req.params.id)
-      .populate('response.respondedBy', 'name email');
+    const contact = await Contact.findById(req.params.id).populate(
+      "response.respondedBy",
+      "name email"
+    );
 
     if (!contact) {
       return res.status(404).json({
         success: false,
-        message: 'Contact submission not found'
+        message: "Contact submission not found",
       });
     }
 
     // Mark as read if it's new
-    if (contact.status === 'new') {
-      contact.status = 'read';
+    if (contact.status === "new") {
+      contact.status = "read";
       await contact.save();
     }
 
     res.json({
       success: true,
       data: contact,
-      message: 'Contact submission retrieved successfully'
+      message: "Contact submission retrieved successfully",
     });
   } catch (error) {
-    console.error('Error fetching contact:', error);
+    console.error("Error fetching contact:", error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching contact',
-      error: error.message
+      message: "Error fetching contact",
+      error: error.message,
     });
   }
 });
 
 // PUT /api/admin/contacts/:id/status - Update contact status
-router.put('/contacts/:id/status', validateObjectId, async (req, res) => {
+router.put("/contacts/:id/status", validateObjectId, async (req, res) => {
   try {
     const { status } = req.body;
 
     // Validate status
-    const validStatuses = ['new', 'read', 'responded', 'resolved'];
+    const validStatuses = ["new", "read", "responded", "resolved"];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid status. Must be one of: new, read, responded, resolved'
+        message:
+          "Invalid status. Must be one of: new, read, responded, resolved",
       });
     }
 
@@ -600,7 +616,7 @@ router.put('/contacts/:id/status', validateObjectId, async (req, res) => {
     if (!contact) {
       return res.status(404).json({
         success: false,
-        message: 'Contact submission not found'
+        message: "Contact submission not found",
       });
     }
 
@@ -610,27 +626,27 @@ router.put('/contacts/:id/status', validateObjectId, async (req, res) => {
     res.json({
       success: true,
       data: contact,
-      message: 'Contact status updated successfully'
+      message: "Contact status updated successfully",
     });
   } catch (error) {
-    console.error('Error updating contact status:', error);
+    console.error("Error updating contact status:", error);
     res.status(500).json({
       success: false,
-      message: 'Error updating contact status',
-      error: error.message
+      message: "Error updating contact status",
+      error: error.message,
     });
   }
 });
 
 // PUT /api/admin/contacts/:id/respond - Add response to contact
-router.put('/contacts/:id/respond', validateObjectId, async (req, res) => {
+router.put("/contacts/:id/respond", validateObjectId, async (req, res) => {
   try {
     const { message } = req.body;
 
-    if (!message || message.trim() === '') {
+    if (!message || message.trim() === "") {
       return res.status(400).json({
         success: false,
-        message: 'Response message is required'
+        message: "Response message is required",
       });
     }
 
@@ -639,7 +655,7 @@ router.put('/contacts/:id/respond', validateObjectId, async (req, res) => {
     if (!contact) {
       return res.status(404).json({
         success: false,
-        message: 'Contact submission not found'
+        message: "Contact submission not found",
       });
     }
 
@@ -647,40 +663,40 @@ router.put('/contacts/:id/respond', validateObjectId, async (req, res) => {
     contact.response = {
       message: message.trim(),
       respondedBy: req.user._id,
-      respondedAt: new Date()
+      respondedAt: new Date(),
     };
 
     // Update status to responded
-    contact.status = 'responded';
+    contact.status = "responded";
     await contact.save();
 
     // Populate the response
-    await contact.populate('response.respondedBy', 'name email');
+    await contact.populate("response.respondedBy", "name email");
 
     res.json({
       success: true,
       data: contact,
-      message: 'Response added successfully'
+      message: "Response added successfully",
     });
   } catch (error) {
-    console.error('Error adding response:', error);
+    console.error("Error adding response:", error);
     res.status(500).json({
       success: false,
-      message: 'Error adding response',
-      error: error.message
+      message: "Error adding response",
+      error: error.message,
     });
   }
 });
 
 // DELETE /api/admin/contacts/:id - Delete contact submission
-router.delete('/contacts/:id', validateObjectId, async (req, res) => {
+router.delete("/contacts/:id", validateObjectId, async (req, res) => {
   try {
     const contact = await Contact.findById(req.params.id);
 
     if (!contact) {
       return res.status(404).json({
         success: false,
-        message: 'Contact submission not found'
+        message: "Contact submission not found",
       });
     }
 
@@ -688,29 +704,29 @@ router.delete('/contacts/:id', validateObjectId, async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Contact submission deleted successfully'
+      message: "Contact submission deleted successfully",
     });
   } catch (error) {
-    console.error('Error deleting contact:', error);
+    console.error("Error deleting contact:", error);
     res.status(500).json({
       success: false,
-      message: 'Error deleting contact',
-      error: error.message
+      message: "Error deleting contact",
+      error: error.message,
     });
   }
 });
 
 // PUT /api/admin/users/:id/role - Update user role
-router.put('/users/:id/role', validateObjectId, async (req, res) => {
+router.put("/users/:id/role", validateObjectId, async (req, res) => {
   try {
     const { role } = req.body;
 
     // Validate role
-    const validRoles = ['user', 'admin', 'moderator'];
+    const validRoles = ["user", "admin", "moderator"];
     if (!validRoles.includes(role)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid role. Must be one of: user, admin, moderator'
+        message: "Invalid role. Must be one of: user, admin, moderator",
       });
     }
 
@@ -718,32 +734,32 @@ router.put('/users/:id/role', validateObjectId, async (req, res) => {
       req.params.id,
       { role },
       { new: true, runValidators: true }
-    ).select('-password');
+    ).select("-password");
 
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'User not found'
+        message: "User not found",
       });
     }
 
     res.json({
       success: true,
       data: user,
-      message: 'User role updated successfully'
+      message: "User role updated successfully",
     });
   } catch (error) {
-    console.error('Error updating user role:', error);
+    console.error("Error updating user role:", error);
     res.status(500).json({
       success: false,
-      message: 'Error updating user role',
-      error: error.message
+      message: "Error updating user role",
+      error: error.message,
     });
   }
 });
 
 // PUT /api/admin/users/:id/status - Update user status
-router.put('/users/:id/status', validateObjectId, async (req, res) => {
+router.put("/users/:id/status", validateObjectId, async (req, res) => {
   try {
     const { isActive } = req.body;
 
@@ -751,52 +767,52 @@ router.put('/users/:id/status', validateObjectId, async (req, res) => {
       req.params.id,
       { isActive },
       { new: true, runValidators: true }
-    ).select('-password');
+    ).select("-password");
 
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'User not found'
+        message: "User not found",
       });
     }
 
     res.json({
       success: true,
       data: user,
-      message: `User ${isActive ? 'activated' : 'deactivated'} successfully`
+      message: `User ${isActive ? "activated" : "deactivated"} successfully`,
     });
   } catch (error) {
-    console.error('Error updating user status:', error);
+    console.error("Error updating user status:", error);
     res.status(500).json({
       success: false,
-      message: 'Error updating user status',
-      error: error.message
+      message: "Error updating user status",
+      error: error.message,
     });
   }
 });
 
 // DELETE /api/admin/users/:id - Delete user
-router.delete('/users/:id', validateObjectId, async (req, res) => {
+router.delete("/users/:id", validateObjectId, async (req, res) => {
   try {
     const user = await User.findByIdAndDelete(req.params.id);
 
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'User not found'
+        message: "User not found",
       });
     }
 
     res.json({
       success: true,
-      message: 'User deleted successfully'
+      message: "User deleted successfully",
     });
   } catch (error) {
-    console.error('Error deleting user:', error);
+    console.error("Error deleting user:", error);
     res.status(500).json({
       success: false,
-      message: 'Error deleting user',
-      error: error.message
+      message: "Error deleting user",
+      error: error.message,
     });
   }
 });
