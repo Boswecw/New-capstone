@@ -1,6 +1,6 @@
 // client/src/pages/Home.js - Enhanced version with better error handling
-import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Button, Spinner, Alert, Badge } from 'react-bootstrap';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Container, Row, Col, Button, Spinner, Alert } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import HeroBanner from '../components/HeroBanner';
@@ -19,12 +19,7 @@ const Home = () => {
   // Debug mode - set to true to see more detailed error info
   const DEBUG_MODE = true;
 
-  useEffect(() => {
-    fetchFeaturedPets();
-    fetchFeaturedProducts();
-  }, []);
-
-  const fetchFeaturedPets = async () => {
+  const fetchFeaturedPets = useCallback(async () => {
     setLoadingPets(true);
     setError('');
     try {
@@ -62,9 +57,9 @@ const Home = () => {
     } finally {
       setLoadingPets(false);
     }
-  };
+  }, [DEBUG_MODE]);
 
-  const fetchFeaturedProducts = async () => {
+  const fetchFeaturedProducts = useCallback(async () => {
     setLoadingProducts(true);
     setError('');
     try {
@@ -111,10 +106,10 @@ const Home = () => {
     } finally {
       setLoadingProducts(false);
     }
-  };
+  }, [DEBUG_MODE]);
 
   // Test API endpoints function
-  const testApiEndpoints = async () => {
+  const testApiEndpoints = useCallback(async () => {
     console.log('🧪 Testing API endpoints...');
     
     const endpoints = [
@@ -148,14 +143,19 @@ const Home = () => {
     }
     
     setDebugInfo(prev => ({ ...prev, endpointTests: results }));
-  };
+  }, []);
 
-  const getProductImageUrl = (product) => {
+  const getProductImageUrl = useCallback((product) => {
     const fallback = 'product/placeholder.png';
     if (!product) return `https://storage.googleapis.com/furbabies-petstore/${fallback}`;
     const rawImage = product.image || product.imageUrl || fallback;
     return `https://storage.googleapis.com/furbabies-petstore/${rawImage}`;
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchFeaturedPets();
+    fetchFeaturedProducts();
+  }, [fetchFeaturedPets, fetchFeaturedProducts]);
 
   return (
     <div className="home-page">
