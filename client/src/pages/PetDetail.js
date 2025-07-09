@@ -5,6 +5,7 @@ import { Container, Row, Col, Card, Button, Badge, Form, Alert, Spinner, Modal }
 import { useAuth } from '../contexts/AuthContext';
 import PetImage from '../components/PetImage';
 import api from '../services/api';
+import styles from '../components/Card.module.css';
 
 const PetDetail = () => {
   const { id } = useParams();
@@ -179,22 +180,17 @@ const PetDetail = () => {
         </nav>
 
         <Row>
-          {/* Pet Image Section - FIXED SIZING */}
+          {/* Pet Image Section - Using PetCard styling */}
           <Col lg={6} className="mb-4">
             <div className="position-relative">
               <Card className="border-0 shadow-sm overflow-hidden">
-                <div className="pet-image-container">
+                <div className={styles.petImgContainer}>
                   <PetImage
                     petType={pet.type}
                     imagePath={pet.image}
                     alt={`${pet.name} - ${pet.breed}`}
-                    className="w-100 h-100"
+                    className={styles.petImg}
                     size="large"
-                    style={{ 
-                      objectFit: 'contain',
-                      backgroundColor: '#f8f9fa',
-                      transition: 'transform 0.3s ease'
-                    }}
                     onError={() => setImageError(true)}
                   />
                   
@@ -594,42 +590,6 @@ const PetDetail = () => {
           </div>
         </Modal.Body>
       </Modal>
-
-      {/* Custom Styles */}
-      <style jsx>{`
-        .pet-image-container {
-          height: 250px;
-          position: relative;
-          overflow: hidden;
-          border-radius: 0.375rem;
-          background-color: #f8f9fa;
-        }
-        
-        @media (max-width: 768px) {
-          .pet-image-container {
-            height: 200px;
-          }
-        }
-        
-        @media (max-width: 576px) {
-          .pet-image-container {
-            height: 180px;
-          }
-        }
-        
-        .pet-image-container:hover img {
-          transform: scale(1.02);
-        }
-        
-        .fade-in {
-          animation: fadeIn 0.5s ease-in;
-        }
-        
-        @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(20px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-      `}</style>
     </>
   );
 };
