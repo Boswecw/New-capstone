@@ -1,9 +1,10 @@
-// server/routes/pets.js - SIMPLE VERSION with basic validation
+// server/routes/pets.js - ZERO VALIDATION VERSION (for debugging)
 const express = require('express');
 const router = express.Router();
 const Pet = require('../models/Pet');
 const { protect, optionalAuth } = require('../middleware/auth');
-const { validatePetQuery, validatePetId } = require('../middleware/validation');
+
+// NO VALIDATION IMPORTS - We're testing without any validation
 
 // GET /api/pets/featured - Get random pets as featured
 router.get('/featured', async (req, res) => {
@@ -24,9 +25,11 @@ router.get('/featured', async (req, res) => {
   }
 });
 
-// GET /api/pets - Get all pets
-router.get('/', validatePetQuery, optionalAuth, async (req, res) => {
+// GET /api/pets - Get all pets (NO VALIDATION)
+router.get('/', optionalAuth, async (req, res) => {
   try {
+    console.log('📋 GET /api/pets - no validation version');
+    
     const {
       category,
       type,
@@ -137,55 +140,104 @@ router.get('/', validatePetQuery, optionalAuth, async (req, res) => {
   }
 });
 
-// GET /api/pets/:id - Get single pet by ID with simple validation
-router.get('/:id', validatePetId, optionalAuth, async (req, res) => {
+// 🎯 GET /api/pets/:id - ZERO VALIDATION VERSION
+router.get('/:id', async (req, res) => {
   try {
     const petId = req.params.id;
-    console.log(`🔍 Fetching pet with ID: ${petId}`);
+    console.log(`🎯 NO VALIDATION: Fetching pet with ID: ${petId}`);
+    console.log(`🎯 Pet ID type: ${typeof petId}, length: ${petId.length}`);
     
-    const pet = await Pet.findById(petId)
-      .populate('createdBy', 'name email')
-      .populate('adoptedBy', 'name email');
+    // Log the exact request
+    console.log(`🎯 Full request URL: ${req.originalUrl}`);
+    console.log(`🎯 Request params:`, req.params);
+    
+    let pet = null;
+    
+    try {
+      // Try direct findById first
+      console.log(`🎯 Trying Pet.findById("${petId}")`);
+      pet = await Pet.findById(petId);
+      console.log(`🎯 Direct findById result:`, pet ? `Found ${pet.name}` : 'Not found');
+    } catch (directError) {
+      console.log(`🎯 Direct findById failed:`, directError.message);
+      
+      // Try alternative search methods
+      try {
+        console.log(`🎯 Trying alternative search for: ${petId}`);
+        pet = await Pet.findOne({ _id: petId });
+        console.log(`🎯 Alternative search result:`, pet ? `Found ${pet.name}` : 'Not found');
+      } catch (altError) {
+        console.log(`🎯 Alternative search failed:`, altError.message);
+      }
+    }
 
     if (!pet) {
       console.log(`❌ Pet not found: ${petId}`);
-      return res.status(404).json({
-        success: false,
-        message: 'Pet not found'
-      });
+      
+      // Show what pets actually exist in database
+      try {
+        const allPets = await Pet.find().limit(20).select('_id name type');
+        console.log(`📋 First 20 pets in database:`, allPets.map(p => ({ id: p._id, name: p.name })));
+        
+        return res.status(404).json({
+          success: false,
+          message: 'Pet not found',
+          searchedId: petId,
+          availablePets: allPets.map(p => ({ id: p._id, name: p.name, type: p.type }))
+        });
+      } catch (debugError) {
+        console.log(`❌ Debug query failed:`, debugError.message);
+        return res.status(404).json({
+          success: false,
+          message: 'Pet not found',
+          searchedId: petId
+        });
+      }
     }
 
-    // Increment view count
+    // Found the pet - increment view count
     try {
       pet.views = (pet.views || 0) + 1;
       await pet.save();
+      console.log(`📈 Incremented view count for ${pet.name}`);
     } catch (saveError) {
-      console.log('Failed to increment view count:', saveError.message);
+      console.log(`⚠️ Failed to save view count:`, saveError.message);
     }
 
-    console.log(`✅ Pet found: ${pet.name} (${pet.type})`);
+    console.log(`✅ SUCCESS: Found pet ${pet.name} (${pet.type}) with ID: ${pet._id}`);
     
     res.json({
       success: true,
       data: pet,
-      message: 'Pet retrieved successfully'
+      message: 'Pet retrieved successfully (no validation)',
+      debug: {
+        requestedId: petId,
+        foundId: pet._id,
+        petName: pet.name
+      }
     });
     
   } catch (error) {
-    console.error('❌ Error fetching pet:', error);
+    console.error('❌ CRITICAL ERROR in pet detail route:', error);
+    console.error('❌ Error stack:', error.stack);
+    
     res.status(500).json({
       success: false,
       message: 'Error fetching pet details',
-      error: error.message
+      error: error.message,
+      requestedId: req.params.id,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 });
 
-// POST /api/pets/:id/vote - Vote on a pet
-router.post('/:id/vote', protect, validatePetId, async (req, res) => {
+// POST /api/pets/:id/vote - Vote on a pet (NO VALIDATION)
+router.post('/:id/vote', protect, async (req, res) => {
   try {
     const { voteType } = req.body;
     const petId = req.params.id;
+    
+    console.log(`🗳️ NO VALIDATION: Vote ${voteType} for pet ${petId}`);
     
     if (!['up', 'down'].includes(voteType)) {
       return res.status(400).json({
@@ -194,12 +246,18 @@ router.post('/:id/vote', protect, validatePetId, async (req, res) => {
       });
     }
 
-    const pet = await Pet.findById(petId);
+    let pet = null;
+    try {
+      pet = await Pet.findById(petId);
+    } catch (findError) {
+      console.log(`🗳️ Pet findById failed, trying alternative:`, findError.message);
+      pet = await Pet.findOne({ _id: petId });
+    }
     
     if (!pet) {
       return res.status(404).json({
         success: false,
-        message: 'Pet not found'
+        message: 'Pet not found for voting'
       });
     }
 
@@ -210,15 +268,16 @@ router.post('/:id/vote', protect, validatePetId, async (req, res) => {
       });
     }
 
-    // Initialize votes object if it doesn't exist
+    // Initialize votes
     if (!pet.votes) {
       pet.votes = { up: 0, down: 0 };
     }
 
-    // Simple voting - just increment the count
+    // Simple voting
     pet.votes[voteType] = (pet.votes[voteType] || 0) + 1;
-    
     await pet.save();
+
+    console.log(`✅ Vote recorded: ${voteType} for ${pet.name}`);
 
     res.json({
       success: true,
