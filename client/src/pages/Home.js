@@ -1,5 +1,6 @@
+// client/src/pages/Home.js - Enhanced version with better error handling
 import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Button, Spinner, Alert } from 'react-bootstrap';
+import { Container, Row, Col, Button, Spinner, Alert, Badge } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import HeroBanner from '../components/HeroBanner';
@@ -13,6 +14,10 @@ const Home = () => {
   const [loadingPets, setLoadingPets] = useState(true);
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [error, setError] = useState('');
+  const [debugInfo, setDebugInfo] = useState(null);
+
+  // Debug mode - set to true to see more detailed error info
+  const DEBUG_MODE = true;
 
   useEffect(() => {
     fetchFeaturedPets();
@@ -23,15 +28,35 @@ const Home = () => {
     setLoadingPets(true);
     setError('');
     try {
+      console.log('🐾 Fetching featured pets...');
       const response = await api.get('/pets?featured=true&limit=6');
+      
+      if (DEBUG_MODE) {
+        console.log('Pets API Response:', response);
+      }
+      
       if (response.data?.success) {
         setFeaturedPets(response.data.data || []);
+        console.log('✅ Featured pets loaded:', response.data.data.length);
       } else {
         setError('No featured pets available');
         setFeaturedPets([]);
       }
     } catch (err) {
-      console.error('Error fetching featured pets:', err);
+      console.error('❌ Error fetching featured pets:', err);
+      
+      if (DEBUG_MODE) {
+        setDebugInfo(prev => ({
+          ...prev,
+          petsError: {
+            message: err.message,
+            status: err.response?.status,
+            data: err.response?.data,
+            url: err.config?.url
+          }
+        }));
+      }
+      
       setError('Failed to load featured pets');
       setFeaturedPets([]);
     } finally {
@@ -43,20 +68,86 @@ const Home = () => {
     setLoadingProducts(true);
     setError('');
     try {
-      const response = await api.get('/products?featured=true&limit=6');
+      console.log('🛍️ Fetching featured products...');
+      
+      // Try the specific featured endpoint first
+      let response;
+      try {
+        response = await api.get('/products/featured?limit=6');
+      } catch (featuredErr) {
+        console.log('Featured endpoint failed, trying fallback...');
+        // Fallback to regular products with featured flag
+        response = await api.get('/products?featured=true&limit=6');
+      }
+      
+      if (DEBUG_MODE) {
+        console.log('Products API Response:', response);
+      }
+      
       if (response.data?.success) {
         setFeaturedProducts(response.data.data || []);
+        console.log('✅ Featured products loaded:', response.data.data.length);
       } else {
         setError('No featured products available');
         setFeaturedProducts([]);
       }
     } catch (err) {
-      console.error('Error fetching featured products:', err);
+      console.error('❌ Error fetching featured products:', err);
+      
+      if (DEBUG_MODE) {
+        setDebugInfo(prev => ({
+          ...prev,
+          productsError: {
+            message: err.message,
+            status: err.response?.status,
+            data: err.response?.data,
+            url: err.config?.url
+          }
+        }));
+      }
+      
       setError('Failed to load featured products');
       setFeaturedProducts([]);
     } finally {
       setLoadingProducts(false);
     }
+  };
+
+  // Test API endpoints function
+  const testApiEndpoints = async () => {
+    console.log('🧪 Testing API endpoints...');
+    
+    const endpoints = [
+      '/api/health',
+      '/api/products',
+      '/api/products/categories',
+      '/api/products/brands',
+      '/api/products/featured',
+      '/pets'
+    ];
+    
+    const results = {};
+    
+    for (const endpoint of endpoints) {
+      try {
+        const response = await api.get(endpoint);
+        results[endpoint] = {
+          status: response.status,
+          success: response.data?.success,
+          dataLength: Array.isArray(response.data?.data) ? response.data.data.length : 'N/A'
+        };
+        console.log(`✅ ${endpoint}:`, results[endpoint]);
+      } catch (err) {
+        results[endpoint] = {
+          status: err.response?.status || 'Network Error',
+          error: err.message,
+          url: err.config?.url
+        };
+        console.log(`❌ ${endpoint}:`, results[endpoint]);
+      }
+    }
+    
+    setDebugInfo(prev => ({ ...prev, endpointTests: results }));
   };
 
   const getProductImageUrl = (product) => {
@@ -70,19 +161,43 @@ const Home = () => {
     <div className="home-page">
       <Navbar />
       <HeroBanner />
+      
+      {/* Debug Panel - only show in debug mode */}
+      {DEBUG_MODE && debugInfo && (
+        <Container className="py-2">
+          <Alert variant="info" className="mb-3">
+            <Alert.Heading>🐛 Debug Information</Alert.Heading>
+            <pre style={{fontSize: '12px', maxHeight: '200px', overflow: 'auto'}}>
+              {JSON.stringify(debugInfo, null, 2)}
+            </pre>
+            <Button 
+              variant="outline-info" 
+              size="sm" 
+              onClick={testApiEndpoints}
+              className="mt-2"
+            >
+              Test API Endpoints
+            </Button>
+          </Alert>
+        </Container>
+      )}
+      
       <Container className="py-5">
         {/* Featured Pets Section */}
         <section className="featured-pets mb-5">
           <h2 className="text-center mb-4">
             <i className="fas fa-paw me-2"></i>
             Featured Pets
+            {loadingPets && <Spinner animation="border" size="sm" className="ms-2" />}
           </h2>
+          
           {error && (
             <Alert variant="warning" className="text-center">
               <i className="fas fa-exclamation-triangle me-2"></i>
               {error}
             </Alert>
           )}
+          
           {loadingPets ? (
             <div className="text-center">
               <Spinner animation="border" variant="primary" />
@@ -109,7 +224,6 @@ const Home = () => {
             </Alert>
           )}
           
-          {/* PETS BUTTON - Correctly links to /pets */}
           <div className="text-center mt-4">
             <Link to="/pets">
               <Button variant="primary" size="lg">
@@ -125,7 +239,9 @@ const Home = () => {
           <h2 className="text-center mb-4">
             <i className="fas fa-shopping-cart me-2"></i>
             Featured Products
+            {loadingProducts && <Spinner animation="border" size="sm" className="ms-2" />}
           </h2>
+          
           {loadingProducts ? (
             <div className="text-center">
               <Spinner animation="border" variant="primary" />
@@ -155,78 +271,11 @@ const Home = () => {
             </Alert>
           )}
           
-          {/* PRODUCTS BUTTON - Now correctly links to /products */}
           <div className="text-center mt-4">
             <Link to="/products">
-              <Button variant="outline-primary" size="lg">
+              <Button variant="primary" size="lg">
                 <i className="fas fa-shopping-cart me-2"></i>
                 View All Products
-              </Button>
-            </Link>
-          </div>
-        </section>
-
-        {/* Call to Action Section */}
-        <section className="cta-section text-center py-5 bg-light rounded">
-          <Container>
-            <h3 className="mb-3">Ready to Find Your Perfect Companion?</h3>
-            <p className="lead text-muted mb-4">
-              Browse our available pets or explore our products to give your furry friends the best care.
-            </p>
-            <div className="d-flex flex-column flex-md-row gap-3 justify-content-center">
-              <Link to="/browse">
-                <Button variant="success" size="lg" className="px-4">
-                  <i className="fas fa-search me-2"></i>
-                  Browse All
-                </Button>
-              </Link>
-              <Link to="/contact">
-                <Button variant="outline-primary" size="lg" className="px-4">
-                  <i className="fas fa-envelope me-2"></i>
-                  Contact Us
-                </Button>
-              </Link>
-            </div>
-          </Container>
-        </section>
-
-        {/* About Section */}
-        <section className="about-preview mt-5 text-center">
-          <h3 className="mb-4">Why Choose FurBabies?</h3>
-          <Row className="g-4">
-            <Col md={4}>
-              <div className="feature-card p-4">
-                <i className="fas fa-heart fa-3x text-danger mb-3"></i>
-                <h5>Ethical Adoption</h5>
-                <p className="text-muted">
-                  We partner with trusted rescues and ethical breeders to ensure every pet finds a loving home.
-                </p>
-              </div>
-            </Col>
-            <Col md={4}>
-              <div className="feature-card p-4">
-                <i className="fas fa-shield-alt fa-3x text-success mb-3"></i>
-                <h5>Health Guarantee</h5>
-                <p className="text-muted">
-                  All our pets receive proper veterinary care and come with health documentation.
-                </p>
-              </div>
-            </Col>
-            <Col md={4}>
-              <div className="feature-card p-4">
-                <i className="fas fa-users fa-3x text-primary mb-3"></i>
-                <h5>Lifetime Support</h5>
-                <p className="text-muted">
-                  We provide ongoing support and resources to help you and your new companion thrive.
-                </p>
-              </div>
-            </Col>
-          </Row>
-          <div className="mt-4">
-            <Link to="/about">
-              <Button variant="outline-secondary">
-                <i className="fas fa-info-circle me-2"></i>
-                Learn More About Us
               </Button>
             </Link>
           </div>

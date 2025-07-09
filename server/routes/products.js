@@ -1,4 +1,4 @@
-// server/routes/products.js - Updated with random featured products
+// server/routes/products.js - CORRECTED VERSION
 const express = require('express');
 const router = express.Router();
 const Product = require('../models/Product');
@@ -40,26 +40,28 @@ const validateProductQuery = (req, res, next) => {
   next();
 };
 
+// ===== SPECIFIC ROUTES FIRST (BEFORE GENERIC ROUTES) =====
+
 // GET /api/products/featured - Get random products as featured
 router.get('/featured', async (req, res) => {
   try {
-    console.log('🌟 Fetching random featured products...');
+    console.log('🌟 Fetching featured products...');
     
     const { limit = 6 } = req.query;
     
     // Get random products using MongoDB aggregation
     const featuredProducts = await Product.aggregate([
-      { $match: { inStock: true } }, // Only in-stock products
-      { $sample: { size: parseInt(limit) } } // Randomly sample products
+      { $match: { inStock: true } },
+      { $sample: { size: parseInt(limit) } }
     ]);
 
-    console.log(`✅ Found ${featuredProducts.length} random featured products`);
+    console.log(`✅ Found ${featuredProducts.length} featured products`);
 
     // Add full image URLs
     const productsWithUrls = featuredProducts.map(product => ({
       ...product,
       imageUrl: `https://storage.googleapis.com/furbabies-petstore/${product.image}`,
-      featured: true // Mark as featured for frontend
+      featured: true
     }));
 
     res.json({
@@ -68,10 +70,56 @@ router.get('/featured', async (req, res) => {
       message: 'Featured products retrieved successfully'
     });
   } catch (error) {
-    console.error('Error fetching featured products:', error);
+    console.error('❌ Error fetching featured products:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching featured products',
+      error: error.message
+    });
+  }
+});
+
+// GET /api/products/categories - Get distinct categories
+router.get('/categories', async (req, res) => {
+  try {
+    console.log('📂 Fetching product categories...');
+    
+    const categories = await Product.distinct('category');
+    console.log(`✅ Found ${categories.length} categories:`, categories);
+    
+    res.json({
+      success: true,
+      data: categories,
+      message: 'Product categories retrieved successfully'
+    });
+  } catch (error) {
+    console.error('❌ Error fetching categories:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching categories',
+      error: error.message
+    });
+  }
+});
+
+// GET /api/products/brands - Get distinct brands
+router.get('/brands', async (req, res) => {
+  try {
+    console.log('🏷️ Fetching product brands...');
+    
+    const brands = await Product.distinct('brand');
+    console.log(`✅ Found ${brands.length} brands:`, brands);
+    
+    res.json({
+      success: true,
+      data: brands,
+      message: 'Product brands retrieved successfully'
+    });
+  } catch (error) {
+    console.error('❌ Error fetching brands:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching brands',
       error: error.message
     });
   }
@@ -139,7 +187,7 @@ router.get('/stats', async (req, res) => {
       message: 'Product statistics retrieved successfully'
     });
   } catch (error) {
-    console.error('Error fetching product stats:', error);
+    console.error('❌ Error fetching product stats:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching product statistics',
@@ -148,45 +196,7 @@ router.get('/stats', async (req, res) => {
   }
 });
 
-// GET /api/products/categories - Get distinct categories
-router.get('/categories', async (req, res) => {
-  try {
-    const categories = await Product.distinct('category');
-    
-    res.json({
-      success: true,
-      data: categories,
-      message: 'Product categories retrieved successfully'
-    });
-  } catch (error) {
-    console.error('Error fetching categories:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching categories',
-      error: error.message
-    });
-  }
-});
-
-// GET /api/products/brands - Get distinct brands
-router.get('/brands', async (req, res) => {
-  try {
-    const brands = await Product.distinct('brand');
-    
-    res.json({
-      success: true,
-      data: brands,
-      message: 'Product brands retrieved successfully'
-    });
-  } catch (error) {
-    console.error('Error fetching brands:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching brands',
-      error: error.message
-    });
-  }
-});
+// ===== GENERIC ROUTES AFTER SPECIFIC ROUTES =====
 
 // GET /api/products - Get all products with filtering and pagination
 router.get('/', validateProductQuery, optionalAuth, async (req, res) => {
@@ -205,21 +215,6 @@ router.get('/', validateProductQuery, optionalAuth, async (req, res) => {
     } = req.query;
 
     console.log('📦 Products API called with params:', req.query);
-
-    // If featured is requested, redirect to featured endpoint
-    if (featured === 'true') {
-      console.log('🔄 Redirecting to featured products endpoint');
-      return fetch(`${req.protocol}://${req.get('host')}/api/products/featured?limit=${limit}`)
-        .then(response => response.json())
-        .then(data => res.json(data))
-        .catch(error => {
-          console.error('Error fetching featured products:', error);
-          res.status(500).json({
-            success: false,
-            message: 'Error fetching featured products'
-          });
-        });
-    }
 
     // Build query object
     const query = {};
@@ -316,7 +311,7 @@ router.get('/', validateProductQuery, optionalAuth, async (req, res) => {
       message: 'Products retrieved successfully'
     });
   } catch (error) {
-    console.error('Error fetching products:', error);
+    console.error('❌ Error fetching products:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching products',
@@ -354,7 +349,7 @@ router.get('/:id', validateObjectId, async (req, res) => {
       message: 'Product retrieved successfully'
     });
   } catch (error) {
-    console.error('Error fetching product:', error);
+    console.error('❌ Error fetching product:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching product',
@@ -404,7 +399,7 @@ router.get('/:id/related', validateObjectId, async (req, res) => {
       message: 'Related products retrieved successfully'
     });
   } catch (error) {
-    console.error('Error fetching related products:', error);
+    console.error('❌ Error fetching related products:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching related products',
@@ -447,7 +442,7 @@ router.patch('/:id', validateObjectId, async (req, res) => {
       message: 'Product updated successfully'
     });
   } catch (error) {
-    console.error('Error updating product:', error);
+    console.error('❌ Error updating product:', error);
     res.status(500).json({
       success: false,
       message: 'Error updating product',
@@ -478,7 +473,7 @@ router.post('/', protect, async (req, res) => {
       message: 'Product created successfully'
     });
   } catch (error) {
-    console.error('Error creating product:', error);
+    console.error('❌ Error creating product:', error);
     res.status(500).json({
       success: false,
       message: 'Error creating product',
@@ -509,7 +504,7 @@ router.delete('/:id', protect, validateObjectId, async (req, res) => {
       message: 'Product deleted successfully'
     });
   } catch (error) {
-    console.error('Error deleting product:', error);
+    console.error('❌ Error deleting product:', error);
     res.status(500).json({
       success: false,
       message: 'Error deleting product',
