@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Container, Row, Col, Card, Button, Badge, Form, Alert, Spinner, Modal } from 'react-bootstrap';
 import { useAuth } from '../contexts/AuthContext';
-import PetImage from '../components/PetImage';
+import { getCardImageProps } from '../utils/imageUtils';
 import api from '../services/api';
 import styles from '../components/Card.module.css';
 
@@ -20,6 +20,7 @@ const PetDetail = () => {
   const [comment, setComment] = useState('');
   const [submittingRating, setSubmittingRating] = useState(false);
   const [showContactModal, setShowContactModal] = useState(false);
+  const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
 
   // Fetch pet data
@@ -116,6 +117,25 @@ const PetDetail = () => {
     fetchPet();
   }, [fetchPet]);
 
+  // Enhanced image handlers (same as PetCard)
+  const handleImageLoad = (e) => {
+    setImageLoaded(true);
+    setImageError(false);
+  };
+
+  const handleImageError = (e) => {
+    setImageLoaded(true);
+    setImageError(true);
+    
+    // Fallback image - same as PetCard
+    if (!e.target.src.includes('default-pet.png')) {
+      e.target.src = '/images/pet/default-pet.png';
+    }
+  };
+
+  // Get optimized image props (same as PetCard)
+  const imageProps = pet ? getCardImageProps(pet, 'large') : null;
+
   // Loading state
   if (loading) {
     return (
@@ -180,26 +200,39 @@ const PetDetail = () => {
         </nav>
 
         <Row>
-          {/* Pet Image Section - Using PetCard styling */}
+          {/* Pet Image Section - Same as PetCard */}
           <Col lg={6} className="mb-4">
             <div className="position-relative">
               <Card className="border-0 shadow-sm overflow-hidden">
-                <div className={styles.petImgContainer}>
-                  <PetImage
-                    petType={pet.type}
-                    imagePath={pet.image}
-                    alt={`${pet.name} - ${pet.breed}`}
-                    className={styles.petImg}
-                    size="large"
-                    onError={() => setImageError(true)}
-                  />
+                <div className={`${styles.petImgContainer} position-relative`}>
+                  {/* Loading Spinner */}
+                  {!imageLoaded && !imageError && (
+                    <div className="position-absolute top-50 start-50 translate-middle">
+                      <Spinner animation="border" size="sm" variant="primary" />
+                    </div>
+                  )}
+
+                  {/* Image - Same approach as PetCard */}
+                  {imageProps && (
+                    <Card.Img
+                      {...imageProps}
+                      className={`${styles.petImg} transition-opacity ${
+                        imageLoaded ? 'opacity-100' : 'opacity-0'
+                      }`}
+                      onLoad={handleImageLoad}
+                      onError={handleImageError}
+                      style={{
+                        transition: 'opacity 0.3s ease-in-out',
+                      }}
+                    />
+                  )}
                   
-                  {/* Loading overlay */}
+                  {/* Image Error Fallback */}
                   {imageError && (
                     <div className="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-light">
-                      <div className="text-center">
-                        <i className="fas fa-image fa-3x text-muted mb-2"></i>
-                        <p className="text-muted">Image unavailable</p>
+                      <div className="text-center text-muted">
+                        <i className="fas fa-image fa-2x mb-2 opacity-50"></i>
+                        <div className="small">Image unavailable</div>
                       </div>
                     </div>
                   )}
