@@ -1,9 +1,9 @@
-// client/src/contexts/AuthContext.js - FIXED FOR VITE
+// client/src/contexts/AuthContext.js - FIXED VERSION
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { API_BASE_URL } from '../config/environment';
 
 const AuthContext = createContext();
 
-// Custom hook to use auth context
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
@@ -12,31 +12,11 @@ export const useAuth = () => {
   return context;
 };
 
-// Auth Provider Component
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // ✅ FIXED: Use safe environment variable access
-  const API_BASE_URL = (() => {
-    try {
-      // Try to import the environment config
-      const { API_BASE_URL: configUrl } = require('../config/environment');
-      return configUrl;
-    } catch {
-      // Fallback if config not available
-      try {
-        if (typeof import.meta !== 'undefined' && import.meta.env) {
-          return import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
-        }
-      } catch {
-        // Final fallback
-        return 'http://localhost:5000/api';
-      }
-    }
-  })();
-  
-  console.log('🔧 AuthContext API_BASE_URL:', API_BASE_URL); // Debug logging
+  console.log('🔧 AuthContext using API_BASE_URL:', API_BASE_URL);
 
   // Memoized function to validate token
   const validateToken = useCallback(async (token) => {
@@ -59,7 +39,7 @@ export const AuthProvider = ({ children }) => {
       console.error('Token validation failed:', error);
       return null;
     }
-  }, [API_BASE_URL]);
+  }, []);
 
   // Check authentication status on app start
   useEffect(() => {
@@ -67,14 +47,12 @@ export const AuthProvider = ({ children }) => {
       try {
         const token = localStorage.getItem('token');
         if (token) {
-          // Validate token by fetching user profile
           const userData = await validateToken(token);
           
           if (userData) {
             setUser(userData);
             console.log('🎯 Auth restored - User:', userData.name, 'Role:', userData.role);
           } else {
-            // Token is invalid, remove it
             localStorage.removeItem('token');
             setUser(null);
           }
@@ -93,23 +71,19 @@ export const AuthProvider = ({ children }) => {
 
   // Debug logging for user state changes
   useEffect(() => {
-    console.log('🎯 CURRENT USER STATE:', user);
     if (user) {
-      console.log('🎯 CURRENT USER ROLE:', user.role);
-      console.log('🎯 IS ADMIN?', user.role === 'admin');
+      console.log('🎯 Current User:', user.name, 'Role:', user.role, 'Admin:', user.role === 'admin');
     }
   }, [user]);
 
   const login = async (credentials) => {
     try {
-      // Make sure we're using email/password format expected by backend
       const loginData = {
-        email: credentials.email || credentials.username, // Support both formats
+        email: credentials.email || credentials.username,
         password: credentials.password
       };
 
       console.log('🔐 Attempting login to:', `${API_BASE_URL}/users/login`);
-      console.log('Login data being sent:', loginData);
 
       const response = await fetch(`${API_BASE_URL}/users/login`, {
         method: 'POST',
@@ -119,32 +93,36 @@ export const AuthProvider = ({ children }) => {
         body: JSON.stringify(loginData),
       });
 
-      // ✅ IMPROVED: Better error handling for non-JSON responses
+      console.log('📡 Response status:', response.status);
+      console.log('📡 Response headers:', Object.fromEntries(response.headers.entries()));
+
+      // Enhanced error handling for non-JSON responses
       let data;
-      try {
-        const contentType = response.headers.get('content-type');
-        if (contentType && contentType.includes('application/json')) {
+      const contentType = response.headers.get('content-type');
+      
+      if (contentType && contentType.includes('application/json')) {
+        try {
           data = await response.json();
-        } else {
-          const text = await response.text();
-          console.error('Expected JSON, received:', text);
-          throw new Error('Invalid JSON response');
+        } catch (jsonError) {
+          console.error('❌ JSON parsing failed:', jsonError);
+          throw new Error('Server returned malformed JSON response');
         }
-      } catch (jsonError) {
-        console.error('Failed to parse JSON response:', jsonError);
-        console.error('Response status:', response.status);
-        console.error('Response statusText:', response.statusText);
-        throw new Error(`Server returned invalid response (${response.status}). Please check your connection and try again.`);
+      } else {
+        const text = await response.text();
+        console.error('❌ Expected JSON, received:', text.substring(0, 200));
+        console.error('❌ Content-Type:', contentType);
+        
+        // Check if it's a CORS error (often returns HTML)
+        if (text.includes('<!DOCTYPE html>') || text.includes('<html>')) {
+          throw new Error('CORS error: Server returned HTML instead of JSON. Check server CORS configuration.');
+        }
+        
+        throw new Error(`Server returned non-JSON response (${response.status}): ${text.substring(0, 100)}`);
       }
 
       if (response.ok && data.success) {
-        // Store token and user data
         localStorage.setItem('token', data.data.token);
         setUser(data.data.user);
-        
-        // Debug logging
-        console.log('🎯 LOGIN SUCCESS - User data:', data.data.user);
-        console.log('🎯 LOGIN SUCCESS - User role:', data.data.user.role);
         
         console.log('✅ Login successful:', data.message);
         return {
@@ -154,23 +132,25 @@ export const AuthProvider = ({ children }) => {
           message: data.message
         };
       } else {
-        // Login failed
         const errorMessage = data.message || 'Login failed';
         console.error('❌ Login failed:', errorMessage);
         
-        // ✅ IMPROVED: Show detailed validation errors if available
         if (data.errors && Array.isArray(data.errors)) {
           const detailedErrors = data.errors.map(err => `${err.field}: ${err.message}`).join(', ');
-          console.error('📋 Login validation details:', detailedErrors);
           throw new Error(`Login failed: ${detailedErrors}`);
         }
         
         throw new Error(errorMessage);
       }
     } catch (error) {
-      console.error('Login error:', error);
-      // Re-throw with more specific message
-      throw new Error(error.message || 'Network error during login');
+      console.error('💥 Login error:', error);
+      
+      // Provide more helpful error messages
+      if (error.message.includes('Failed to fetch')) {
+        throw new Error('Network error: Unable to connect to server. Check your internet connection and server status.');
+      }
+      
+      throw error;
     }
   };
 
@@ -178,9 +158,7 @@ export const AuthProvider = ({ children }) => {
     try {
       console.log('📝 Attempting registration to:', `${API_BASE_URL}/users/register`);
 
-      // ✅ FIX: Transform frontend data to match backend expectations
       const requestData = {
-        // Combine firstName and lastName into name, or use existing name field
         name: userData.firstName && userData.lastName 
           ? `${userData.firstName} ${userData.lastName}`
           : userData.name || '',
@@ -188,10 +166,8 @@ export const AuthProvider = ({ children }) => {
         password: userData.password,
         ...(userData.phone && { phone: userData.phone }),
         ...(userData.address && { address: userData.address }),
-        role: 'user' // Default role for registration
+        role: 'user'
       };
-
-      console.log('📤 Registration data being sent:', requestData);
 
       const response = await fetch(`${API_BASE_URL}/users/register`, {
         method: 'POST',
@@ -201,21 +177,20 @@ export const AuthProvider = ({ children }) => {
         body: JSON.stringify(requestData),
       });
 
-      // ✅ IMPROVED: Better error handling for non-JSON responses
       let data;
-      try {
+      const contentType = response.headers.get('content-type');
+      
+      if (contentType && contentType.includes('application/json')) {
         data = await response.json();
-      } catch (jsonError) {
-        console.error('Failed to parse JSON response:', jsonError);
-        console.error('Response status:', response.status);
-        console.error('Response statusText:', response.statusText);
-        throw new Error(`Server returned invalid response (${response.status}). Please check your connection and try again.`);
+      } else {
+        const text = await response.text();
+        console.error('❌ Expected JSON, received:', text.substring(0, 200));
+        throw new Error(`Server returned non-JSON response (${response.status})`);
       }
 
       if (response.ok && data.success) {
         console.log('✅ Registration successful:', data.message);
         
-        // Auto-login after successful registration
         if (data.data && data.data.token) {
           localStorage.setItem('token', data.data.token);
           setUser(data.data.user);
@@ -228,23 +203,19 @@ export const AuthProvider = ({ children }) => {
           message: data.message
         };
       } else {
-        // Registration failed
         const errorMessage = data.message || 'Registration failed';
         console.error('❌ Registration failed:', errorMessage);
         
-        // ✅ IMPROVED: Show detailed validation errors if available
         if (data.errors && Array.isArray(data.errors)) {
           const detailedErrors = data.errors.map(err => `${err.field}: ${err.message}`).join(', ');
-          console.error('📋 Registration validation details:', detailedErrors);
           throw new Error(`Registration failed: ${detailedErrors}`);
         }
         
         throw new Error(errorMessage);
       }
     } catch (error) {
-      console.error('Registration error:', error);
-      // Re-throw with more specific message
-      throw new Error(error.message || 'Network error during registration');
+      console.error('💥 Registration error:', error);
+      throw error;
     }
   };
 
