@@ -1,54 +1,49 @@
 // client/src/services/api.js - FIXED VERSION
 import axios from 'axios';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://furbabies-backend.onrender.com/api';
+// ===== API BASE CONFIGURATION =====
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'https://furbabies-backend.onrender.com/api';
 
 console.log('🔧 New-Capstone API_BASE_URL:', API_BASE_URL);
 
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 10000,
+  timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
+// Request interceptor
 api.interceptors.request.use(
   (config) => {
-    console.log(`🌐 API Request: ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`);
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    console.log(`🌐 API Request: ${config.method?.toUpperCase()} ${config.url}`);
     return config;
   },
   (error) => {
-    console.error('❌ API Request Error:', error);
+    console.error('❌ Request Error:', error);
     return Promise.reject(error);
   }
 );
 
+// Response interceptor
 api.interceptors.response.use(
   (response) => {
-    const url = response.config.url || '';
-    console.log(`✅ API Success: ${response.status} ${url}`);
+    console.log(`✅ API Success: ${response.status} ${response.config.url?.replace(API_BASE_URL, '')}`);
     console.log('📦 Response Data:', response.data);
     return response;
   },
   (error) => {
-    const url = error.config?.url || '';
-    console.error(`❌ API Error: ${error.response?.status || 'No Status'} ${url}`, {
-      status: error.response?.status,
-      statusText: error.response?.statusText,
-      data: error.response?.data,
-      message: error.message
-    });
+    const url = error.config?.url?.replace(API_BASE_URL, '') || 'unknown';
+    console.error(`❌ API Error: ${error.response?.status} ${url}`, error.response?.data);
     
     if (error.response?.status === 401) {
       localStorage.removeItem('token');
-      if (typeof window !== 'undefined') {
-        window.location.href = '/login';
-      }
+      window.location.href = '/login';
     }
     
     return Promise.reject(error);
@@ -71,11 +66,11 @@ export const petAPI = {
     return api.get(`/pets/${id}`);
   },
 
-  // ✅ FIXED: Now calls the correct /pets/featured endpoint
+  // ✅ FIXED: Now uses the existing /pets endpoint with featured=true filter
   getFeaturedPets: (params = {}) => {
-    const queryParams = { limit: 4, ...params }; // ✅ Default to 4, allow override
+    const queryParams = { featured: 'true', limit: 4, ...params }; // ✅ Use featured filter
     console.log('🐕 petAPI.getFeaturedPets called with params:', queryParams);
-    return api.get('/pets/featured', { params: queryParams }); // ✅ Fixed endpoint
+    return api.get('/pets', { params: queryParams }); // ✅ Use existing endpoint
   },
 
   searchPets: (query, filters = {}) => {
@@ -105,11 +100,11 @@ export const productAPI = {
     return api.get(`/products/${id}`);
   },
 
-  // ✅ FIXED: Now calls the correct /products/featured endpoint
+  // ✅ FIXED: Now uses the existing /products endpoint with featured=true filter
   getFeaturedProducts: (params = {}) => {
-    const queryParams = { limit: 3, ...params }; // ✅ Default to 3, allow override
+    const queryParams = { featured: 'true', limit: 3, ...params }; // ✅ Use featured filter
     console.log('🛍️ productAPI.getFeaturedProducts called with params:', queryParams);
-    return api.get('/products/featured', { params: queryParams }); // ✅ Fixed endpoint
+    return api.get('/products', { params: queryParams }); // ✅ Use existing endpoint
   },
 
   searchProducts: (query, filters = {}) => {
