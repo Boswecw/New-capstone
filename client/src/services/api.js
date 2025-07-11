@@ -184,6 +184,59 @@ export const adminAPI = {
     return api.delete(`/admin/pets/${petId}`);
   },
 
+  // Product management
+  getProducts: (params = {}) => {
+    console.log('🛍️ adminAPI.getProducts called with params:', params);
+    return api.get('/admin/products', { params });
+  },
+
+  createProduct: (productData) => {
+    console.log('🛍️ adminAPI.createProduct called');
+    return api.post('/admin/products', productData);
+  },
+
+  updateProduct: (productId, productData) => {
+    console.log('🛍️ adminAPI.updateProduct called for product:', productId);
+    return api.put(`/admin/products/${productId}`, productData);
+  },
+
+  deleteProduct: (productId) => {
+    console.log('🗑️ adminAPI.deleteProduct called for product:', productId);
+    return api.delete(`/admin/products/${productId}`);
+  },
+
+  // News management
+  getNews: (params = {}) => {
+    console.log('📰 adminAPI.getNews called with params:', params);
+    return api.get('/admin/news', { params });
+  },
+
+  createNews: (newsData) => {
+    console.log('📰 adminAPI.createNews called');
+    return api.post('/admin/news', newsData);
+  },
+
+  updateNews: (newsId, newsData) => {
+    console.log('📰 adminAPI.updateNews called for news:', newsId);
+    return api.put(`/admin/news/${newsId}`, newsData);
+  },
+
+  deleteNews: (newsId) => {
+    console.log('🗑️ adminAPI.deleteNews called for news:', newsId);
+    return api.delete(`/admin/news/${newsId}`);
+  },
+
+  // Bulk operations
+  bulkUpdatePetStatus: (petIds, status) => {
+    console.log('🔄 adminAPI.bulkUpdatePetStatus called');
+    return api.post('/admin/bulk/pets/status', { petIds, status });
+  },
+
+  bulkUpdateUserStatus: (userIds, isActive) => {
+    console.log('🔄 adminAPI.bulkUpdateUserStatus called');
+    return api.post('/admin/bulk/users/status', { userIds, isActive });
+  },
+
   getContacts: (params = {}) => {
     console.log('📧 adminAPI.getContacts called with params:', params);
     return api.get('/admin/contacts', { params });
@@ -207,6 +260,85 @@ export const adminAPI = {
   deleteContact: (contactId) => {
     console.log('🗑️ adminAPI.deleteContact called for contact:', contactId);
     return api.delete(`/admin/contacts/${contactId}`);
+  }
+};
+
+// ===== PRODUCT API =====
+export const productAPI = {
+  getAllProducts: (params = {}) => {
+    console.log('🛍️ productAPI.getAllProducts called with params:', params);
+    return api.get('/products', { params });
+  },
+
+  getProductById: (id) => {
+    if (!id) {
+      console.error('❌ productAPI.getProductById: Product ID is required');
+      return Promise.reject(new Error('Product ID is required'));
+    }
+    console.log('🛍️ productAPI.getProductById called with ID:', id);
+    return api.get(`/products/${id}`);
+  },
+
+  createProduct: (productData) => {
+    console.log('🛍️ productAPI.createProduct called');
+    return api.post('/products', productData);
+  },
+
+  updateProduct: (id, productData) => {
+    console.log('🛍️ productAPI.updateProduct called for ID:', id);
+    return api.put(`/products/${id}`, productData);
+  },
+
+  deleteProduct: (id) => {
+    console.log('🛍️ productAPI.deleteProduct called for ID:', id);
+    return api.delete(`/products/${id}`);
+  },
+
+  getProductsByCategory: (category, params = {}) => {
+    console.log('🛍️ productAPI.getProductsByCategory called for category:', category);
+    return api.get('/products', { params: { ...params, category } });
+  },
+
+  searchProducts: (searchTerm, params = {}) => {
+    console.log('🔍 productAPI.searchProducts called with term:', searchTerm);
+    return api.get('/products', { params: { ...params, search: searchTerm } });
+  },
+
+  getFeaturedProducts: (limit = 6) => {
+    console.log('⭐ productAPI.getFeaturedProducts called');
+    return api.get('/products', { params: { featured: true, limit } });
+  }
+};
+
+// ===== NEWS API =====
+export const newsAPI = {
+  getAllNews: (params = {}) => {
+    console.log('📰 newsAPI.getAllNews called with params:', params);
+    return api.get('/news', { params });
+  },
+
+  getNewsById: (id) => {
+    if (!id) {
+      console.error('❌ newsAPI.getNewsById: News ID is required');
+      return Promise.reject(new Error('News ID is required'));
+    }
+    console.log('📰 newsAPI.getNewsById called with ID:', id);
+    return api.get(`/news/${id}`);
+  },
+
+  getNewsCategories: () => {
+    console.log('📂 newsAPI.getNewsCategories called');
+    return api.get('/news/categories');
+  },
+
+  getNewsByCategory: (category, params = {}) => {
+    console.log('📰 newsAPI.getNewsByCategory called for category:', category);
+    return api.get('/news', { params: { ...params, category } });
+  },
+
+  getFeaturedNews: (limit = 3) => {
+    console.log('⭐ newsAPI.getFeaturedNews called');
+    return api.get('/news', { params: { featured: true, limit } });
   }
 };
 
