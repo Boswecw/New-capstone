@@ -54,8 +54,9 @@ const Browse = () => {
       console.log('🔍 Fetching pets with params:', params);
       const response = await petAPI.getAllPets(params);
       console.log('🐾 Browse pets response:', response);
-      
-      setPets(response.data || []);
+
+      // API returns { success: true, data: [...] }
+      setPets(response.data?.data || []);
     } catch (err) {
       console.error('Error fetching pets:', err);
       setError('Failed to load pets. Please try again.');

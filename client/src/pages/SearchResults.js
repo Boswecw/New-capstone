@@ -27,7 +27,8 @@ const SearchResults = () => {
         if (category) params.category = category;
 
         const response = await petAPI.getAllPets(params);
-        setResults(response.pets || []);
+        // API returns { success: true, data: [...] }
+        setResults(response.data?.data || []);
       } catch (err) {
         setError("Failed to fetch search results");
       } finally {

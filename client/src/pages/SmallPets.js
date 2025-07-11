@@ -13,7 +13,8 @@ const SmallPets = () => {
     const fetchSmallPets = async () => {
       try {
         const response = await petAPI.getAllPets({ category: "small-pets" });
-        setSmallPets(response.pets || []);
+        // API returns { success: true, data: [...] }
+        setSmallPets(response.data?.data || []);
       } catch (err) {
         setError("Failed to load small pets");
       } finally {
