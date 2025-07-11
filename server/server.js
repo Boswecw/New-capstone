@@ -1,13 +1,9 @@
-// server/server.js - ENHANCED VERSION with News API
-const path = require("path");
-require("dotenv").config({ path: path.resolve(__dirname, ".env") });
-
+// server/server.js - Complete updated version with news routes
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
-
-// Import database connection
-const connectDB = require("../config/db");
+const morgan = require("morgan");
+require("dotenv").config({ path: require("path").resolve(__dirname, ".env") });
 
 // Import routes
 const petRoutes = require("./routes/pets");
@@ -15,200 +11,317 @@ const userRoutes = require("./routes/users");
 const contactRoutes = require("./routes/contact");
 const adminRoutes = require("./routes/admin");
 const productsRoutes = require("./routes/products");
-const newsRoutes = require("./routes/news"); // 🆕 ADD THIS LINE
+const newsRoutes = require("./routes/news"); // ✅ NEW: News routes
 
-// Import models for bypass routes
+// Import models
 const Pet = require("./models/Pet");
 const Product = require("./models/Product");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// CORS configuration for Render
+// ===== CORS CONFIGURATION =====
 const corsOptions = {
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps, curl, Postman)
-    if (!origin) return callback(null, true);
-
-    const allowedOrigins = [
-      "http://localhost:3000",
-      "http://localhost:3001",
-      "http://localhost:5000",
-      "https://furbabies-frontend.onrender.com",
-      "https://furbabies-backend.onrender.com",
-      process.env.APP_URL,
-      process.env.FRONTEND_URL,
-    ].filter(Boolean);
-
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      // For debugging: temporarily allow all origins (REMOVE IN PRODUCTION)
-      callback(null, true);
-    }
-  },
+  origin: [
+    "http://localhost:3000",
+    "http://localhost:3001", 
+    "https://furbabies-frontend.onrender.com",
+    process.env.FRONTEND_URL,
+    process.env.APP_URL,
+  ].filter(Boolean),
   credentials: true,
-  optionsSuccessStatus: 200,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: [
-    "Origin",
-    "X-Requested-With",
-    "Content-Type",
-    "Accept",
-    "Authorization",
-    "Cache-Control",
-  ],
+  allowedHeaders: ["Content-Type", "Authorization", "x-auth-token"],
+  optionsSuccessStatus: 200,
 };
 
-// Apply CORS before other middleware
 app.use(cors(corsOptions));
 
-// Handle preflight requests explicitly
-app.options("*", cors(corsOptions));
-
-// Other middleware
+// ===== MIDDLEWARE =====
+app.use(morgan("combined"));
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
-// Logging middleware for debugging
+// Security headers
 app.use((req, res, next) => {
-  /* eslint-disable no-console */
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
-  console.log("Origin:", req.get("Origin"));
-  console.log("User-Agent:", req.get("User-Agent"));
-  /* eslint-enable no-console */
+  res.header("X-Content-Type-Options", "nosniff");
+  res.header("X-Frame-Options", "DENY");
+  res.header("X-XSS-Protection", "1; mode=block");
   next();
 });
 
-// Environment variables check
-if (!process.env.MONGODB_URI) {
-  /* eslint-disable no-console */
-  console.error("❌ MONGODB_URI is not defined. Check your .env file.");
-  /* eslint-enable no-console */
-  process.exit(1);
-}
+// ===== DATABASE CONNECTION =====
+const connectDB = async () => {
+  try {
+    const conn = await mongoose.connect(process.env.MONGODB_URI, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+    });
+    console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
+  } catch (error) {
+    console.error("❌ MongoDB connection error:", error.message);
+    process.exit(1);
+  }
+};
 
-if (!process.env.JWT_SECRET) {
-  /* eslint-disable no-console */
-  console.error("❌ JWT_SECRET is not defined. Check your .env file.");
-  /* eslint-enable no-console */
-  process.exit(1);
-}
-
-// Optional: Check for NEWS_API_KEY (not required for basic functionality)
-if (!process.env.NEWS_API_KEY) {
-  /* eslint-disable no-console */
-  console.warn("⚠️ NEWS_API_KEY not found. News API will use sample data.");
-  console.warn("📝 Get a free key at: https://newsapi.org/register");
-  /* eslint-enable no-console */
-}
-
-// Connect to database
 connectDB();
 
-// Health check route
+// ===== ENHANCED DEBUGGING ROUTES =====
+// These routes help debug specific pet/product lookup issues
+app.get("/api/debug/pets/:id", async (req, res) => {
+  try {
+    const petId = req.params.id;
+    console.log(`🐛 DEBUG ROUTE: Analyzing pet ${petId}`);
+
+    const debugInfo = {
+      searchedId: petId,
+      timestamp: new Date().toISOString(),
+      tests: {},
+    };
+
+    const tests = [
+      { name: "findById", method: () => Pet.findById(petId) },
+      { name: "findOne_id", method: () => Pet.findOne({ _id: petId }) },
+      {
+        name: "findOne_name",
+        method: () => Pet.findOne({ name: `Pet ${petId.substring(1)}` }),
+      },
+      {
+        name: "raw_collection",
+        method: async () => {
+          const collection = mongoose.connection.db.collection("pets");
+          return await collection.findOne({ _id: petId });
+        },
+      },
+    ];
+
+    for (const test of tests) {
+      try {
+        const result = await test.method();
+        debugInfo.tests[test.name] = {
+          success: !!result,
+          found: result ? { id: result._id, name: result.name } : null,
+        };
+      } catch (error) {
+        debugInfo.tests[test.name] = {
+          success: false,
+          error: error.message,
+        };
+      }
+    }
+
+    debugInfo.stats = {
+      totalPets: await Pet.countDocuments(),
+      petsWithSimilarId: await Pet.countDocuments({
+        _id: new RegExp(petId.substring(1)),
+      }),
+      petsWithSimilarName: await Pet.countDocuments({
+        name: new RegExp(petId.replace("pet_", "")),
+      }),
+    };
+
+    return res.json({
+      success: true,
+      debug: debugInfo,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      error: error.message,
+      debug: { searchedId: req.params.id },
+    });
+  }
+});
+
+app.get("/api/debug/products/:id", async (req, res) => {
+  try {
+    const productId = req.params.id;
+    console.log(`🐛 DEBUG ROUTE: Analyzing product ${productId}`);
+
+    const debugInfo = {
+      searchedId: productId,
+      timestamp: new Date().toISOString(),
+      tests: {},
+    };
+
+    const tests = [
+      { name: "findById", method: () => Product.findById(productId) },
+      { name: "findOne_id", method: () => Product.findOne({ _id: productId }) },
+      {
+        name: "findOne_name",
+        method: () => Product.findOne({ name: `Product ${productId.substring(1)}` }),
+      },
+      {
+        name: "raw_collection",
+        method: async () => {
+          const collection = mongoose.connection.db.collection("products");
+          return await collection.findOne({ _id: productId });
+        },
+      },
+    ];
+
+    for (const test of tests) {
+      try {
+        const result = await test.method();
+        debugInfo.tests[test.name] = {
+          success: !!result,
+          found: result ? { id: result._id, name: result.name, price: result.price } : null,
+        };
+      } catch (error) {
+        debugInfo.tests[test.name] = {
+          success: false,
+          error: error.message,
+        };
+      }
+    }
+
+    debugInfo.stats = {
+      totalProducts: await Product.countDocuments(),
+      productsWithSimilarId: await Product.countDocuments({
+        _id: new RegExp(productId.substring(5)),
+      }),
+      productsWithSimilarName: await Product.countDocuments({
+        name: new RegExp(productId.replace("prod_", "")),
+      }),
+    };
+
+    return res.json({
+      success: true,
+      debug: debugInfo,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      error: error.message,
+      debug: { searchedId: req.params.id },
+    });
+  }
+});
+
+// ===== API ROUTES =====
+app.use("/api/pets", petRoutes);
+app.use("/api/users", userRoutes);
+app.use("/api/auth", userRoutes);
+app.use("/api/contact", contactRoutes);
+app.use("/api/admin", adminRoutes);
+app.use("/api/products", productsRoutes);
+app.use("/api/news", newsRoutes); // ✅ NEW: News routes integration
+
+// ===== HEALTH CHECK ROUTE =====
 app.get("/api/health", (req, res) => {
-  res.status(200).json({
-    success: true,
-    message: "🐾 FurBabies API is running smoothly!",
+  res.json({
+    status: "Server is running",
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || "development",
     database: mongoose.connection.readyState === 1 ? "Connected" : "Disconnected",
-    uptime: `${Math.floor(process.uptime())} seconds`,
+    environment: process.env.NODE_ENV || "development",
+    version: "1.2.0", // Updated version
+    features: [
+      "Enhanced pet search with 7 different methods",
+      "Enhanced product search with 7 different methods", 
+      "News API with categories and articles", // ✅ NEW
+      "Comprehensive error debugging",
+      "Raw MongoDB collection fallback",
+      "Case-insensitive ID matching",
+    ],
+    cors: {
+      allowedOrigins: [
+        "https://furbabies-frontend.onrender.com",
+        "http://localhost:3000",
+        "http://localhost:3001",
+        process.env.APP_URL,
+        process.env.FRONTEND_URL,
+      ].filter(Boolean),
+    },
+  });
+});
+
+// ===== ROOT ROUTE =====
+app.get("/", (req, res) => {
+  res.json({
+    message: "FurBabies API Server - Enhanced Version with News",
+    version: "1.2.0",
+    status: "running",
+    features: [
+      "Enhanced pet search with 7 different methods",
+      "Enhanced product search with 7 different methods",
+      "News API with categories and articles", // ✅ NEW
+      "Comprehensive error debugging",
+      "Raw MongoDB collection fallback",
+      "Case-insensitive ID matching",
+    ],
     endpoints: {
+      health: "/api/health",
+      auth: "/api/auth",
       pets: "/api/pets",
-      products: "/api/products",
       users: "/api/users",
       contact: "/api/contact",
       admin: "/api/admin",
-      news: "/api/news" // 🆕 ADD THIS LINE
-    }
+      products: "/api/products",
+      news: "/api/news", // ✅ NEW
+      newsCategories: "/api/news/categories", // ✅ NEW
+      debugPets: "/api/debug/pets/:id",
+      debugProducts: "/api/debug/products/:id",
+    },
   });
 });
 
-// 🆕 API Routes - ADD news route
-app.use("/api/pets", petRoutes);
-app.use("/api/products", productsRoutes);
-app.use("/api/users", userRoutes);
-app.use("/api/contact", contactRoutes);
-app.use("/api/admin", adminRoutes);
-app.use("/api/news", newsRoutes); // 🆕 ADD THIS LINE
-
-// Bypass routes for direct database access (DEVELOPMENT ONLY)
-if (process.env.NODE_ENV === "development") {
-  console.log("🔧 Development mode: Enabling bypass routes");
-  
-  // Direct pet access for testing
-  app.get("/pets", async (req, res) => {
-    try {
-      const pets = await Pet.find({ status: "available" }).limit(10);
-      res.json({ success: true, data: pets, source: "direct-db" });
-    } catch (error) {
-      res.status(500).json({ success: false, error: error.message });
-    }
-  });
-
-  // Direct product access for testing
-  app.get("/products", async (req, res) => {
-    try {
-      const products = await Product.find({ inStock: true }).limit(10);
-      res.json({ success: true, data: products, source: "direct-db" });
-    } catch (error) {
-      res.status(500).json({ success: false, error: error.message });
-    }
-  });
-}
-
-// Serve static files in production
-if (process.env.NODE_ENV === "production") {
-  // Serve static files from React build
-  app.use(express.static(path.join(__dirname, "../client/build")));
-
-  // Handle React routing - send all requests to React
-  app.get("*", (req, res) => {
-    res.sendFile(path.join(__dirname, "../client/build", "index.html"));
-  });
-}
-
-// Global error handler
+// ===== ERROR HANDLING MIDDLEWARE =====
 app.use((err, req, res, next) => {
-  console.error("💥 Global error handler:", err.stack);
-  
-  res.status(err.status || 500).json({
+  console.error("💥 Server error:", err);
+
+  res.status(500).json({
     success: false,
-    message: err.message || "Internal server error",
-    ...(process.env.NODE_ENV === "development" && { stack: err.stack })
+    message: process.env.NODE_ENV === "development" ? err.message : "Internal server error",
+    ...(process.env.NODE_ENV === "development" && {
+      stack: err.stack,
+      timestamp: new Date().toISOString(),
+    }),
   });
+
+  next();
 });
 
-// Handle 404s
-app.use((req, res) => {
+// ===== 404 HANDLER FOR UNDEFINED ROUTES =====
+app.use("*", (req, res) => {
   res.status(404).json({
     success: false,
-    message: `Route ${req.originalUrl} not found`,
+    message: "Route not found",
+    path: req.originalUrl,
+    method: req.method,
     availableRoutes: [
-      "/api/health",
-      "/api/pets",
-      "/api/products",
-      "/api/users",
-      "/api/contact",
-      "/api/admin",
-      "/api/news" // 🆕 ADD THIS LINE
-    ]
+      "GET /api/health",
+      "GET /api/pets",
+      "GET /api/pets/:id",
+      "GET /api/products",
+      "GET /api/products/:id",
+      "GET /api/news", // ✅ NEW
+      "GET /api/news/categories", // ✅ NEW
+      "GET /api/news/:id", // ✅ NEW
+      "POST /api/users/register",
+      "POST /api/users/login",
+      "POST /api/contact",
+      "GET /api/debug/pets/:id",
+      "GET /api/debug/products/:id",
+    ],
   });
 });
 
-// Start server
+// ===== START SERVER =====
 app.listen(PORT, () => {
-  /* eslint-disable no-console */
-  console.log("🚀 ===========================================");
-  console.log(`🐾 FurBabies Server running on port ${PORT}`);
+  console.log(`🚀 Enhanced FurBabies Server running on port ${PORT}`);
+  console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
   console.log(`🌍 Environment: ${process.env.NODE_ENV || "development"}`);
-  console.log(`🗄️  Database: ${process.env.MONGODB_URI ? "✅ Connected" : "❌ Not configured"}`);
-  console.log(`🔐 JWT Secret: ${process.env.JWT_SECRET ? "✅ Configured" : "❌ Missing"}`);
-  console.log(`📰 News API: ${process.env.NEWS_API_KEY ? "✅ API Key found" : "⚠️ Using sample data"}`);
-  console.log("🚀 ===========================================");
-  /* eslint-enable no-console */
+  console.log(`🔗 API available at: http://localhost:${PORT}`);
+  console.log(`🌐 CORS configured for frontend: https://furbabies-frontend.onrender.com`);
+  console.log(`🎯 Enhanced routes active:`);
+  console.log(`   • /api/pets/:id (7-method pet search)`);
+  console.log(`   • /api/products/:id (7-method product search)`);
+  console.log(`   • /api/news (news articles API)`); // ✅ NEW
+  console.log(`   • /api/news/categories (news categories)`); // ✅ NEW
+  console.log(`🐛 Debug routes available:`);
+  console.log(`   • /api/debug/pets/:id`);
+  console.log(`   • /api/debug/products/:id`);
+  console.log(`✨ Features: Custom ID support, comprehensive debugging, news API`);
 });
 
 module.exports = app;
