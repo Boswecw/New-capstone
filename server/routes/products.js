@@ -1,14 +1,40 @@
-// server/routes/products.js - FIXED ROUTE ORDER & ENHANCED
+// routes/products.js - COMPLETE WORKING VERSION (NO EXTERNAL VALIDATION)
 const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
 const Product = require('../models/Product');
 const { protect, admin, optionalAuth } = require('../middleware/auth');
-const {
-  validateObjectId,
-  validateProductCreation,
-  validateProductUpdate
-} = require('../middleware/validation');
+
+// ===== VALIDATION FUNCTIONS (INLINE) =====
+const validateObjectId = (req, res, next) => {
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    return res.status(400).json({
+      success: false,
+      message: 'Invalid ID format'
+    });
+  }
+  next();
+};
+
+const validateProductData = (req, res, next) => {
+  const { name, price, category } = req.body;
+  
+  if (!name || !price || !category) {
+    return res.status(400).json({
+      success: false,
+      message: 'Name, price, and category are required'
+    });
+  }
+  
+  if (isNaN(price) || price < 0) {
+    return res.status(400).json({
+      success: false,
+      message: 'Price must be a valid positive number'
+    });
+  }
+  
+  next();
+};
 
 // ===== SPECIFIC ROUTES FIRST (BEFORE /:id) =====
 
@@ -19,7 +45,7 @@ router.get('/categories', async (req, res) => {
     console.log('📂 Getting product categories');
     
     const categories = await Product.aggregate([
-      { $match: { isActive: { $ne: false } } }, // Only active products
+      { $match: { isActive: { $ne: false } } },
       {
         $group: {
           _id: '$category',
@@ -29,7 +55,7 @@ router.get('/categories', async (req, res) => {
           maxPrice: { $max: '$price' }
         }
       },
-      { $match: { _id: { $ne: null } } }, // Remove null categories
+      { $match: { _id: { $ne: null } } },
       { $sort: { count: -1 } }
     ]);
 
@@ -183,7 +209,7 @@ router.get('/', async (req, res) => {
   try {
     console.log('🛍️ GET /api/products - Query params:', req.query);
     
-    const query = { isActive: { $ne: false } }; // Only active products by default
+    const query = { isActive: { $ne: false } };
 
     // Build query based on filters
     if (req.query.category) query.category = req.query.category;
@@ -288,7 +314,7 @@ router.get('/:id', async (req, res) => {
     let product = null;
     const searchMethods = [];
 
-    // Method 1: Try direct _id match (works for both ObjectId and string)
+    // Method 1: Try direct _id match
     try {
       console.log(`🔍 Method 1: Direct _id lookup for "${productId}"`);
       product = await Product.findOne({ _id: productId, isActive: { $ne: false } });
@@ -296,8 +322,10 @@ router.get('/:id', async (req, res) => {
       if (product) {
         console.log(`✅ Found product via direct _id: ${product.name || product.title}`);
         
-        // Increment view count
-        await Product.findByIdAndUpdate(product._id, { $inc: { viewCount: 1 } });
+        // Increment view count if product has viewCount field
+        if (product.viewCount !== undefined) {
+          await Product.findByIdAndUpdate(product._id, { $inc: { viewCount: 1 } });
+        }
         
         return res.json({ success: true, data: product, searchMethod: 'direct_id' });
       }
@@ -306,7 +334,7 @@ router.get('/:id', async (req, res) => {
       searchMethods.push({ method: 'direct_id', success: false, error: error.message });
     }
 
-    // Method 2: Try as MongoDB ObjectId (if it looks like one)
+    // Method 2: Try as MongoDB ObjectId
     if (mongoose.Types.ObjectId.isValid(productId) && productId.length === 24) {
       try {
         console.log(`🔍 Method 2: ObjectId lookup for "${productId}"`);
@@ -315,8 +343,9 @@ router.get('/:id', async (req, res) => {
         if (product) {
           console.log(`✅ Found product via ObjectId: ${product.name || product.title}`);
           
-          // Increment view count
-          await Product.findByIdAndUpdate(product._id, { $inc: { viewCount: 1 } });
+          if (product.viewCount !== undefined) {
+            await Product.findByIdAndUpdate(product._id, { $inc: { viewCount: 1 } });
+          }
           
           return res.json({ success: true, data: product, searchMethod: 'objectid' });
         }
@@ -326,34 +355,12 @@ router.get('/:id', async (req, res) => {
       }
     }
 
-    // Method 3: Try raw MongoDB collection search (bypasses Mongoose validation)
-    try {
-      console.log(`🔍 Method 3: Raw collection lookup for "${productId}"`);
-      const collection = mongoose.connection.db.collection('products');
-      const rawResult = await collection.findOne({ 
-        _id: productId,
-        isActive: { $ne: false }
-      });
-      searchMethods.push({ method: 'raw_collection', success: !!rawResult, id: productId });
-      if (rawResult) {
-        console.log(`✅ Found product via raw collection: ${rawResult.name || rawResult.title}`);
-        
-        // Increment view count
-        await collection.updateOne({ _id: productId }, { $inc: { viewCount: 1 } });
-        
-        return res.json({ success: true, data: rawResult, searchMethod: 'raw_collection' });
-      }
-    } catch (error) {
-      console.log(`❌ Method 3 failed: ${error.message}`);
-      searchMethods.push({ method: 'raw_collection', success: false, error: error.message });
-    }
-
-    // Method 4: Search by name pattern (e.g., "prod_001" -> "Product 001")
+    // Method 3: Search by name pattern
     if (productId.startsWith('prod_')) {
       try {
-        const nameNumber = productId.replace('prod_', ''); // Remove 'prod_' prefix
+        const nameNumber = productId.replace('prod_', '');
         const searchName = `Product ${nameNumber}`;
-        console.log(`🔍 Method 4: Name search for "${searchName}"`);
+        console.log(`🔍 Method 3: Name search for "${searchName}"`);
         product = await Product.findOne({ 
           $and: [
             { isActive: { $ne: false } },
@@ -369,48 +376,21 @@ router.get('/:id', async (req, res) => {
         if (product) {
           console.log(`✅ Found product via name pattern: ${product.name || product.title}`);
           
-          // Increment view count
-          await Product.findByIdAndUpdate(product._id, { $inc: { viewCount: 1 } });
+          if (product.viewCount !== undefined) {
+            await Product.findByIdAndUpdate(product._id, { $inc: { viewCount: 1 } });
+          }
           
           return res.json({ success: true, data: product, searchMethod: 'name_pattern' });
         }
       } catch (error) {
-        console.log(`❌ Method 4 failed: ${error.message}`);
+        console.log(`❌ Method 3 failed: ${error.message}`);
         searchMethods.push({ method: 'name_pattern', success: false, error: error.message });
       }
     }
 
-    // Method 5: Search by partial name match
+    // Method 4: List available products for debugging
     try {
-      console.log(`🔍 Method 5: Partial name search for "${productId}"`);
-      product = await Product.findOne({ 
-        $and: [
-          { isActive: { $ne: false } },
-          {
-            $or: [
-              { name: { $regex: productId, $options: 'i' } },
-              { title: { $regex: productId, $options: 'i' } }
-            ]
-          }
-        ]
-      });
-      searchMethods.push({ method: 'partial_name', success: !!product, searchTerm: productId });
-      if (product) {
-        console.log(`✅ Found product via partial name: ${product.name || product.title}`);
-        
-        // Increment view count
-        await Product.findByIdAndUpdate(product._id, { $inc: { viewCount: 1 } });
-        
-        return res.json({ success: true, data: product, searchMethod: 'partial_name' });
-      }
-    } catch (error) {
-      console.log(`❌ Method 5 failed: ${error.message}`);
-      searchMethods.push({ method: 'partial_name', success: false, error: error.message });
-    }
-
-    // Method 6: List all products to see what IDs actually exist
-    try {
-      console.log(`🔍 Method 6: Listing all product IDs for debugging`);
+      console.log(`🔍 Method 4: Listing available product IDs`);
       const allProducts = await Product.find(
         { isActive: { $ne: false } }, 
         { _id: 1, name: 1, title: 1 }
@@ -422,13 +402,12 @@ router.get('/:id', async (req, res) => {
       console.log('📋 Available product IDs:', productIds);
       searchMethods.push({ method: 'list_all', success: true, availableIds: productIds });
     } catch (error) {
-      console.log(`❌ Method 6 failed: ${error.message}`);
+      console.log(`❌ Method 4 failed: ${error.message}`);
       searchMethods.push({ method: 'list_all', success: false, error: error.message });
     }
 
-    // No product found with any method
+    // No product found
     console.log(`❌ Product not found with ID: ${productId}`);
-    console.log('📊 Search methods tried:', searchMethods);
 
     return res.status(404).json({ 
       success: false, 
@@ -453,14 +432,15 @@ router.get('/:id', async (req, res) => {
 
 // @desc    Create new product (admin only)
 // @route   POST /api/products
-router.post('/', protect, admin, validateProductCreation, async (req, res) => {
+router.post('/', protect, admin, validateProductData, async (req, res) => {
   try {
     console.log('🛍️ Product creation by admin:', req.user.email);
 
     const productData = {
       ...req.body,
       createdBy: req.user._id,
-      isActive: true
+      isActive: true,
+      createdAt: new Date()
     };
 
     const product = new Product(productData);
@@ -499,13 +479,19 @@ router.post('/', protect, admin, validateProductCreation, async (req, res) => {
 
 // @desc    Update product (admin only)
 // @route   PUT /api/products/:id
-router.put('/:id', protect, admin, validateProductUpdate, async (req, res) => {
+router.put('/:id', protect, admin, validateObjectId, async (req, res) => {
   try {
     console.log('🛍️ Product update by admin:', req.user.email, 'for product:', req.params.id);
 
+    const updateData = {
+      ...req.body,
+      updatedBy: req.user._id,
+      updatedAt: new Date()
+    };
+
     const product = await Product.findByIdAndUpdate(
       req.params.id,
-      { ...req.body, updatedBy: req.user._id, updatedAt: new Date() },
+      updateData,
       { new: true, runValidators: true }
     );
 
@@ -549,7 +535,7 @@ router.put('/:id', protect, admin, validateProductUpdate, async (req, res) => {
 
 // @desc    Delete product (admin only)
 // @route   DELETE /api/products/:id
-router.delete('/:id', protect, admin, async (req, res) => {
+router.delete('/:id', protect, admin, validateObjectId, async (req, res) => {
   try {
     console.log('🗑️ Product deletion by admin:', req.user.email, 'for product:', req.params.id);
 
