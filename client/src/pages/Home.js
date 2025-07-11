@@ -17,10 +17,12 @@ const Home = () => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const petsRes = await petAPI.getFeaturedPets({ limit: 6 });
+        // ✅ Changed from 6 to 4 pets
+        const petsRes = await petAPI.getFeaturedPets({ limit: 4 });
         setFeaturedPets(Array.isArray(petsRes.data?.data) ? petsRes.data.data : []);
 
-        const productsRes = await productAPI.getFeaturedProducts({ limit: 6 });
+        // ✅ Changed from 6 to 3 products
+        const productsRes = await productAPI.getFeaturedProducts({ limit: 3 });
         setFeaturedProducts(Array.isArray(productsRes.data?.data) ? productsRes.data.data : []);
       } catch (err) {
         console.error('❌ Error loading featured items:', err);
