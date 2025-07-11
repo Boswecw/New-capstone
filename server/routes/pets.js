@@ -1,4 +1,4 @@
-// server/routes/pets.js - FIXED VERSION: Handle Custom String IDs
+// server/routes/pets.js - FINAL VERSION: Random Featured + Flexible ID Support
 const express = require('express');
 const router = express.Router();
 const Pet = require('../models/Pet');
@@ -74,57 +74,22 @@ router.get('/featured', async (req, res) => {
   }
 });
 
-// @desc    Get pet by ID (FIXED: supports custom string IDs like "p053")
+// @desc    Get pet by ID (supports custom string IDs like "p042")
 // @route   GET /api/pets/:id
 router.get('/:id', async (req, res) => {
   try {
     const petId = req.params.id;
     console.log('🔍 Looking for pet with ID:', petId);
     
-    let pet = null;
-    
-    // ✅ Method 1: Try direct query with the ID as-is (works for custom string IDs)
-    try {
-      pet = await Pet.findOne({ _id: petId });
-      if (pet) {
-        console.log('✅ Found pet with direct _id match:', pet.name);
-      }
-    } catch (directError) {
-      console.log('⚠️ Direct _id query failed:', directError.message);
-    }
-    
-    // ✅ Method 2: If no pet found and ID looks like ObjectId, try findById
-    if (!pet && petId.match(/^[0-9a-fA-F]{24}$/)) {
-      try {
-        pet = await Pet.findById(petId);
-        if (pet) {
-          console.log('✅ Found pet with findById:', pet.name);
-        }
-      } catch (objectIdError) {
-        console.log('⚠️ ObjectId query failed:', objectIdError.message);
-      }
-    }
-    
-    // ✅ Method 3: If still no pet, try searching by name (last resort)
-    if (!pet) {
-      try {
-        pet = await Pet.findOne({ 
-          name: { $regex: new RegExp(petId.replace(/[^a-zA-Z0-9]/g, ''), 'i') } 
-        });
-        if (pet) {
-          console.log('✅ Found pet with name search:', pet.name);
-        }
-      } catch (nameError) {
-        console.log('⚠️ Name search failed:', nameError.message);
-      }
-    }
+    // ✅ Simple direct query (works with custom string IDs after model update)
+    const pet = await Pet.findOne({ _id: petId });
 
     if (!pet) {
-      console.log('❌ Pet not found with any method for ID:', petId);
+      console.log('❌ Pet not found with ID:', petId);
       return res.status(404).json({ success: false, message: 'Pet not found' });
     }
 
-    console.log('✅ Successfully returning pet:', pet.name, 'with ID:', pet._id);
+    console.log('✅ Successfully found pet:', pet.name, 'with ID:', pet._id);
     res.json({ success: true, data: pet });
   } catch (err) {
     console.error('❌ Error fetching pet by ID:', err);
@@ -148,22 +113,7 @@ router.post('/:id/vote', protect, async (req, res) => {
   }
 
   try {
-    // ✅ Use the same flexible ID matching as the get route
-    const petId = req.params.id;
-    let pet = null;
-    
-    // Try multiple methods to find the pet
-    try {
-      pet = await Pet.findOne({ _id: petId });
-    } catch (directError) {
-      if (petId.match(/^[0-9a-fA-F]{24}$/)) {
-        try {
-          pet = await Pet.findById(petId);
-        } catch (objectIdError) {
-          console.log('Both ID methods failed for voting');
-        }
-      }
-    }
+    const pet = await Pet.findOne({ _id: req.params.id });
 
     if (!pet) {
       return res.status(404).json({ success: false, message: 'Pet not found' });
