@@ -1,7 +1,25 @@
-// client/src/services/api.js
+// client/src/services/api.js - FINAL FIX - REPLACE ENTIRE FILE
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+// ✅ FIXED: Safe API URL detection that works in production
+const getApiBaseUrl = () => {
+  // Check if we're in production on Render
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname;
+    
+    // Production: if frontend is on Render, use production backend
+    if (hostname.includes('onrender.com')) {
+      // ⚠️ REPLACE 'furbabies-backend' with your actual backend service name
+      return 'https://furbabies-backend.onrender.com/api';
+    }
+  }
+  
+  // Development: use localhost
+  return 'http://localhost:5000/api';
+};
+
+// This replaces the problematic line that was causing the error
+const API_BASE_URL = getApiBaseUrl();
 
 console.log('🔧 API_BASE_URL:', API_BASE_URL);
 

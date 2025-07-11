@@ -17,11 +17,26 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // ✅ FIXED: Use Vite environment variable syntax
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+  // ✅ FIXED: Use safe environment variable access
+  const API_BASE_URL = (() => {
+    try {
+      // Try to import the environment config
+      const { API_BASE_URL: configUrl } = require('../config/environment');
+      return configUrl;
+    } catch {
+      // Fallback if config not available
+      try {
+        if (typeof import.meta !== 'undefined' && import.meta.env) {
+          return import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+        }
+      } catch {
+        // Final fallback
+        return 'http://localhost:5000/api';
+      }
+    }
+  })();
   
-  console.log('🔧 API_BASE_URL:', API_BASE_URL); // Debug logging
-  console.log('🔧 Environment:', import.meta.env.MODE); // Vite environment mode
+  console.log('🔧 AuthContext API_BASE_URL:', API_BASE_URL); // Debug logging
 
   // Memoized function to validate token
   const validateToken = useCallback(async (token) => {
