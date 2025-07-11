@@ -1,4 +1,4 @@
-// client/src/contexts/AuthContext.js
+// client/src/contexts/AuthContext.js - FIXED FOR VITE
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
 const AuthContext = createContext();
@@ -17,10 +17,11 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // ✅ FIXED: Consistent API base URL configuration
-  const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+  // ✅ FIXED: Use Vite environment variable syntax
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
   
   console.log('🔧 API_BASE_URL:', API_BASE_URL); // Debug logging
+  console.log('🔧 Environment:', import.meta.env.MODE); // Vite environment mode
 
   // Memoized function to validate token
   const validateToken = useCallback(async (token) => {
@@ -159,18 +160,16 @@ export const AuthProvider = ({ children }) => {
       const requestData = {
         // Combine firstName and lastName into name, or use existing name field
         name: userData.firstName && userData.lastName 
-          ? `${userData.firstName} ${userData.lastName}`.trim()
-          : userData.name || userData.username || userData.firstName || userData.lastName || '',
+          ? `${userData.firstName} ${userData.lastName}`
+          : userData.name || '',
         email: userData.email,
-        password: userData.password
+        password: userData.password,
+        ...(userData.phone && { phone: userData.phone }),
+        ...(userData.address && { address: userData.address }),
+        role: 'user' // Default role for registration
       };
 
-      // Validate required fields
-      if (!requestData.name || !requestData.email || !requestData.password) {
-        throw new Error('Name, email, and password are required');
-      }
-
-      console.log('📝 Sending registration data:', requestData);
+      console.log('📤 Registration data being sent:', requestData);
 
       const response = await fetch(`${API_BASE_URL}/users/register`, {
         method: 'POST',
@@ -188,36 +187,33 @@ export const AuthProvider = ({ children }) => {
         console.error('Failed to parse JSON response:', jsonError);
         console.error('Response status:', response.status);
         console.error('Response statusText:', response.statusText);
-        console.error('Response headers:', response.headers);
-        
-        // If we get HTML instead of JSON, it's likely a 404 or server error
-        if (response.status === 404) {
-          throw new Error('Registration endpoint not found. Please check server configuration.');
-        } else {
-          throw new Error(`Server returned invalid response (${response.status}). Please check your connection and try again.`);
-        }
+        throw new Error(`Server returned invalid response (${response.status}). Please check your connection and try again.`);
       }
 
       if (response.ok && data.success) {
-        // Auto-login after successful registration
-        localStorage.setItem('token', data.data.token);
-        setUser(data.data.user);
-        
         console.log('✅ Registration successful:', data.message);
+        
+        // Auto-login after successful registration
+        if (data.data && data.data.token) {
+          localStorage.setItem('token', data.data.token);
+          setUser(data.data.user);
+        }
+        
         return {
           success: true,
-          user: data.data.user,
-          token: data.data.token,
+          user: data.data?.user,
+          token: data.data?.token,
           message: data.message
         };
       } else {
+        // Registration failed
         const errorMessage = data.message || 'Registration failed';
         console.error('❌ Registration failed:', errorMessage);
         
         // ✅ IMPROVED: Show detailed validation errors if available
         if (data.errors && Array.isArray(data.errors)) {
           const detailedErrors = data.errors.map(err => `${err.field}: ${err.message}`).join(', ');
-          console.error('📋 Validation details:', detailedErrors);
+          console.error('📋 Registration validation details:', detailedErrors);
           throw new Error(`Registration failed: ${detailedErrors}`);
         }
         
@@ -225,6 +221,7 @@ export const AuthProvider = ({ children }) => {
       }
     } catch (error) {
       console.error('Registration error:', error);
+      // Re-throw with more specific message
       throw new Error(error.message || 'Network error during registration');
     }
   };
@@ -232,180 +229,17 @@ export const AuthProvider = ({ children }) => {
   const logout = () => {
     localStorage.removeItem('token');
     setUser(null);
-    console.log('👋 User logged out');
-  };
-
-  // Get current user info
-  const getCurrentUser = () => {
-    return user;
-  };
-
-  // Check if user is authenticated
-  const isAuthenticated = () => {
-    return !!user;
-  };
-
-  // Check if user is admin
-  const isAdmin = () => {
-    return user?.role === 'admin';
-  };
-
-  // Update user profile
-  const updateProfile = async (profileData) => {
-    try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        throw new Error('No authentication token found');
-      }
-
-      const response = await fetch(`${API_BASE_URL}/users/profile`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify(profileData),
-      });
-
-      const data = await response.json();
-
-      if (response.ok && data.success) {
-        setUser(data.data);
-        console.log('✅ Profile updated successfully');
-        return {
-          success: true,
-          user: data.data,
-          message: data.message
-        };
-      } else {
-        // ✅ IMPROVED: Show detailed validation errors if available
-        if (data.errors && Array.isArray(data.errors)) {
-          const detailedErrors = data.errors.map(err => `${err.field}: ${err.message}`).join(', ');
-          throw new Error(`Profile update failed: ${detailedErrors}`);
-        }
-        
-        throw new Error(data.message || 'Profile update failed');
-      }
-    } catch (error) {
-      console.error('Profile update error:', error);
-      throw new Error(error.message || 'Network error during profile update');
-    }
-  };
-
-  // Request password reset
-  const requestPasswordReset = async (email) => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/users/forgot-password`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok && data.success) {
-        console.log('✅ Password reset email sent');
-        return {
-          success: true,
-          message: data.message
-        };
-      } else {
-        // ✅ IMPROVED: Show detailed validation errors if available
-        if (data.errors && Array.isArray(data.errors)) {
-          const detailedErrors = data.errors.map(err => `${err.field}: ${err.message}`).join(', ');
-          throw new Error(`Password reset failed: ${detailedErrors}`);
-        }
-        
-        throw new Error(data.message || 'Password reset request failed');
-      }
-    } catch (error) {
-      console.error('Password reset error:', error);
-      throw new Error(error.message || 'Network error during password reset');
-    }
-  };
-
-  // ✅ NEW: Client-side password validation helper
-  const validatePassword = (password) => {
-    const errors = [];
-    
-    if (!password || password.length < 6) {
-      errors.push('Password must be at least 6 characters long');
-    }
-    
-    if (!/(?=.*[a-z])/.test(password)) {
-      errors.push('Password must contain at least one lowercase letter');
-    }
-    
-    if (!/(?=.*[A-Z])/.test(password)) {
-      errors.push('Password must contain at least one uppercase letter');
-    }
-    
-    if (!/(?=.*\d)/.test(password)) {
-      errors.push('Password must contain at least one number');
-    }
-    
-    return {
-      isValid: errors.length === 0,
-      errors: errors
-    };
-  };
-
-  // ✅ NEW: Client-side name validation helper
-  const validateName = (name) => {
-    const errors = [];
-    
-    if (!name || name.trim().length < 2) {
-      errors.push('Name must be at least 2 characters long');
-    }
-    
-    if (name && name.length > 50) {
-      errors.push('Name cannot exceed 50 characters');
-    }
-    
-    if (name && !/^[a-zA-Z\s]+$/.test(name)) {
-      errors.push('Name can only contain letters and spaces');
-    }
-    
-    return {
-      isValid: errors.length === 0,
-      errors: errors
-    };
-  };
-
-  // ✅ NEW: Client-side email validation helper
-  const validateEmail = (email) => {
-    const errors = [];
-    
-    if (!email) {
-      errors.push('Email is required');
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      errors.push('Please provide a valid email address');
-    }
-    
-    return {
-      isValid: errors.length === 0,
-      errors: errors
-    };
+    console.log('🚪 User logged out');
   };
 
   const value = {
     user,
+    loading,
     login,
     register,
     logout,
-    loading,
-    getCurrentUser,
-    isAuthenticated,
-    isAdmin,
-    updateProfile,
-    requestPasswordReset,
-    validateToken,
-    // ✅ NEW: Expose validation helpers
-    validatePassword,
-    validateName,
-    validateEmail
+    isAuthenticated: !!user,
+    isAdmin: user?.role === 'admin'
   };
 
   return (
@@ -415,5 +249,4 @@ export const AuthProvider = ({ children }) => {
   );
 };
 
-// Default export for the provider (optional - if you prefer default import)
-export default AuthProvider;
+export default AuthContext;
