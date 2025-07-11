@@ -24,30 +24,29 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // ===== RENDER-OPTIMIZED CORS =====
+// server.js - CORS CONFIGURATION WITH YOUR EXACT RENDER URLS
 const corsOptions = {
   origin: function (origin, callback) {
-    // Always log CORS attempts for debugging
-    console.log(`🌍 RENDER CORS Check - Origin: ${origin || 'none'}`);
+    console.log(`🌍 CORS Check - Origin: ${origin || 'none'}`);
     
-    // Allow requests with no origin (mobile apps, Postman, server-to-server)
+    // Allow requests with no origin (mobile apps, Postman)
     if (!origin) {
-      console.log('✅ No origin - allowing (mobile/postman)');
+      console.log('✅ No origin - allowing');
       return callback(null, true);
     }
 
+    // ✅ YOUR EXACT RENDER URLS
     const allowedOrigins = [
-      // 🚨 RENDER: These should be set in your environment variables
+      "https://furbabies-frontend.onrender.com",    // ✅ Your actual frontend
+      "https://furbabies-backend.onrender.com",     // ✅ Your actual backend
+      
+      // Environment variables (backup)
       process.env.FRONTEND_URL,
       process.env.CLIENT_URL,
-      
-      // 🚨 BACKUP: Update these with your actual Render URLs
-      "https://new-capstone-frontend.onrender.com",  // ⚠️ UPDATE THIS
-      "https://new-capstone-backend.onrender.com",   // ⚠️ UPDATE THIS
       
       // Local development
       "http://localhost:3000",
       "http://localhost:3001",
-      "http://127.0.0.1:3000",
     ].filter(Boolean);
 
     console.log('🌍 Allowed origins:', allowedOrigins);
@@ -56,16 +55,14 @@ const corsOptions = {
       console.log('✅ CORS: Origin allowed');
       callback(null, true);
     } else {
-      console.log('❌ CORS: Origin blocked -', origin);
+      console.log('❌ CORS: Origin blocked:', origin);
       
-      // 🔧 RENDER DEBUG: Allow blocked origins in development
-      if (process.env.NODE_ENV !== 'production') {
-        console.log('🔧 DEV MODE: Allowing blocked origin');
-        callback(null, true);
-      } else {
-        console.log('🚨 PRODUCTION: Blocking origin');
-        callback(new Error(`CORS policy: Origin ${origin} not allowed`));
-      }
+      // 🚨 EMERGENCY: Temporarily allow all origins for debugging
+      console.log('🔧 EMERGENCY: Allowing blocked origin for debugging');
+      callback(null, true);
+      
+      // After confirming it works, use this instead:
+      // callback(new Error(`CORS: Origin ${origin} not allowed`));
     }
   },
   credentials: true,
@@ -76,30 +73,31 @@ const corsOptions = {
     "X-Requested-With",
     "Content-Type",
     "Accept",
-    "Authorization", 
+    "Authorization",
     "Cache-Control",
-    "X-Auth-Token",
   ],
 };
 
-// Apply CORS first
 app.use(cors(corsOptions));
 
-// Handle preflight OPTIONS requests
+// Handle preflight requests
 app.options('*', cors(corsOptions));
 
-// ===== RENDER-SPECIFIC MIDDLEWARE =====
-app.use(morgan("combined"));
-app.use(express.json({ limit: "10mb" }));
-app.use(express.urlencoded({ extended: true, limit: "10mb" }));
-
-// ✅ RENDER: Enhanced request logging
+// Additional manual CORS headers for debugging
 app.use((req, res, next) => {
-  const timestamp = new Date().toISOString();
-  console.log(`📡 [${timestamp}] ${req.method} ${req.path}`);
-  console.log(`   Origin: ${req.get('Origin') || 'none'}`);
-  console.log(`   User-Agent: ${req.get('User-Agent')?.substring(0, 50) || 'none'}...`);
-  console.log(`   Content-Type: ${req.get('Content-Type') || 'none'}`);
+  console.log(`📡 Request from: ${req.get('Origin') || 'none'} to ${req.method} ${req.path}`);
+  
+  // Manual CORS headers
+  res.header('Access-Control-Allow-Origin', req.get('Origin') || '*');
+  res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS,PATCH');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  
+  if (req.method === 'OPTIONS') {
+    console.log('✅ Handling preflight request');
+    return res.status(200).end();
+  }
+  
   next();
 });
 

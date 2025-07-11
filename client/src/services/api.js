@@ -1,18 +1,8 @@
-// client/src/services/api.js - RENDER DEPLOYMENT FIXED
+// client/src/services/api.js - COMPLETE API WITH ALL MISSING FUNCTIONS
 import axios from 'axios';
 
-// ✅ RENDER FIX: Simple API base URL configuration
-const getApiBaseUrl = () => {
-  // Production (Render)
-  if (process.env.NODE_ENV === 'production') {
-    return process.env.REACT_APP_API_BASE_URL || 'https://new-capstone-backend.onrender.com/api';
-  }
-  
-  // Development
-  return process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000/api';
-};
-
-const API_BASE_URL = getApiBaseUrl();
+// ✅ RENDER FIX: Use your actual backend URL
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'https://furbabies-backend.onrender.com/api';
 
 console.log('🔧 API Service Configuration:', {
   NODE_ENV: process.env.NODE_ENV,
@@ -49,7 +39,6 @@ api.interceptors.response.use(
   (response) => {
     const endpoint = response.config.url?.replace(response.config.baseURL, '') || '';
     console.log(`✅ API Success: ${response.status} ${endpoint}`);
-    console.log('📦 Response Data:', response.data);
     return response;
   },
   (error) => {
@@ -67,7 +56,7 @@ api.interceptors.response.use(
   }
 );
 
-// ===== PET API =====
+// ===== PET API (COMPLETE WITH MISSING FUNCTIONS) =====
 export const petAPI = {
   getAllPets: (params = {}) => {
     console.log('🐕 petAPI.getAllPets called with params:', params);
@@ -83,6 +72,33 @@ export const petAPI = {
     return api.get(`/pets/${id}`);
   },
 
+  // ✅ MISSING FUNCTION ADDED
+  getFeaturedPets: (limit = 6) => {
+    console.log('⭐ petAPI.getFeaturedPets called with limit:', limit);
+    return api.get('/pets', { params: { featured: true, limit } });
+  },
+
+  // ✅ ADDITIONAL MISSING FUNCTIONS
+  getPetsByType: (type, params = {}) => {
+    console.log('🐕 petAPI.getPetsByType called for type:', type);
+    return api.get('/pets', { params: { ...params, type } });
+  },
+
+  getPetsByCategory: (category, params = {}) => {
+    console.log('🐕 petAPI.getPetsByCategory called for category:', category);
+    return api.get('/pets', { params: { ...params, category } });
+  },
+
+  searchPets: (searchTerm, params = {}) => {
+    console.log('🔍 petAPI.searchPets called with term:', searchTerm);
+    return api.get('/pets', { params: { ...params, search: searchTerm } });
+  },
+
+  getPetCategories: () => {
+    console.log('📂 petAPI.getPetCategories called');
+    return api.get('/pets/categories');
+  },
+
   createPet: (petData) => {
     console.log('🐕 petAPI.createPet called');
     return api.post('/pets', petData);
@@ -96,6 +112,64 @@ export const petAPI = {
   deletePet: (id) => {
     console.log('🐕 petAPI.deletePet called for ID:', id);
     return api.delete(`/pets/${id}`);
+  }
+};
+
+// ===== PRODUCT API (COMPLETE) =====
+export const productAPI = {
+  getAllProducts: (params = {}) => {
+    console.log('🛍️ productAPI.getAllProducts called with params:', params);
+    return api.get('/products', { params });
+  },
+
+  getProductById: (id) => {
+    if (!id) {
+      console.error('❌ productAPI.getProductById: Product ID is required');
+      return Promise.reject(new Error('Product ID is required'));
+    }
+    console.log('🛍️ productAPI.getProductById called with ID:', id);
+    return api.get(`/products/${id}`);
+  },
+
+  // ✅ FIX: Correct parameter formatting
+  getFeaturedProducts: (limit = 6) => {
+    console.log('⭐ productAPI.getFeaturedProducts called');
+    return api.get('/products', { params: { featured: true, limit } }); // Fixed: was limit[limit]
+  },
+
+  getProductsByCategory: (category, params = {}) => {
+    console.log('🛍️ productAPI.getProductsByCategory called for category:', category);
+    return api.get('/products', { params: { ...params, category } });
+  },
+
+  searchProducts: (searchTerm, params = {}) => {
+    console.log('🔍 productAPI.searchProducts called with term:', searchTerm);
+    return api.get('/products', { params: { ...params, search: searchTerm } });
+  },
+
+  getProductCategories: () => {
+    console.log('📂 productAPI.getProductCategories called');
+    return api.get('/products/categories');
+  },
+
+  getProductBrands: () => {
+    console.log('🏷️ productAPI.getProductBrands called');
+    return api.get('/products/brands');
+  },
+
+  createProduct: (productData) => {
+    console.log('🛍️ productAPI.createProduct called');
+    return api.post('/products', productData);
+  },
+
+  updateProduct: (id, productData) => {
+    console.log('🛍️ productAPI.updateProduct called for ID:', id);
+    return api.put(`/products/${id}`, productData);
+  },
+
+  deleteProduct: (id) => {
+    console.log('🛍️ productAPI.deleteProduct called for ID:', id);
+    return api.delete(`/products/${id}`);
   }
 };
 
@@ -134,6 +208,21 @@ export const userAPI = {
   removeFromFavorites: (petId) => {
     console.log('💔 userAPI.removeFromFavorites called for pet:', petId);
     return api.delete(`/users/favorites/${petId}`);
+  },
+
+  getAdoptedPets: () => {
+    console.log('🐕 userAPI.getAdoptedPets called');
+    return api.get('/users/adopted-pets');
+  },
+
+  getApplications: () => {
+    console.log('📋 userAPI.getApplications called');
+    return api.get('/users/applications');
+  },
+
+  changePassword: (passwordData) => {
+    console.log('🔒 userAPI.changePassword called');
+    return api.post('/users/change-password', passwordData);
   }
 };
 
@@ -144,6 +233,7 @@ export const adminAPI = {
     return api.get('/admin/dashboard');
   },
 
+  // User management
   getUsers: (params = {}) => {
     console.log('👥 adminAPI.getUsers called with params:', params);
     return api.get('/admin/users', { params });
@@ -164,6 +254,7 @@ export const adminAPI = {
     return api.delete(`/admin/users/${userId}`);
   },
 
+  // Pet management
   getPets: (params = {}) => {
     console.log('🐕 adminAPI.getPets called with params:', params);
     return api.get('/admin/pets', { params });
@@ -205,38 +296,7 @@ export const adminAPI = {
     return api.delete(`/admin/products/${productId}`);
   },
 
-  // News management
-  getNews: (params = {}) => {
-    console.log('📰 adminAPI.getNews called with params:', params);
-    return api.get('/admin/news', { params });
-  },
-
-  createNews: (newsData) => {
-    console.log('📰 adminAPI.createNews called');
-    return api.post('/admin/news', newsData);
-  },
-
-  updateNews: (newsId, newsData) => {
-    console.log('📰 adminAPI.updateNews called for news:', newsId);
-    return api.put(`/admin/news/${newsId}`, newsData);
-  },
-
-  deleteNews: (newsId) => {
-    console.log('🗑️ adminAPI.deleteNews called for news:', newsId);
-    return api.delete(`/admin/news/${newsId}`);
-  },
-
-  // Bulk operations
-  bulkUpdatePetStatus: (petIds, status) => {
-    console.log('🔄 adminAPI.bulkUpdatePetStatus called');
-    return api.post('/admin/bulk/pets/status', { petIds, status });
-  },
-
-  bulkUpdateUserStatus: (userIds, isActive) => {
-    console.log('🔄 adminAPI.bulkUpdateUserStatus called');
-    return api.post('/admin/bulk/users/status', { userIds, isActive });
-  },
-
+  // Contact management
   getContacts: (params = {}) => {
     console.log('📧 adminAPI.getContacts called with params:', params);
     return api.get('/admin/contacts', { params });
@@ -260,53 +320,25 @@ export const adminAPI = {
   deleteContact: (contactId) => {
     console.log('🗑️ adminAPI.deleteContact called for contact:', contactId);
     return api.delete(`/admin/contacts/${contactId}`);
+  },
+
+  // Bulk operations
+  bulkUpdatePetStatus: (petIds, status) => {
+    console.log('🔄 adminAPI.bulkUpdatePetStatus called');
+    return api.post('/admin/bulk/pets/status', { petIds, status });
+  },
+
+  bulkUpdateUserStatus: (userIds, isActive) => {
+    console.log('🔄 adminAPI.bulkUpdateUserStatus called');
+    return api.post('/admin/bulk/users/status', { userIds, isActive });
   }
 };
 
-// ===== PRODUCT API =====
-export const productAPI = {
-  getAllProducts: (params = {}) => {
-    console.log('🛍️ productAPI.getAllProducts called with params:', params);
-    return api.get('/products', { params });
-  },
-
-  getProductById: (id) => {
-    if (!id) {
-      console.error('❌ productAPI.getProductById: Product ID is required');
-      return Promise.reject(new Error('Product ID is required'));
-    }
-    console.log('🛍️ productAPI.getProductById called with ID:', id);
-    return api.get(`/products/${id}`);
-  },
-
-  createProduct: (productData) => {
-    console.log('🛍️ productAPI.createProduct called');
-    return api.post('/products', productData);
-  },
-
-  updateProduct: (id, productData) => {
-    console.log('🛍️ productAPI.updateProduct called for ID:', id);
-    return api.put(`/products/${id}`, productData);
-  },
-
-  deleteProduct: (id) => {
-    console.log('🛍️ productAPI.deleteProduct called for ID:', id);
-    return api.delete(`/products/${id}`);
-  },
-
-  getProductsByCategory: (category, params = {}) => {
-    console.log('🛍️ productAPI.getProductsByCategory called for category:', category);
-    return api.get('/products', { params: { ...params, category } });
-  },
-
-  searchProducts: (searchTerm, params = {}) => {
-    console.log('🔍 productAPI.searchProducts called with term:', searchTerm);
-    return api.get('/products', { params: { ...params, search: searchTerm } });
-  },
-
-  getFeaturedProducts: (limit = 6) => {
-    console.log('⭐ productAPI.getFeaturedProducts called');
-    return api.get('/products', { params: { featured: true, limit } });
+// ===== CONTACT API =====
+export const contactAPI = {
+  submitContact: (contactData) => {
+    console.log('📧 contactAPI.submitContact called');
+    return api.post('/contact', contactData);
   }
 };
 
@@ -342,16 +374,8 @@ export const newsAPI = {
   }
 };
 
-// ===== CONTACT API =====
-export const contactAPI = {
-  submitContact: (contactData) => {
-    console.log('📧 contactAPI.submitContact called');
-    return api.post('/contact', contactData);
-  }
-};
-
-// ===== EXPORT DEFAULT =====
+// Export default api instance
 export default api;
 
-// ===== EXPORT API BASE URL =====
+// Export API base URL
 export { API_BASE_URL };

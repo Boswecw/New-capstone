@@ -19,7 +19,7 @@ export const AuthProvider = ({ children }) => {
   const API_BASE_URL = (() => {
     // Production (Render)
     if (process.env.NODE_ENV === 'production') {
-      return process.env.REACT_APP_API_BASE_URL || 'https://new-capstone-backend.onrender.com/api';
+      return process.env.REACT_APP_API_BASE_URL || 'https://furbabies-backend.onrender.com/api';
     }
     
     // Development
