@@ -32,7 +32,9 @@ console.log('📄 This path exists:', fs.existsSync(configToEnvPath));
 
 // Load environment variables the same way config/db.js does
 console.log('\n🔑 Loading environment variables...');
-require('dotenv').config({ path: path.resolve(__dirname, 'server/.env') });
+if (process.env.NODE_ENV !== 'production') {
+  require("dotenv").config({ path: require("path").resolve(__dirname, ".env") });
+}
 
 console.log('MONGODB_URI exists:', !!process.env.MONGODB_URI);
 console.log('MONGODB_URI value:', process.env.MONGODB_URI ? `"${process.env.MONGODB_URI}"` : 'undefined');
