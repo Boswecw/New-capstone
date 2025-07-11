@@ -122,7 +122,14 @@ export const AuthProvider = ({ children }) => {
       // ✅ IMPROVED: Better error handling for non-JSON responses
       let data;
       try {
-        data = await response.json();
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          data = await response.json();
+        } else {
+          const text = await response.text();
+          console.error('Expected JSON, received:', text);
+          throw new Error('Invalid JSON response');
+        }
       } catch (jsonError) {
         console.error('Failed to parse JSON response:', jsonError);
         console.error('Response status:', response.status);
