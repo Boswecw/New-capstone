@@ -1,10 +1,24 @@
-// client/src/services/api.js - COMPLETE FIXED VERSION FOR RENDER
+// client/src/services/api.js - RENDER DEPLOYMENT FIXED
 import axios from 'axios';
 
-// ===== API BASE CONFIGURATION =====
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'https://furbabies-backend.onrender.com/api';
+// ✅ RENDER FIX: Simple API base URL configuration
+const getApiBaseUrl = () => {
+  // Production (Render)
+  if (process.env.NODE_ENV === 'production') {
+    return process.env.REACT_APP_API_BASE_URL || 'https://new-capstone-backend.onrender.com/api';
+  }
+  
+  // Development
+  return process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000/api';
+};
 
-console.log('🔧 FurBabies API_BASE_URL:', API_BASE_URL);
+const API_BASE_URL = getApiBaseUrl();
+
+console.log('🔧 API Service Configuration:', {
+  NODE_ENV: process.env.NODE_ENV,
+  API_BASE_URL,
+  REACT_APP_API_BASE_URL: process.env.REACT_APP_API_BASE_URL
+});
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -69,63 +83,19 @@ export const petAPI = {
     return api.get(`/pets/${id}`);
   },
 
-  // ✅ CORRECTED: Uses /pets endpoint with featured filter instead of /pets/featured
-  getFeaturedPets: (params = {}) => {
-    const queryParams = { 
-      featured: 'true', 
-      limit: 4, 
-      ...params 
-    };
-    console.log('🐕 petAPI.getFeaturedPets called with params:', queryParams);
-    return api.get('/pets', { params: queryParams });
+  createPet: (petData) => {
+    console.log('🐕 petAPI.createPet called');
+    return api.post('/pets', petData);
   },
 
-  searchPets: (query, filters = {}) => {
-    console.log('🐕 petAPI.searchPets called:', { query, filters });
-    return api.get('/pets', { params: { search: query, ...filters } });
+  updatePet: (id, petData) => {
+    console.log('🐕 petAPI.updatePet called for ID:', id);
+    return api.put(`/pets/${id}`, petData);
   },
 
-  getPetsByCategory: (category, params = {}) => {
-    console.log('🐕 petAPI.getPetsByCategory called:', { category, params });
-    return api.get('/pets', { params: { category, ...params } });
-  }
-};
-
-// ===== PRODUCT API =====
-export const productAPI = {
-  getAllProducts: (params = {}) => {
-    console.log('🛍️ productAPI.getAllProducts called with params:', params);
-    return api.get('/products', { params });
-  },
-
-  getProductById: (id) => {
-    if (!id) {
-      console.error('❌ productAPI.getProductById: Product ID is required');
-      return Promise.reject(new Error('Product ID is required'));
-    }
-    console.log('🛍️ productAPI.getProductById called with ID:', id);
-    return api.get(`/products/${id}`);
-  },
-
-  // ✅ CORRECTED: Uses /products endpoint with featured filter instead of /products/featured
-  getFeaturedProducts: (params = {}) => {
-    const queryParams = { 
-      featured: 'true', 
-      limit: 3, 
-      ...params 
-    };
-    console.log('🛍️ productAPI.getFeaturedProducts called with params:', queryParams);
-    return api.get('/products', { params: queryParams });
-  },
-
-  searchProducts: (query, filters = {}) => {
-    console.log('🛍️ productAPI.searchProducts called:', { query, filters });
-    return api.get('/products', { params: { search: query, ...filters } });
-  },
-
-  getProductsByCategory: (category, params = {}) => {
-    console.log('🛍️ productAPI.getProductsByCategory called:', { category, params });
-    return api.get('/products', { params: { category, ...params } });
+  deletePet: (id) => {
+    console.log('🐕 petAPI.deletePet called for ID:', id);
+    return api.delete(`/pets/${id}`);
   }
 };
 
@@ -135,60 +105,121 @@ export const userAPI = {
     console.log('👤 userAPI.register called');
     return api.post('/users/register', userData);
   },
-  
+
   login: (credentials) => {
-    console.log('👤 userAPI.login called');
+    console.log('🔐 userAPI.login called');
     return api.post('/users/login', credentials);
   },
-  
+
   getProfile: () => {
     console.log('👤 userAPI.getProfile called');
     return api.get('/users/profile');
   },
-  
-  updateProfile: (userData) => {
+
+  updateProfile: (profileData) => {
     console.log('👤 userAPI.updateProfile called');
-    return api.put('/users/profile', userData);
+    return api.put('/users/profile', profileData);
+  },
+
+  getFavorites: () => {
+    console.log('❤️ userAPI.getFavorites called');
+    return api.get('/users/favorites');
+  },
+
+  addToFavorites: (petId) => {
+    console.log('❤️ userAPI.addToFavorites called for pet:', petId);
+    return api.post(`/users/favorites/${petId}`);
+  },
+
+  removeFromFavorites: (petId) => {
+    console.log('💔 userAPI.removeFromFavorites called for pet:', petId);
+    return api.delete(`/users/favorites/${petId}`);
+  }
+};
+
+// ===== ADMIN API =====
+export const adminAPI = {
+  getDashboard: () => {
+    console.log('📊 adminAPI.getDashboard called');
+    return api.get('/admin/dashboard');
+  },
+
+  getUsers: (params = {}) => {
+    console.log('👥 adminAPI.getUsers called with params:', params);
+    return api.get('/admin/users', { params });
+  },
+
+  updateUserRole: (userId, role) => {
+    console.log('👑 adminAPI.updateUserRole called for user:', userId);
+    return api.put(`/admin/users/${userId}/role`, { role });
+  },
+
+  updateUserStatus: (userId, isActive) => {
+    console.log('🔄 adminAPI.updateUserStatus called for user:', userId);
+    return api.put(`/admin/users/${userId}/status`, { isActive });
+  },
+
+  deleteUser: (userId) => {
+    console.log('🗑️ adminAPI.deleteUser called for user:', userId);
+    return api.delete(`/admin/users/${userId}`);
+  },
+
+  getPets: (params = {}) => {
+    console.log('🐕 adminAPI.getPets called with params:', params);
+    return api.get('/admin/pets', { params });
+  },
+
+  createPet: (petData) => {
+    console.log('🐕 adminAPI.createPet called');
+    return api.post('/admin/pets', petData);
+  },
+
+  updatePet: (petId, petData) => {
+    console.log('🐕 adminAPI.updatePet called for pet:', petId);
+    return api.put(`/admin/pets/${petId}`, petData);
+  },
+
+  deletePet: (petId) => {
+    console.log('🗑️ adminAPI.deletePet called for pet:', petId);
+    return api.delete(`/admin/pets/${petId}`);
+  },
+
+  getContacts: (params = {}) => {
+    console.log('📧 adminAPI.getContacts called with params:', params);
+    return api.get('/admin/contacts', { params });
+  },
+
+  getContact: (contactId) => {
+    console.log('📧 adminAPI.getContact called for contact:', contactId);
+    return api.get(`/admin/contacts/${contactId}`);
+  },
+
+  updateContactStatus: (contactId, status) => {
+    console.log('📧 adminAPI.updateContactStatus called for contact:', contactId);
+    return api.put(`/admin/contacts/${contactId}/status`, { status });
+  },
+
+  respondToContact: (contactId, message) => {
+    console.log('📧 adminAPI.respondToContact called for contact:', contactId);
+    return api.put(`/admin/contacts/${contactId}/respond`, { message });
+  },
+
+  deleteContact: (contactId) => {
+    console.log('🗑️ adminAPI.deleteContact called for contact:', contactId);
+    return api.delete(`/admin/contacts/${contactId}`);
   }
 };
 
 // ===== CONTACT API =====
 export const contactAPI = {
-  sendMessage: (messageData) => {
-    console.log('📧 contactAPI.sendMessage called');
-    return api.post('/contact', messageData);
+  submitContact: (contactData) => {
+    console.log('📧 contactAPI.submitContact called');
+    return api.post('/contact', contactData);
   }
 };
 
-// ===== NEWS API =====
-export const newsAPI = {
-  getAllNews: (params = {}) => {
-    console.log('📰 newsAPI.getAllNews called with params:', params);
-    return api.get('/news', { params });
-  },
-
-  getNewsById: (id) => {
-    if (!id) {
-      console.error('❌ newsAPI.getNewsById: News ID is required');
-      return Promise.reject(new Error('News ID is required'));
-    }
-    console.log('📰 newsAPI.getNewsById called with ID:', id);
-    return api.get(`/news/${id}`);
-  },
-
-  getNewsCategories: () => {
-    console.log('📰 newsAPI.getNewsCategories called');
-    return api.get('/news/categories');
-  }
-};
-
-// ===== HEALTH CHECK =====
-export const healthAPI = {
-  check: () => {
-    console.log('🩺 healthAPI.check called');
-    return api.get('/health');
-  }
-};
-
-// Export the default axios instance for custom requests
+// ===== EXPORT DEFAULT =====
 export default api;
+
+// ===== EXPORT API BASE URL =====
+export { API_BASE_URL };

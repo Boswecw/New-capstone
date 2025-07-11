@@ -1,6 +1,5 @@
-// client/src/contexts/AuthContext.js - FIXED VERSION
+// client/src/contexts/AuthContext.js - RENDER DEPLOYMENT FIXED
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { API_BASE_URL } from '../config/environment';
 
 const AuthContext = createContext();
 
@@ -16,11 +15,27 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  console.log('🔧 AuthContext using API_BASE_URL:', API_BASE_URL);
+  // ✅ RENDER FIX: Simple environment variable handling
+  const API_BASE_URL = (() => {
+    // Production (Render)
+    if (process.env.NODE_ENV === 'production') {
+      return process.env.REACT_APP_API_BASE_URL || 'https://new-capstone-backend.onrender.com/api';
+    }
+    
+    // Development
+    return process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000/api';
+  })();
+  
+  console.log('🔧 AuthContext API Configuration:', {
+    NODE_ENV: process.env.NODE_ENV,
+    API_BASE_URL,
+    REACT_APP_API_BASE_URL: process.env.REACT_APP_API_BASE_URL
+  });
 
   // Memoized function to validate token
   const validateToken = useCallback(async (token) => {
     try {
+      console.log('🔍 Validating token...');
       const response = await fetch(`${API_BASE_URL}/users/profile`, {
         method: 'GET',
         headers: {
@@ -31,38 +46,47 @@ export const AuthProvider = ({ children }) => {
 
       if (response.ok) {
         const data = await response.json();
+        console.log('✅ Token validation successful');
         return data.data;
       } else {
+        console.log('❌ Token validation failed:', response.status);
         return null;
       }
     } catch (error) {
-      console.error('Token validation failed:', error);
+      console.error('❌ Token validation error:', error);
       return null;
     }
-  }, []);
+  }, [API_BASE_URL]);
 
   // Check authentication status on app start
   useEffect(() => {
     const checkAuthStatus = async () => {
       try {
+        console.log('🔍 Checking auth status...');
         const token = localStorage.getItem('token');
+        
         if (token) {
+          console.log('🎫 Token found, validating...');
           const userData = await validateToken(token);
           
           if (userData) {
             setUser(userData);
             console.log('🎯 Auth restored - User:', userData.name, 'Role:', userData.role);
           } else {
+            console.log('❌ Token invalid, removing...');
             localStorage.removeItem('token');
             setUser(null);
           }
+        } else {
+          console.log('🚫 No token found');
         }
       } catch (error) {
-        console.error('Auth check failed:', error);
+        console.error('❌ Auth check failed:', error);
         localStorage.removeItem('token');
         setUser(null);
       } finally {
         setLoading(false);
+        console.log('✅ Auth check complete');
       }
     };
 
@@ -72,7 +96,15 @@ export const AuthProvider = ({ children }) => {
   // Debug logging for user state changes
   useEffect(() => {
     if (user) {
-      console.log('🎯 Current User:', user.name, 'Role:', user.role, 'Admin:', user.role === 'admin');
+      console.log('👤 Current User:', {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        isAdmin: user.role === 'admin'
+      });
+    } else {
+      console.log('👤 No user authenticated');
     }
   }, [user]);
 
@@ -84,6 +116,7 @@ export const AuthProvider = ({ children }) => {
       };
 
       console.log('🔐 Attempting login to:', `${API_BASE_URL}/users/login`);
+      console.log('📤 Login data:', { email: loginData.email, hasPassword: !!loginData.password });
 
       const response = await fetch(`${API_BASE_URL}/users/login`, {
         method: 'POST',
@@ -93,8 +126,8 @@ export const AuthProvider = ({ children }) => {
         body: JSON.stringify(loginData),
       });
 
-      console.log('📡 Response status:', response.status);
-      console.log('📡 Response headers:', Object.fromEntries(response.headers.entries()));
+      console.log('📡 Login response status:', response.status);
+      console.log('📡 Login response headers:', Object.fromEntries(response.headers.entries()));
 
       // Enhanced error handling for non-JSON responses
       let data;
@@ -103,6 +136,7 @@ export const AuthProvider = ({ children }) => {
       if (contentType && contentType.includes('application/json')) {
         try {
           data = await response.json();
+          console.log('📦 Login response data:', data);
         } catch (jsonError) {
           console.error('❌ JSON parsing failed:', jsonError);
           throw new Error('Server returned malformed JSON response');
@@ -111,10 +145,17 @@ export const AuthProvider = ({ children }) => {
         const text = await response.text();
         console.error('❌ Expected JSON, received:', text.substring(0, 200));
         console.error('❌ Content-Type:', contentType);
+        console.error('❌ Full response headers:', Object.fromEntries(response.headers.entries()));
         
         // Check if it's a CORS error (often returns HTML)
         if (text.includes('<!DOCTYPE html>') || text.includes('<html>')) {
-          throw new Error('CORS error: Server returned HTML instead of JSON. Check server CORS configuration.');
+          throw new Error(`CORS error: Server returned HTML instead of JSON. Check server CORS configuration.
+          
+🔧 Debugging info:
+- API URL: ${API_BASE_URL}/users/login
+- Response Status: ${response.status}
+- Content-Type: ${contentType}
+- Response starts with: ${text.substring(0, 100)}...`);
         }
         
         throw new Error(`Server returned non-JSON response (${response.status}): ${text.substring(0, 100)}`);
@@ -147,7 +188,13 @@ export const AuthProvider = ({ children }) => {
       
       // Provide more helpful error messages
       if (error.message.includes('Failed to fetch')) {
-        throw new Error('Network error: Unable to connect to server. Check your internet connection and server status.');
+        throw new Error(`Network error: Unable to connect to server.
+        
+🔧 Debugging info:
+- API URL: ${API_BASE_URL}
+- Check if backend is running
+- Check CORS configuration
+- Check environment variables`);
       }
       
       throw error;
@@ -168,6 +215,8 @@ export const AuthProvider = ({ children }) => {
         ...(userData.address && { address: userData.address }),
         role: 'user'
       };
+
+      console.log('📤 Registration data:', { ...requestData, password: '[HIDDEN]' });
 
       const response = await fetch(`${API_BASE_URL}/users/register`, {
         method: 'POST',
