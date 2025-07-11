@@ -1,300 +1,96 @@
-// server/routes/pets.js - ZERO VALIDATION VERSION (for debugging)
+// server/routes/pets.js
 const express = require('express');
 const router = express.Router();
 const Pet = require('../models/Pet');
 const { protect, optionalAuth } = require('../middleware/auth');
 
-// NO VALIDATION IMPORTS - We're testing without any validation
-
-// GET /api/pets/featured - Get random pets as featured
-router.get('/featured', async (req, res) => {
+// @desc    Get all pets with optional filters
+// @route   GET /api/pets
+router.get('/', async (req, res) => {
   try {
-    console.log('🌟 Fetching random featured pets...');
-    const { limit = 6 } = req.query;
-
-    const featuredPets = await Pet.aggregate([
-      { $match: { status: 'available' } },
-      { $sample: { size: parseInt(limit) } }
-    ]);
-
-    console.log(`✅ Found ${featuredPets.length} random featured pets`);
-    res.json({ success: true, data: featuredPets });
-  } catch (error) {
-    console.error('❌ Error fetching featured pets:', error.message);
-    res.status(500).json({ success: false, message: 'Error fetching featured pets', error: error.message });
-  }
-});
-
-// GET /api/pets - Get all pets (NO VALIDATION)
-router.get('/', optionalAuth, async (req, res) => {
-  try {
-    console.log('📋 GET /api/pets - no validation version');
-    
-    const {
-      category,
-      type,
-      age,
-      size,
-      gender,
-      search,
-      featured,
-      available,
-      status,
-      minPrice,
-      maxPrice,
-      limit = 12,
-      page = 1,
-      sort = 'createdAt'
-    } = req.query;
-
-    if (featured === 'true') {
-      const featuredPets = await Pet.aggregate([
-        { $match: { status: 'available' } },
-        { $sample: { size: parseInt(limit) } }
-      ]);
-      
-      console.log(`✅ Found ${featuredPets.length} random featured pets`);
-      return res.json({ success: true, data: featuredPets });
-    }
-
-    // Build query object
     const query = {};
 
-    if (search) {
+    if (req.query.type) query.type = req.query.type;
+    if (req.query.breed) query.breed = { $regex: req.query.breed, $options: 'i' };
+    if (req.query.age) query.age = { $regex: req.query.age, $options: 'i' };
+    if (req.query.search) {
+      const regex = new RegExp(req.query.search, 'i');
       query.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { breed: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } }
+        { name: regex },
+        { breed: regex },
+        { description: regex }
       ];
     }
 
-    if (category) query.category = category;
-    if (type) query.type = type;
-    if (age) query.age = age;
-    if (size) query.size = size;
-    if (gender) query.gender = gender;
-    if (available !== undefined) query.available = available === 'true';
-    if (status) query.status = status;
-
-    // Price range filtering
-    if (minPrice || maxPrice) {
-      query.price = {};
-      if (minPrice) query.price.$gte = parseFloat(minPrice);
-      if (maxPrice) query.price.$lte = parseFloat(maxPrice);
-    }
-
-    // Pagination
-    const limitNum = parseInt(limit);
-    const pageNum = parseInt(page);
-    const skip = (pageNum - 1) * limitNum;
-
-    // Sorting
-    const sortOptions = {};
-    switch (sort) {
-      case 'name': sortOptions.name = 1; break;
-      case 'price-low': sortOptions.price = 1; break;
-      case 'price-high': sortOptions.price = -1; break;
-      case 'type': sortOptions.type = 1; break;
-      case 'newest': sortOptions.createdAt = -1; break;
-      case 'oldest': sortOptions.createdAt = 1; break;
-      case 'popular': sortOptions.views = -1; break;
-      default: sortOptions.createdAt = -1;
-    }
-
-    const pets = await Pet.find(query)
-      .sort(sortOptions)
-      .skip(skip)
-      .limit(limitNum)
-      .populate('createdBy', 'name email')
-      .lean();
-
-    const totalPets = await Pet.countDocuments(query);
-    const totalPages = Math.ceil(totalPets / limitNum);
-
-    console.log('🔍 Public pets query:', query);
-    console.log('📊 Total pets found:', totalPets);
-
-    res.json({
-      success: true,
-      data: pets,
-      pagination: {
-        currentPage: parseInt(page),
-        totalPages,
-        totalPets,
-        hasNext: parseInt(page) < totalPages,
-        hasPrev: parseInt(page) > 1,
-        limit: limitNum
-      },
-      filters: {
-        category, type, age, size, gender, search, available, status, minPrice, maxPrice, sort
-      }
-    });
-  } catch (error) {
-    console.error('❌ Error fetching pets:', error.message);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Error fetching pets', 
-      error: error.message,
-      timestamp: new Date().toISOString()
-    });
+    const pets = await Pet.find(query);
+    res.json({ success: true, data: pets, count: pets.length });
+  } catch (err) {
+    console.error('Error fetching pets:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 });
 
-// 🎯 GET /api/pets/:id - ZERO VALIDATION VERSION
+// @desc    Get featured pets (random selection)
+// @route   GET /api/pets/featured
+router.get('/featured', async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 6;
+    const featuredPets = await Pet.aggregate([
+      { $match: { featured: true } },
+      { $sample: { size: limit } }
+    ]);
+    res.json({ success: true, data: featuredPets });
+  } catch (err) {
+    console.error('Error fetching featured pets:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// @desc    Get pet by ID (supports string _id like "p001")
+// @route   GET /api/pets/:id
 router.get('/:id', async (req, res) => {
   try {
-    const petId = req.params.id;
-    console.log(`🎯 NO VALIDATION: Fetching pet with ID: ${petId}`);
-    console.log(`🎯 Pet ID type: ${typeof petId}, length: ${petId.length}`);
-    
-    // Log the exact request
-    console.log(`🎯 Full request URL: ${req.originalUrl}`);
-    console.log(`🎯 Request params:`, req.params);
-    
-    let pet = null;
-    
-    try {
-      // Try direct findById first
-      console.log(`🎯 Trying Pet.findById("${petId}")`);
-      pet = await Pet.findById(petId);
-      console.log(`🎯 Direct findById result:`, pet ? `Found ${pet.name}` : 'Not found');
-    } catch (directError) {
-      console.log(`🎯 Direct findById failed:`, directError.message);
-      
-      // Try alternative search methods
-      try {
-        console.log(`🎯 Trying alternative search for: ${petId}`);
-        pet = await Pet.findOne({ _id: petId });
-        console.log(`🎯 Alternative search result:`, pet ? `Found ${pet.name}` : 'Not found');
-      } catch (altError) {
-        console.log(`🎯 Alternative search failed:`, altError.message);
-      }
-    }
+    const pet = await Pet.findOne({ _id: req.params.id });
 
     if (!pet) {
-      console.log(`❌ Pet not found: ${petId}`);
-      
-      // Show what pets actually exist in database
-      try {
-        const allPets = await Pet.find().limit(20).select('_id name type');
-        console.log(`📋 First 20 pets in database:`, allPets.map(p => ({ id: p._id, name: p.name })));
-        
-        return res.status(404).json({
-          success: false,
-          message: 'Pet not found',
-          searchedId: petId,
-          availablePets: allPets.map(p => ({ id: p._id, name: p.name, type: p.type }))
-        });
-      } catch (debugError) {
-        console.log(`❌ Debug query failed:`, debugError.message);
-        return res.status(404).json({
-          success: false,
-          message: 'Pet not found',
-          searchedId: petId
-        });
-      }
+      return res.status(404).json({ success: false, message: 'Pet not found' });
     }
 
-    // Found the pet - increment view count
-    try {
-      pet.views = (pet.views || 0) + 1;
-      await pet.save();
-      console.log(`📈 Incremented view count for ${pet.name}`);
-    } catch (saveError) {
-      console.log(`⚠️ Failed to save view count:`, saveError.message);
-    }
-
-    console.log(`✅ SUCCESS: Found pet ${pet.name} (${pet.type}) with ID: ${pet._id}`);
-    
-    res.json({
-      success: true,
-      data: pet,
-      message: 'Pet retrieved successfully (no validation)',
-      debug: {
-        requestedId: petId,
-        foundId: pet._id,
-        petName: pet.name
-      }
-    });
-    
-  } catch (error) {
-    console.error('❌ CRITICAL ERROR in pet detail route:', error);
-    console.error('❌ Error stack:', error.stack);
-    
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching pet details',
-      error: error.message,
-      requestedId: req.params.id,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
-    });
+    res.json({ success: true, data: pet });
+  } catch (err) {
+    console.error('Error fetching pet by ID:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 });
 
-// POST /api/pets/:id/vote - Vote on a pet (NO VALIDATION)
+// @desc    Vote for a pet (up or down)
+// @route   POST /api/pets/:id/vote
+// @access  Protected
 router.post('/:id/vote', protect, async (req, res) => {
+  const { voteType } = req.body;
+
+  if (!['up', 'down'].includes(voteType)) {
+    return res.status(400).json({ success: false, message: 'Invalid vote type' });
+  }
+
   try {
-    const { voteType } = req.body;
-    const petId = req.params.id;
-    
-    console.log(`🗳️ NO VALIDATION: Vote ${voteType} for pet ${petId}`);
-    
-    if (!['up', 'down'].includes(voteType)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid vote type. Must be "up" or "down"'
-      });
-    }
+    const pet = await Pet.findOne({ _id: req.params.id });
 
-    let pet = null;
-    try {
-      pet = await Pet.findById(petId);
-    } catch (findError) {
-      console.log(`🗳️ Pet findById failed, trying alternative:`, findError.message);
-      pet = await Pet.findOne({ _id: petId });
-    }
-    
     if (!pet) {
-      return res.status(404).json({
-        success: false,
-        message: 'Pet not found for voting'
-      });
+      return res.status(404).json({ success: false, message: 'Pet not found' });
     }
 
-    if (pet.status !== 'available') {
-      return res.status(400).json({
-        success: false,
-        message: 'Cannot vote on unavailable pets'
-      });
-    }
-
-    // Initialize votes
     if (!pet.votes) {
       pet.votes = { up: 0, down: 0 };
     }
 
-    // Simple voting
     pet.votes[voteType] = (pet.votes[voteType] || 0) + 1;
     await pet.save();
 
-    console.log(`✅ Vote recorded: ${voteType} for ${pet.name}`);
-
-    res.json({
-      success: true,
-      data: {
-        votes: pet.votes,
-        userVote: voteType
-      },
-      message: `Vote ${voteType} recorded successfully`
-    });
-    
-  } catch (error) {
-    console.error('Error voting on pet:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error processing vote',
-      error: error.message
-    });
+    res.json({ success: true, data: pet });
+  } catch (err) {
+    console.error('Error voting on pet:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 });
 
