@@ -84,7 +84,9 @@ const AdminAnalytics = () => {
       {/* Key Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-          <h3 className="text-sm font-medium text-gray-500 mb-2">Total Visits</h3>
+          <h3 className="text-sm font-medium text-gray-500 mb-2">
+            Total Visits
+          </h3>
           <p className="text-3xl font-bold text-gray-900 mb-1">
             {analytics.totalVisits.toLocaleString()}
           </p>
@@ -92,7 +94,9 @@ const AdminAnalytics = () => {
         </div>
 
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-          <h3 className="text-sm font-medium text-gray-500 mb-2">Unique Visitors</h3>
+          <h3 className="text-sm font-medium text-gray-500 mb-2">
+            Unique Visitors
+          </h3>
           <p className="text-3xl font-bold text-gray-900 mb-1">
             {analytics.uniqueVisitors.toLocaleString()}
           </p>
@@ -129,7 +133,10 @@ const AdminAnalytics = () => {
           </h2>
           <div className="space-y-4">
             {analytics.topPages.map((page, index) => (
-              <div key={index} className="flex justify-between items-center py-2">
+              <div
+                key={index}
+                className="flex justify-between items-center py-2"
+              >
                 <span className="text-gray-700 font-medium">{page.page}</span>
                 <span className="font-semibold text-gray-900 text-lg">
                   {page.visits.toLocaleString()}
@@ -146,7 +153,10 @@ const AdminAnalytics = () => {
           </h2>
           <div className="space-y-4">
             {analytics.demographics.ageGroups.map((group, index) => (
-              <div key={index} className="flex justify-between items-center py-2">
+              <div
+                key={index}
+                className="flex justify-between items-center py-2"
+              >
                 <span className="text-gray-700 font-medium">{group.range}</span>
                 <div className="flex items-center space-x-3">
                   <div className="w-20 bg-gray-200 rounded-full h-3 overflow-hidden">

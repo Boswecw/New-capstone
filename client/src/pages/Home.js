@@ -1,8 +1,8 @@
-// client/src/pages/Home.js - Enhanced version with better error handling
+// client/src/pages/Home.js - Fixed and Enhanced Version
 import React, { useState, useEffect, useCallback } from "react";
-import { Container, Row, Col, Button, Spinner, Alert } from "react-bootstrap";
+import { Container, Row, Col, Button, Spinner, Alert, Card } from "react-bootstrap"; // ✅ Added Card import
 import { Link } from "react-router-dom";
-import Navbar from "../components/Navbar";
+// ❌ Removed Navbar import - it should be handled at App level
 import HeroBanner from "../components/HeroBanner";
 import PetCard from "../components/PetCard";
 import ProductCard from "../components/ProductCard";
@@ -16,8 +16,8 @@ const Home = () => {
   const [error, setError] = useState("");
   const [debugInfo, setDebugInfo] = useState(null);
 
-  // Debug mode - set to true to see more detailed error info
-  const DEBUG_MODE = true;
+  // Debug mode - set to false in production
+  const DEBUG_MODE = process.env.NODE_ENV === 'development';
 
   const fetchFeaturedPets = useCallback(async () => {
     setLoadingPets(true);
@@ -162,10 +162,10 @@ const Home = () => {
 
   return (
     <div className="home-page">
-      <Navbar />
+      {/* ❌ Removed <Navbar /> - should be handled at App level */}
       <HeroBanner />
 
-      {/* Debug Panel - only show in debug mode */}
+      {/* Debug Panel - only show in development mode */}
       {DEBUG_MODE && debugInfo && (
         <Container className="py-2">
           <Alert variant="info" className="mb-3">
@@ -295,6 +295,121 @@ const Home = () => {
                 View All Products
               </Button>
             </Link>
+          </div>
+        </section>
+
+        {/* Bottom Links Section */}
+        <section className="bottom-links-section py-5 mt-5">
+          <div className="text-center">
+            {/* Decorative Divider */}
+            <div className="d-flex align-items-center justify-content-center mb-4">
+              <div className="border-top flex-grow-1 mx-3"></div>
+              <i className="fas fa-paw text-primary fs-4"></i>
+              <div className="border-top flex-grow-1 mx-3"></div>
+            </div>
+
+            <h3 className="h4 mb-4 text-muted">
+              Need More Information?
+            </h3>
+
+            {/* Quick Links */}
+            <Row className="justify-content-center">
+              <Col md={8} lg={6}>
+                <Row className="g-3">
+                  {/* News Link */}
+                  <Col sm={6}>
+                    <Link to="/news" className="text-decoration-none">
+                      <Card className="h-100 border-primary border-2 shadow-sm hover-card">
+                        <Card.Body className="text-center py-4">
+                          <div className="mb-3">
+                            <i className="fas fa-newspaper fa-2x text-primary"></i>
+                          </div>
+                          <Card.Title className="h5 text-primary mb-2">
+                            Pet News & Articles
+                          </Card.Title>
+                          <Card.Text className="text-muted small">
+                            Stay updated with the latest pet care tips, health news, and heartwarming stories
+                          </Card.Text>
+                          <div className="mt-3">
+                            <span className="btn btn-outline-primary btn-sm">
+                              <i className="fas fa-arrow-right me-1"></i>
+                              Read Latest News
+                            </span>
+                          </div>
+                        </Card.Body>
+                      </Card>
+                    </Link>
+                  </Col>
+
+                  {/* Help/Contact Link */}
+                  <Col sm={6}>
+                    <Link to="/contact" className="text-decoration-none">
+                      <Card className="h-100 border-success border-2 shadow-sm hover-card">
+                        <Card.Body className="text-center py-4">
+                          <div className="mb-3">
+                            <i className="fas fa-question-circle fa-2x text-success"></i>
+                          </div>
+                          <Card.Title className="h5 text-success mb-2">
+                            Need Help?
+                          </Card.Title>
+                          <Card.Text className="text-muted small">
+                            Have questions about adoption, pet care, or our services? We're here to help!
+                          </Card.Text>
+                          <div className="mt-3">
+                            <span className="btn btn-outline-success btn-sm">
+                              <i className="fas fa-arrow-right me-1"></i>
+                              Get Support
+                            </span>
+                          </div>
+                        </Card.Body>
+                      </Card>
+                    </Link>
+                  </Col>
+                </Row>
+
+                {/* Alternative: Simple Button Links */}
+                {/*
+                <div className="d-flex gap-3 justify-content-center flex-wrap">
+                  <Link to="/news">
+                    <Button variant="outline-primary" size="lg" className="px-4">
+                      <i className="fas fa-newspaper me-2"></i>
+                      Latest Pet News
+                    </Button>
+                  </Link>
+                  
+                  <Link to="/contact">
+                    <Button variant="outline-success" size="lg" className="px-4">
+                      <i className="fas fa-question-circle me-2"></i>
+                      Need Help?
+                    </Button>
+                  </Link>
+                </div>
+                */}
+              </Col>
+            </Row>
+
+            {/* Quick Help Links */}
+            <div className="mt-4 pt-3 border-top">
+              <p className="text-muted small mb-2">Quick Links:</p>
+              <div className="d-flex justify-content-center gap-3 flex-wrap">
+                <Link to="/about" className="text-decoration-none small">
+                  <i className="fas fa-info-circle me-1"></i>
+                  About FurBabies
+                </Link>
+                <Link to="/browse" className="text-decoration-none small">
+                  <i className="fas fa-search me-1"></i>
+                  Browse All Pets
+                </Link>
+                <Link to="/products" className="text-decoration-none small">
+                  <i className="fas fa-shopping-cart me-1"></i>
+                  Pet Supplies
+                </Link>
+                <a href="tel:123-456-7890" className="text-decoration-none small">
+                  <i className="fas fa-phone me-1"></i>
+                  Call Us: (123) 456-7890
+                </a>
+              </div>
+            </div>
           </div>
         </section>
       </Container>

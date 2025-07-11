@@ -18,9 +18,10 @@ import Home from "./pages/Home";
 import About from "./pages/About";
 import Pets from "./pages/Pets";
 import Browse from "./pages/Browse";
-import Products from "./pages/Products"; // ADD THIS LINE
+import Products from "./pages/Products";
+import News from "./pages/News"; // 🆕 ADD THIS LINE
 import PetDetail from "./pages/PetDetail";
-import ProductDetail from "./pages/ProductDetail"; // ADD THIS LINE
+import ProductDetail from "./pages/ProductDetail";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Profile from "./pages/Profile";
@@ -55,9 +56,10 @@ const App = () => {
                 <Route path="/about" element={<About />} />
                 <Route path="/pets" element={<Pets />} />
                 <Route path="/browse" element={<Browse />} />
-                <Route path="/products" element={<Products />} /> {/* ADD THIS LINE */}
+                <Route path="/products" element={<Products />} />
+                <Route path="/news" element={<News />} /> {/* 🆕 ADD THIS LINE */}
                 <Route path="/pets/:id" element={<PetDetail />} />
-                <Route path="/products/:id" element={<ProductDetail />} /> {/* ADD THIS LINE */}
+                <Route path="/products/:id" element={<ProductDetail />} />
                 <Route path="/contact" element={<Contact />} />
                 <Route path="/login" element={<Login />} />
                 <Route path="/register" element={<Register />} />
