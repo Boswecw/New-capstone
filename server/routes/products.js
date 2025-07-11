@@ -1,4 +1,4 @@
-// server/routes/products.js
+// server/routes/products.js - SIMPLE FIX: Random Featured Products
 const express = require('express');
 const router = express.Router();
 const Product = require('../models/Product');
@@ -15,16 +15,33 @@ router.get('/', async (req, res) => {
   }
 });
 
-// @desc    Get featured products
+// @desc    Get featured products (randomly selected)
 // @route   GET /api/products/featured
 router.get('/featured', async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 6;
-    const featuredProducts = await Product.find({ featured: true }).limit(limit);
+    console.log('🎲 Randomly selecting featured products, limit:', limit);
+    
+    // ✅ Use MongoDB aggregation to randomly sample products
+    const featuredProducts = await Product.aggregate([
+      { $sample: { size: limit } }
+    ]);
+    
+    console.log('✅ Found random featured products:', featuredProducts.length);
     res.json({ success: true, data: featuredProducts });
   } catch (err) {
-    console.error('Error fetching featured products:', err);
-    res.status(500).json({ success: false, message: 'Server error' });
+    console.error('❌ Error fetching featured products:', err);
+    
+    // ✅ Fallback: if aggregation fails, just get first few products
+    try {
+      console.log('⚠️ Aggregation failed, using fallback method');
+      const fallbackProducts = await Product.find({}).limit(limit);
+      console.log('✅ Fallback products:', fallbackProducts.length);
+      res.json({ success: true, data: fallbackProducts });
+    } catch (fallbackErr) {
+      console.error('❌ Fallback also failed:', fallbackErr);
+      res.status(500).json({ success: false, message: 'Server error', error: fallbackErr.message });
+    }
   }
 });
 
