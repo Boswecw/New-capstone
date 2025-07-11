@@ -1,9 +1,181 @@
-// server/routes/products.js - FIXED TO HANDLE STRING IDS LIKE "prod_001"
+// server/routes/products.js - FIXED ROUTE ORDER & ENHANCED
 const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
 const Product = require('../models/Product');
-const { protect, optionalAuth } = require('../middleware/auth');
+const { protect, admin, optionalAuth } = require('../middleware/auth');
+const {
+  validateObjectId,
+  validateProductCreation,
+  validateProductUpdate
+} = require('../middleware/validation');
+
+// ===== SPECIFIC ROUTES FIRST (BEFORE /:id) =====
+
+// @desc    Get product categories
+// @route   GET /api/products/categories
+router.get('/categories', async (req, res) => {
+  try {
+    console.log('📂 Getting product categories');
+    
+    const categories = await Product.aggregate([
+      { $match: { isActive: { $ne: false } } }, // Only active products
+      {
+        $group: {
+          _id: '$category',
+          count: { $sum: 1 },
+          avgPrice: { $avg: '$price' },
+          minPrice: { $min: '$price' },
+          maxPrice: { $max: '$price' }
+        }
+      },
+      { $match: { _id: { $ne: null } } }, // Remove null categories
+      { $sort: { count: -1 } }
+    ]);
+
+    console.log('✅ Found categories:', categories.length);
+
+    res.json({ 
+      success: true, 
+      data: categories,
+      message: 'Categories retrieved successfully'
+    });
+  } catch (err) {
+    console.error('❌ Error fetching categories:', err);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error fetching categories',
+      error: err.message 
+    });
+  }
+});
+
+// @desc    Get product brands
+// @route   GET /api/products/brands
+router.get('/brands', async (req, res) => {
+  try {
+    console.log('🏷️ Getting product brands');
+    
+    const brands = await Product.aggregate([
+      { $match: { isActive: { $ne: false }, brand: { $exists: true, $ne: null } } },
+      {
+        $group: {
+          _id: '$brand',
+          count: { $sum: 1 },
+          avgPrice: { $avg: '$price' }
+        }
+      },
+      { $sort: { count: -1 } }
+    ]);
+
+    console.log('✅ Found brands:', brands.length);
+
+    res.json({ 
+      success: true, 
+      data: brands,
+      message: 'Brands retrieved successfully'
+    });
+  } catch (err) {
+    console.error('❌ Error fetching brands:', err);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error fetching brands',
+      error: err.message 
+    });
+  }
+});
+
+// @desc    Get featured products
+// @route   GET /api/products/featured
+router.get('/featured', async (req, res) => {
+  try {
+    console.log('⭐ Getting featured products');
+    
+    const { limit = 6 } = req.query;
+
+    const products = await Product.find({
+      featured: true,
+      isActive: { $ne: false },
+      inStock: { $ne: false }
+    })
+      .sort({ featuredOrder: 1, createdAt: -1 })
+      .limit(parseInt(limit));
+
+    console.log('✅ Found featured products:', products.length);
+
+    res.json({
+      success: true,
+      data: products,
+      count: products.length,
+      message: 'Featured products retrieved successfully'
+    });
+  } catch (err) {
+    console.error('❌ Error fetching featured products:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching featured products',
+      error: err.message
+    });
+  }
+});
+
+// @desc    Search products
+// @route   GET /api/products/search/:query
+router.get('/search/:query', async (req, res) => {
+  try {
+    const searchQuery = req.params.query;
+    console.log('🔍 Product search:', searchQuery);
+
+    const { limit = 20, page = 1 } = req.query;
+    const limitNum = parseInt(limit);
+    const skip = (parseInt(page) - 1) * limitNum;
+
+    const searchRegex = { $regex: searchQuery, $options: 'i' };
+
+    const query = {
+      isActive: { $ne: false },
+      $or: [
+        { name: searchRegex },
+        { title: searchRegex },
+        { description: searchRegex },
+        { brand: searchRegex },
+        { category: searchRegex }
+      ]
+    };
+
+    const products = await Product.find(query)
+      .sort({ createdAt: -1 })
+      .limit(limitNum)
+      .skip(skip);
+
+    const totalResults = await Product.countDocuments(query);
+
+    console.log('✅ Search results:', totalResults);
+
+    res.json({
+      success: true,
+      data: products,
+      searchQuery: searchQuery,
+      totalResults,
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(totalResults / limitNum),
+        hasNext: skip + limitNum < totalResults,
+        hasPrev: page > 1
+      },
+      message: `Found ${totalResults} products matching "${searchQuery}"`
+    });
+  } catch (err) {
+    console.error('❌ Product search error:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Error searching products',
+      error: err.message
+    });
+  }
+});
+
+// ===== GENERAL ROUTES =====
 
 // @desc    Get all products with optional filters
 // @route   GET /api/products
@@ -11,7 +183,7 @@ router.get('/', async (req, res) => {
   try {
     console.log('🛍️ GET /api/products - Query params:', req.query);
     
-    const query = {};
+    const query = { isActive: { $ne: false } }; // Only active products by default
 
     // Build query based on filters
     if (req.query.category) query.category = req.query.category;
@@ -19,9 +191,10 @@ router.get('/', async (req, res) => {
     if (req.query.inStock !== undefined) query.inStock = req.query.inStock === 'true';
     
     // Price range filter
-    if (req.query.minPrice) query.price = { $gte: parseFloat(req.query.minPrice) };
-    if (req.query.maxPrice) {
-      query.price = { ...query.price, $lte: parseFloat(req.query.maxPrice) };
+    if (req.query.minPrice || req.query.maxPrice) {
+      query.price = {};
+      if (req.query.minPrice) query.price.$gte = parseFloat(req.query.minPrice);
+      if (req.query.maxPrice) query.price.$lte = parseFloat(req.query.maxPrice);
     }
     
     // Search functionality
@@ -43,6 +216,11 @@ router.get('/', async (req, res) => {
 
     console.log('🛍️ Built query:', query);
 
+    // Pagination
+    const limit = parseInt(req.query.limit) || 20;
+    const page = parseInt(req.query.page) || 1;
+    const skip = (page - 1) * limit;
+
     // Sort options
     let sortOptions = { createdAt: -1 };
     if (req.query.sort) {
@@ -59,25 +237,42 @@ router.get('/', async (req, res) => {
         case 'newest':
           sortOptions = { createdAt: -1 };
           break;
+        case 'oldest':
+          sortOptions = { createdAt: 1 };
+          break;
       }
     }
 
-    const products = await Product.find(query).sort(sortOptions);
+    const products = await Product.find(query)
+      .sort(sortOptions)
+      .limit(limit)
+      .skip(skip);
     
-    console.log(`🛍️ Found ${products.length} products`);
+    const totalProducts = await Product.countDocuments(query);
+    const totalPages = Math.ceil(totalProducts / limit);
+    
+    console.log(`🛍️ Found ${products.length} products (${totalProducts} total)`);
     
     res.json({ 
       success: true, 
       data: products, 
-      count: products.length,
-      query: req.query 
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalProducts,
+        hasNext: page < totalPages,
+        hasPrev: page > 1,
+        limit
+      },
+      filters: req.query,
+      message: 'Products retrieved successfully'
     });
     
   } catch (err) {
     console.error('❌ Error fetching products:', err);
     res.status(500).json({ 
       success: false, 
-      message: 'Server error', 
+      message: 'Error fetching products', 
       error: err.message 
     });
   }
@@ -96,10 +291,14 @@ router.get('/:id', async (req, res) => {
     // Method 1: Try direct _id match (works for both ObjectId and string)
     try {
       console.log(`🔍 Method 1: Direct _id lookup for "${productId}"`);
-      product = await Product.findOne({ _id: productId });
+      product = await Product.findOne({ _id: productId, isActive: { $ne: false } });
       searchMethods.push({ method: 'direct_id', success: !!product, id: productId });
       if (product) {
         console.log(`✅ Found product via direct _id: ${product.name || product.title}`);
+        
+        // Increment view count
+        await Product.findByIdAndUpdate(product._id, { $inc: { viewCount: 1 } });
+        
         return res.json({ success: true, data: product, searchMethod: 'direct_id' });
       }
     } catch (error) {
@@ -111,10 +310,14 @@ router.get('/:id', async (req, res) => {
     if (mongoose.Types.ObjectId.isValid(productId) && productId.length === 24) {
       try {
         console.log(`🔍 Method 2: ObjectId lookup for "${productId}"`);
-        product = await Product.findById(productId);
+        product = await Product.findOne({ _id: productId, isActive: { $ne: false } });
         searchMethods.push({ method: 'objectid', success: !!product, id: productId });
         if (product) {
           console.log(`✅ Found product via ObjectId: ${product.name || product.title}`);
+          
+          // Increment view count
+          await Product.findByIdAndUpdate(product._id, { $inc: { viewCount: 1 } });
+          
           return res.json({ success: true, data: product, searchMethod: 'objectid' });
         }
       } catch (error) {
@@ -127,10 +330,17 @@ router.get('/:id', async (req, res) => {
     try {
       console.log(`🔍 Method 3: Raw collection lookup for "${productId}"`);
       const collection = mongoose.connection.db.collection('products');
-      const rawResult = await collection.findOne({ _id: productId });
+      const rawResult = await collection.findOne({ 
+        _id: productId,
+        isActive: { $ne: false }
+      });
       searchMethods.push({ method: 'raw_collection', success: !!rawResult, id: productId });
       if (rawResult) {
         console.log(`✅ Found product via raw collection: ${rawResult.name || rawResult.title}`);
+        
+        // Increment view count
+        await collection.updateOne({ _id: productId }, { $inc: { viewCount: 1 } });
+        
         return res.json({ success: true, data: rawResult, searchMethod: 'raw_collection' });
       }
     } catch (error) {
@@ -145,14 +355,23 @@ router.get('/:id', async (req, res) => {
         const searchName = `Product ${nameNumber}`;
         console.log(`🔍 Method 4: Name search for "${searchName}"`);
         product = await Product.findOne({ 
-          $or: [
-            { name: { $regex: searchName, $options: 'i' } },
-            { title: { $regex: searchName, $options: 'i' } }
+          $and: [
+            { isActive: { $ne: false } },
+            {
+              $or: [
+                { name: { $regex: searchName, $options: 'i' } },
+                { title: { $regex: searchName, $options: 'i' } }
+              ]
+            }
           ]
         });
         searchMethods.push({ method: 'name_pattern', success: !!product, searchName });
         if (product) {
           console.log(`✅ Found product via name pattern: ${product.name || product.title}`);
+          
+          // Increment view count
+          await Product.findByIdAndUpdate(product._id, { $inc: { viewCount: 1 } });
+          
           return res.json({ success: true, data: product, searchMethod: 'name_pattern' });
         }
       } catch (error) {
@@ -165,14 +384,23 @@ router.get('/:id', async (req, res) => {
     try {
       console.log(`🔍 Method 5: Partial name search for "${productId}"`);
       product = await Product.findOne({ 
-        $or: [
-          { name: { $regex: productId, $options: 'i' } },
-          { title: { $regex: productId, $options: 'i' } }
+        $and: [
+          { isActive: { $ne: false } },
+          {
+            $or: [
+              { name: { $regex: productId, $options: 'i' } },
+              { title: { $regex: productId, $options: 'i' } }
+            ]
+          }
         ]
       });
       searchMethods.push({ method: 'partial_name', success: !!product, searchTerm: productId });
       if (product) {
         console.log(`✅ Found product via partial name: ${product.name || product.title}`);
+        
+        // Increment view count
+        await Product.findByIdAndUpdate(product._id, { $inc: { viewCount: 1 } });
+        
         return res.json({ success: true, data: product, searchMethod: 'partial_name' });
       }
     } catch (error) {
@@ -183,7 +411,10 @@ router.get('/:id', async (req, res) => {
     // Method 6: List all products to see what IDs actually exist
     try {
       console.log(`🔍 Method 6: Listing all product IDs for debugging`);
-      const allProducts = await Product.find({}, { _id: 1, name: 1, title: 1 }).limit(10);
+      const allProducts = await Product.find(
+        { isActive: { $ne: false } }, 
+        { _id: 1, name: 1, title: 1 }
+      ).limit(10);
       const productIds = allProducts.map(p => ({ 
         id: p._id, 
         name: p.name || p.title || 'Unnamed Product' 
@@ -218,33 +449,142 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// @desc    Get product categories
-// @route   GET /api/products/categories
-router.get('/categories', async (req, res) => {
+// ===== ADMIN ROUTES (CREATE, UPDATE, DELETE) =====
+
+// @desc    Create new product (admin only)
+// @route   POST /api/products
+router.post('/', protect, admin, validateProductCreation, async (req, res) => {
   try {
-    const categories = await Product.distinct('category');
-    res.json({ 
-      success: true, 
-      data: categories.filter(cat => cat) // Remove null/undefined values
+    console.log('🛍️ Product creation by admin:', req.user.email);
+
+    const productData = {
+      ...req.body,
+      createdBy: req.user._id,
+      isActive: true
+    };
+
+    const product = new Product(productData);
+    await product.save();
+
+    console.log('✅ Product created:', product.name || product.title);
+
+    res.status(201).json({
+      success: true,
+      data: product,
+      message: `Product "${product.name || product.title}" created successfully`
     });
-  } catch (err) {
-    console.error('Error fetching categories:', err);
-    res.status(500).json({ success: false, message: 'Server error' });
+  } catch (error) {
+    console.error('❌ Product creation error:', error);
+    
+    if (error.name === 'ValidationError') {
+      const errors = Object.values(error.errors).map(err => ({
+        field: err.path,
+        message: err.message
+      }));
+      
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: 'Error creating product',
+      error: error.message
+    });
   }
 });
 
-// @desc    Get product brands
-// @route   GET /api/products/brands
-router.get('/brands', async (req, res) => {
+// @desc    Update product (admin only)
+// @route   PUT /api/products/:id
+router.put('/:id', protect, admin, validateProductUpdate, async (req, res) => {
   try {
-    const brands = await Product.distinct('brand');
-    res.json({ 
-      success: true, 
-      data: brands.filter(brand => brand) // Remove null/undefined values
+    console.log('🛍️ Product update by admin:', req.user.email, 'for product:', req.params.id);
+
+    const product = await Product.findByIdAndUpdate(
+      req.params.id,
+      { ...req.body, updatedBy: req.user._id, updatedAt: new Date() },
+      { new: true, runValidators: true }
+    );
+
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: 'Product not found'
+      });
+    }
+
+    console.log('✅ Product updated:', product.name || product.title);
+
+    res.json({
+      success: true,
+      data: product,
+      message: `Product "${product.name || product.title}" updated successfully`
     });
-  } catch (err) {
-    console.error('Error fetching brands:', err);
-    res.status(500).json({ success: false, message: 'Server error' });
+  } catch (error) {
+    console.error('❌ Product update error:', error);
+    
+    if (error.name === 'ValidationError') {
+      const errors = Object.values(error.errors).map(err => ({
+        field: err.path,
+        message: err.message
+      }));
+      
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: 'Error updating product',
+      error: error.message
+    });
+  }
+});
+
+// @desc    Delete product (admin only)
+// @route   DELETE /api/products/:id
+router.delete('/:id', protect, admin, async (req, res) => {
+  try {
+    console.log('🗑️ Product deletion by admin:', req.user.email, 'for product:', req.params.id);
+
+    const product = await Product.findById(req.params.id);
+
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: 'Product not found'
+      });
+    }
+
+    const deletedProductInfo = {
+      id: product._id,
+      name: product.name || product.title,
+      category: product.category,
+      price: product.price
+    };
+
+    await Product.findByIdAndDelete(req.params.id);
+
+    console.log('✅ Product deleted:', deletedProductInfo.name);
+
+    res.json({
+      success: true,
+      data: deletedProductInfo,
+      message: `Product "${deletedProductInfo.name}" deleted successfully`
+    });
+  } catch (error) {
+    console.error('❌ Product deletion error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error deleting product',
+      error: error.message
+    });
   }
 });
 
