@@ -1,5 +1,6 @@
 // server/routes/pets.js - ZERO VALIDATION VERSION (for debugging)
 const express = require('express');
+const mongoose = require('mongoose');
 const router = express.Router();
 const Pet = require('../models/Pet');
 const { protect, optionalAuth } = require('../middleware/auth');
@@ -152,22 +153,27 @@ router.get('/:id', async (req, res) => {
     console.log(`🎯 Request params:`, req.params);
     
     let pet = null;
-    
-    try {
-      // Try direct findById first
-      console.log(`🎯 Trying Pet.findById("${petId}")`);
-      pet = await Pet.findById(petId);
-      console.log(`🎯 Direct findById result:`, pet ? `Found ${pet.name}` : 'Not found');
-    } catch (directError) {
-      console.log(`🎯 Direct findById failed:`, directError.message);
-      
-      // Try alternative search methods
+
+    if (mongoose.Types.ObjectId.isValid(petId)) {
       try {
-        console.log(`🎯 Trying alternative search for: ${petId}`);
-        pet = await Pet.findOne({ _id: petId });
-        console.log(`🎯 Alternative search result:`, pet ? `Found ${pet.name}` : 'Not found');
+        console.log(`🎯 Trying Pet.findById("${petId}")`);
+        pet = await Pet.findById(petId);
+        console.log(`🎯 Direct findById result:`, pet ? `Found ${pet.name}` : 'Not found');
+      } catch (directError) {
+        console.log(`🎯 Direct findById failed:`, directError.message);
+      }
+    }
+
+    if (!pet) {
+      try {
+        console.log(`🎯 Trying raw collection search for: ${petId}`);
+        const rawPet = await mongoose.connection.db.collection('pets').findOne({ _id: petId });
+        if (rawPet) {
+          pet = new Pet(rawPet);
+        }
+        console.log(`🎯 Raw search result:`, pet ? `Found ${pet.name}` : 'Not found');
       } catch (altError) {
-        console.log(`🎯 Alternative search failed:`, altError.message);
+        console.log(`🎯 Raw search failed:`, altError.message);
       }
     }
 
@@ -247,11 +253,24 @@ router.post('/:id/vote', protect, async (req, res) => {
     }
 
     let pet = null;
-    try {
-      pet = await Pet.findById(petId);
-    } catch (findError) {
-      console.log(`🗳️ Pet findById failed, trying alternative:`, findError.message);
-      pet = await Pet.findOne({ _id: petId });
+
+    if (mongoose.Types.ObjectId.isValid(petId)) {
+      try {
+        pet = await Pet.findById(petId);
+      } catch (findError) {
+        console.log(`🗳️ Pet findById failed:`, findError.message);
+      }
+    }
+
+    if (!pet) {
+      try {
+        const rawPet = await mongoose.connection.db.collection('pets').findOne({ _id: petId });
+        if (rawPet) {
+          pet = new Pet(rawPet);
+        }
+      } catch (altError) {
+        console.log(`🗳️ Raw pet lookup failed:`, altError.message);
+      }
     }
     
     if (!pet) {
