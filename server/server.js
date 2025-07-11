@@ -21,18 +21,52 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // ===== CORS CONFIGURATION =====
+// In your server/server.js - Update CORS configuration for Render
+
 const corsOptions = {
-  origin: [
-    "http://localhost:3000",
-    "http://localhost:3001", 
-    "https://furbabies-frontend.onrender.com",
-    process.env.FRONTEND_URL,
-    process.env.APP_URL,
-  ].filter(Boolean),
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps, curl, Postman)
+    if (!origin) return callback(null, true);
+
+    const allowedOrigins = [
+      // Local development
+      "http://localhost:3000",
+      "http://localhost:3001",
+      "http://localhost:5000",
+      
+      // Replace with your actual Render URLs
+      "https://furbabies-frontend.onrender.com",  // ⚠️ UPDATE THIS
+      "https://furbabies-backend.onrender.com",   // ⚠️ UPDATE THIS
+      
+      // Environment variables (recommended)
+      process.env.FRONTEND_URL,
+      process.env.APP_URL,
+    ].filter(Boolean);
+
+    console.log('🌍 CORS Check - Origin:', origin);
+    console.log('🌍 CORS Check - Allowed:', allowedOrigins);
+
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      console.log('✅ CORS: Origin allowed');
+      callback(null, true);
+    } else {
+      console.log('❌ CORS: Origin blocked');
+      // For debugging: temporarily allow all origins (REMOVE IN PRODUCTION)
+      // callback(null, true);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "x-auth-token"],
   optionsSuccessStatus: 200,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: [
+    "Origin",
+    "X-Requested-With",
+    "Content-Type",
+    "Accept",
+    "Authorization",
+    "Cache-Control",
+  ],
 };
 
 app.use(cors(corsOptions));
@@ -149,7 +183,8 @@ app.get("/api/debug/products/:id", async (req, res) => {
       { name: "findOne_id", method: () => Product.findOne({ _id: productId }) },
       {
         name: "findOne_name",
-        method: () => Product.findOne({ name: `Product ${productId.substring(1)}` }),
+        method: () =>
+          Product.findOne({ name: `Product ${productId.substring(1)}` }),
       },
       {
         name: "raw_collection",
@@ -165,7 +200,9 @@ app.get("/api/debug/products/:id", async (req, res) => {
         const result = await test.method();
         debugInfo.tests[test.name] = {
           success: !!result,
-          found: result ? { id: result._id, name: result.name, price: result.price } : null,
+          found: result
+            ? { id: result._id, name: result.name, price: result.price }
+            : null,
         };
       } catch (error) {
         debugInfo.tests[test.name] = {
@@ -212,12 +249,13 @@ app.get("/api/health", (req, res) => {
   res.json({
     status: "Server is running",
     timestamp: new Date().toISOString(),
-    database: mongoose.connection.readyState === 1 ? "Connected" : "Disconnected",
+    database:
+      mongoose.connection.readyState === 1 ? "Connected" : "Disconnected",
     environment: process.env.NODE_ENV || "development",
     version: "1.2.0", // Updated version
     features: [
       "Enhanced pet search with 7 different methods",
-      "Enhanced product search with 7 different methods", 
+      "Enhanced product search with 7 different methods",
       "News API with categories and articles", // ✅ NEW
       "Comprehensive error debugging",
       "Raw MongoDB collection fallback",
@@ -271,7 +309,10 @@ app.use((err, req, res, next) => {
 
   res.status(500).json({
     success: false,
-    message: process.env.NODE_ENV === "development" ? err.message : "Internal server error",
+    message:
+      process.env.NODE_ENV === "development"
+        ? err.message
+        : "Internal server error",
     ...(process.env.NODE_ENV === "development" && {
       stack: err.stack,
       timestamp: new Date().toISOString(),
@@ -312,7 +353,9 @@ app.listen(PORT, () => {
   console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
   console.log(`🌍 Environment: ${process.env.NODE_ENV || "development"}`);
   console.log(`🔗 API available at: http://localhost:${PORT}`);
-  console.log(`🌐 CORS configured for frontend: https://furbabies-frontend.onrender.com`);
+  console.log(
+    `🌐 CORS configured for frontend: https://furbabies-frontend.onrender.com`
+  );
   console.log(`🎯 Enhanced routes active:`);
   console.log(`   • /api/pets/:id (7-method pet search)`);
   console.log(`   • /api/products/:id (7-method product search)`);
@@ -321,7 +364,9 @@ app.listen(PORT, () => {
   console.log(`🐛 Debug routes available:`);
   console.log(`   • /api/debug/pets/:id`);
   console.log(`   • /api/debug/products/:id`);
-  console.log(`✨ Features: Custom ID support, comprehensive debugging, news API`);
+  console.log(
+    `✨ Features: Custom ID support, comprehensive debugging, news API`
+  );
 });
 
 module.exports = app;
