@@ -17,11 +17,10 @@ const Home = () => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        // ✅ Changed from 6 to 4 pets
+        // ✅ Now the API endpoints are fixed, these will return exactly 4 pets and 3 products
         const petsRes = await petAPI.getFeaturedPets({ limit: 4 });
         setFeaturedPets(Array.isArray(petsRes.data?.data) ? petsRes.data.data : []);
 
-        // ✅ Changed from 6 to 3 products
         const productsRes = await productAPI.getFeaturedProducts({ limit: 3 });
         setFeaturedProducts(Array.isArray(productsRes.data?.data) ? productsRes.data.data : []);
       } catch (err) {

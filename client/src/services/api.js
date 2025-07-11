@@ -1,63 +1,43 @@
-// client/src/services/api.js 
+// client/src/services/api.js - FIXED VERSION
 import axios from 'axios';
 
-// ✅ FIXED: Safe API URL detection that works in production
-const getApiBaseUrl = () => {
-  // Check if we're in production on Render
-  if (typeof window !== 'undefined') {
-    const hostname = window.location.hostname;
-    
-    // Production: if frontend is on Render, use production backend
-    if (hostname.includes('onrender.com')) {
-      // ⚠️ REPLACE 'new-capstone-backend' with your actual backend service name from Render
-      return 'https://furbabies-backend.onrender.com/api';
-    }
-  }
-  
-  // Development: use localhost
-  return 'http://localhost:5000/api';
-};
-
-const API_BASE_URL = getApiBaseUrl();
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://furbabies-backend.onrender.com/api';
 
 console.log('🔧 New-Capstone API_BASE_URL:', API_BASE_URL);
 
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 15000,
+  timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Request interceptor with detailed logging
 api.interceptors.request.use(
   (config) => {
     console.log(`🌐 API Request: ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`);
-    
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-    
     return config;
   },
   (error) => {
-    console.error('🔴 API Request Error:', error);
+    console.error('❌ API Request Error:', error);
     return Promise.reject(error);
   }
 );
 
-// Response interceptor with detailed logging
 api.interceptors.response.use(
   (response) => {
-    console.log(`✅ API Success: ${response.status} ${response.config.url}`);
+    const url = response.config.url || '';
+    console.log(`✅ API Success: ${response.status} ${url}`);
     console.log('📦 Response Data:', response.data);
     return response;
   },
   (error) => {
-    console.error(`❌ API Error: ${error.response?.status || 'Network'} ${error.config?.url}`);
-    console.error('📦 Error Details:', {
+    const url = error.config?.url || '';
+    console.error(`❌ API Error: ${error.response?.status || 'No Status'} ${url}`, {
       status: error.response?.status,
       statusText: error.response?.statusText,
       data: error.response?.data,
@@ -91,10 +71,11 @@ export const petAPI = {
     return api.get(`/pets/${id}`);
   },
 
+  // ✅ FIXED: Now calls the correct /pets/featured endpoint
   getFeaturedPets: (params = {}) => {
-    const queryParams = { limit: 6, featured: true, ...params };
+    const queryParams = { limit: 4, ...params }; // ✅ Default to 4, allow override
     console.log('🐕 petAPI.getFeaturedPets called with params:', queryParams);
-    return api.get('/pets', { params: queryParams });
+    return api.get('/pets/featured', { params: queryParams }); // ✅ Fixed endpoint
   },
 
   searchPets: (query, filters = {}) => {
@@ -124,10 +105,11 @@ export const productAPI = {
     return api.get(`/products/${id}`);
   },
 
+  // ✅ FIXED: Now calls the correct /products/featured endpoint
   getFeaturedProducts: (params = {}) => {
-    const queryParams = { limit: 6, featured: true, ...params };
+    const queryParams = { limit: 3, ...params }; // ✅ Default to 3, allow override
     console.log('🛍️ productAPI.getFeaturedProducts called with params:', queryParams);
-    return api.get('/products', { params: queryParams });
+    return api.get('/products/featured', { params: queryParams }); // ✅ Fixed endpoint
   },
 
   searchProducts: (query, filters = {}) => {
