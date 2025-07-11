@@ -1,4 +1,4 @@
-// client/src/pages/Home.js - IMPROVED VERSION WITH BETTER ERROR HANDLING
+// client/src/pages/Home.js - FIXED WITH FALLBACK LOGIC
 import React, { useEffect, useState } from 'react';
 import { Container, Row, Col, Spinner, Alert, Button } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
@@ -21,7 +21,7 @@ const Home = () => {
       setPetsError(null);
       setProductsError(null);
 
-      // Fetch pets and products separately with individual error handling
+      // Fetch pets and products separately
       await Promise.allSettled([
         fetchFeaturedPets(),
         fetchFeaturedProducts()
@@ -36,68 +36,66 @@ const Home = () => {
   const fetchFeaturedPets = async () => {
     try {
       console.log('🏠 Home: Fetching featured pets...');
-      const petsRes = await petAPI.getFeaturedPets({ limit: 4 });
       
-      // Handle different response structures
-      const petsData = petsRes.data?.data || petsRes.data || [];
-      const validPets = Array.isArray(petsData) ? petsData : [];
+      // Try to get featured pets first
+      const featuredRes = await petAPI.getFeaturedPets({ limit: 4 });
+      const featuredData = featuredRes.data?.data || [];
       
-      console.log('🏠 Home: Featured pets received:', validPets.length);
-      setFeaturedPets(validPets.slice(0, 4)); // Ensure max 4 pets
+      if (featuredData.length > 0) {
+        console.log('✅ Home: Found featured pets:', featuredData.length);
+        setFeaturedPets(featuredData);
+      } else {
+        console.log('⚠️ Home: No featured pets found, falling back to recent pets');
+        
+        // Fallback: get the most recent pets
+        const allPetsRes = await petAPI.getAllPets({ limit: 4 });
+        const allPetsData = allPetsRes.data?.data || [];
+        
+        if (allPetsData.length > 0) {
+          console.log('✅ Home: Using recent pets as fallback:', allPetsData.length);
+          setFeaturedPets(allPetsData);
+        } else {
+          console.log('❌ Home: No pets found at all');
+          setPetsError('No pets available at this time.');
+        }
+      }
       
     } catch (err) {
-      console.error('❌ Home: Error loading featured pets:', err);
-      setPetsError('Unable to load featured pets at this time.');
-      
-      // Fallback: try to get any available pets
-      try {
-        console.log('🏠 Home: Trying fallback for pets...');
-        const fallbackRes = await petAPI.getAllPets({ limit: 4 });
-        const fallbackData = fallbackRes.data?.data || fallbackRes.data || [];
-        const validFallback = Array.isArray(fallbackData) ? fallbackData : [];
-        
-        if (validFallback.length > 0) {
-          setFeaturedPets(validFallback.slice(0, 4));
-          setPetsError(null); // Clear error if fallback works
-          console.log('✅ Home: Fallback pets loaded:', validFallback.length);
-        }
-      } catch (fallbackErr) {
-        console.error('❌ Home: Fallback for pets also failed:', fallbackErr);
-      }
+      console.error('❌ Home: Error loading pets:', err);
+      setPetsError('Unable to load pets at this time.');
     }
   };
 
   const fetchFeaturedProducts = async () => {
     try {
       console.log('🏠 Home: Fetching featured products...');
-      const productsRes = await productAPI.getFeaturedProducts({ limit: 3 });
       
-      // Handle different response structures
-      const productsData = productsRes.data?.data || productsRes.data || [];
-      const validProducts = Array.isArray(productsData) ? productsData : [];
+      // Try to get featured products first
+      const featuredRes = await productAPI.getFeaturedProducts({ limit: 3 });
+      const featuredData = featuredRes.data?.data || [];
       
-      console.log('🏠 Home: Featured products received:', validProducts.length);
-      setFeaturedProducts(validProducts.slice(0, 3)); // Ensure max 3 products
+      if (featuredData.length > 0) {
+        console.log('✅ Home: Found featured products:', featuredData.length);
+        setFeaturedProducts(featuredData);
+      } else {
+        console.log('⚠️ Home: No featured products found, falling back to recent products');
+        
+        // Fallback: get the most recent products
+        const allProductsRes = await productAPI.getAllProducts({ limit: 3 });
+        const allProductsData = allProductsRes.data?.data || [];
+        
+        if (allProductsData.length > 0) {
+          console.log('✅ Home: Using recent products as fallback:', allProductsData.length);
+          setFeaturedProducts(allProductsData);
+        } else {
+          console.log('❌ Home: No products found at all');
+          setProductsError('No products available at this time.');
+        }
+      }
       
     } catch (err) {
-      console.error('❌ Home: Error loading featured products:', err);
-      setProductsError('Unable to load featured products at this time.');
-      
-      // Fallback: try to get any available products
-      try {
-        console.log('🏠 Home: Trying fallback for products...');
-        const fallbackRes = await productAPI.getAllProducts({ limit: 3 });
-        const fallbackData = fallbackRes.data?.data || fallbackRes.data || [];
-        const validFallback = Array.isArray(fallbackData) ? fallbackData : [];
-        
-        if (validFallback.length > 0) {
-          setFeaturedProducts(validFallback.slice(0, 3));
-          setProductsError(null); // Clear error if fallback works
-          console.log('✅ Home: Fallback products loaded:', validFallback.length);
-        }
-      } catch (fallbackErr) {
-        console.error('❌ Home: Fallback for products also failed:', fallbackErr);
-      }
+      console.error('❌ Home: Error loading products:', err);
+      setProductsError('Unable to load products at this time.');
     }
   };
 
@@ -150,16 +148,16 @@ const Home = () => {
           <Alert variant="info" className="text-center">
             <Alert.Heading>
               <i className="fas fa-info-circle me-2"></i>
-              No Featured Pets Available
+              No Pets Available
             </Alert.Heading>
-            <p className="mb-3">We're updating our featured pets. Please check back soon!</p>
+            <p className="mb-3">We're currently updating our pet listings. Please check back soon!</p>
             <Button as={Link} to="/pets" variant="primary">
               <i className="fas fa-paw me-2"></i>Browse All Pets
             </Button>
           </Alert>
         ) : (
           <Row className="g-4">
-            {featuredPets.map((pet) => (
+            {featuredPets.slice(0, 4).map((pet) => (
               <Col key={pet._id} xs={12} sm={6} md={4} lg={3}>
                 <PetCard pet={pet} priority />
               </Col>
@@ -171,7 +169,7 @@ const Home = () => {
         {featuredPets.length > 0 && (
           <div className="text-center mt-4">
             <Button as={Link} to="/pets" variant="outline-primary" size="lg">
-              <i className="fas fa-paw me-2"></i>View All Pets
+              <i className="fas fa-paw me-2"></i>View All Pets ({featuredPets.length > 4 ? '50+' : featuredPets.length} available)
             </Button>
           </div>
         )}
@@ -209,16 +207,16 @@ const Home = () => {
           <Alert variant="info" className="text-center">
             <Alert.Heading>
               <i className="fas fa-info-circle me-2"></i>
-              No Featured Products Available
+              No Products Available
             </Alert.Heading>
-            <p className="mb-3">We're updating our featured products. Please check back soon!</p>
+            <p className="mb-3">We're currently updating our product catalog. Please check back soon!</p>
             <Button as={Link} to="/products" variant="primary">
               <i className="fas fa-shopping-cart me-2"></i>Browse All Products
             </Button>
           </Alert>
         ) : (
           <Row className="g-4">
-            {featuredProducts.map((product) => (
+            {featuredProducts.slice(0, 3).map((product) => (
               <Col key={product._id} xs={12} sm={6} md={4}>
                 <ProductCard product={product} priority />
               </Col>
@@ -230,7 +228,7 @@ const Home = () => {
         {featuredProducts.length > 0 && (
           <div className="text-center mt-4">
             <Button as={Link} to="/products" variant="outline-primary" size="lg">
-              <i className="fas fa-shopping-cart me-2"></i>View All Products
+              <i className="fas fa-shopping-cart me-2"></i>View All Products ({featuredProducts.length > 3 ? '15+' : featuredProducts.length} available)
             </Button>
           </div>
         )}
