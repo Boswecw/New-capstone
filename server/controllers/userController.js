@@ -1,7 +1,7 @@
-// server/controllers/userController.js
-import User from '../models/User.js';
-import Pet from '../models/Pet.js';
-import jwt from 'jsonwebtoken';
+// server/controllers/userController.js - FIXED for CommonJS
+const User = require('../models/User');
+const Pet = require('../models/Pet');
+const jwt = require('jsonwebtoken');
 
 // Generate JWT token
 const generateToken = (userId) => {
@@ -11,33 +11,54 @@ const generateToken = (userId) => {
 };
 
 // Register user
-export const register = async (req, res) => {
+const register = async (req, res) => {
   try {
-    const { username, email, password, firstName, lastName } = req.body;
+    const { username, email, password, firstName, lastName, name } = req.body;
+    
+    // ✅ FIXED: Handle both name formats
+    const userName = name || (firstName && lastName ? `${firstName} ${lastName}` : username);
+    
+    if (!userName || !email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Name, email, and password are required'
+      });
+    }
     
     // Check if user already exists
     const existingUser = await User.findOne({
-      $or: [{ email }, { username }]
+      $or: [{ email }, ...(username ? [{ username }] : [])]
     });
     
     if (existingUser) {
       return res.status(400).json({
         success: false,
-        message: 'User with this email or username already exists'
+        message: 'User with this email already exists'
       });
     }
     
     // Create new user
-    const user = new User({
-      username,
+    const userData = {
+      name: userName,
       email,
       password,
-      profile: {
+    };
+    
+    // Add username if provided
+    if (username) {
+      userData.username = username;
+    }
+    
+    // Add profile data if provided
+    if (firstName || lastName) {
+      userData.profile = {
+        ...userData.profile,
         firstName,
         lastName
-      }
-    });
+      };
+    }
     
+    const user = new User(userData);
     await user.save();
     
     // Generate token
@@ -49,15 +70,17 @@ export const register = async (req, res) => {
       data: {
         user: {
           id: user._id,
-          username: user.username,
+          name: user.name,
           email: user.email,
           role: user.role,
-          profile: user.profile
+          isActive: user.isActive,
+          createdAt: user.createdAt
         },
         token
       }
     });
   } catch (error) {
+    console.error('Registration error:', error);
     res.status(400).json({
       success: false,
       message: 'Error registering user',
@@ -67,27 +90,66 @@ export const register = async (req, res) => {
 };
 
 // Login user
-export const login = async (req, res) => {
+const login = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, username } = req.body;
     
-    // Find user by email
-    const user = await User.findOne({ email });
-    if (!user) {
+    // ✅ FIXED: Support both email and username login
+    const loginField = email || username;
+    
+    if (!loginField || !password) {
       return res.status(400).json({
         success: false,
+        message: 'Email/username and password are required'
+      });
+    }
+    
+    // Find user by email or username
+    const user = await User.findOne({
+      $or: [
+        { email: loginField.toLowerCase() },
+        ...(username ? [{ username: loginField }] : [])
+      ]
+    }).select('+password');
+    
+    if (!user) {
+      return res.status(401).json({
+        success: false,
         message: 'Invalid email or password'
+      });
+    }
+    
+    // Check if account is active
+    if (!user.isActive) {
+      return res.status(401).json({
+        success: false,
+        message: 'Account is deactivated'
+      });
+    }
+    
+    // Check if account is locked
+    if (user.isLocked) {
+      return res.status(423).json({
+        success: false,
+        message: 'Account is temporarily locked due to too many failed login attempts'
       });
     }
     
     // Check password
     const isPasswordValid = await user.comparePassword(password);
     if (!isPasswordValid) {
-      return res.status(400).json({
+      // Increment failed login attempts
+      await user.incLoginAttempts();
+      
+      return res.status(401).json({
         success: false,
         message: 'Invalid email or password'
       });
     }
+    
+    // Reset login attempts and update last login
+    await user.resetLoginAttempts();
+    await user.updateLastLogin();
     
     // Generate token
     const token = generateToken(user._id);
@@ -98,15 +160,18 @@ export const login = async (req, res) => {
       data: {
         user: {
           id: user._id,
-          username: user.username,
+          name: user.name,
           email: user.email,
           role: user.role,
+          isActive: user.isActive,
+          lastLogin: user.lastLogin,
           profile: user.profile
         },
         token
       }
     });
   } catch (error) {
+    console.error('Login error:', error);
     res.status(500).json({
       success: false,
       message: 'Error logging in',
@@ -116,17 +181,38 @@ export const login = async (req, res) => {
 };
 
 // Get user profile
-export const getProfile = async (req, res) => {
+const getProfile = async (req, res) => {
   try {
     const user = await User.findById(req.user.id)
       .select('-password')
-      .populate('favoritesPets');
+      .populate('favorites', 'name type breed age imageUrl status')
+      .populate('adoptedPets.pet', 'name type breed imageUrl');
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
     
     res.json({
       success: true,
-      data: user
+      data: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        isActive: user.isActive,
+        profile: user.profile,
+        favorites: user.favorites,
+        adoptedPets: user.adoptedPets,
+        createdAt: user.createdAt,
+        lastLogin: user.lastLogin
+      },
+      message: 'Profile retrieved successfully'
     });
   } catch (error) {
+    console.error('Error fetching profile:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching profile',
@@ -136,7 +222,7 @@ export const getProfile = async (req, res) => {
 };
 
 // Update user profile
-export const updateProfile = async (req, res) => {
+const updateProfile = async (req, res) => {
   try {
     const updates = req.body;
     
@@ -144,6 +230,8 @@ export const updateProfile = async (req, res) => {
     delete updates.password;
     delete updates.email;
     delete updates.role;
+    delete updates._id;
+    delete updates.id;
     
     const user = await User.findByIdAndUpdate(
       req.user.id,
@@ -151,12 +239,20 @@ export const updateProfile = async (req, res) => {
       { new: true, runValidators: true }
     ).select('-password');
     
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+    
     res.json({
       success: true,
       message: 'Profile updated successfully',
       data: user
     });
   } catch (error) {
+    console.error('Error updating profile:', error);
     res.status(400).json({
       success: false,
       message: 'Error updating profile',
@@ -166,17 +262,26 @@ export const updateProfile = async (req, res) => {
 };
 
 // Get user favorites
-export const getFavorites = async (req, res) => {
+const getFavorites = async (req, res) => {
   try {
     const user = await User.findById(req.user.id)
-      .populate('favoritesPets')
-      .select('favoritesPets');
+      .populate('favorites', 'name type breed age imageUrl status location')
+      .select('favorites');
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
     
     res.json({
       success: true,
-      data: user.favoritesPets
+      data: user.favorites,
+      message: 'Favorites retrieved successfully'
     });
   } catch (error) {
+    console.error('Error fetching favorites:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching favorites',
@@ -186,7 +291,7 @@ export const getFavorites = async (req, res) => {
 };
 
 // Add pet to favorites
-export const addToFavorites = async (req, res) => {
+const addToFavorites = async (req, res) => {
   try {
     const petId = req.params.petId;
     const userId = req.user.id;
@@ -200,18 +305,16 @@ export const addToFavorites = async (req, res) => {
       });
     }
     
-    // Add to favorites if not already there
+    // Add to favorites using the User model method
     const user = await User.findById(userId);
-    if (!user.favoritesPets.includes(petId)) {
-      user.favoritesPets.push(petId);
-      await user.save();
-    }
+    await user.addToFavorites(petId);
     
     res.json({
       success: true,
       message: 'Pet added to favorites'
     });
   } catch (error) {
+    console.error('Error adding to favorites:', error);
     res.status(500).json({
       success: false,
       message: 'Error adding to favorites',
@@ -221,22 +324,21 @@ export const addToFavorites = async (req, res) => {
 };
 
 // Remove pet from favorites
-export const removeFromFavorites = async (req, res) => {
+const removeFromFavorites = async (req, res) => {
   try {
     const petId = req.params.petId;
     const userId = req.user.id;
     
+    // Remove from favorites using the User model method
     const user = await User.findById(userId);
-    user.favoritesPets = user.favoritesPets.filter(
-      id => id.toString() !== petId
-    );
-    await user.save();
+    await user.removeFromFavorites(petId);
     
     res.json({
       success: true,
       message: 'Pet removed from favorites'
     });
   } catch (error) {
+    console.error('Error removing from favorites:', error);
     res.status(500).json({
       success: false,
       message: 'Error removing from favorites',
@@ -245,8 +347,8 @@ export const removeFromFavorites = async (req, res) => {
   }
 };
 
-// Default export
-const userController = {
+// Export all functions
+module.exports = {
   register,
   login,
   getProfile,
@@ -255,5 +357,3 @@ const userController = {
   addToFavorites,
   removeFromFavorites
 };
-
-export default userController;
