@@ -33,27 +33,27 @@ const corsOptions = {
       "http://localhost:3000",
       "http://localhost:3001",
       "http://localhost:5000",
-
+      
       // Replace with your actual Render URLs
-      "https://furbabies-frontend.onrender.com", // ⚠️ UPDATE THIS
-      "https://furbabies-backend.onrender.com", // ⚠️ UPDATE THIS
-
+      "https://furbabies-frontend.onrender.com",  // ⚠️ UPDATE THIS
+      "https://furbabies-backend.onrender.com",   // ⚠️ UPDATE THIS
+      
       // Environment variables (recommended)
       process.env.FRONTEND_URL,
       process.env.APP_URL,
     ].filter(Boolean);
 
-    console.log("🌍 CORS Check - Origin:", origin);
-    console.log("🌍 CORS Check - Allowed:", allowedOrigins);
+    console.log('🌍 CORS Check - Origin:', origin);
+    console.log('🌍 CORS Check - Allowed:', allowedOrigins);
 
     if (allowedOrigins.indexOf(origin) !== -1) {
-      console.log("✅ CORS: Origin allowed");
+      console.log('✅ CORS: Origin allowed');
       callback(null, true);
     } else {
-      console.log("❌ CORS: Origin blocked");
+      console.log('❌ CORS: Origin blocked');
       // For debugging: temporarily allow all origins (REMOVE IN PRODUCTION)
       // callback(null, true);
-      callback(new Error("Not allowed by CORS"));
+      callback(new Error('Not allowed by CORS'));
     }
   },
   credentials: true,

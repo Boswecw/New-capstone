@@ -1,4 +1,4 @@
-// client/src/pages/Browse.js - Fixed filtering to match actual pet data
+// client/src/pages/Browse.js - Updated with data extraction fix and safety checks
 import React, { useState, useEffect, useCallback } from 'react';
 import { Container, Row, Col, Spinner, Alert, Form, Button, InputGroup } from 'react-bootstrap';
 import { useSearchParams } from 'react-router-dom';
@@ -12,14 +12,12 @@ const Browse = () => {
   const [error, setError] = useState(null);
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // Search and filter states - FIXED: Use 'type' instead of 'category'
   const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
   const [selectedType, setSelectedType] = useState(searchParams.get('type') || '');
   const [selectedBreed, setSelectedBreed] = useState(searchParams.get('breed') || '');
   const [ageRange, setAgeRange] = useState(searchParams.get('age') || '');
   const [showFilters, setShowFilters] = useState(false);
 
-  // ✅ FIXED: Updated to match actual pet types in your database
   const petTypes = [
     { value: '', label: 'All Pets' },
     { value: 'dog', label: 'Dogs' },
@@ -37,13 +35,11 @@ const Browse = () => {
     { value: 'senior', label: 'Senior (7+ years)' }
   ];
 
-  // Fetch pets based on current filters
   const fetchPets = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
 
-      // ✅ FIXED: Send 'type' parameter instead of 'category'
       const params = {
         ...(searchTerm && { search: searchTerm }),
         ...(selectedType && { type: selectedType }),
@@ -53,9 +49,9 @@ const Browse = () => {
 
       console.log('🔍 Fetching pets with params:', params);
       const response = await petAPI.getAllPets(params);
-      console.log('🐾 Browse pets response:', response);
-      
-      setPets(response.data || []);
+      console.log('🐾 Browse pets response:', response.data);
+
+      setPets(response.data?.data || []);
     } catch (err) {
       console.error('Error fetching pets:', err);
       setError('Failed to load pets. Please try again.');
@@ -64,32 +60,27 @@ const Browse = () => {
     }
   }, [searchTerm, selectedType, selectedBreed, ageRange]);
 
-  // Update URL when filters change
   useEffect(() => {
     const params = new URLSearchParams();
     if (searchTerm) params.set('search', searchTerm);
     if (selectedType) params.set('type', selectedType);
     if (selectedBreed) params.set('breed', selectedBreed);
     if (ageRange) params.set('age', ageRange);
-    
+
     setSearchParams(params);
   }, [searchTerm, selectedType, selectedBreed, ageRange, setSearchParams]);
 
-  // ✅ FIX: Listen for URL parameter changes and update local state
-  // This was the missing piece that prevented navbar filtering from working!
   useEffect(() => {
     setSearchTerm(searchParams.get('search') || '');
     setSelectedType(searchParams.get('type') || '');
     setSelectedBreed(searchParams.get('breed') || '');
     setAgeRange(searchParams.get('age') || '');
-  }, [searchParams]); // This triggers when URL parameters change
+  }, [searchParams]);
 
-  // Fetch pets when filters change
   useEffect(() => {
     fetchPets();
   }, [fetchPets]);
 
-  // Clear all filters
   const clearFilters = () => {
     setSearchTerm('');
     setSelectedType('');
@@ -98,7 +89,6 @@ const Browse = () => {
     setShowFilters(false);
   };
 
-  // Handle search
   const handleSearch = (e) => {
     e.preventDefault();
     fetchPets();
@@ -112,7 +102,6 @@ const Browse = () => {
             <i className="fas fa-paw me-2"></i>Browse Pets
           </h1>
 
-          {/* Search and Filter Bar */}
           <Form onSubmit={handleSearch} className="mb-4">
             <InputGroup size="lg">
               <Form.Control
@@ -136,7 +125,6 @@ const Browse = () => {
             </InputGroup>
           </Form>
 
-          {/* Advanced Filters */}
           {showFilters && (
             <div className="p-3 bg-light rounded mb-3">
               <Row>
@@ -189,7 +177,6 @@ const Browse = () => {
         </Col>
       </Row>
 
-      {/* Active Filters Display */}
       {(searchTerm || selectedType || selectedBreed || ageRange) && (
         <Row className="justify-content-center mb-3">
           <Col xl={10}>
@@ -212,7 +199,6 @@ const Browse = () => {
         </Row>
       )}
 
-      {/* Results Section */}
       <Row className="justify-content-center">
         <Col xl={10}>
           {loading && (
@@ -237,15 +223,7 @@ const Browse = () => {
                 </h5>
               </div>
 
-              {pets.length === 0 ? (
-                <div className="text-center py-5">
-                  <i className="fas fa-search fa-3x text-muted mb-3"></i>
-                  <h4 className="text-muted">No pets found</h4>
-                  <p className="text-muted">
-                    Try adjusting your search criteria or <Button variant="link" onClick={clearFilters} className="p-0">clear all filters</Button>
-                  </p>
-                </div>
-              ) : (
+              {Array.isArray(pets) && pets.length > 0 ? (
                 <Row>
                   {pets.map((pet) => (
                     <Col key={pet._id} xs={12} sm={6} md={4} lg={3} className="mb-4">
@@ -253,6 +231,14 @@ const Browse = () => {
                     </Col>
                   ))}
                 </Row>
+              ) : (
+                <div className="text-center py-5">
+                  <i className="fas fa-search fa-3x text-muted mb-3"></i>
+                  <h4 className="text-muted">No pets found</h4>
+                  <p className="text-muted">
+                    Try adjusting your search criteria or <Button variant="link" onClick={clearFilters} className="p-0">clear all filters</Button>
+                  </p>
+                </div>
               )}
             </>
           )}

@@ -1,0 +1,277 @@
+[33mcommit 7cce25223b0e3a8de3a84342c034f38f4279c931[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmaster[m[33m, [m[1;31morigin/master[m[33m, [m[1;31morigin/HEAD[m[33m)[m
+Author: Charles W Boswell <charliewboswell@gmail.com>
+Date:   Fri Jul 11 10:20:13 2025 -0400
+
+    updated pets
+
+[33mcommit 8b1c4d51dee6a59443b7fd24c6c91bf4a9922296[m
+Author: Charles W Boswell <charliewboswell@gmail.com>
+Date:   Fri Jul 11 09:47:25 2025 -0400
+
+    updates for news api
+
+[33mcommit 446af51e4f2eeeff32e752977a4554c66d58864b[m
+Author: Charles W Boswell <charliewboswell@gmail.com>
+Date:   Fri Jul 11 09:31:11 2025 -0400
+
+    pet news update
+
+[33mcommit 0bad47bd91801435c16c3c5b853738c89faf17d4[m
+Author: Charles W Boswell <charliewboswell@gmail.com>
+Date:   Fri Jul 11 09:24:21 2025 -0400
+
+    api update for pet news
+
+[33mcommit 7fd1e2548a7cd6a04ed10a5a0f11c266c34d63c7[m
+Author: Charles W Boswell <charliewboswell@gmail.com>
+Date:   Fri Jul 11 09:15:56 2025 -0400
+
+    live news api
+
+[33mcommit b2c38f2cb1233fb8bb9a25049a710a9d1b14b9d6[m
+Author: Charles W Boswell <charliewboswell@gmail.com>
+Date:   Fri Jul 11 08:23:20 2025 -0400
+
+    pet news update
+
+[33mcommit 88f6c946d11702211b3beff335556be949737a73[m
+Author: Charles W Boswell <charliewboswell@gmail.com>
+Date:   Fri Jul 11 08:15:11 2025 -0400
+
+    pet news
+
+[33mcommit d7948fa3b0c072864dbc1db7e717419bfc8670dc[m
+Author: Charles W Boswell <charliewboswell@gmail.com>
+Date:   Fri Jul 11 08:09:08 2025 -0400
+
+    pet news update
+
+[33mcommit 1d1729cebf3262853749705fa0992879cac64d49[m
+Author: Charles W Boswell <charliewboswell@gmail.com>
+Date:   Wed Jul 9 12:06:45 2025 -0400
+
+    admni analytics fix
+
+[33mcommit a6996391e5cb222199bca4df36b11fb26571a0d4[m
+Author: Charles W Boswell <charliewboswell@gmail.com>
+Date:   Wed Jul 9 09:30:24 2025 -0400
+
+    updated admin
+
+[33mcommit c0bf91efdd326d7225a8903c06d1d185c14b50f3[m
+Author: Charles W Boswell <charliewboswell@gmail.com>
+Date:   Wed Jul 9 08:09:00 2025 -0400
+
+    petdetail fix
+
+[33mcommit bd1084904434c1b7d18b60da893bdbdd367c1e1e[m
+Author: Charles W Boswell <charliewboswell@gmail.com>
+Date:   Wed Jul 9 08:02:26 2025 -0400
+
+    using petcard for pet detail
+
+[33mcommit 62e25186810600d8f10b6c6e836e88d6188de263[m
+Author: Charles W Boswell <charliewboswell@gmail.com>
+Date:   Wed Jul 9 07:57:13 2025 -0400
+
+    pet images on pet detail fix
+
+[33mcommit 44258837285027092a263e63216578821c130052[m
+Author: Charles W Boswell <charliewboswell@gmail.com>
+Date:   Wed Jul 9 07:53:15 2025 -0400
+
+    improved pet detail
+
+[33mcommit 3004d67b528fd32cfe7cb30851b157f606b9e9bf[m
+Author: Charles W Boswell <charliewboswell@gmail.com>
+Date:   Wed Jul 9 07:34:25 2025 -0400
+
+    home page debug
+
+[33mcommit 26f436b7f033db74e7a4995a4488b729de149953[m
+Author: Charles W Boswell <charliewboswell@gmail.com>
+Date:   Wed Jul 9 07:29:09 2025 -0400
+
+    home page error handling and product routes
+
+[33mcommit 8894e0f9715f814a4842ba3b033941593e37f098[m
+Author: Charles W Boswell <charliewboswell@gmail.com>
+Date:   Tue Jul 8 22:55:29 2025 -0400
+
+    view details fix for products and pets
+
+[33mcommit 5f5528def1b81801c13ae23aebe851faab2588d5[m
+Author: Charles W Boswell <charliewboswell@gmail.com>
+Date:   Tue Jul 8 22:30:16 2025 -0400
+
+    another router.js fix
+
+[33mcommit a2863fc87eeef65add849ed0cdcf6e8e5ef0c4ba[m
+Author: Charles W Boswell <charliewboswell@gmail.com>
+Date:   Tue Jul 8 17:39:22 2025 -0400
+
+    final push for pet routes and validation
+
+[33mcommit c24145f98ee8019de00e0767e86c762e2ea75334[m
+Author: Charles W Boswell <charliewboswell@gmail.com>
+Date:   Tue Jul 8 17:31:12 2025 -0400
+
+    validation and pet routes fixed
+
+[33mcommit bcc52113dfbd637fecde68f3aed8d905de4842ad[m
+Author: Charles W Boswell <charliewboswell@gmail.com>
+Date:   Tue Jul 8 17:19:14 2025 -0400
+
+    pets routes again
+
+[33mcommit 8383f89c18f6b44aaea6664fb560bb8e1de18687[m
+Author: Charles W Boswell <charliewboswell@gmail.com>
+Date:   Tue Jul 8 16:42:47 2025 -0400
+
+    pet routes third attempt
+
+[33mcommit 9f494416036ab0aed3542da53e97ec9e6e9b3293[m
+Author: Charles W Boswell <charliewboswell@gmail.com>
+Date:   Tue Jul 8 16:31:50 2025 -0400
+
+    middleware update
+
+[33mcommit a76ac0955a9e5799312cd7bb96aef7bceb684db9[m
+Author: Charles W Boswell <charliewboswell@gmail.com>
+Date:   Tue Jul 8 16:22:37 2025 -0400
+
+    pet routes fix
+
+[33mcommit 2b7dbbd2dce144d0af7888406d5b2a8e607f7fab[m
+Author: Charles W Boswell <charliewboswell@gmail.com>
+Date:   Tue Jul 8 16:17:36 2025 -0400
+
+    pet routes
+
+[33mcommit 7bb32a49b30b79421e402aa43cf68d2f2e416b89[m
+Author: Charles W Boswell <charliewboswell@gmail.com>
+Date:   Tue Jul 8 16:13:44 2025 -0400
+
+    detail links
+
+[33mcommit 559177d0d8a54a0e20d19bd7e22c6b1867a94940[m
+Author: Charles W Boswell <charliewboswell@gmail.com>
+Date:   Tue Jul 8 13:46:32 2025 -0400
+
+    registration fixes
+
+[33mcommit b189f04fc3f0f1d845a58779975a4f44ecd56f1d[m
+Author: Charles W Boswell <charliewboswell@gmail.com>
+Date:   Tue Jul 8 13:27:02 2025 -0400
+
+    cors fix
+
+[33mcommit 372aa53d7410efca5d4f129d2afaef0d8c7d24c9[m
+Author: Charles W Boswell <charliewboswell@gmail.com>
+Date:   Tue Jul 8 13:19:21 2025 -0400
+
+    authcontext fix B
+
+[33mcommit 89c9defbfd5bf6ede051a6756e75fa665e7876c6[m
+Author: Charles W Boswell <charliewboswell@gmail.com>
+Date:   Tue Jul 8 13:12:22 2025 -0400
+
+    fix authcontext
+
+[33mcommit 22294889d717d32fab6d91698f0eaaba5e2cba88[m
+Author: Charles W Boswell <charliewboswell@gmail.com>
+Date:   Tue Jul 8 12:19:00 2025 -0400
+
+    registration fix
+
+[33mcommit e1fad1f74e9da822e59c07912acfd62484aa6dac[m
+Author: Charles W Boswell <charliewboswell@gmail.com>
+Date:   Tue Jul 8 11:42:01 2025 -0400
+
+    hero banner infinite loop error
+
+[33mcommit a3ee695015acf7776dfa206feca218d790035743[m
+Author: Charles W Boswell <charliewboswell@gmail.com>
+Date:   Tue Jul 8 11:33:04 2025 -0400
+
+    updated browse issue
+
+[33mcommit 35cfd88f1acdd24a9d86348b9e42998993c347bc[m
+Author: Charles W Boswell <charliewboswell@gmail.com>
+Date:   Tue Jul 8 11:20:18 2025 -0400
+
+    fixed user registration
+
+[33mcommit 68f04f1262b51807c1c59f1a53bfac30f5343fd1[m
+Author: Charles W Boswell <charliewboswell@gmail.com>
+Date:   Tue Jul 8 10:48:00 2025 -0400
+
+    serverjs fix
+
+[33mcommit 3ca402ac4b143cd6cc79d1285a0e4a37582aab0b[m
+Author: Charles W Boswell <charliewboswell@gmail.com>
+Date:   Tue Jul 8 10:06:19 2025 -0400
+
+    Fix API port for local development
+
+[33mcommit b582208fcd357fed95d06baf143c6e7899e26f57[m
+Author: Charles W Boswell <charliewboswell@gmail.com>
+Date:   Tue Jul 8 09:21:20 2025 -0400
+
+    Push to deploy
+
+[33mcommit d41de2a90878d576f2e720eb79e4add8e01198a3[m
+Author: Charles W Boswell <charliewboswell@gmail.com>
+Date:   Tue Jul 8 09:17:15 2025 -0400
+
+    removed unneccessary items
+
+[33mcommit e63553dd44a4ec380d5dda2a35bd303341b213f4[m
+Author: Charles W Boswell <charliewboswell@gmail.com>
+Date:   Tue Jul 8 09:10:09 2025 -0400
+
+    last push till deploy
+
+[33mcommit 5ec45dc123c8e195cb3583caa5389827db7da630[m
+Author: Charles W Boswell <charliewboswell@gmail.com>
+Date:   Tue Jul 8 08:51:16 2025 -0400
+
+    deploying
+
+[33mcommit 2dacf123aa3523fe28533fcffb81cdb4b2a9afc1[m
+Author: Charles W Boswell <charliewboswell@gmail.com>
+Date:   Tue Jul 8 08:23:00 2025 -0400
+
+    for deployment
+
+[33mcommit 111ae041c8df6a6122d8b52c251cfa9005b953a5[m
+Author: Charles W Boswell <charliewboswell@gmail.com>
+Date:   Tue Jul 8 08:15:51 2025 -0400
+
+    removed image files
+
+[33mcommit 55a951f04cc058c6cb4b29410de6cc6ff5611dff[m
+Author: Charles W Boswell <charliewboswell@gmail.com>
+Date:   Tue Jul 8 08:05:07 2025 -0400
+
+    last time
+
+[33mcommit 79d0d0244add7d96e22f3c8ffd9b78da3d15252e[m
+Author: Charles W Boswell <charliewboswell@gmail.com>
+Date:   Tue Jul 8 08:00:55 2025 -0400
+
+    deploy time
+
+[33mcommit 424f914101ee6ebbd7f71bfea1b30503f22d0917[m
+Author: Charles W Boswell <charliewboswell@gmail.com>
+Date:   Tue Jul 8 07:54:28 2025 -0400
+
+    last before deploy
+
+[33mcommit 2a2167f2a9f3010013a703b801bd97c3c9d6df29[m
+Author: Charles W Boswell <charliewboswell@gmail.com>
+Date:   Mon Jul 7 22:44:45 2025 -0400
+
+    fina push til deployment
+
+[33mcommit a37d23b5bfe9df9c43d97bead17007777ff
