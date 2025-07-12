@@ -28,26 +28,26 @@ mongoose.connect(process.env.MONGO_URI, {
 const userRoutes = require('./routes/users');
 const petRoutes = require('./routes/pets');
 const productRoutes = require('./routes/products');
-const contactRoutes = require('./routes/contacts');
+const contactRoutes = require('./routes/contact'); // ✅ FIXED: Correct file name
 const adminRoutes = require('./routes/admin');
 const adminPetsRoutes = require('./routes/adminPets');
 
-// 🛣 Routes
-app.use('/api/users', userRoutes);       // ✅ Full user system including auth
+// 🛣 Route mounting
+app.use('/api/users', userRoutes);
 app.use('/api/pets', petRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/contact', contactRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/admin/pets', adminPetsRoutes);
 
-// 📦 Static assets (if any, like uploads or images)
+// 📦 Serve static assets (if applicable)
 app.use('/public', express.static(path.join(__dirname, 'public')));
 
-// 🌐 Root check
+// 🌐 Root health check
 app.get('/', (req, res) => {
   res.send('FurBabies API is running...');
 });
 
-// 🟢 Start server
+// 🟢 Start the server
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
