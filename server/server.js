@@ -25,22 +25,22 @@ mongoose.connect(process.env.MONGO_URI, {
 });
 
 // 🔌 Route imports
-const authRoutes = require('./routes/auth');
+const userRoutes = require('./routes/users');
 const petRoutes = require('./routes/pets');
 const productRoutes = require('./routes/products');
 const contactRoutes = require('./routes/contacts');
 const adminRoutes = require('./routes/admin');
-const adminPetsRoutes = require('./routes/adminPets'); // ✅ NEW
+const adminPetsRoutes = require('./routes/adminPets');
 
 // 🛣 Routes
-app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);       // ✅ Full user system including auth
 app.use('/api/pets', petRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/contact', contactRoutes);
 app.use('/api/admin', adminRoutes);
-app.use('/api/admin/pets', adminPetsRoutes); // ✅ NEW
+app.use('/api/admin/pets', adminPetsRoutes);
 
-// 📦 Static assets if needed
+// 📦 Static assets (if any, like uploads or images)
 app.use('/public', express.static(path.join(__dirname, 'public')));
 
 // 🌐 Root check
