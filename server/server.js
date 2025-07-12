@@ -13,8 +13,15 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// 🛠 MongoDB connection
-mongoose.connect(process.env.MONGO_URI, {
+// 🛠 MongoDB connection with fallback check
+const mongoUri = process.env.MONGO_URI;
+
+if (!mongoUri) {
+  console.error('❌ MONGO_URI is not set in environment variables');
+  process.exit(1);
+}
+
+mongoose.connect(mongoUri, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
 })
@@ -28,7 +35,7 @@ mongoose.connect(process.env.MONGO_URI, {
 const userRoutes = require('./routes/users');
 const petRoutes = require('./routes/pets');
 const productRoutes = require('./routes/products');
-const contactRoutes = require('./routes/contact'); // ✅ FIXED: Correct file name
+const contactRoutes = require('./routes/contact'); // ✅ Corrected from ./routes/contacts
 const adminRoutes = require('./routes/admin');
 const adminPetsRoutes = require('./routes/adminPets');
 
@@ -40,7 +47,7 @@ app.use('/api/contact', contactRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/admin/pets', adminPetsRoutes);
 
-// 📦 Serve static assets (if applicable)
+// 📦 Serve static assets (if needed)
 app.use('/public', express.static(path.join(__dirname, 'public')));
 
 // 🌐 Root health check
