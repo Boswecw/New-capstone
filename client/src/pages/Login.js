@@ -13,10 +13,7 @@ import { useAuth } from "../contexts/AuthContext";
 
 const Login = () => {
   const { user, login } = useAuth();
-  const [formData, setFormData] = useState({
-    email: "",
-    password: "",
-  });
+  const [formData, setFormData] = useState({ email: "", password: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -26,27 +23,43 @@ const Login = () => {
   }
 
   const handleChange = (e) => {
-    setFormData({
-      ...formData,
+    setFormData((prev) => ({
+      ...prev,
       [e.target.name]: e.target.value,
-    });
+    }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
     setError("");
 
-    console.log("Form data before login:", formData); // ADD THIS LINE
+    const { email, password } = formData;
+
+    // ✅ Validate inputs before sending
+    if (!email || !password) {
+      setError("Email and password are required.");
+      return;
+    }
+
+    if (!email.includes("@")) {
+      setError("Please enter a valid email address.");
+      return;
+    }
+
+    console.log("🧪 Login form submission:");
+    console.log("📬 Email:", email, "| Type:", typeof email);
+    console.log("🔒 Password:", password ? "[REDACTED]" : "MISSING");
+
+    setLoading(true);
 
     try {
-      const result = await login(formData); // Make sure you changed this line
+      const result = await login({ email, password });
 
       if (!result.success) {
-        setError(result.message);
+        setError(result.message || "Login failed. Please try again.");
       }
-    } catch (error) {
-      setError(error.message);
+    } catch (err) {
+      setError(err.message || "An unexpected error occurred.");
     }
 
     setLoading(false);
@@ -67,7 +80,7 @@ const Login = () => {
 
               {error && <Alert variant="danger">{error}</Alert>}
 
-              <Form onSubmit={handleSubmit}>
+              <Form onSubmit={handleSubmit} autoComplete="on">
                 <Form.Group className="mb-3">
                   <Form.Label>Email</Form.Label>
                   <Form.Control
@@ -108,13 +121,13 @@ const Login = () => {
                 </p>
               </div>
 
-              <div className="mt-3">
-                <Alert variant="info">
-                  <strong>Demo Accounts:</strong>
+              <div className="mt-4">
+                <Alert variant="info" className="text-sm">
+                  <strong>Demo Accounts</strong>
                   <br />
-                  Admin: admin@furbabies.com / admin123
+                  Admin: <code>admin@furbabies.com</code> / <code>admin123</code>
                   <br />
-                  User: test@example.com / password123
+                  User: <code>test@example.com</code> / <code>password123</code>
                 </Alert>
               </div>
             </Card.Body>
