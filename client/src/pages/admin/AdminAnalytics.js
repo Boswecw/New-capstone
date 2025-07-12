@@ -1,4 +1,3 @@
-// pages/admin/AdminAnalytics.js
 import React, { useState, useEffect } from "react";
 import LoadingSpinner from "../../components/admin/LoadingSpinner";
 
@@ -50,7 +49,7 @@ const AdminAnalytics = () => {
   }
 
   return (
-    <div className="w-full">
+    <div className="container mx-auto px-4 py-8">
       {/* Header Section */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-4">
