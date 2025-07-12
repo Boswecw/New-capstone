@@ -199,7 +199,6 @@ const Home = () => {
             <>
               <Row className="g-4 mb-4">
                 {featuredProducts.map((product) => (
-                  {/* UPDATED: Changed from lg={4} to lg={3} to show 4 columns instead of 3 */}
                   <Col key={product._id} lg={3} md={6}>
                     <ProductCard product={product} />
                   </Col>
