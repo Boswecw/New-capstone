@@ -1,4 +1,4 @@
-// client/src/services/api.js - COMPLETE API WITH ALL MISSING FUNCTIONS
+// client/src/services/api.js - COMPLETE API WITH ANALYTICS
 import axios from 'axios';
 
 // ✅ RENDER FIX: Use your actual backend URL
@@ -226,11 +226,17 @@ export const userAPI = {
   }
 };
 
-// ===== ADMIN API =====
+// ===== ADMIN API (UPDATED WITH ANALYTICS) =====
 export const adminAPI = {
   getDashboard: () => {
     console.log('📊 adminAPI.getDashboard called');
-    return api.get('/admin/dashboard');
+    return api.get('/admin/stats'); // ✅ Fixed: was /admin/dashboard, now uses correct endpoint
+  },
+
+  // ✅ NEW: Analytics endpoint for live data
+  getAnalytics: (params = {}) => {
+    console.log('📈 adminAPI.getAnalytics called with params:', params);
+    return api.get('/admin/analytics', { params });
   },
 
   // User management
