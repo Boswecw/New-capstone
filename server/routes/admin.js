@@ -4,16 +4,15 @@ const router = express.Router();
 const User = require('../models/User');
 const Pet = require('../models/Pet');
 const Contact = require('../models/Contact');
-const Settings = require('../models/Settings'); // Optional: your settings model
-const { protect, adminOnly } = require('../middleware/auth');
+const Settings = require('../models/Settings');
 
-// Middleware for admin routes
+// ✅ FIXED: corrected import
+const { protect, admin: adminOnly } = require('../middleware/auth');
+
+// ✅ Middleware for admin routes
 router.use(protect, adminOnly);
 
-/** --------------------------
- *  GET /admin/stats
- *  Returns site-wide metrics
- --------------------------- */
+// 🚀 Admin Dashboard Stats
 router.get('/stats', async (req, res) => {
   try {
     const [totalPets, availablePets, totalUsers, totalContacts, newContacts] = await Promise.all([
@@ -51,10 +50,7 @@ router.get('/stats', async (req, res) => {
   }
 });
 
-/** --------------------------
- *  GET /admin/users
- *  Returns all users
- --------------------------- */
+// 👥 All Users
 router.get('/users', async (req, res) => {
   try {
     const users = await User.find();
@@ -65,10 +61,7 @@ router.get('/users', async (req, res) => {
   }
 });
 
-/** --------------------------
- *  DELETE /admin/users/:id
- *  Deletes a user
- --------------------------- */
+// ❌ Delete User
 router.delete('/users/:id', async (req, res) => {
   try {
     await User.findByIdAndDelete(req.params.id);
@@ -79,12 +72,8 @@ router.delete('/users/:id', async (req, res) => {
   }
 });
 
-/** --------------------------
- *  GET /admin/analytics
- *  Simulated analytics for now
- --------------------------- */
+// 📊 Analytics (Mocked)
 router.get('/analytics', async (req, res) => {
-  // This can be replaced with real logs/metrics later
   try {
     res.json({
       success: true,
@@ -115,10 +104,7 @@ router.get('/analytics', async (req, res) => {
   }
 });
 
-/** --------------------------
- *  GET /admin/reports/:type
- *  Returns mock CSV data for now
- --------------------------- */
+// 📄 Report Download (Mock CSV)
 router.get('/reports/:type', async (req, res) => {
   const { type } = req.params;
   const timestamp = new Date().toISOString().split('T')[0];
@@ -129,10 +115,7 @@ router.get('/reports/:type', async (req, res) => {
   res.send(content);
 });
 
-/** --------------------------
- *  GET/PUT /admin/settings
- *  Simple settings store (requires a Settings model)
- --------------------------- */
+// ⚙️ Settings - GET
 router.get('/settings', async (req, res) => {
   try {
     const settings = await Settings.findOne() || {};
@@ -143,6 +126,7 @@ router.get('/settings', async (req, res) => {
   }
 });
 
+// ⚙️ Settings - PUT
 router.put('/settings', async (req, res) => {
   try {
     const updated = await Settings.findOneAndUpdate({}, req.body, {
