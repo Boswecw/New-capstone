@@ -1,7 +1,7 @@
+// client/src/pages/admin/AdminSettings.js - UPDATED TO USE PROPER API
 import React, { useState, useEffect } from "react";
-import { Toast, ToastContainer } from "react-bootstrap";
-import LoadingSpinner from "../../components/admin/LoadingSpinner";
-import api from "../../services/api";
+import { Container, Row, Col, Card, Alert, Button, Form, Toast, ToastContainer } from "react-bootstrap";
+import { adminAPI } from "../../services/api";
 
 const AdminSettings = () => {
   const [settings, setSettings] = useState(null);
@@ -13,11 +13,18 @@ const AdminSettings = () => {
   useEffect(() => {
     const fetchSettings = async () => {
       try {
-        const response = await api.get("/admin/settings");
-        setSettings(response.data);
+        console.log('⚙️ Fetching admin settings...');
+        const response = await adminAPI.getSettings();
+        
+        if (response.data.success) {
+          setSettings(response.data.data);
+          console.log('✅ Settings loaded:', response.data.data);
+        } else {
+          throw new Error(response.data.message || 'Failed to load settings');
+        }
       } catch (err) {
-        console.error("Failed to load settings:", err);
-        setError("Unable to load settings.");
+        console.error("❌ Failed to load settings:", err);
+        setError(err.response?.data?.message || err.message || "Unable to load settings.");
       } finally {
         setLoading(false);
       }
@@ -32,12 +39,19 @@ const AdminSettings = () => {
     setError("");
 
     try {
-      await api.put("/admin/settings", settings);
-      setShowToast(true);
-      setTimeout(() => setShowToast(false), 3000);
+      console.log('⚙️ Saving settings...', settings);
+      const response = await adminAPI.updateSettings(settings);
+      
+      if (response.data.success) {
+        setShowToast(true);
+        console.log('✅ Settings saved successfully');
+        setTimeout(() => setShowToast(false), 3000);
+      } else {
+        throw new Error(response.data.message || 'Failed to save settings');
+      }
     } catch (err) {
-      console.error("Failed to save settings:", err);
-      setError("Failed to save settings.");
+      console.error("❌ Failed to save settings:", err);
+      setError(err.response?.data?.message || err.message || "Failed to save settings.");
     } finally {
       setSaving(false);
     }
@@ -47,126 +61,268 @@ const AdminSettings = () => {
     setSettings((prev) => ({ ...prev, [field]: value }));
   };
 
-  if (loading) return <LoadingSpinner fullScreen />;
-  if (!settings) return <p className="text-center text-danger">Error loading settings.</p>;
+  // Loading state
+  if (loading) {
+    return (
+      <Container fluid className="py-4">
+        <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '400px' }}>
+          <div className="text-center">
+            <div className="spinner-border text-primary mb-3" role="status">
+              <span className="visually-hidden">Loading...</span>
+            </div>
+            <p className="text-muted">Loading settings...</p>
+          </div>
+        </div>
+      </Container>
+    );
+  }
+
+  // Error state
+  if (!settings) {
+    return (
+      <Container fluid className="py-4">
+        <Alert variant="danger">
+          <i className="fas fa-exclamation-triangle me-2"></i>
+          <strong>Error loading settings:</strong> {error}
+        </Alert>
+      </Container>
+    );
+  }
 
   return (
-    <>
-      <div className="max-w-4xl mx-auto p-6">
-        <div className="bg-white shadow rounded-lg">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h1 className="text-2xl font-bold text-gray-900">System Settings</h1>
-            <p className="text-gray-600">Manage your application settings and preferences</p>
-          </div>
-
-          <form onSubmit={handleSave} className="p-6 space-y-6">
-            {/* Site Info */}
-            <div className="space-y-4">
-              <h2 className="text-lg font-semibold text-gray-900">Site Information</h2>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Site Name</label>
-                <input
-                  type="text"
-                  value={settings.siteName}
-                  onChange={(e) => handleInputChange("siteName", e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Site Description</label>
-                <textarea
-                  value={settings.siteDescription}
-                  onChange={(e) => handleInputChange("siteDescription", e.target.value)}
-                  rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                />
-              </div>
-            </div>
-
-            {/* User Management */}
-            <div className="space-y-4">
-              <h2 className="text-lg font-semibold text-gray-900">User Management</h2>
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  id="allowRegistration"
-                  checked={settings.allowRegistration}
-                  onChange={(e) => handleInputChange("allowRegistration", e.target.checked)}
-                  className="h-4 w-4 text-blue-600 border-gray-300 rounded"
-                />
-                <label htmlFor="allowRegistration" className="ml-2 text-sm text-gray-700">
-                  Allow new user registration
-                </label>
-              </div>
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  id="requireEmailVerification"
-                  checked={settings.requireEmailVerification}
-                  onChange={(e) => handleInputChange("requireEmailVerification", e.target.checked)}
-                  className="h-4 w-4 text-blue-600 border-gray-300 rounded"
-                />
-                <label htmlFor="requireEmailVerification" className="ml-2 text-sm text-gray-700">
-                  Require email verification
-                </label>
-              </div>
-            </div>
-
-            {/* System Settings */}
-            <div className="space-y-4">
-              <h2 className="text-lg font-semibold text-gray-900">System Settings</h2>
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  id="maintenanceMode"
-                  checked={settings.maintenanceMode}
-                  onChange={(e) => handleInputChange("maintenanceMode", e.target.checked)}
-                  className="h-4 w-4 text-blue-600 border-gray-300 rounded"
-                />
-                <label htmlFor="maintenanceMode" className="ml-2 text-sm text-gray-700">
-                  Enable maintenance mode
-                </label>
-              </div>
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  id="emailNotifications"
-                  checked={settings.emailNotifications}
-                  onChange={(e) => handleInputChange("emailNotifications", e.target.checked)}
-                  className="h-4 w-4 text-blue-600 border-gray-300 rounded"
-                />
-                <label htmlFor="emailNotifications" className="ml-2 text-sm text-gray-700">
-                  Enable email notifications
-                </label>
-              </div>
-            </div>
-
-            {/* Save Button */}
-            <div className="flex items-center justify-between pt-6 border-t border-gray-200">
-              {error && <div className="text-red-600 text-sm font-medium">{error}</div>}
-              <button
-                type="submit"
-                disabled={saving}
-                className="bg-blue-600 text-white py-2 px-6 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
-              >
-                {saving ? <LoadingSpinner size="sm" color="white" text="" /> : "Save Settings"}
-              </button>
-            </div>
-          </form>
+    <Container fluid className="py-4">
+      {/* Header */}
+      <div className="d-flex justify-content-between align-items-center mb-4">
+        <div>
+          <h1 className="h3 mb-1">
+            <i className="fas fa-cogs me-2 text-primary"></i>
+            System Settings
+          </h1>
+          <p className="text-muted mb-0">
+            Manage your application settings and preferences
+          </p>
         </div>
       </div>
 
-      {/* ✅ Toast Container */}
+      {/* Settings Form */}
+      <Row>
+        <Col lg={8}>
+          <Card className="border-0 shadow-sm">
+            <Card.Header className="bg-light">
+              <h5 className="mb-0">
+                <i className="fas fa-sliders-h me-2"></i>
+                Configuration Settings
+              </h5>
+            </Card.Header>
+            <Card.Body>
+              <Form onSubmit={handleSave}>
+                {/* Site Information */}
+                <div className="mb-4">
+                  <h6 className="text-primary mb-3">
+                    <i className="fas fa-info-circle me-2"></i>
+                    Site Information
+                  </h6>
+                  
+                  <Row>
+                    <Col md={6}>
+                      <Form.Group className="mb-3">
+                        <Form.Label>Site Name</Form.Label>
+                        <Form.Control
+                          type="text"
+                          value={settings.siteName || ''}
+                          onChange={(e) => handleInputChange("siteName", e.target.value)}
+                          placeholder="Enter site name"
+                        />
+                      </Form.Group>
+                    </Col>
+                    <Col md={6}>
+                      <Form.Group className="mb-3">
+                        <Form.Label>Max Upload Size</Form.Label>
+                        <Form.Control
+                          type="text"
+                          value={settings.maxUploadSize || ''}
+                          onChange={(e) => handleInputChange("maxUploadSize", e.target.value)}
+                          placeholder="e.g., 5MB"
+                        />
+                      </Form.Group>
+                    </Col>
+                  </Row>
+                  
+                  <Form.Group className="mb-3">
+                    <Form.Label>Site Description</Form.Label>
+                    <Form.Control
+                      as="textarea"
+                      rows={3}
+                      value={settings.siteDescription || ''}
+                      onChange={(e) => handleInputChange("siteDescription", e.target.value)}
+                      placeholder="Enter site description"
+                    />
+                  </Form.Group>
+                </div>
+
+                {/* User Management */}
+                <div className="mb-4">
+                  <h6 className="text-primary mb-3">
+                    <i className="fas fa-users me-2"></i>
+                    User Management
+                  </h6>
+                  
+                  <Row>
+                    <Col md={6}>
+                      <Form.Group className="mb-3">
+                        <Form.Check
+                          type="checkbox"
+                          id="allowRegistration"
+                          label="Allow new user registration"
+                          checked={settings.allowRegistration || false}
+                          onChange={(e) => handleInputChange("allowRegistration", e.target.checked)}
+                        />
+                      </Form.Group>
+                    </Col>
+                    <Col md={6}>
+                      <Form.Group className="mb-3">
+                        <Form.Check
+                          type="checkbox"
+                          id="requireEmailVerification"
+                          label="Require email verification"
+                          checked={settings.requireEmailVerification || false}
+                          onChange={(e) => handleInputChange("requireEmailVerification", e.target.checked)}
+                        />
+                      </Form.Group>
+                    </Col>
+                  </Row>
+                </div>
+
+                {/* System Settings */}
+                <div className="mb-4">
+                  <h6 className="text-primary mb-3">
+                    <i className="fas fa-cog me-2"></i>
+                    System Settings
+                  </h6>
+                  
+                  <Row>
+                    <Col md={6}>
+                      <Form.Group className="mb-3">
+                        <Form.Check
+                          type="checkbox"
+                          id="maintenanceMode"
+                          label="Enable maintenance mode"
+                          checked={settings.maintenanceMode || false}
+                          onChange={(e) => handleInputChange("maintenanceMode", e.target.checked)}
+                        />
+                        <Form.Text className="text-muted">
+                          When enabled, only admins can access the site
+                        </Form.Text>
+                      </Form.Group>
+                    </Col>
+                    <Col md={6}>
+                      <Form.Group className="mb-3">
+                        <Form.Check
+                          type="checkbox"
+                          id="emailNotifications"
+                          label="Enable email notifications"
+                          checked={settings.emailNotifications || false}
+                          onChange={(e) => handleInputChange("emailNotifications", e.target.checked)}
+                        />
+                        <Form.Text className="text-muted">
+                          Send system emails for important events
+                        </Form.Text>
+                      </Form.Group>
+                    </Col>
+                  </Row>
+                </div>
+
+                {/* Error Display */}
+                {error && (
+                  <Alert variant="danger" className="mb-3">
+                    <i className="fas fa-exclamation-triangle me-2"></i>
+                    {error}
+                  </Alert>
+                )}
+
+                {/* Save Button */}
+                <div className="d-flex justify-content-end pt-3 border-top">
+                  <Button 
+                    type="submit" 
+                    variant="primary" 
+                    disabled={saving}
+                    className="px-4"
+                  >
+                    {saving ? (
+                      <>
+                        <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <i className="fas fa-save me-2"></i>
+                        Save Settings
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </Form>
+            </Card.Body>
+          </Card>
+        </Col>
+
+        {/* Settings Info Panel */}
+        <Col lg={4}>
+          <Card className="border-0 shadow-sm">
+            <Card.Header className="bg-light">
+              <h6 className="mb-0">
+                <i className="fas fa-info-circle me-2"></i>
+                Settings Information
+              </h6>
+            </Card.Header>
+            <Card.Body>
+              <div className="mb-3">
+                <strong>Last Updated:</strong>
+                <br />
+                <small className="text-muted">
+                  {settings.updatedAt ? new Date(settings.updatedAt).toLocaleString() : 'Never'}
+                </small>
+              </div>
+              
+              <div className="mb-3">
+                <strong>Current Status:</strong>
+                <br />
+                <span className={`badge ${settings.maintenanceMode ? 'bg-warning' : 'bg-success'}`}>
+                  {settings.maintenanceMode ? 'Maintenance Mode' : 'Normal Operation'}
+                </span>
+              </div>
+
+              <div className="alert alert-info">
+                <small>
+                  <i className="fas fa-lightbulb me-1"></i>
+                  <strong>Tip:</strong> Changes take effect immediately after saving.
+                </small>
+              </div>
+            </Card.Body>
+          </Card>
+        </Col>
+      </Row>
+
+      {/* Success Toast */}
       <ToastContainer position="bottom-end" className="p-3">
-        <Toast onClose={() => setShowToast(false)} show={showToast} delay={3000} autohide bg="success">
+        <Toast 
+          onClose={() => setShowToast(false)} 
+          show={showToast} 
+          delay={3000} 
+          autohide
+          bg="success"
+        >
           <Toast.Header>
+            <i className="fas fa-check-circle text-success me-2"></i>
             <strong className="me-auto">Success</strong>
             <small>Just now</small>
           </Toast.Header>
-          <Toast.Body className="text-white">Settings saved successfully!</Toast.Body>
+          <Toast.Body className="text-white">
+            Settings saved successfully!
+          </Toast.Body>
         </Toast>
       </ToastContainer>
-    </>
+    </Container>
   );
 };
 

@@ -1,4 +1,4 @@
-// client/src/services/api.js - COMPLETE API WITH ANALYTICS
+// client/src/services/api.js - COMPLETE API WITH ANALYTICS AND SETTINGS
 import axios from 'axios';
 
 // ✅ RENDER FIX: Use your actual backend URL
@@ -78,15 +78,14 @@ export const petAPI = {
     return api.get('/pets', { params: { featured: true, limit } });
   },
 
-  // ✅ ADDITIONAL MISSING FUNCTIONS
-  getPetsByType: (type, params = {}) => {
-    console.log('🐕 petAPI.getPetsByType called for type:', type);
-    return api.get('/pets', { params: { ...params, type } });
-  },
-
   getPetsByCategory: (category, params = {}) => {
     console.log('🐕 petAPI.getPetsByCategory called for category:', category);
     return api.get('/pets', { params: { ...params, category } });
+  },
+
+  getPetsByType: (type, params = {}) => {
+    console.log('🐕 petAPI.getPetsByType called for type:', type);
+    return api.get('/pets', { params: { ...params, type } });
   },
 
   searchPets: (searchTerm, params = {}) => {
@@ -94,24 +93,35 @@ export const petAPI = {
     return api.get('/pets', { params: { ...params, search: searchTerm } });
   },
 
-  getPetCategories: () => {
-    console.log('📂 petAPI.getPetCategories called');
-    return api.get('/pets/categories');
+  addToFavorites: (petId) => {
+    console.log('❤️ petAPI.addToFavorites called for pet:', petId);
+    return api.post(`/users/favorites/${petId}`);
   },
 
+  removeFromFavorites: (petId) => {
+    console.log('💔 petAPI.removeFromFavorites called for pet:', petId);
+    return api.delete(`/users/favorites/${petId}`);
+  },
+
+  checkFavoriteStatus: (petId) => {
+    console.log('❤️ petAPI.checkFavoriteStatus called for pet:', petId);
+    return api.get(`/users/favorites/check/${petId}`);
+  },
+
+  // Admin functions
   createPet: (petData) => {
     console.log('🐕 petAPI.createPet called');
-    return api.post('/pets', petData);
+    return api.post('/admin/pets', petData);
   },
 
   updatePet: (id, petData) => {
     console.log('🐕 petAPI.updatePet called for ID:', id);
-    return api.put(`/pets/${id}`, petData);
+    return api.put(`/admin/pets/${id}`, petData);
   },
 
   deletePet: (id) => {
     console.log('🐕 petAPI.deletePet called for ID:', id);
-    return api.delete(`/pets/${id}`);
+    return api.delete(`/admin/pets/${id}`);
   }
 };
 
@@ -131,10 +141,9 @@ export const productAPI = {
     return api.get(`/products/${id}`);
   },
 
-  // ✅ FIX: Correct parameter formatting
   getFeaturedProducts: (limit = 6) => {
     console.log('⭐ productAPI.getFeaturedProducts called');
-    return api.get('/products', { params: { featured: true, limit } }); // Fixed: was limit[limit]
+    return api.get('/products', { params: { featured: true, limit } });
   },
 
   getProductsByCategory: (category, params = {}) => {
@@ -226,14 +235,14 @@ export const userAPI = {
   }
 };
 
-// ===== ADMIN API (UPDATED WITH ANALYTICS) =====
+// ===== ADMIN API (UPDATED WITH ANALYTICS AND SETTINGS) =====
 export const adminAPI = {
   getDashboard: () => {
     console.log('📊 adminAPI.getDashboard called');
-    return api.get('/admin/stats'); // ✅ Fixed: was /admin/dashboard, now uses correct endpoint
+    return api.get('/admin/stats');
   },
 
-  // ✅ NEW: Analytics endpoint for live data
+  // ✅ Analytics endpoint for live data
   getAnalytics: (params = {}) => {
     console.log('📈 adminAPI.getAnalytics called with params:', params);
     return api.get('/admin/analytics', { params });
@@ -326,6 +335,17 @@ export const adminAPI = {
   deleteContact: (contactId) => {
     console.log('🗑️ adminAPI.deleteContact called for contact:', contactId);
     return api.delete(`/admin/contacts/${contactId}`);
+  },
+
+  // ✅ NEW: Settings management
+  getSettings: () => {
+    console.log('⚙️ adminAPI.getSettings called');
+    return api.get('/admin/settings');
+  },
+
+  updateSettings: (settingsData) => {
+    console.log('⚙️ adminAPI.updateSettings called');
+    return api.put('/admin/settings', settingsData);
   },
 
   // Bulk operations
