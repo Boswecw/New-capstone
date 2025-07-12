@@ -11,9 +11,10 @@ const app = express();
 // 🌐 Enhanced CORS configuration for Render
 const corsOptions = {
   origin: process.env.NODE_ENV === 'production' 
-    ? [
-        'https://furbabies-frontend.onrender.com', // Your frontend URL
-        'https://your-custom-domain.com' // Add your custom domain if you have one
+          ? [
+        'https://furbabies-frontend.onrender.com', // ✅ Your actual frontend URL
+        'https://www.furbabies-frontend.onrender.com', // With www
+        /\.onrender\.com$/ // Allow all Render subdomains
       ]
     : [
         'http://localhost:3000',
