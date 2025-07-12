@@ -1,5 +1,5 @@
 /* =============================================================================
-   components/Button.module.css
+   components/Button.module.css - SAFARI COMPATIBLE VERSION
    ============================================================================= */
 
 .button {
@@ -18,6 +18,9 @@
   cursor: pointer;
   transition: all var(--transition-base);
   overflow: hidden;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
   user-select: none;
 }
 
