@@ -1,4 +1,4 @@
-// client/src/pages/Home.js - UPDATED WITH NEWS SECTION
+// client/src/pages/Home.js - UPDATED WITH 4 PETS & 4 PRODUCTS
 import React, { useEffect, useState } from 'react';
 import { Container, Row, Col, Spinner, Alert, Button } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
@@ -71,8 +71,8 @@ const Home = () => {
     try {
       console.log('🏠 Home: Fetching featured products...');
       
-      // Try to get featured products first
-      const featuredRes = await productAPI.getFeaturedProducts({ limit: 3 });
+      // Try to get featured products first - UPDATED: limit changed from 3 to 4
+      const featuredRes = await productAPI.getFeaturedProducts({ limit: 4 });
       const featuredData = featuredRes.data?.data || [];
       
       if (featuredData.length > 0) {
@@ -81,8 +81,8 @@ const Home = () => {
       } else {
         console.log('⚠️ Home: No featured products found, falling back to recent products');
         
-        // Fallback: get recent products
-        const allProductsRes = await productAPI.getAllProducts({ limit: 3 });
+        // Fallback: get recent products - UPDATED: limit changed from 3 to 4
+        const allProductsRes = await productAPI.getAllProducts({ limit: 4 });
         const allProductsData = allProductsRes.data?.data || [];
         
         if (allProductsData.length > 0) {
@@ -199,7 +199,8 @@ const Home = () => {
             <>
               <Row className="g-4 mb-4">
                 {featuredProducts.map((product) => (
-                  <Col key={product._id} lg={4} md={6}>
+                  {/* UPDATED: Changed from lg={4} to lg={3} to show 4 columns instead of 3 */}
+                  <Col key={product._id} lg={3} md={6}>
                     <ProductCard product={product} />
                   </Col>
                 ))}
