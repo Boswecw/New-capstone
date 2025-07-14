@@ -48,16 +48,20 @@ const corsOptions = {
       'http://localhost:3000',
       'http://localhost:3001', 
       'https://new-capstone-frontend.onrender.com',
-      'https://furbabies-petstore.onrender.com'
+      'https://furbabies-petstore.onrender.com',
+      'https://furbabies-frontend.onrender.com',  // ✅ ADDED: Current frontend URL
+      'https://furbabies-backend.onrender.com'    // ✅ ADDED: Allow same-origin requests
     ];
     
     // Allow requests with no origin (mobile apps, etc.)
     if (!origin) return callback(null, true);
     
     if (allowedOrigins.indexOf(origin) !== -1) {
+      console.log(`✅ CORS allowed origin: ${origin}`);
       callback(null, true);
     } else {
       console.log(`🚫 CORS blocked origin: ${origin}`);
+      console.log(`🔍 Allowed origins:`, allowedOrigins);
       callback(new Error('Not allowed by CORS'));
     }
   },
@@ -67,6 +71,17 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
+
+// ✅ EMERGENCY: Add permissive CORS for Render debugging (remove in production)
+if (NODE_ENV === 'production') {
+  app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', 'https://furbabies-frontend.onrender.com');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Origin,X-Requested-With,Content-Type,Accept,Authorization');
+    next();
+  });
+}
 
 // Basic middleware
 app.use(express.json({ limit: '10mb' }));
