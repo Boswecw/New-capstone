@@ -41,15 +41,15 @@ const Home = () => {
   // Toast notifications
   const { showSuccess, showError, showInfo } = useToast();
 
-  // Fetch random pets (remove all filters to see what data exists)
+  // Fetch featured pets (call with featured=true since they exist!)
   const fetchFeaturedPets = useCallback(async () => {
     try {
-      console.log('🏠 Home: Fetching random pets (no filters)...');
+      console.log('🏠 Home: Fetching featured pets...');
       
-      // Remove ALL filters to see what pets exist in database
+      // ✅ FIXED: Call featured pets since they exist in database
       const response = await petAPI.getAllPets({ 
+        featured: true,  // Your DB has featured: true pets!
         limit: 4
-        // Removed status filter to see all pets
       });
       
       console.log('🐕 RAW API RESPONSE:', response.data);
@@ -61,6 +61,7 @@ const Home = () => {
         dataLength: response.data?.data?.length,
         dataType: typeof response.data?.data,
         isArray: Array.isArray(response.data?.data),
+        filtersApplied: response.data?.filters,
         fullResponse: JSON.stringify(response.data, null, 2)
       });
       
@@ -75,7 +76,10 @@ const Home = () => {
           imageUrl: pet.imageUrl,
           hasImageField: !!pet.image,
           hasImageUrlField: !!pet.imageUrl,
-          status: pet.status
+          status: pet.status,
+          featured: pet.featured,
+          type: pet.type,
+          category: pet.category
         });
         
         // Test constructed URL
@@ -86,35 +90,35 @@ const Home = () => {
       });
       
       if (pets.length > 0) {
-        console.log('✅ Random pets loaded:', pets.length);
+        console.log('✅ Featured pets loaded:', pets.length);
         setFeaturedPets(pets);
         setPetsError(null);
         
         if (!isInitialLoad) {
-          showSuccess(`${pets.length} pets loaded!`);
+          showSuccess(`${pets.length} featured pets loaded!`);
         }
       } else {
-        console.warn('⚠️ No pets returned from API');
-        setPetsError('No pets available at this time.');
-        showInfo('No pets available right now. Check back soon!');
+        console.warn('⚠️ No featured pets returned from API');
+        setPetsError('No featured pets available at this time.');
+        showInfo('No featured pets available right now. Check back soon!');
       }
     } catch (err) {
-      console.error('❌ Error loading pets:', err);
-      const errorMessage = 'Unable to load pets at this time.';
+      console.error('❌ Error loading featured pets:', err);
+      const errorMessage = 'Unable to load featured pets at this time.';
       setPetsError(errorMessage);
       showError(errorMessage);
     }
   }, [isInitialLoad, showSuccess, showError, showInfo]);
 
-  // Fetch random products (remove all filters to see what data exists)
+  // Fetch featured products (remove featured filter since products don't have featured field)
   const fetchFeaturedProducts = useCallback(async () => {
     try {
-      console.log('🏠 Home: Fetching random products (no filters)...');
+      console.log('🏠 Home: Fetching random products (no featured field in DB)...');
       
-      // Remove ALL filters to see what products exist in database
+      // ✅ FIXED: Products don't have featured field, so get random products
       const response = await productAPI.getAllProducts({ 
-        limit: 4
-        // Removed inStock filter to see all products
+        limit: 4,
+        inStock: true  // Filter by inStock since that field exists
       });
       
       console.log('🛍️ RAW API RESPONSE:', response.data);
@@ -126,6 +130,7 @@ const Home = () => {
         dataLength: response.data?.data?.length,
         dataType: typeof response.data?.data,
         isArray: Array.isArray(response.data?.data),
+        filtersApplied: response.data?.filters,
         fullResponse: JSON.stringify(response.data, null, 2)
       });
       
@@ -141,6 +146,8 @@ const Home = () => {
           hasImageField: !!product.image,
           hasImageUrlField: !!product.imageUrl,
           inStock: product.inStock,
+          featured: product.featured,
+          category: product.category,
           price: product.price
         });
         
@@ -152,12 +159,12 @@ const Home = () => {
       });
       
       if (products.length > 0) {
-        console.log('✅ Random products loaded:', products.length);
+        console.log('✅ Popular products loaded:', products.length);
         setFeaturedProducts(products);
         setProductsError(null);
         
         if (!isInitialLoad) {
-          showSuccess(`${products.length} products loaded!`);
+          showSuccess(`${products.length} popular products loaded!`);
         }
       } else {
         console.warn('⚠️ No products returned from API');
@@ -165,7 +172,7 @@ const Home = () => {
         showInfo('No products available right now.');
       }
     } catch (err) {
-      console.error('❌ Error loading products:', err);
+      console.error('❌ Error loading popular products:', err);
       const errorMessage = 'Unable to load products at this time.';
       setProductsError(errorMessage);
       showError(errorMessage);
@@ -202,7 +209,7 @@ const Home = () => {
       {/* Random Pets Section */}
       <Container className="py-5">
         <SectionHeader 
-          title="Available Pets" 
+          title="Featured Pets" 
           subtitle="Find your perfect companion today" 
         />
 

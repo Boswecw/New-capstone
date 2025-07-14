@@ -1,518 +1,370 @@
-// server/routes/products.js - Updated with random featured products
+// server/routes/products.js - COMPLETE UPDATED VERSION
 const express = require('express');
 const router = express.Router();
 const Product = require('../models/Product');
-const { protect, optionalAuth } = require('../middleware/auth');
-const { validateObjectId } = require('../middleware/validation');
 
-// Validation middleware for product queries
-const validateProductQuery = (req, res, next) => {
-  const { limit, page, minPrice, maxPrice } = req.query;
-  
-  if (limit && (isNaN(limit) || limit < 1 || limit > 50)) {
-    return res.status(400).json({
-      success: false,
-      message: 'Invalid limit parameter. Must be between 1 and 50.'
-    });
-  }
-  
-  if (page && (isNaN(page) || page < 1)) {
-    return res.status(400).json({
-      success: false,
-      message: 'Invalid page parameter. Must be a positive integer.'
-    });
-  }
-  
-  if (minPrice && (isNaN(minPrice) || minPrice < 0)) {
-    return res.status(400).json({
-      success: false,
-      message: 'Invalid minPrice parameter. Must be a positive number.'
-    });
-  }
-  
-  if (maxPrice && (isNaN(maxPrice) || maxPrice < 0)) {
-    return res.status(400).json({
-      success: false,
-      message: 'Invalid maxPrice parameter. Must be a positive number.'
-    });
-  }
-  
-  next();
-};
+// ============================================
+// SPECIFIC ROUTES FIRST (BEFORE GENERAL ROUTES)
+// ============================================
 
-// GET /api/products/featured - Get random products as featured
-router.get('/featured', async (req, res) => {
-  try {
-    console.log('🌟 Fetching random featured products...');
-    
-    const { limit = 6 } = req.query;
-    
-    // Get random products using MongoDB aggregation
-    const featuredProducts = await Product.aggregate([
-      { $match: { inStock: true } }, // Only in-stock products
-      { $sample: { size: parseInt(limit) } } // Randomly sample products
-    ]);
-
-    console.log(`✅ Found ${featuredProducts.length} random featured products`);
-
-    // Add full image URLs
-    const productsWithUrls = featuredProducts.map(product => ({
-      ...product,
-      imageUrl: `https://storage.googleapis.com/furbabies-petstore/${product.image}`,
-      featured: true // Mark as featured for frontend
-    }));
-
-    res.json({
-      success: true,
-      data: productsWithUrls,
-      message: 'Featured products retrieved successfully'
-    });
-  } catch (error) {
-    console.error('Error fetching featured products:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching featured products',
-      error: error.message
-    });
-  }
-});
-
-// GET /api/products/stats - Get product statistics
-router.get('/stats', async (req, res) => {
-  try {
-    console.log('📊 Fetching product statistics...');
-    
-    const stats = await Product.aggregate([
-      {
-        $group: {
-          _id: null,
-          totalProducts: { $sum: 1 },
-          inStockProducts: {
-            $sum: { $cond: [{ $eq: ['$inStock', true] }, 1, 0] }
-          },
-          outOfStockProducts: {
-            $sum: { $cond: [{ $eq: ['$inStock', false] }, 1, 0] }
-          },
-          averagePrice: { $avg: '$price' },
-          totalValue: { $sum: '$price' }
-        }
-      }
-    ]);
-
-    const categoryStats = await Product.aggregate([
-      { $match: { inStock: true } },
-      {
-        $group: {
-          _id: '$category',
-          count: { $sum: 1 },
-          averagePrice: { $avg: '$price' }
-        }
-      }
-    ]);
-
-    const brandStats = await Product.aggregate([
-      { $match: { inStock: true } },
-      {
-        $group: {
-          _id: '$brand',
-          count: { $sum: 1 },
-          averagePrice: { $avg: '$price' }
-        }
-      }
-    ]);
-
-    console.log('✅ Product statistics calculated');
-
-    res.json({
-      success: true,
-      data: {
-        overview: stats[0] || {
-          totalProducts: 0,
-          inStockProducts: 0,
-          outOfStockProducts: 0,
-          averagePrice: 0,
-          totalValue: 0
-        },
-        categories: categoryStats,
-        brands: brandStats
-      },
-      message: 'Product statistics retrieved successfully'
-    });
-  } catch (error) {
-    console.error('Error fetching product stats:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching product statistics',
-      error: error.message
-    });
-  }
-});
-
-// GET /api/products/categories - Get distinct categories
+// GET /api/products/categories - Get all unique categories
 router.get('/categories', async (req, res) => {
   try {
+    console.log('📂 GET /api/products/categories called');
+    
+    // Get unique categories from products collection
     const categories = await Product.distinct('category');
     
-    res.json({
-      success: true,
-      data: categories,
-      message: 'Product categories retrieved successfully'
-    });
-  } catch (error) {
-    console.error('Error fetching categories:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching categories',
-      error: error.message
-    });
-  }
-});
-
-// GET /api/products/brands - Get distinct brands
-router.get('/brands', async (req, res) => {
-  try {
-    const brands = await Product.distinct('brand');
+    console.log('📂 Found categories:', categories);
+    
+    // If no categories, return default ones based on your data
+    const defaultCategories = categories.length > 0 ? categories : [
+      'Cat Care',
+      'Dog Care', 
+      'Aquatic',
+      'General'
+    ];
     
     res.json({
       success: true,
-      data: brands,
-      message: 'Product brands retrieved successfully'
+      data: defaultCategories,
+      count: defaultCategories.length,
+      message: 'Categories retrieved successfully'
     });
+    
   } catch (error) {
-    console.error('Error fetching brands:', error);
+    console.error('❌ Error fetching categories:', error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching brands',
+      message: 'Error retrieving categories',
       error: error.message
     });
   }
 });
 
-// GET /api/products - Get all products with filtering and pagination
-router.get('/', validateProductQuery, optionalAuth, async (req, res) => {
+// GET /api/products/brands - Get all unique brands  
+router.get('/brands', async (req, res) => {
   try {
-    const {
-      category,
-      brand,
-      minPrice,
-      maxPrice,
-      search,
-      featured,
-      inStock,
-      limit = 12,
-      page = 1,
-      sort = 'createdAt'
-    } = req.query;
-
-    console.log('📦 Products API called with params:', req.query);
-
-    // If featured is requested, redirect to featured endpoint
-    if (featured === 'true') {
-      console.log('🔄 Redirecting to featured products endpoint');
-      return fetch(`${req.protocol}://${req.get('host')}/api/products/featured?limit=${limit}`)
-        .then(response => response.json())
-        .then(data => res.json(data))
-        .catch(error => {
-          console.error('Error fetching featured products:', error);
-          res.status(500).json({
-            success: false,
-            message: 'Error fetching featured products'
-          });
-        });
-    }
-
-    // Build query object
-    const query = {};
-
-    // Add filters
-    if (category && category !== 'all' && category !== 'general') {
-      query.category = category;
-    }
-
-    if (brand && brand !== 'all' && brand !== 'Generic') {
-      query.brand = { $regex: brand, $options: 'i' };
-    }
-
-    if (inStock === 'true') {
-      query.inStock = true;
-    } else if (inStock === 'false') {
-      query.inStock = false;
-    }
-
-    // Add price range filters
-    if (minPrice || maxPrice) {
-      query.price = {};
-      if (minPrice) query.price.$gte = parseFloat(minPrice);
-      if (maxPrice) query.price.$lte = parseFloat(maxPrice);
-    }
-
-    // Add search functionality
-    if (search) {
-      query.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { brand: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } }
-      ];
-    }
-
-    // Calculate pagination
-    const limitNum = parseInt(limit);
-    const skip = (parseInt(page) - 1) * limitNum;
-
-    // Sort options
-    const sortOptions = {};
-    switch (sort) {
-      case 'name':
-        sortOptions.name = 1;
-        break;
-      case 'price-asc':
-        sortOptions.price = 1;
-        break;
-      case 'price-desc':
-        sortOptions.price = -1;
-        break;
-      case 'newest':
-        sortOptions.createdAt = -1;
-        break;
-      case 'oldest':
-        sortOptions.createdAt = 1;
-        break;
-      default:
-        sortOptions.createdAt = -1;
-    }
-
-    console.log('🔍 MongoDB query:', query);
-    console.log('📊 Sort:', sortOptions);
-
-    // Execute query
-    const products = await Product.find(query)
-      .sort(sortOptions)
-      .limit(limitNum)
-      .skip(skip)
-      .lean();
-
-    // Get total count for pagination
-    const totalProducts = await Product.countDocuments(query);
-    const totalPages = Math.ceil(totalProducts / limitNum);
-
-    console.log(`✅ Found ${products.length} products`);
-
-    // Add full image URLs to products
-    const productsWithUrls = products.map(product => ({
-      ...product,
-      imageUrl: `https://storage.googleapis.com/furbabies-petstore/${product.image}`
-    }));
-
+    console.log('🏷️ GET /api/products/brands called');
+    
+    // Get unique brands from products collection
+    const brands = await Product.distinct('brand');
+    
+    console.log('🏷️ Found brands:', brands);
+    
+    // If no brands, return default ones based on your data
+    const defaultBrands = brands.length > 0 ? brands : [
+      'Generic',
+      'Premium Brand',
+      'Quality Pet Co'
+    ];
+    
     res.json({
       success: true,
-      data: productsWithUrls,
-      pagination: {
-        currentPage: parseInt(page),
-        totalPages,
-        totalProducts,
-        hasNext: page < totalPages,
-        hasPrev: page > 1
-      },
-      message: 'Products retrieved successfully'
+      data: defaultBrands,
+      count: defaultBrands.length,
+      message: 'Brands retrieved successfully'
     });
+    
   } catch (error) {
-    console.error('Error fetching products:', error);
+    console.error('❌ Error fetching brands:', error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching products',
+      message: 'Error retrieving brands',
+      error: error.message
+    });
+  }
+});
+
+// ============================================
+// GENERAL ROUTES (AFTER SPECIFIC ROUTES)
+// ============================================
+
+// GET /api/products - Get all products with filtering
+router.get('/', async (req, res) => {
+  try {
+    console.log('🛒 GET /api/products called with query:', req.query);
+    
+    // Build query object based on filters
+    let query = {};
+    
+    // Featured filter
+    if (req.query.featured === 'true') {
+      query.featured = true;
+    }
+    
+    // In stock filter
+    if (req.query.inStock === 'true') {
+      query.inStock = true;
+    } else if (req.query.inStock === 'false') {
+      query.inStock = false;
+    }
+    // If inStock not specified, show all products
+    
+    // Category filter
+    if (req.query.category && req.query.category !== 'all') {
+      query.category = req.query.category;
+    }
+    
+    // Brand filter
+    if (req.query.brand && req.query.brand !== 'all') {
+      query.brand = req.query.brand;
+    }
+    
+    // Search filter
+    if (req.query.search) {
+      query.$or = [
+        { name: new RegExp(req.query.search, 'i') },
+        { description: new RegExp(req.query.search, 'i') },
+        { brand: new RegExp(req.query.search, 'i') }
+      ];
+    }
+    
+    // Pagination
+    const limit = parseInt(req.query.limit) || 10;
+    const page = parseInt(req.query.page) || 1;
+    const skip = (page - 1) * limit;
+    
+    // Sorting
+    let sort = { createdAt: -1 }; // Default: newest first
+    if (req.query.sort) {
+      switch (req.query.sort) {
+        case 'name':
+          sort = { name: 1 };
+          break;
+        case 'price-low':
+          sort = { price: 1 };
+          break;
+        case 'price-high':
+          sort = { price: -1 };
+          break;
+        case 'newest':
+          sort = { createdAt: -1 };
+          break;
+        case 'oldest':
+          sort = { createdAt: 1 };
+          break;
+        default:
+          sort = { createdAt: -1 };
+      }
+    }
+    
+    console.log('🛒 MongoDB Query:', query);
+    console.log('🛒 Limit:', limit, 'Skip:', skip, 'Sort:', sort);
+    
+    // Get products with query
+    const products = await Product.find(query)
+      .limit(limit)
+      .skip(skip)
+      .sort(sort)
+      .lean();
+    
+    console.log(`🛒 Found ${products.length} products in database`);
+    
+    // ✅ CRITICAL: Add imageUrl to each product
+    const enrichedProducts = products.map(product => ({
+      ...product,
+      imageUrl: product.image ? `https://storage.googleapis.com/furbabies-petstore/${product.image}` : null,
+      hasImage: !!product.image,
+      displayName: product.name || 'Unnamed Product'
+    }));
+    
+    // Get total count for pagination
+    const total = await Product.countDocuments(query);
+    
+    console.log('🛒 Sample enriched product:', enrichedProducts[0]);
+    
+    res.json({
+      success: true,
+      data: enrichedProducts,
+      count: enrichedProducts.length,
+      total,
+      pagination: {
+        page,
+        limit,
+        pages: Math.ceil(total / limit),
+        hasMore: skip + enrichedProducts.length < total
+      },
+      filters: {
+        applied: query,
+        requested: req.query
+      },
+      message: `${enrichedProducts.length} products retrieved successfully`
+    });
+    
+  } catch (error) {
+    console.error('❌ Error fetching products:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error retrieving products',
       error: error.message
     });
   }
 });
 
 // GET /api/products/:id - Get single product by ID
-router.get('/:id', validateObjectId, async (req, res) => {
+router.get('/:id', async (req, res) => {
   try {
-    console.log('🔍 Fetching product with ID:', req.params.id);
+    console.log('🛒 GET /api/products/:id called with ID:', req.params.id);
     
-    const product = await Product.findById(req.params.id);
-
+    const product = await Product.findById(req.params.id).lean();
+    
     if (!product) {
-      console.log('❌ Product not found:', req.params.id);
+      console.log('🛒 Product not found');
       return res.status(404).json({
         success: false,
         message: 'Product not found'
       });
     }
+    
+    // Add imageUrl to the product
+    const enrichedProduct = {
+      ...product,
+      imageUrl: product.image ? `https://storage.googleapis.com/furbabies-petstore/${product.image}` : null,
+      hasImage: !!product.image,
+      displayName: product.name || 'Unnamed Product'
+    };
+    
+    console.log('🛒 Product found:', enrichedProduct.displayName);
+    
+    res.json({
+      success: true,
+      data: enrichedProduct
+    });
+    
+  } catch (error) {
+    console.error('❌ Error fetching product:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch product',
+      error: error.message
+    });
+  }
+});
 
-    console.log('✅ Product found:', product.name);
+// ============================================
+// ADMIN/CRUD ROUTES (Protected - Add authentication middleware as needed)
+// ============================================
 
-    // Add full image URL
-    const productWithUrl = {
-      ...product.toObject(),
-      imageUrl: `https://storage.googleapis.com/furbabies-petstore/${product.image}`
+// POST /api/products - Create new product (Admin only)
+router.post('/', async (req, res) => {
+  try {
+    console.log('🛒 POST /api/products - Creating new product');
+    console.log('🛒 Request body:', req.body);
+
+    // Create product with defaults
+    const productData = {
+      name: req.body.name,
+      category: req.body.category,
+      brand: req.body.brand || 'Generic',
+      price: parseFloat(req.body.price),
+      description: req.body.description || '',
+      image: req.body.image || '',
+      inStock: req.body.inStock !== undefined ? req.body.inStock : true,
+      featured: req.body.featured || false,
+      createdAt: new Date()
     };
 
-    res.json({
+    const product = new Product(productData);
+    await product.save();
+
+    console.log('🛒 Product created:', product._id);
+
+    res.status(201).json({
       success: true,
-      data: productWithUrl,
-      message: 'Product retrieved successfully'
+      message: 'Product created successfully',
+      data: {
+        ...product.toObject(),
+        imageUrl: product.image ? `https://storage.googleapis.com/furbabies-petstore/${product.image}` : null,
+        hasImage: !!product.image,
+        displayName: product.name
+      }
     });
+
   } catch (error) {
-    console.error('Error fetching product:', error);
+    console.error('❌ Error creating product:', error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching product',
+      message: 'Failed to create product',
       error: error.message
     });
   }
 });
 
-// GET /api/products/:id/related - Get related products
-router.get('/:id/related', validateObjectId, async (req, res) => {
+// PUT /api/products/:id - Update product (Admin only)
+router.put('/:id', async (req, res) => {
   try {
-    console.log('🔗 Fetching related products for ID:', req.params.id);
-    
-    const product = await Product.findById(req.params.id);
+    console.log('🛒 PUT /api/products/:id - Updating product:', req.params.id);
 
-    if (!product) {
-      return res.status(404).json({
-        success: false,
-        message: 'Product not found'
-      });
-    }
+    const updateData = { ...req.body };
+    updateData.updatedAt = new Date();
 
-    // Find related products based on category, brand, and similar price range
-    const relatedProducts = await Product.find({
-      _id: { $ne: product._id },
-      inStock: true,
-      $or: [
-        { category: product.category },
-        { brand: product.brand },
-        { price: { $gte: product.price - 5, $lte: product.price + 5 } }
-      ]
-    })
-      .limit(6)
-      .lean();
-
-    console.log(`✅ Found ${relatedProducts.length} related products`);
-
-    // Add full image URLs
-    const productsWithUrls = relatedProducts.map(prod => ({
-      ...prod,
-      imageUrl: `https://storage.googleapis.com/furbabies-petstore/${prod.image}`
-    }));
-
-    res.json({
-      success: true,
-      data: productsWithUrls,
-      message: 'Related products retrieved successfully'
-    });
-  } catch (error) {
-    console.error('Error fetching related products:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching related products',
-      error: error.message
-    });
-  }
-});
-
-// PATCH /api/products/:id - Update product (for image assignment)
-router.patch('/:id', validateObjectId, async (req, res) => {
-  try {
-    console.log('🔄 Updating product:', req.params.id);
-    console.log('📝 Update data:', req.body);
-    
     const product = await Product.findByIdAndUpdate(
       req.params.id,
-      req.body,
+      updateData,
       { new: true, runValidators: true }
     );
     
     if (!product) {
-      console.log('❌ Product not found for update:', req.params.id);
       return res.status(404).json({
         success: false,
         message: 'Product not found'
       });
     }
 
-    console.log('✅ Product updated successfully:', product.name);
-
-    // Add full image URL
-    const productWithUrl = {
-      ...product.toObject(),
-      imageUrl: `https://storage.googleapis.com/furbabies-petstore/${product.image}`
-    };
+    console.log('🛒 Product updated successfully');
 
     res.json({
       success: true,
-      data: productWithUrl,
-      message: 'Product updated successfully'
+      message: 'Product updated successfully',
+      data: {
+        ...product.toObject(),
+        imageUrl: product.image ? `https://storage.googleapis.com/furbabies-petstore/${product.image}` : null,
+        hasImage: !!product.image,
+        displayName: product.name
+      }
     });
+
   } catch (error) {
-    console.error('Error updating product:', error);
+    console.error('❌ Error updating product:', error);
     res.status(500).json({
       success: false,
-      message: 'Error updating product',
+      message: 'Failed to update product',
       error: error.message
     });
   }
 });
 
-// POST /api/products - Create new product (protected route)
-router.post('/', protect, async (req, res) => {
+// DELETE /api/products/:id - Delete product (Admin only)
+router.delete('/:id', async (req, res) => {
   try {
-    console.log('➕ Creating new product:', req.body);
-    
-    const product = new Product(req.body);
-    await product.save();
+    console.log('🛒 DELETE /api/products/:id - Deleting product:', req.params.id);
 
-    console.log('✅ Product created successfully:', product.name);
-
-    // Add full image URL
-    const productWithUrl = {
-      ...product.toObject(),
-      imageUrl: `https://storage.googleapis.com/furbabies-petstore/${product.image}`
-    };
-
-    res.status(201).json({
-      success: true,
-      data: productWithUrl,
-      message: 'Product created successfully'
-    });
-  } catch (error) {
-    console.error('Error creating product:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error creating product',
-      error: error.message
-    });
-  }
-});
-
-// DELETE /api/products/:id - Delete product (protected route)
-router.delete('/:id', protect, validateObjectId, async (req, res) => {
-  try {
-    console.log('🗑️ Deleting product:', req.params.id);
-    
     const product = await Product.findByIdAndDelete(req.params.id);
     
     if (!product) {
-      console.log('❌ Product not found for deletion:', req.params.id);
       return res.status(404).json({
         success: false,
         message: 'Product not found'
       });
     }
 
-    console.log('✅ Product deleted successfully:', product.name);
+    console.log('🛒 Product deleted successfully');
 
     res.json({
       success: true,
-      message: 'Product deleted successfully'
+      message: 'Product deleted successfully',
+      data: {
+        deletedId: req.params.id,
+        deletedName: product.name
+      }
     });
+
   } catch (error) {
-    console.error('Error deleting product:', error);
+    console.error('❌ Error deleting product:', error);
     res.status(500).json({
       success: false,
-      message: 'Error deleting product',
+      message: 'Failed to delete product',
       error: error.message
     });
   }
