@@ -1,70 +1,87 @@
+// client/src/components/ProductCard.js - UPDATED WITH SAFEIMAGE INTEGRATION
 import React from 'react';
 import { Card, Button } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
-import styles from './Card.module.css';
+import SafeImage from './SafeImage';
 
-const ProductCard = ({ product }) => {
-  // ✅ FIXED: Self-sufficient - get imageUrl from product object like PetCard
-  const getImageUrl = () => {
-    if (!product) return 'https://via.placeholder.com/300x200?text=Product+Image';
-    
-    // Try multiple image fields from the API response
-    const imageUrl = product.imageUrl || product.image;
-    
-    if (!imageUrl) {
-      return 'https://via.placeholder.com/300x200?text=Product+Image';
+const ProductCard = ({ product, priority = false }) => {
+  const formatPrice = (price) => {
+    if (typeof price === 'number') {
+      return `$${price.toFixed(2)}`;
     }
-    
-    // If it's already a full URL, use it
-    if (imageUrl.startsWith('http')) {
-      return imageUrl;
-    }
-    
-    // If it's just a path, construct the full URL
-    return `https://storage.googleapis.com/furbabies-petstore/${imageUrl}`;
+    return 'Price N/A';
   };
 
-  const formatPrice = (price) =>
-    typeof price === 'number' ? `${price.toFixed(2)}` : 'N/A';
+  const handleImageLoad = () => {
+    console.log('✅ ProductCard image loaded:', product.name);
+  };
+
+  const handleImageError = () => {
+    console.log('❌ ProductCard image failed:', product.name);
+  };
 
   return (
-    <Card className={`h-100 shadow-sm ${styles.card}`}>
-      {/* ✅ FIXED: Use CSS module classes - no inline styles */}
-      <div className={styles.productImgContainer}>
-        <Card.Img
-          src={getImageUrl()}
-          alt={product.title || product.name || 'Product Image'}
-          className={styles.productImg}
-          onError={(e) => {
-            console.log('🚫 Product image failed to load:', e.target.src);
-            e.target.src = 'https://via.placeholder.com/300x200?text=Product+Image';
+    <Card className="h-100 product-card shadow-sm">
+      <div style={{ height: '200px', overflow: 'hidden', position: 'relative' }}>
+        <SafeImage
+          src={product.imageUrl || product.image}
+          alt={`${product.name} - ${product.category || 'Product'}`}
+          type="product"
+          fallbackText={product.name || "Product"}
+          loading={priority ? "eager" : "lazy"}
+          style={{ 
+            height: '200px', 
+            width: '100%',
+            objectFit: 'cover'
           }}
-          onLoad={(e) => {
-            console.log('🖼️ Product image loaded:', product.title || product.name);
-          }}
+          onLoad={handleImageLoad}
+          onError={handleImageError}
         />
       </div>
-
-      <Card.Body className={`d-flex flex-column ${styles.cardBody}`}>
-        <Card.Title className={styles.cardTitle}>
-          {product.title || product.name || 'Unnamed Product'}
+      
+      <Card.Body className="d-flex flex-column">
+        <Card.Title className="text-truncate" title={product.name}>
+          {product.name}
         </Card.Title>
         
-        <Card.Text className={`${styles.cardText} flex-grow-1`}>
-          {product.description || 'High-quality product for your beloved pets'}
+        <Card.Text className="text-muted small mb-2">
+          {product.category && product.brand 
+            ? `${product.category} • ${product.brand}`
+            : product.category || product.brand || 'Pet Product'
+          }
         </Card.Text>
         
-        <div className="d-flex justify-content-between align-items-center mt-auto">
-          <span className="text-success fw-bold fs-5">
-            {formatPrice(product.price)}
-          </span>
-          <Button
+        <Card.Text className="fw-bold text-primary fs-5 mb-3">
+          {formatPrice(product.price)}
+        </Card.Text>
+        
+        {product.description && (
+          <Card.Text className="text-muted small mb-3" style={{ 
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden'
+          }}>
+            {product.description}
+          </Card.Text>
+        )}
+        
+        <div className="mt-auto">
+          {product.inStock === false && (
+            <div className="text-danger small mb-2">
+              <i className="fas fa-exclamation-triangle me-1"></i>
+              Out of Stock
+            </div>
+          )}
+          
+          <Button 
+            variant={product.inStock === false ? "secondary" : "primary"}
+            className="w-100"
             as={Link}
             to={`/products/${product._id}`}
-            variant="outline-primary"
-            size="sm"
+            disabled={product.inStock === false}
           >
-            View Details
+            {product.inStock === false ? 'Out of Stock' : 'View Details'}
           </Button>
         </div>
       </Card.Body>

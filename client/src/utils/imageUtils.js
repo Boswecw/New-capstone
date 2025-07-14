@@ -1,182 +1,116 @@
-// client/src/utils/imageUtils.js
-import { getPublicImageUrl } from './bucketUtils';
+// client/src/utils/imageUtils.js - ENHANCED IMAGE UTILITY FUNCTIONS
 
-/**
- * Optimized image size configurations
- */
-const IMAGE_SIZES = {
-  thumbnail: { width: 150, height: 150, quality: 70 },
-  small: { width: 300, height: 300, quality: 75 },
-  medium: { width: 600, height: 400, quality: 80 },
-  large: { width: 1200, height: 800, quality: 85 },
-  full: { width: null, height: null, quality: 90 }
-};
-
-/**
- * Default fallback images for different categories
- */
+// Default fallback images
 const DEFAULT_IMAGES = {
-  pet: '/images/pet/default-pet.png',
-  product: '/images/product/default-product.png',
-  brand: '/images/brand/default-brand.png',
-  user: '/images/user/default-avatar.png'
+  pet: 'https://via.placeholder.com/400x300/FF6B6B/FFFFFF?text=🐾+Pet',
+  product: 'https://via.placeholder.com/400x300/4ECDC4/FFFFFF?text=🛍️+Product',
+  general: 'https://via.placeholder.com/300x200/f5f5f5/999999?text=No+Image'
+};
+
+// Size configurations for different use cases
+const SIZE_CONFIGS = {
+  small: { width: 200, height: 150 },
+  medium: { width: 400, height: 300 },
+  large: { width: 800, height: 600 },
+  hero: { width: 1200, height: 400 }
 };
 
 /**
- * Get optimized Google Cloud Storage URL for images
- * Enhanced with size optimization and better fallbacks
- * @param {string} imagePath - Image path or filename
- * @param {string} size - Size preset (thumbnail, small, medium, large, full)
- * @param {string} category - Image category for fallback (pet, product, brand, user)
+ * Get optimized image URL with Google Cloud Storage parameters
+ * @param {string} originalUrl - Original image URL
+ * @param {object} options - Optimization options
  * @returns {string} Optimized image URL
  */
-export const getGoogleStorageUrl = (imagePath, size = 'medium', category = 'pet') => {
-  // Return fallback if no image path
-  if (!imagePath) return DEFAULT_IMAGES[category] || DEFAULT_IMAGES.pet;
+export const getOptimizedImageUrl = (originalUrl, options = {}) => {
+  if (!originalUrl) return null;
   
-  // If it's already a full URL, add optimization parameters if possible
-  if (imagePath.startsWith('http')) {
-    return addOptimizationParams(imagePath, size);
+  const {
+    width = 400,
+    height = 300,
+    quality = 80,
+    format = 'webp'
+  } = options;
+  
+  // If it's already a Google Cloud Storage URL with parameters, return as-is
+  if (originalUrl.includes('?')) {
+    return originalUrl;
   }
   
-  // If it's a relative path starting with /, build the full URL using API base
-  if (imagePath.startsWith('/')) {
-    const baseURL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
-    const fullUrl = `${baseURL.replace('/api', '')}${imagePath}`;
-    return addOptimizationParams(fullUrl, size);
+  // If it's a Google Cloud Storage URL, add optimization parameters
+  if (originalUrl.includes('storage.googleapis.com')) {
+    return `${originalUrl}?w=${width}&h=${height}&q=${quality}&fm=${format}&fit=cover`;
   }
   
-  // Use your existing bucket utils for GCS URLs and add optimization
-  const gcsUrl = getPublicImageUrl(imagePath);
-  return addOptimizationParams(gcsUrl, size);
+  return originalUrl;
 };
 
 /**
- * Add optimization parameters to image URLs
- * Works with Google Cloud Storage and other CDNs
- * @param {string} url - Base image URL
- * @param {string} size - Size preset
- * @returns {string} URL with optimization parameters
+ * Preload an image and return a promise
+ * @param {string} src - Image source URL
+ * @returns {Promise} Promise that resolves when image loads
  */
-const addOptimizationParams = (url, size) => {
-  if (!url || !IMAGE_SIZES[size]) return url;
-  
-  const config = IMAGE_SIZES[size];
-  const params = new URLSearchParams();
-  
-  // For Google Cloud Storage, we can add transformation parameters
-  // Note: This requires enabling Cloud Storage image transformation
-  if (url.includes('storage.googleapis.com')) {
-    // Add basic optimization params that work with GCS
-    if (config.width) params.set('w', config.width);
-    if (config.height) params.set('h', config.height);
-    if (config.quality) params.set('q', config.quality);
-    
-    // Add format optimization
-    params.set('fm', 'webp'); // Use WebP format for better compression
-    params.set('fit', 'cover'); // Maintain aspect ratio
-    
-    return params.toString() ? `${url}?${params.toString()}` : url;
-  }
-  
-  // For other URLs, return as-is (could be enhanced for other CDNs)
-  return url;
-};
-
-/**
- * Generate responsive image srcSet for better performance
- * Creates multiple image sizes for responsive design
- * @param {string} imagePath - Image path or filename
- * @param {string} category - Image category for fallback
- * @returns {string} srcSet string for responsive images
- */
-export const generateSrcSet = (imagePath, category = 'pet') => {
-  if (!imagePath) return '';
-  
-  const responsiveSizes = [
-    { size: 'small', descriptor: '300w' },
-    { size: 'medium', descriptor: '600w' },
-    { size: 'large', descriptor: '1200w' }
-  ];
-  
-  return responsiveSizes
-    .map(({ size, descriptor }) => 
-      `${getGoogleStorageUrl(imagePath, size, category)} ${descriptor}`
-    )
-    .join(', ');
-};
-
-/**
- * Generate sizes attribute for responsive images
- * Provides size hints to the browser for optimal loading
- * @param {string} breakpoints - Custom breakpoints or use default
- * @returns {string} sizes attribute value
- */
-export const generateSizes = (breakpoints = null) => {
-  if (breakpoints) return breakpoints;
-  
-  return [
-    '(max-width: 576px) 100vw',    // Mobile: full width
-    '(max-width: 768px) 50vw',     // Tablet: half width  
-    '(max-width: 992px) 33vw',     // Small desktop: third width
-    '25vw'                         // Large desktop: quarter width
-  ].join(', ');
-};
-
-/**
- * Preload critical images for better performance
- * @param {Array} imagePaths - Array of image paths to preload
- * @param {string} size - Size to preload
- * @param {string} category - Image category
- */
-export const preloadImages = (imagePaths, size = 'medium', category = 'pet') => {
-  if (!Array.isArray(imagePaths)) return;
-  
-  imagePaths.forEach(imagePath => {
-    if (!imagePath) return;
-    
-    const link = document.createElement('link');
-    link.rel = 'preload';
-    link.as = 'image';
-    link.href = getGoogleStorageUrl(imagePath, size, category);
-    
-    // Add responsive preloading for better mobile performance
-    if (size === 'medium') {
-      link.imageSrcset = generateSrcSet(imagePath, category);
-      link.imageSizes = generateSizes();
-    }
-    
-    document.head.appendChild(link);
+export const preloadImage = (src) => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
   });
 };
 
 /**
- * Get optimized image props for React components
- * Returns all necessary props for optimized image loading
- * @param {string} imagePath - Image path
- * @param {string} alt - Alt text
- * @param {string} size - Default size
- * @param {string} category - Image category
- * @param {boolean} lazy - Enable lazy loading
- * @returns {Object} Image props object
+ * Validate if an image URL is accessible
+ * @param {string} url - Image URL to validate
+ * @returns {Promise<boolean>} Promise that resolves to true if valid
  */
-export const getOptimizedImageProps = (imagePath, alt, size = 'medium', category = 'pet', lazy = true) => {
+export const validateImageUrl = async (url) => {
+  try {
+    await preloadImage(url);
+    return true;
+  } catch (error) {
+    console.warn(`Image validation failed for: ${url}`);
+    return false;
+  }
+};
+
+/**
+ * Generate optimized image props for React components
+ * @param {string} src - Image source
+ * @param {string} alt - Alt text
+ * @param {string} size - Size preset (small, medium, large, hero)
+ * @param {string} category - Content category (pet, product, general)
+ * @param {boolean} lazy - Whether to use lazy loading
+ * @returns {object} Complete image props
+ */
+export const getOptimizedImageProps = (src, alt, size = 'medium', category = 'general', lazy = true) => {
+  const sizeConfig = SIZE_CONFIGS[size] || SIZE_CONFIGS.medium;
+  const fallbackSrc = DEFAULT_IMAGES[category] || DEFAULT_IMAGES.general;
+  
+  // Build the optimized source URL
+  let optimizedSrc = src;
+  if (src && typeof src === 'string') {
+    // Handle relative paths from database
+    if (!src.startsWith('http') && !src.startsWith('data:')) {
+      optimizedSrc = `https://storage.googleapis.com/furbabies-petstore/${src}`;
+    }
+    optimizedSrc = getOptimizedImageUrl(optimizedSrc, sizeConfig) || fallbackSrc;
+  } else {
+    optimizedSrc = fallbackSrc;
+  }
+  
   const baseProps = {
-    src: getGoogleStorageUrl(imagePath, size, category),
-    alt: alt || 'Image',
-    onError: (e) => {
-      // Fallback to default image on error
-      e.target.src = DEFAULT_IMAGES[category] || DEFAULT_IMAGES.pet;
+    src: optimizedSrc,
+    alt: alt || `${category} image`,
+    width: sizeConfig.width,
+    height: sizeConfig.height,
+    style: {
+      width: '100%',
+      height: 'auto',
+      maxWidth: `${sizeConfig.width}px`,
+      maxHeight: `${sizeConfig.height}px`
     }
   };
   
-  // Add responsive props for better performance
-  if (imagePath) {
-    baseProps.srcSet = generateSrcSet(imagePath, category);
-    baseProps.sizes = generateSizes();
-  }
-  
-  // Add lazy loading for non-critical images
   if (lazy) {
     baseProps.loading = 'lazy';
     baseProps.decoding = 'async';
@@ -186,110 +120,120 @@ export const getOptimizedImageProps = (imagePath, alt, size = 'medium', category
 };
 
 /**
- * Create optimized background image CSS
- * For use with CSS background-image property
- * @param {string} imagePath - Image path
+ * Smart utility for card components (pets and products)
+ * Prioritizes backend-constructed URLs over raw database paths
+ * @param {object} item - Pet or product object from API
  * @param {string} size - Size preset
- * @param {string} category - Image category
- * @returns {Object} CSS style object
- */
-export const getOptimizedBackgroundImage = (imagePath, size = 'large', category = 'pet') => {
-  const imageUrl = getGoogleStorageUrl(imagePath, size, category);
-  
-  return {
-    backgroundImage: `url(${imageUrl})`,
-    backgroundSize: 'cover',
-    backgroundPosition: 'center',
-    backgroundRepeat: 'no-repeat'
-  };
-};
-
-/**
- * Check if image format is supported for optimization
- * @param {string} imagePath - Image path or URL
- * @returns {boolean} Whether the image can be optimized
- */
-export const isOptimizableImage = (imagePath) => {
-  if (!imagePath) return false;
-  
-  const optimizableFormats = ['.jpg', '.jpeg', '.png', '.webp'];
-  const lowerPath = imagePath.toLowerCase();
-  
-  return optimizableFormats.some(format => lowerPath.includes(format));
-};
-
-/**
- * Get image category from path
- * Automatically determines category based on path structure
- * @param {string} imagePath - Image path
- * @returns {string} Detected category
- */
-export const getImageCategory = (imagePath) => {
-  if (!imagePath) return 'pet';
-  
-  const lowerPath = imagePath.toLowerCase();
-  
-  if (lowerPath.includes('/pet/') || lowerPath.includes('pet-')) return 'pet';
-  if (lowerPath.includes('/product/') || lowerPath.includes('product-')) return 'product';
-  if (lowerPath.includes('/brand/') || lowerPath.includes('brand-')) return 'brand';
-  if (lowerPath.includes('/user/') || lowerPath.includes('avatar')) return 'user';
-  
-  return 'pet'; // Default fallback
-};
-
-/**
- * Enhanced image utility for your existing components
- * Drop-in replacement that maintains compatibility
- * @param {string} imagePath - Image path
- * @param {string} size - Size preset
- * @returns {string} Optimized image URL
- */
-export const getImageUrl = (imagePath, size = 'medium') => {
-  const category = getImageCategory(imagePath);
-  return getGoogleStorageUrl(imagePath, size, category);
-};
-
-/**
- * Utility for PetCard and ProductCard components
- * Returns optimized props ready for use
- * @param {Object} item - Pet or Product object
- * @param {string} size - Size preset
- * @returns {Object} Optimized image props
+ * @returns {object} Complete image props ready for React components
  */
 export const getCardImageProps = (item, size = 'medium') => {
-  const imagePath = item?.image || item?.imageUrl || item?.photo;
-  const category = item?.category ? 'product' : 'pet';
-  const alt = item?.name || item?.title || 'Image';
+  if (!item) {
+    return {
+      src: DEFAULT_IMAGES.general,
+      alt: 'Content unavailable',
+      loading: 'lazy'
+    };
+  }
+
+  // KEY FIX: Prioritize backend-constructed imageUrl over raw image path
+  // Backend sends both:
+  // - image: "pet/cat.png" (raw database path)
+  // - imageUrl: "https://storage.googleapis.com/furbabies-petstore/pet/cat.png" (constructed URL)
+  const imagePath = item.imageUrl || item.image || item.photo;
+  
+  // Determine content category for appropriate fallbacks
+  const isProduct = item.price !== undefined || 
+                   (item.category && typeof item.category === 'string' && 
+                    (item.category.toLowerCase().includes('care') || 
+                     item.category.toLowerCase().includes('training') ||
+                     item.category.toLowerCase().includes('grooming') ||
+                     item.category.toLowerCase().includes('aquarium')));
+  
+  const category = isProduct ? 'product' : 'pet';
+  
+  // Generate meaningful alt text
+  let alt;
+  if (category === 'pet') {
+    const petName = item.name || '';
+    const petBreed = item.breed || '';
+    const petType = item.type || '';
+    alt = [petName, petBreed, petType].filter(Boolean).join(', ') || 'Pet';
+  } else {
+    const productName = item.name || '';
+    const productCategory = item.category || '';
+    alt = [productName, productCategory].filter(Boolean).join(' - ') || 'Product';
+  }
   
   return getOptimizedImageProps(imagePath, alt, size, category, true);
 };
 
-// Export default configuration for easy access
-export const imageConfig = {
-  sizes: IMAGE_SIZES,
-  defaults: DEFAULT_IMAGES,
-  formats: {
-    preferred: 'webp',
-    fallback: 'jpeg'
+/**
+ * Background image CSS generator for hero sections, banners, etc.
+ * @param {string} src - Image source
+ * @param {string} size - Size preset
+ * @returns {object} CSS style object with background image
+ */
+export const getBackgroundImageStyle = (src, size = 'hero') => {
+  const sizeConfig = SIZE_CONFIGS[size] || SIZE_CONFIGS.hero;
+  const optimizedSrc = getOptimizedImageUrl(src, sizeConfig);
+  
+  return {
+    backgroundImage: `url("${optimizedSrc}")`,
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+    backgroundRepeat: 'no-repeat',
+    minHeight: `${sizeConfig.height}px`
+  };
+};
+
+/**
+ * Generate srcSet for responsive images
+ * @param {string} src - Base image source
+ * @param {array} sizes - Array of size multipliers [1, 2, 3]
+ * @returns {string} srcSet string for responsive images
+ */
+export const generateSrcSet = (src, sizes = [1, 2, 3]) => {
+  if (!src || !src.includes('storage.googleapis.com')) return '';
+  
+  return sizes
+    .map(multiplier => {
+      const url = `${src}?w=${400 * multiplier}&q=80&fm=webp`;
+      return `${url} ${multiplier}x`;
+    })
+    .join(', ');
+};
+
+/**
+ * Check if image source is a valid URL
+ * @param {string} src - Image source to check
+ * @returns {boolean} True if valid URL
+ */
+export const isValidImageUrl = (src) => {
+  if (!src || typeof src !== 'string') return false;
+  
+  try {
+    const url = new URL(src);
+    return url.protocol === 'http:' || url.protocol === 'https:' || url.protocol === 'data:';
+  } catch {
+    return false;
   }
 };
 
-// Backward compatibility - maintain your existing function signature
-export { getGoogleStorageUrl as getImageUrlCompat };
-
-// Export as module default
-const imageUtils = {
-  getGoogleStorageUrl,
-  generateSrcSet,
-  generateSizes,
-  preloadImages,
-  getOptimizedImageProps,
-  getOptimizedBackgroundImage,
-  isOptimizableImage,
-  getImageCategory,
-  getImageUrl,
-  getCardImageProps,
-  imageConfig
+/**
+ * Get image dimensions from URL if possible
+ * @param {string} src - Image source URL
+ * @returns {Promise<{width: number, height: number}>} Image dimensions
+ */
+export const getImageDimensions = (src) => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      resolve({
+        width: img.naturalWidth,
+        height: img.naturalHeight
+      });
+    };
+    img.onerror = reject;
+    img.src = src;
+  });
 };
-
-export default imageUtils;
