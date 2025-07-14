@@ -7,7 +7,7 @@ import { Link } from 'react-router-dom';
 import HeroBanner from '../components/HeroBanner';
 import PetCard from '../components/PetCard';
 import ProductCard from '../components/ProductCard';
-import NewsSection from '../components/NewsSection';
+// import NewsSection from '../components/NewsSection'; // Commented out for now
 
 // Services & Hooks
 import { petAPI, productAPI } from '../services/api';
@@ -269,8 +269,8 @@ const Home = () => {
         </div>
       </Container>
 
-      {/* News Section */}
-      <NewsSection />
+      {/* News Section - Commented out for now */}
+      {/* <NewsSection /> */}
     </div>
   );
 };
