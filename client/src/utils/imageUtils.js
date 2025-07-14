@@ -1,373 +1,199 @@
-// client/src/utils/imageUtils.js - ENHANCED IMAGE UTILITY FUNCTIONS
+// client/src/utils/imageUtils.js - CORRECTED VERSION
 
-// Google Cloud Storage configuration
+/**
+ * Google Cloud Storage configuration - FIXED
+ */
 const BUCKET_NAME = 'furbabies-petstore';
 const BUCKET_BASE_URL = `https://storage.googleapis.com/${BUCKET_NAME}`;
 
-// Default fallback images
-const DEFAULT_IMAGES = {
-  pet: 'https://via.placeholder.com/400x300/FF6B6B/FFFFFF?text=🐾+Pet',
-  product: 'https://via.placeholder.com/400x300/4ECDC4/FFFFFF?text=🛍️+Product',
-  brand: 'https://via.placeholder.com/400x300/9B59B6/FFFFFF?text=🏢+Brand',
-  general: 'https://via.placeholder.com/300x200/f5f5f5/999999?text=No+Image'
-};
-
-// Size configurations for different use cases
-const SIZE_CONFIGS = {
-  small: { width: 200, height: 150 },
-  medium: { width: 400, height: 300 },
-  large: { width: 800, height: 600 },
-  hero: { width: 1200, height: 400 }
+/**
+ * CORRECT folder structure (singular, not plural!)
+ */
+const BUCKET_FOLDERS = {
+  pet: 'pet',        // NOT 'pets'
+  product: 'product', // NOT 'products'
+  brand: 'brand'
 };
 
 /**
- * Get Google Cloud Storage URL from image path (REQUIRED BY EXISTING CODE)
- * @param {string} imagePath - Image path from database (e.g., "pet/cat.png")
- * @param {string} size - Size preset (unused for now, for future optimization)
- * @param {string} category - Category for fallback selection
- * @returns {string} Complete image URL
+ * Fallback images for when bucket images fail
+ * Using reliable base64 SVG since via.placeholder.com is failing
+ */
+const DEFAULT_IMAGES = {
+  pet: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZmY2YjZiIi8+CiAgPHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyNCIgZmlsbD0id2hpdGUiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj7wn5C+IFBldDwvdGV4dD4KICA8L3N2Zz4K',
+  product: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjNGVjZGM0Ii8+CiAgPHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyNCIgZmlsbD0id2hpdGUiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj7wn5OBIFN0b3JlPC90ZXh0Pgo8L3N2Zz4K',
+  brand: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjOWI1OWI2Ii8+CiAgPHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyNCIgZmlsbD0id2hpdGUiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj7wn48iIEJyYW5kPC90ZXh0Pgo8L3N2Zz4K',
+  user: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjMzQ5OGRiIi8+CiAgPHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyNCIgZmlsbD0id2hpdGUiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj7wn5GkIFVzZXI8L3RleHQ+Cjwvc3ZnPgo='
+};
+
+/**
+ * Get correct Google Cloud Storage URL
+ * @param {string} imagePath - Path from database (e.g., "pet/cat.png" or just the filename)
+ * @param {string} size - Size preset (unused for now)
+ * @param {string} category - Category for fallbacks (pet, product, brand)
+ * @returns {string} Complete Google Storage URL
  */
 export const getGoogleStorageUrl = (imagePath, size = 'medium', category = 'pet') => {
   // Handle invalid input
   if (!imagePath || typeof imagePath !== 'string' || imagePath.trim() === '') {
+    console.warn('⚠️ No image path provided, using fallback');
     return DEFAULT_IMAGES[category] || DEFAULT_IMAGES.pet;
   }
-  
-  // Return complete URLs as-is (from backend imageUrl field)
+
+  // Return complete URLs as-is
   if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
     return imagePath;
   }
+
+  // Clean the path and ensure correct structure
+  let cleanPath = imagePath.trim().replace(/^\/+/, '').replace(/\/+/g, '/');
   
-  // Clean relative paths and construct full GCS URL
-  const cleanPath = imagePath.trim().replace(/^\/+/, '').replace(/\/+/g, '/');
-  return `${BUCKET_BASE_URL}/${cleanPath}`;
+  // FIX: Correct common path mistakes
+  // Change "pets/" to "pet/" and "products/" to "product/"
+  cleanPath = cleanPath.replace(/^pets\//, 'pet/');
+  cleanPath = cleanPath.replace(/^products\//, 'product/');
+  
+  // If path doesn't start with a folder, add the category folder
+  if (!cleanPath.includes('/')) {
+    cleanPath = `${BUCKET_FOLDERS[category] || 'pet'}/${cleanPath}`;
+  }
+
+  const finalUrl = `${BUCKET_BASE_URL}/${cleanPath}`;
+  console.log('🔧 Generated URL:', finalUrl, 'from path:', imagePath);
+  
+  return finalUrl;
 };
 
 /**
- * Get optimized image URL with Google Cloud Storage parameters
- * @param {string} originalUrl - Original image URL
- * @param {object} options - Optimization options
- * @returns {string} Optimized image URL
+ * Enhanced image props with proper error handling
  */
-export const getOptimizedImageUrl = (originalUrl, options = {}) => {
-  if (!originalUrl) return null;
-  
-  const {
-    width = 400,
-    height = 300,
-    quality = 80,
-    format = 'webp'
-  } = options;
-  
-  // Use the getGoogleStorageUrl function for consistency
-  const baseUrl = getGoogleStorageUrl(originalUrl);
-  
-  // If it's already a Google Cloud Storage URL with parameters, return as-is
-  if (baseUrl && baseUrl.includes('?')) {
-    return baseUrl;
-  }
-  
-  // If it's a Google Cloud Storage URL, add optimization parameters
-  if (baseUrl && baseUrl.includes('storage.googleapis.com')) {
-    return `${baseUrl}?w=${width}&h=${height}&q=${quality}&fm=${format}&fit=cover`;
-  }
-  
-  return baseUrl;
-};
-
-/**
- * Preload an image and return a promise
- * @param {string} src - Image source URL
- * @returns {Promise} Promise that resolves when image loads
- */
-export const preloadImage = (src) => {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = reject;
-    img.src = src;
-  });
-};
-
-/**
- * Validate if an image URL is accessible
- * @param {string} url - Image URL to validate
- * @returns {Promise<boolean>} Promise that resolves to true if valid
- */
-export const validateImageUrl = async (url) => {
-  try {
-    await preloadImage(url);
-    return true;
-  } catch (error) {
-    console.warn(`Image validation failed for: ${url}`);
-    return false;
-  }
-};
-
-/**
- * Generate optimized image props for React components
- * @param {string} src - Image source
- * @param {string} alt - Alt text
- * @param {string} size - Size preset (small, medium, large, hero)
- * @param {string} category - Content category (pet, product, general)
- * @param {boolean} lazy - Whether to use lazy loading
- * @returns {object} Complete image props
- */
-export const getOptimizedImageProps = (src, alt, size = 'medium', category = 'general', lazy = true) => {
-  const sizeConfig = SIZE_CONFIGS[size] || SIZE_CONFIGS.medium;
-  
-  // Use getGoogleStorageUrl for consistent URL handling
-  let optimizedSrc = getGoogleStorageUrl(src, size, category);
-  
-  // Add optimization parameters if it's a GCS URL
-  if (optimizedSrc && optimizedSrc.includes('storage.googleapis.com') && !optimizedSrc.includes('?')) {
-    optimizedSrc = getOptimizedImageUrl(optimizedSrc, sizeConfig);
-  }
+export const getOptimizedImageProps = (imagePath, alt, size = 'medium', category = 'pet', lazy = true) => {
+  const imageUrl = getGoogleStorageUrl(imagePath, size, category);
   
   const baseProps = {
-    src: optimizedSrc,
-    alt: alt || `${category} image`,
-    width: sizeConfig.width,
-    height: sizeConfig.height,
-    style: {
-      width: '100%',
-      height: 'auto',
-      maxWidth: `${sizeConfig.width}px`,
-      maxHeight: `${sizeConfig.height}px`
-    }
+    src: imageUrl,
+    alt: alt || 'Image',
+    onError: (e) => {
+      const currentSrc = e.target.src;
+      
+      // Try fallback only once
+      if (!e.target.hasTriedFallback && !currentSrc.includes('picsum')) {
+        e.target.hasTriedFallback = true;
+        const fallbackUrl = DEFAULT_IMAGES[category] || DEFAULT_IMAGES.pet;
+        e.target.src = fallbackUrl;
+        
+        console.warn(`🚫 Image failed to load: ${currentSrc}`);
+        console.log(`🔄 Using fallback: ${fallbackUrl}`);
+      } else {
+        console.error(`❌ All fallbacks failed for: ${imagePath}`);
+      }
+    },
+    onLoad: (e) => {
+      if (e?.target) {
+        delete e.target.hasTriedFallback;
+        console.log('✅ Image loaded successfully:', e.target.src);
+      }
+    },
   };
   
   if (lazy) {
     baseProps.loading = 'lazy';
-    baseProps.decoding = 'async';
   }
   
   return baseProps;
 };
 
 /**
- * Smart utility for card components (pets and products)
- * Prioritizes backend-constructed URLs over raw database paths
- * @param {object} item - Pet or product object from API
- * @param {string} size - Size preset
- * @returns {object} Complete image props ready for React components
+ * Get card image props - main function for components
  */
 export const getCardImageProps = (item, size = 'medium') => {
-  if (!item) {
-    return {
-      src: DEFAULT_IMAGES.general,
-      alt: 'Content unavailable',
-      loading: 'lazy'
-    };
-  }
-
-  // KEY FIX: Prioritize backend-constructed imageUrl over raw image path
-  // Backend sends both:
-  // - image: "pet/cat.png" (raw database path)
-  // - imageUrl: "https://storage.googleapis.com/furbabies-petstore/pet/cat.png" (constructed URL)
-  const imagePath = item.imageUrl || item.image || item.photo;
-  
-  // Determine content category for appropriate fallbacks
-  const isProduct = item.price !== undefined || 
-                   (item.category && typeof item.category === 'string' && 
-                    (item.category.toLowerCase().includes('care') || 
-                     item.category.toLowerCase().includes('training') ||
-                     item.category.toLowerCase().includes('grooming') ||
-                     item.category.toLowerCase().includes('aquarium')));
-  
-  const category = isProduct ? 'product' : 'pet';
-  
-  // Generate meaningful alt text
-  let alt;
-  if (category === 'pet') {
-    const petName = item.name || '';
-    const petBreed = item.breed || '';
-    const petType = item.type || '';
-    alt = [petName, petBreed, petType].filter(Boolean).join(', ') || 'Pet';
-  } else {
-    const productName = item.name || '';
-    const productCategory = item.category || '';
-    alt = [productName, productCategory].filter(Boolean).join(' - ') || 'Product';
-  }
-  
-  // Use the centralized getGoogleStorageUrl function
-  const src = getGoogleStorageUrl(imagePath, size, category);
-  
-  return {
-    src,
-    alt,
-    loading: 'lazy'
-  };
-};
-
-/**
- * Background image CSS generator for hero sections, banners, etc.
- * @param {string} src - Image source
- * @param {string} size - Size preset
- * @returns {object} CSS style object with background image
- */
-export const getBackgroundImageStyle = (src, size = 'hero') => {
-  const sizeConfig = SIZE_CONFIGS[size] || SIZE_CONFIGS.hero;
-  const optimizedSrc = getOptimizedImageUrl(src, sizeConfig);
-  
-  return {
-    backgroundImage: `url("${optimizedSrc}")`,
-    backgroundSize: 'cover',
-    backgroundPosition: 'center',
-    backgroundRepeat: 'no-repeat',
-    minHeight: `${sizeConfig.height}px`
-  };
-};
-
-/**
- * Generate srcSet for responsive images
- * @param {string} src - Base image source
- * @param {array} sizes - Array of size multipliers [1, 2, 3]
- * @returns {string} srcSet string for responsive images
- */
-export const generateSrcSet = (src, sizes = [1, 2, 3]) => {
-  const baseUrl = getGoogleStorageUrl(src);
-  if (!baseUrl || !baseUrl.includes('storage.googleapis.com')) return '';
-  
-  return sizes
-    .map(multiplier => {
-      const url = `${baseUrl}?w=${400 * multiplier}&q=80&fm=webp`;
-      return `${url} ${multiplier}x`;
-    })
-    .join(', ');
-};
-
-/**
- * Legacy compatibility function (for existing code)
- * @param {string} imagePath - Image path
- * @param {string} size - Size preset
- * @returns {string} Image URL
- */
-export const getImageUrl = (imagePath, size = 'medium') => {
-  // Detect category from path
+  // Determine category from item
   let category = 'pet';
-  if (imagePath && typeof imagePath === 'string') {
-    if (imagePath.toLowerCase().includes('product')) {
-      category = 'product';
-    } else if (imagePath.toLowerCase().includes('brand')) {
-      category = 'brand';
+  
+  if (item?.category) {
+    if (['product', 'brand', 'user'].includes(item.category)) {
+      category = item.category;
+    }
+  } else if (item?.type === 'product' || item?.price !== undefined) {
+    category = 'product';
+  }
+
+  // Use imageUrl if available (from backend), otherwise use image field
+  const imagePath = item?.imageUrl || item?.image;
+  const itemName = item?.name || item?.title || 'Item';
+  const altText = `${itemName} - ${category}`;
+  
+  return getOptimizedImageProps(imagePath, altText, size, category, true);
+};
+
+/**
+ * Debug function to test specific URLs
+ */
+export const debugSpecificUrls = async () => {
+  const testUrls = [
+    // Test from your console logs
+    'https://storage.googleapis.com/furbabies-petstore/pet/persian-cat.jpg',
+    'https://storage.googleapis.com/furbabies-petstore/product/dog-food.jpg',
+    'https://storage.googleapis.com/furbabies-petstore/pet/golden-retriever.jpg',
+    'https://storage.googleapis.com/furbabies-petstore/pet/labrador-mix.jpg',
+    'https://storage.googleapis.com/furbabies-petstore/product/pet-carrier.jpg',
+    'https://storage.googleapis.com/furbabies-petstore/product/scratching-post.jpg'
+  ];
+
+  console.log('🔍 Testing specific bucket URLs...');
+  
+  for (const url of testUrls) {
+    try {
+      const response = await fetch(url, { method: 'HEAD' });
+      console.log(`${response.ok ? '✅' : '❌'} ${url} - ${response.status}`);
+    } catch (error) {
+      console.log(`❌ ${url} - Error: ${error.message}`);
     }
   }
-  
-  return getGoogleStorageUrl(imagePath, size, category);
 };
 
 /**
- * Test if image URL is accessible (useful for admin tools)
- * @param {string} imagePath - Image path to test
- * @param {string} category - Category for fallback
- * @returns {Promise<object>} Test result with accessibility info
+ * Test image paths from your JSON data
  */
-export const testImageUrl = async (imagePath, category = 'pet') => {
-  const url = getGoogleStorageUrl(imagePath, 'medium', category);
-  
-  try {
-    const response = await fetch(url, { method: 'HEAD' });
-    return {
-      url,
-      accessible: response.ok,
-      status: response.status,
-      contentType: response.headers.get('content-type'),
-      cacheControl: response.headers.get('cache-control'),
-    };
-  } catch (error) {
-    return {
-      url,
-      accessible: false,
-      error: error.message,
-    };
-  }
-};
+export const testImagePaths = () => {
+  const samplePaths = [
+    'pet/betas-fish.jpg',
+    'pet/persian-cat.jpg', 
+    'product/clicker.png',
+    'product/dog-harness.png'
+  ];
 
-/**
- * Check if image source is a valid URL
- * @param {string} src - Image source to check
- * @returns {boolean} True if valid URL
- */
-export const isValidImageUrl = (src) => {
-  if (!src || typeof src !== 'string') return false;
-  
-  try {
-    const url = new URL(src);
-    return url.protocol === 'http:' || url.protocol === 'https:' || url.protocol === 'data:';
-  } catch {
-    return false;
-  }
-};
-
-/**
- * Get image dimensions from URL if possible
- * @param {string} src - Image source URL
- * @returns {Promise<{width: number, height: number}>} Image dimensions
- */
-export const getImageDimensions = (src) => {
-  const imageUrl = getGoogleStorageUrl(src);
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => {
-      resolve({
-        width: img.naturalWidth,
-        height: img.naturalHeight
-      });
-    };
-    img.onerror = reject;
-    img.src = imageUrl;
+  console.log('🔧 Testing path conversion:');
+  samplePaths.forEach(path => {
+    const url = getGoogleStorageUrl(path);
+    console.log(`${path} → ${url}`);
   });
 };
 
 /**
- * Configuration object for external access
+ * Configuration object
  */
 export const imageConfig = {
-  defaults: DEFAULT_IMAGES,
   bucketName: BUCKET_NAME,
   bucketBaseUrl: BUCKET_BASE_URL,
-  supportedFormats: ['jpg', 'jpeg', 'png', 'webp', 'gif'],
-  maxFileSize: '10MB',
-  folders: {
-    pets: 'pet',
-    products: 'product', 
-    brands: 'brand'
-  }
+  folders: BUCKET_FOLDERS,
+  defaults: DEFAULT_IMAGES,
+  supportedFormats: ['jpg', 'jpeg', 'png', 'webp', 'gif']
 };
 
-/**
- * Background image CSS generator with GCS support
- */
-export const getOptimizedBackgroundImage = (imagePath, size = 'large', category = 'pet') => {
-  const imageUrl = getGoogleStorageUrl(imagePath, size, category);
-  
-  return {
-    backgroundImage: `url("${imageUrl}")`,
-    backgroundSize: 'cover',
-    backgroundPosition: 'center',
-    backgroundRepeat: 'no-repeat',
-  };
-};
+// Test on module load
+if (process.env.NODE_ENV === 'development') {
+  console.log('📋 FurBabies Image Utils loaded with correct bucket structure:');
+  console.log('   Pet folder: pet/ (not pets/)');
+  console.log('   Product folder: product/ (not products/)');
+  console.log('   Run testImagePaths() to verify path conversion');
+}
 
-/**
- * Main export object for named imports (backwards compatibility)
- */
-const imageUtils = {
+export default {
   getCardImageProps,
   getGoogleStorageUrl,
   getOptimizedImageProps,
-  getOptimizedBackgroundImage,
-  getBackgroundImageStyle,
-  testImageUrl,
-  getImageUrl,
-  imageConfig,
-  getOptimizedImageUrl,
-  preloadImage,
-  validateImageUrl,
-  generateSrcSet,
-  isValidImageUrl,
-  getImageDimensions
+  debugSpecificUrls,
+  testImagePaths,
+  imageConfig
 };
-
-export default imageUtils;
