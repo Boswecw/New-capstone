@@ -159,12 +159,12 @@ const Home = () => {
       });
       
       if (products.length > 0) {
-        console.log('✅ Popular products loaded:', products.length);
+        console.log('✅ Random products loaded:', products.length);
         setFeaturedProducts(products);
         setProductsError(null);
         
         if (!isInitialLoad) {
-          showSuccess(`${products.length} popular products loaded!`);
+          showSuccess(`${products.length} products loaded!`);
         }
       } else {
         console.warn('⚠️ No products returned from API');
@@ -172,7 +172,7 @@ const Home = () => {
         showInfo('No products available right now.');
       }
     } catch (err) {
-      console.error('❌ Error loading popular products:', err);
+      console.error('❌ Error loading random products:', err);
       const errorMessage = 'Unable to load products at this time.';
       setProductsError(errorMessage);
       showError(errorMessage);
@@ -256,7 +256,7 @@ const Home = () => {
       {/* Random Products Section */}
       <Container className="py-5 bg-light">
         <SectionHeader 
-          title="Popular Products" 
+          title="Products" 
           subtitle="Quality supplies for your furry friends" 
         />
 
