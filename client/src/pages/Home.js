@@ -41,15 +41,15 @@ const Home = () => {
   // Toast notifications
   const { showSuccess, showError, showInfo } = useToast();
 
-  // Fetch random pets (no featured filtering)
+  // Fetch random pets (remove all filters to see what data exists)
   const fetchFeaturedPets = useCallback(async () => {
     try {
-      console.log('🏠 Home: Fetching random pets...');
+      console.log('🏠 Home: Fetching random pets (no filters)...');
       
-      // Remove featured filter since MongoDB data doesn't have featured: true
+      // Remove ALL filters to see what pets exist in database
       const response = await petAPI.getAllPets({ 
-        limit: 4,
-        status: 'available' // Only get available pets
+        limit: 4
+        // Removed status filter to see all pets
       });
       
       console.log('🐕 RAW API RESPONSE:', response.data);
@@ -96,15 +96,15 @@ const Home = () => {
     }
   }, [isInitialLoad, showSuccess, showError, showInfo]);
 
-  // Fetch random products (no featured filtering)
+  // Fetch random products (remove all filters to see what data exists)
   const fetchFeaturedProducts = useCallback(async () => {
     try {
-      console.log('🏠 Home: Fetching random products...');
+      console.log('🏠 Home: Fetching random products (no filters)...');
       
-      // Remove featured filter since MongoDB data doesn't have featured: true
+      // Remove ALL filters to see what products exist in database
       const response = await productAPI.getAllProducts({ 
-        limit: 4,
-        inStock: true // Only get in-stock products
+        limit: 4
+        // Removed inStock filter to see all products
       });
       
       console.log('🛍️ RAW API RESPONSE:', response.data);
