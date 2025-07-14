@@ -1,19 +1,34 @@
-// client/src/pages/Home.js - Complete Version with Random Items
+// client/src/pages/Home.js - Fixed for Deployment (No External SectionHeader Import)
 import React, { useState, useEffect, useCallback } from 'react';
 import { Container, Row, Col, Alert, Button } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 
 // Components
 import HeroBanner from '../components/HeroBanner';
-import SectionHeader from '../components/SectionHeader';
 import PetCard from '../components/PetCard';
 import ProductCard from '../components/ProductCard';
 import NewsSection from '../components/NewsSection';
-import ToastContainer from '../components/ToastContainer';
 
 // Services & Hooks
 import { petAPI, productAPI } from '../services/api';
-import useToast from '../hooks/useToast';
+
+// Inline SectionHeader component to avoid import issues
+const SectionHeader = ({ title, subtitle }) => (
+  <div className="section-header mb-4 text-center">
+    <h2 className="section-title mb-2">{title}</h2>
+    {subtitle && <p className="section-subtitle text-muted">{subtitle}</p>}
+    <hr className="w-25 mx-auto my-4" style={{height: '2px', backgroundColor: '#007bff'}} />
+  </div>
+);
+
+// Simple toast hook replacement
+const useToast = () => ({
+  toasts: [],
+  showSuccess: (msg) => console.log('✅ Success:', msg),
+  showError: (msg) => console.log('❌ Error:', msg),
+  showInfo: (msg) => console.log('ℹ️ Info:', msg),
+  removeToast: () => {}
+});
 
 const Home = () => {
   // State management
@@ -24,7 +39,7 @@ const Home = () => {
   const [isInitialLoad, setIsInitialLoad] = useState(true);
 
   // Toast notifications
-  const { toasts, showSuccess, showError, showInfo, removeToast } = useToast();
+  const { showSuccess, showError, showInfo } = useToast();
 
   // Fetch random pets (no featured filtering)
   const fetchFeaturedPets = useCallback(async () => {
@@ -161,8 +176,6 @@ const Home = () => {
 
   return (
     <div className="home-page">
-      <ToastContainer toasts={toasts} removeToast={removeToast} />
-      
       {/* Hero Banner */}
       <HeroBanner />
 
