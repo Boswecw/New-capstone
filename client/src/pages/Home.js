@@ -53,6 +53,16 @@ const Home = () => {
       });
       
       console.log('🐕 RAW API RESPONSE:', response.data);
+      console.log('🐕 RESPONSE STRUCTURE:', {
+        success: response.data?.success,
+        data: response.data?.data,
+        count: response.data?.count,
+        message: response.data?.message,
+        dataLength: response.data?.data?.length,
+        dataType: typeof response.data?.data,
+        isArray: Array.isArray(response.data?.data),
+        fullResponse: JSON.stringify(response.data, null, 2)
+      });
       
       const pets = response.data?.data || [];
       
@@ -108,6 +118,16 @@ const Home = () => {
       });
       
       console.log('🛍️ RAW API RESPONSE:', response.data);
+      console.log('🛍️ RESPONSE STRUCTURE:', {
+        success: response.data?.success,
+        data: response.data?.data,
+        count: response.data?.count,
+        message: response.data?.message,
+        dataLength: response.data?.data?.length,
+        dataType: typeof response.data?.data,
+        isArray: Array.isArray(response.data?.data),
+        fullResponse: JSON.stringify(response.data, null, 2)
+      });
       
       const products = response.data?.data || [];
       
