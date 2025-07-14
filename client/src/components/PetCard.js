@@ -21,6 +21,16 @@ const PetCard = ({ pet, priority = false, debug = false }) => {
     })
   };
 
+  // In PetCard.js - add after const imageProps = getCardImageProps(pet, 'medium');
+console.log('🐕 PetCard Debug:', {
+  petName: pet.name,
+  petImage: pet.image,
+  petImageUrl: pet.imageUrl,
+  petPhoto: pet.photo,
+  imageProps: imageProps,
+  fullPetObject: pet
+});
+
   // Enhanced error handler that tracks attempts
   const handleImageError = (e) => {
     const failedUrl = e.target.src;

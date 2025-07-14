@@ -12,6 +12,14 @@ const ProductCard = ({ product }) => {
   // Get proper image props using the updated imageUtils
   const imageProps = getCardImageProps(product, 'medium');
 
+  console.log('🛍️ ProductCard Debug:', {
+  productName: product.name,
+  productImage: product.image,
+  productImageUrl: product.imageUrl,
+  imageProps: imageProps,
+  fullProductObject: product
+});
+
   const handleImageLoad = () => {
     setImageLoaded(true);
     setImageError(false);
