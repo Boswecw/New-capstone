@@ -1,4 +1,4 @@
-// client/src/pages/Home.js - Complete Version with Debug Logging
+// client/src/pages/Home.js - Complete Version with Random Items
 import React, { useState, useEffect, useCallback } from 'react';
 import { Container, Row, Col, Alert, Button } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
@@ -26,23 +26,22 @@ const Home = () => {
   // Toast notifications
   const { toasts, showSuccess, showError, showInfo, removeToast } = useToast();
 
-  // Fetch featured pets with enhanced debugging
+  // Fetch random pets (no featured filtering)
   const fetchFeaturedPets = useCallback(async () => {
     try {
-      console.log('🏠 Home: Fetching featured pets...');
+      console.log('🏠 Home: Fetching random pets...');
       
+      // Remove featured filter since MongoDB data doesn't have featured: true
       const response = await petAPI.getAllPets({ 
-        featured: true, 
         limit: 4,
-        status: 'available' 
+        status: 'available' // Only get available pets
       });
       
-      // ⭐ DEBUG: Show complete API response ⭐
       console.log('🐕 RAW API RESPONSE:', response.data);
       
       const pets = response.data?.data || [];
       
-      // ⭐ DEBUG: Analyze each pet object ⭐
+      // Debug each pet object
       console.log('🐕 PETS ANALYSIS:');
       pets.forEach((pet, index) => {
         console.log(`🐕 Pet ${index + 1}:`, {
@@ -51,12 +50,10 @@ const Home = () => {
           imageUrl: pet.imageUrl,
           hasImageField: !!pet.image,
           hasImageUrlField: !!pet.imageUrl,
-          featured: pet.featured,
-          status: pet.status,
-          fullObject: pet
+          status: pet.status
         });
         
-        // Test image URL construction
+        // Test constructed URL
         if (pet.image) {
           const constructedUrl = `https://storage.googleapis.com/furbabies-petstore/${pet.image}`;
           console.log(`🔗 Constructed URL for ${pet.name}: ${constructedUrl}`);
@@ -64,42 +61,42 @@ const Home = () => {
       });
       
       if (pets.length > 0) {
-        console.log('✅ Featured pets loaded:', pets.length);
+        console.log('✅ Random pets loaded:', pets.length);
         setFeaturedPets(pets);
         setPetsError(null);
         
         if (!isInitialLoad) {
-          showSuccess(`${pets.length} featured pets loaded!`);
+          showSuccess(`${pets.length} pets loaded!`);
         }
       } else {
-        console.warn('⚠️ No featured pets returned from API');
-        setPetsError('No featured pets available at this time.');
-        showInfo('No featured pets available right now. Check back soon!');
+        console.warn('⚠️ No pets returned from API');
+        setPetsError('No pets available at this time.');
+        showInfo('No pets available right now. Check back soon!');
       }
     } catch (err) {
-      console.error('❌ Error loading featured pets:', err);
-      const errorMessage = 'Unable to load featured pets at this time.';
+      console.error('❌ Error loading pets:', err);
+      const errorMessage = 'Unable to load pets at this time.';
       setPetsError(errorMessage);
       showError(errorMessage);
     }
   }, [isInitialLoad, showSuccess, showError, showInfo]);
 
-  // Fetch featured products with enhanced debugging
+  // Fetch random products (no featured filtering)
   const fetchFeaturedProducts = useCallback(async () => {
     try {
-      console.log('🏠 Home: Fetching featured products...');
+      console.log('🏠 Home: Fetching random products...');
       
+      // Remove featured filter since MongoDB data doesn't have featured: true
       const response = await productAPI.getAllProducts({ 
-        featured: true, 
-        limit: 4 
+        limit: 4,
+        inStock: true // Only get in-stock products
       });
       
-      // ⭐ DEBUG: Show complete API response ⭐
       console.log('🛍️ RAW API RESPONSE:', response.data);
       
       const products = response.data?.data || [];
       
-      // ⭐ DEBUG: Analyze each product object ⭐
+      // Debug each product object
       console.log('🛍️ PRODUCTS ANALYSIS:');
       products.forEach((product, index) => {
         console.log(`🛍️ Product ${index + 1}:`, {
@@ -108,13 +105,11 @@ const Home = () => {
           imageUrl: product.imageUrl,
           hasImageField: !!product.image,
           hasImageUrlField: !!product.imageUrl,
-          featured: product.featured,
           inStock: product.inStock,
-          price: product.price,
-          fullObject: product
+          price: product.price
         });
         
-        // Test image URL construction
+        // Test constructed URL
         if (product.image) {
           const constructedUrl = `https://storage.googleapis.com/furbabies-petstore/${product.image}`;
           console.log(`🔗 Constructed URL for ${product.name}: ${constructedUrl}`);
@@ -122,21 +117,21 @@ const Home = () => {
       });
       
       if (products.length > 0) {
-        console.log('✅ Featured products loaded:', products.length);
+        console.log('✅ Random products loaded:', products.length);
         setFeaturedProducts(products);
         setProductsError(null);
         
         if (!isInitialLoad) {
-          showSuccess(`${products.length} featured products loaded!`);
+          showSuccess(`${products.length} products loaded!`);
         }
       } else {
-        console.warn('⚠️ No featured products returned from API');
-        setProductsError('No featured products available at this time.');
-        showInfo('No featured products available right now.');
+        console.warn('⚠️ No products returned from API');
+        setProductsError('No products available at this time.');
+        showInfo('No products available right now.');
       }
     } catch (err) {
-      console.error('❌ Error loading featured products:', err);
-      const errorMessage = 'Unable to load featured products at this time.';
+      console.error('❌ Error loading products:', err);
+      const errorMessage = 'Unable to load products at this time.';
       setProductsError(errorMessage);
       showError(errorMessage);
     }
@@ -171,10 +166,10 @@ const Home = () => {
       {/* Hero Banner */}
       <HeroBanner />
 
-      {/* Featured Pets Section */}
+      {/* Random Pets Section */}
       <Container className="py-5">
         <SectionHeader 
-          title="Featured Pets" 
+          title="Available Pets" 
           subtitle="Find your perfect companion today" 
         />
 
@@ -194,7 +189,7 @@ const Home = () => {
         ) : featuredPets.length === 0 ? (
           <Alert variant="info" className="text-center">
             <i className="fas fa-clock me-2"></i>
-            Loading featured pets...
+            Loading pets...
           </Alert>
         ) : (
           <Row>
@@ -218,10 +213,10 @@ const Home = () => {
         </div>
       </Container>
 
-      {/* Featured Products Section */}
+      {/* Random Products Section */}
       <Container className="py-5 bg-light">
         <SectionHeader 
-          title="Featured Products" 
+          title="Popular Products" 
           subtitle="Quality supplies for your furry friends" 
         />
 
@@ -241,7 +236,7 @@ const Home = () => {
         ) : featuredProducts.length === 0 ? (
           <Alert variant="info" className="text-center">
             <i className="fas fa-clock me-2"></i>
-            Loading featured products...
+            Loading products...
           </Alert>
         ) : (
           <Row>
