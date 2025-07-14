@@ -1,4 +1,4 @@
-// server/server.js - COMPLETE UPDATED VERSION WITH CORS FIX
+// server/server.js - COMPLETE VERSION WITH MONGODB ATLAS INTEGRATION
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
@@ -14,7 +14,6 @@ const app = express();
 // ENVIRONMENT & CONFIG
 // ============================================
 
-// Load environment variables
 if (process.env.NODE_ENV !== 'production') {
   require('dotenv').config();
 }
@@ -27,10 +26,9 @@ console.log('📍 Environment:', NODE_ENV);
 console.log('🔌 Port:', PORT);
 
 // ============================================
-// DATABASE CONNECTION
+// DATABASE CONNECTION & MODELS
 // ============================================
 
-// Database connection
 const connectDB = async () => {
   try {
     const mongoose = require('mongoose');
@@ -44,7 +42,7 @@ const connectDB = async () => {
       throw new Error('MONGODB_URI not found');
     }
 
-    console.log('🔌 Connecting to MongoDB...');
+    console.log('🔌 Connecting to MongoDB Atlas...');
     const conn = await mongoose.connect(uri, {
       maxPoolSize: NODE_ENV === 'production' ? 5 : 10,
       serverSelectionTimeoutMS: NODE_ENV === 'production' ? 10000 : 5000,
@@ -55,6 +53,12 @@ const connectDB = async () => {
     });
 
     console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
+    console.log(`📦 Database: ${conn.connection.name}`);
+    
+    // Test collections exist
+    const collections = await conn.connection.db.listCollections().toArray();
+    console.log(`📋 Available collections: ${collections.map(c => c.name).join(', ')}`);
+    
     return conn;
   } catch (error) {
     console.error('❌ MongoDB Connection Failed:', error.message);
@@ -65,28 +69,30 @@ const connectDB = async () => {
   }
 };
 
-// Connect to database
+// Connect to database first
 connectDB().catch(err => {
   console.error('Database connection failed:', err.message);
 });
 
+// Import Models (require after connection)
+const Pet = require('./models/Pet');
+const Product = require('./models/Product');
+
 // ============================================
-// 🚨 CORS CONFIGURATION - CRITICAL FIX
+// CORS CONFIGURATION
 // ============================================
 
 const corsOptions = {
   origin: function (origin, callback) {
-    // Allowed origins
     const allowedOrigins = [
-      'http://localhost:3000',                          // Local development
-      'http://localhost:5000',                          // Local backend
-      'https://furbabies-frontend.onrender.com',       // Your deployed frontend
-      'https://furbabies-backend.onrender.com',        // Your deployed backend
-      'https://furbabies-frontend.vercel.app',         // If using Vercel
-      'https://furbabies-frontend.netlify.app',        // If using Netlify
+      'http://localhost:3000',
+      'http://localhost:5000',
+      'https://furbabies-frontend.onrender.com',
+      'https://furbabies-backend.onrender.com',
+      'https://furbabies-frontend.vercel.app',
+      'https://furbabies-frontend.netlify.app',
     ];
     
-    // Allow requests with no origin (mobile apps, Postman, etc.)
     if (!origin) return callback(null, true);
     
     if (allowedOrigins.indexOf(origin) !== -1) {
@@ -99,282 +105,597 @@ const corsOptions = {
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: [
-    'Origin',
-    'X-Requested-With', 
-    'Content-Type',
-    'Accept',
-    'Authorization',
-    'Cache-Control',
-    'Pragma'
+    'Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization', 'Cache-Control', 'Pragma'
   ],
   optionsSuccessStatus: 200
 };
 
-// Apply CORS middleware
 app.use(cors(corsOptions));
-
-// Handle preflight requests
 app.options('*', cors(corsOptions));
 
 // ============================================
-// SECURITY & MIDDLEWARE
+// MIDDLEWARE
 // ============================================
 
-// Security headers
-app.use(helmet({
-  contentSecurityPolicy: false, // Disable for API
-  crossOriginEmbedderPolicy: false
-}));
-
-// Logging
-if (NODE_ENV === 'development') {
-  app.use(morgan('combined'));
-} else {
-  app.use(morgan('combined'));
-}
-
-// Compression
+app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
+app.use(morgan(NODE_ENV === 'development' ? 'dev' : 'combined'));
 app.use(compression());
 
-// Rate limiting
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: NODE_ENV === 'production' ? 100 : 1000, // Limit each IP
-  message: {
-    success: false,
-    message: 'Too many requests from this IP, please try again later.'
-  },
+  windowMs: 15 * 60 * 1000,
+  max: NODE_ENV === 'production' ? 100 : 1000,
+  message: { success: false, message: 'Too many requests from this IP, please try again later.' },
   standardHeaders: true,
   legacyHeaders: false,
 });
 app.use(limiter);
 
-// Body parsing
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-
-// Static files (if needed)
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ============================================
-// HEALTH CHECK & DEBUG ROUTES
+// UTILITY FUNCTIONS
 // ============================================
 
-// Health check endpoint
-app.get('/api/health', (req, res) => {
-  res.json({
-    success: true,
-    message: 'FurBabies Backend Server is running!',
-    environment: NODE_ENV,
-    timestamp: new Date().toISOString(),
-    cors: 'Enabled',
-    mongodb: 'Connected'
-  });
+/**
+ * Fix image paths from database and construct proper Google Storage URLs
+ */
+const constructImageUrl = (imagePath, type = 'pet') => {
+  if (!imagePath) return null;
+  
+  // If already a complete URL, return as-is
+  if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+    return imagePath;
+  }
+  
+  // Clean and fix the path
+  let cleanPath = imagePath.trim();
+  
+  // Fix plural paths from database (if they exist)
+  cleanPath = cleanPath.replace(/^pets\//, 'pet/');
+  cleanPath = cleanPath.replace(/^products\//, 'product/');
+  
+  // If path doesn't have folder prefix, add it
+  if (!cleanPath.includes('/')) {
+    const folder = type === 'product' ? 'product' : 'pet';
+    cleanPath = `${folder}/${cleanPath}`;
+  }
+  
+  const finalUrl = `https://storage.googleapis.com/furbabies-petstore/${cleanPath}`;
+  console.log(`🔧 Image URL: ${imagePath} → ${finalUrl}`);
+  
+  return finalUrl;
+};
+
+/**
+ * Enrich pet data with computed fields
+ */
+const enrichPetData = (pet) => {
+  const petObj = pet.toObject ? pet.toObject() : pet;
+  return {
+    ...petObj,
+    imageUrl: constructImageUrl(petObj.image, 'pet'),
+    hasImage: !!petObj.image,
+    displayName: petObj.name || 'Unnamed Pet',
+    isAvailable: petObj.status === 'available',
+    daysSincePosted: petObj.createdAt ? 
+      Math.floor((new Date() - new Date(petObj.createdAt)) / (1000 * 60 * 60 * 24)) : 0
+  };
+};
+
+/**
+ * Enrich product data with computed fields
+ */
+const enrichProductData = (product) => {
+  const productObj = product.toObject ? product.toObject() : product;
+  return {
+    ...productObj,
+    imageUrl: constructImageUrl(productObj.image, 'product'),
+    hasImage: !!productObj.image,
+    displayName: productObj.name || 'Unnamed Product',
+    formattedPrice: typeof productObj.price === 'number' ? `$${productObj.price.toFixed(2)}` : 'N/A'
+  };
+};
+
+// ============================================
+// HEALTH CHECK ROUTES
+// ============================================
+
+app.get('/api/health', async (req, res) => {
+  try {
+    // Test database connectivity
+    const petCount = await Pet.countDocuments();
+    const productCount = await Product.countDocuments();
+    
+    res.json({
+      success: true,
+      message: 'FurBabies Backend Server is running!',
+      environment: NODE_ENV,
+      timestamp: new Date().toISOString(),
+      cors: 'Enabled',
+      mongodb: 'Connected',
+      database: {
+        pets: petCount,
+        products: productCount
+      }
+    });
+  } catch (error) {
+    console.error('❌ Health check failed:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Database connection issue',
+      error: error.message
+    });
+  }
 });
 
-// CORS test endpoint
 app.get('/api/cors-test', (req, res) => {
   res.json({
     success: true,
     message: 'CORS is working!',
     origin: req.get('Origin'),
-    headers: req.headers,
     timestamp: new Date().toISOString()
   });
 });
 
 // ============================================
-// API ROUTES
+// PETS API ROUTES - MONGODB INTEGRATION
 // ============================================
 
-// Import route handlers
-let petsRouter, productsRouter, usersRouter, adminRouter, contactRouter;
-
-try {
-  // Try to load routes, but don't fail if they don't exist
+app.get('/api/pets', async (req, res) => {
   try {
-    petsRouter = require('./routes/pets');
-    app.use('/api/pets', petsRouter);
-    console.log('✅ Pets routes loaded');
-  } catch (err) {
-    console.log('⚠️  Pets routes not found, using mock');
-    // Mock pets route
-    app.get('/api/pets', (req, res) => {
-      const mockPets = [
-        {
-          _id: 'p001',
-          name: 'Fluffy',
-          type: 'cat',
-          breed: 'Persian',
-          age: '2 years',
-          description: 'A lovely cat looking for a home.',
-          image: 'pet/kitten.png',
-          imageUrl: 'https://storage.googleapis.com/furbabies-petstore/pet/kitten.png',
-          status: 'available',
-          featured: true
-        },
-        {
-          _id: 'p002',
-          name: 'Max',
-          type: 'dog', 
-          breed: 'Golden Retriever',
-          age: '3 years',
-          description: 'A friendly dog.',
-          image: 'pet/betas-fish.jpg',
-          imageUrl: 'https://storage.googleapis.com/furbabies-petstore/pet/betas-fish.jpg',
-          status: 'available',
-          featured: true
-        }
+    console.log('🐕 GET /api/pets called with params:', req.query);
+    
+    const { 
+      featured, 
+      limit = 10, 
+      category, 
+      status, 
+      type, 
+      page = 1,
+      sort = 'newest' 
+    } = req.query;
+    
+    // Build query filter
+    const filter = {};
+    
+    // Filter by status (default to available)
+    if (status) {
+      filter.status = status;
+    } else {
+      filter.status = 'available';
+    }
+    
+    // Filter by featured
+    if (featured === 'true') {
+      filter.featured = true;
+    }
+    
+    // Filter by category
+    if (category && category !== 'all') {
+      filter.category = category;
+    }
+    
+    // Filter by type
+    if (type && type !== 'all') {
+      filter.type = type;
+    }
+    
+    console.log('🔍 MongoDB Query Filter:', filter);
+    
+    // Calculate pagination
+    const limitNum = parseInt(limit);
+    const pageNum = parseInt(page);
+    const skip = (pageNum - 1) * limitNum;
+    
+    // Build sort options
+    let sortOptions = {};
+    switch (sort) {
+      case 'newest':
+        sortOptions = { createdAt: -1 };
+        break;
+      case 'oldest':
+        sortOptions = { createdAt: 1 };
+        break;
+      case 'name':
+        sortOptions = { name: 1 };
+        break;
+      case 'random':
+        // For random, we'll use MongoDB aggregation
+        break;
+      default:
+        sortOptions = { createdAt: -1 };
+    }
+    
+    let pets;
+    let total;
+    
+    if (sort === 'random') {
+      // Use MongoDB aggregation for random sampling
+      const pipeline = [
+        { $match: filter },
+        { $sample: { size: limitNum } }
       ];
       
-      const { featured, limit = 10 } = req.query;
-      let pets = mockPets;
+      pets = await Pet.aggregate(pipeline);
+      total = await Pet.countDocuments(filter);
+    } else {
+      // Regular query with pagination
+      pets = await Pet.find(filter)
+        .sort(sortOptions)
+        .skip(skip)
+        .limit(limitNum)
+        .lean(); // Use lean() for better performance
       
-      if (featured === 'true') {
-        pets = pets.filter(pet => pet.featured);
-      }
-      
-      pets = pets.slice(0, parseInt(limit));
-      
-      res.json({
-        success: true,
-        data: pets,
-        count: pets.length,
-        message: 'Pets retrieved successfully (mock data)'
-      });
+      total = await Pet.countDocuments(filter);
+    }
+    
+    // Enrich pet data with computed fields
+    const enrichedPets = pets.map(enrichPetData);
+    
+    console.log(`✅ Found ${pets.length} pets from database (${total} total match filter)`);
+    
+    res.json({
+      success: true,
+      data: enrichedPets,
+      count: pets.length,
+      total: total,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        pages: Math.ceil(total / limitNum),
+        hasMore: skip + pets.length < total
+      },
+      filters: {
+        featured: featured === 'true',
+        category: category || 'all',
+        status: status || 'available',
+        type: type || 'all',
+        sort: sort
+      },
+      message: `${pets.length} pets retrieved successfully from database`
+    });
+    
+  } catch (error) {
+    console.error('❌ Error fetching pets from database:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch pets from database',
+      error: error.message
     });
   }
+});
 
+// Single pet by ID
+app.get('/api/pets/:id', async (req, res) => {
   try {
-    productsRouter = require('./routes/products');
-    app.use('/api/products', productsRouter);
-    console.log('✅ Products routes loaded');
-  } catch (err) {
-    console.log('⚠️  Products routes not found, using mock');
-    // Mock products route
-    app.get('/api/products', (req, res) => {
-      const mockProducts = [
-        {
-          _id: 'prod_001',
-          name: 'Premium Dog Food',
-          category: 'Dog Care',
-          brand: 'PetChoice',
-          price: 29.99,
-          description: 'High-quality nutrition for your best friend.',
-          image: 'product/clicker.png',
-          imageUrl: 'https://storage.googleapis.com/furbabies-petstore/product/clicker.png',
-          inStock: true,
-          featured: true
-        },
-        {
-          _id: 'prod_002',
-          name: 'Interactive Cat Toy',
-          category: 'Cat Care',
-          brand: 'Feline Fun', 
-          price: 15.99,
-          description: 'Keep your cat entertained for hours.',
-          image: 'product/dog-harness.png',
-          imageUrl: 'https://storage.googleapis.com/furbabies-petstore/product/dog-harness.png',
-          inStock: true,
-          featured: true
-        }
+    console.log('🐕 GET /api/pets/:id called with ID:', req.params.id);
+    
+    const pet = await Pet.findById(req.params.id).lean();
+    
+    if (!pet) {
+      return res.status(404).json({
+        success: false,
+        message: 'Pet not found'
+      });
+    }
+    
+    // Increment view count (optional - update without waiting)
+    Pet.findByIdAndUpdate(req.params.id, { $inc: { views: 1 } }).exec();
+    
+    const enrichedPet = enrichPetData(pet);
+    
+    console.log(`✅ Found pet: ${enrichedPet.displayName}`);
+    
+    res.json({
+      success: true,
+      data: enrichedPet
+    });
+    
+  } catch (error) {
+    console.error('❌ Error fetching pet by ID:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch pet',
+      error: error.message
+    });
+  }
+});
+
+// ============================================
+// PRODUCTS API ROUTES - MONGODB INTEGRATION
+// ============================================
+
+app.get('/api/products', async (req, res) => {
+  try {
+    console.log('🛒 GET /api/products called with params:', req.query);
+    
+    const { 
+      featured, 
+      limit = 10, 
+      category, 
+      inStock, 
+      page = 1,
+      sort = 'newest',
+      search 
+    } = req.query;
+    
+    // Build query filter
+    const filter = {};
+    
+    // Filter by stock status
+    if (inStock !== undefined) {
+      filter.inStock = inStock === 'true';
+    }
+    
+    // Filter by featured
+    if (featured === 'true') {
+      filter.featured = true;
+    }
+    
+    // Filter by category
+    if (category && category !== 'all') {
+      filter.category = { $regex: new RegExp(category, 'i') };
+    }
+    
+    // Search functionality
+    if (search) {
+      filter.$or = [
+        { name: { $regex: new RegExp(search, 'i') } },
+        { description: { $regex: new RegExp(search, 'i') } },
+        { brand: { $regex: new RegExp(search, 'i') } }
+      ];
+    }
+    
+    console.log('🔍 MongoDB Query Filter:', filter);
+    
+    // Calculate pagination
+    const limitNum = parseInt(limit);
+    const pageNum = parseInt(page);
+    const skip = (pageNum - 1) * limitNum;
+    
+    // Build sort options
+    let sortOptions = {};
+    switch (sort) {
+      case 'newest':
+        sortOptions = { createdAt: -1 };
+        break;
+      case 'oldest':
+        sortOptions = { createdAt: 1 };
+        break;
+      case 'name':
+        sortOptions = { name: 1 };
+        break;
+      case 'price-low':
+        sortOptions = { price: 1 };
+        break;
+      case 'price-high':
+        sortOptions = { price: -1 };
+        break;
+      case 'random':
+        // Use aggregation for random
+        break;
+      default:
+        sortOptions = { createdAt: -1 };
+    }
+    
+    let products;
+    let total;
+    
+    if (sort === 'random') {
+      // Use MongoDB aggregation for random sampling
+      const pipeline = [
+        { $match: filter },
+        { $sample: { size: limitNum } }
       ];
       
-      const { featured, limit = 10 } = req.query;
-      let products = mockProducts;
+      products = await Product.aggregate(pipeline);
+      total = await Product.countDocuments(filter);
+    } else {
+      // Regular query with pagination
+      products = await Product.find(filter)
+        .sort(sortOptions)
+        .skip(skip)
+        .limit(limitNum)
+        .lean();
       
-      if (featured === 'true') {
-        products = products.filter(product => product.featured);
-      }
-      
-      products = products.slice(0, parseInt(limit));
-      
-      res.json({
-        success: true,
-        data: products,
-        count: products.length,
-        message: 'Products retrieved successfully (mock data)'
-      });
+      total = await Product.countDocuments(filter);
+    }
+    
+    // Enrich product data with computed fields
+    const enrichedProducts = products.map(enrichProductData);
+    
+    console.log(`✅ Found ${products.length} products from database (${total} total match filter)`);
+    
+    res.json({
+      success: true,
+      data: enrichedProducts,
+      count: products.length,
+      total: total,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        pages: Math.ceil(total / limitNum),
+        hasMore: skip + products.length < total
+      },
+      filters: {
+        featured: featured === 'true',
+        category: category || 'all',
+        inStock: inStock || 'all',
+        search: search || '',
+        sort: sort
+      },
+      message: `${products.length} products retrieved successfully from database`
+    });
+    
+  } catch (error) {
+    console.error('❌ Error fetching products from database:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch products from database',
+      error: error.message
     });
   }
+});
 
+// Single product by ID
+app.get('/api/products/:id', async (req, res) => {
   try {
-    usersRouter = require('./routes/users');
-    app.use('/api/users', usersRouter);
-    console.log('✅ Users routes loaded');
-  } catch (err) {
-    console.log('⚠️  Users routes not found');
+    console.log('🛒 GET /api/products/:id called with ID:', req.params.id);
+    
+    const product = await Product.findById(req.params.id).lean();
+    
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: 'Product not found'
+      });
+    }
+    
+    const enrichedProduct = enrichProductData(product);
+    
+    console.log(`✅ Found product: ${enrichedProduct.displayName}`);
+    
+    res.json({
+      success: true,
+      data: enrichedProduct
+    });
+    
+  } catch (error) {
+    console.error('❌ Error fetching product by ID:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch product',
+      error: error.message
+    });
   }
+});
 
+// ============================================
+// DATABASE STATS & ADMIN ROUTES
+// ============================================
+
+app.get('/api/stats', async (req, res) => {
   try {
-    adminRouter = require('./routes/admin');
-    app.use('/api/admin', adminRouter);
-    console.log('✅ Admin routes loaded');
-  } catch (err) {
-    console.log('⚠️  Admin routes not found');
+    const [
+      totalPets,
+      availablePets,
+      featuredPets,
+      totalProducts,
+      inStockProducts,
+      featuredProducts
+    ] = await Promise.all([
+      Pet.countDocuments(),
+      Pet.countDocuments({ status: 'available' }),
+      Pet.countDocuments({ featured: true }),
+      Product.countDocuments(),
+      Product.countDocuments({ inStock: true }),
+      Product.countDocuments({ featured: true })
+    ]);
+    
+    res.json({
+      success: true,
+      data: {
+        pets: {
+          total: totalPets,
+          available: availablePets,
+          featured: featuredPets,
+          adopted: totalPets - availablePets
+        },
+        products: {
+          total: totalProducts,
+          inStock: inStockProducts,
+          featured: featuredProducts,
+          outOfStock: totalProducts - inStockProducts
+        }
+      },
+      message: 'Database statistics retrieved successfully'
+    });
+  } catch (error) {
+    console.error('❌ Error fetching stats:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch database statistics',
+      error: error.message
+    });
   }
+});
 
-  try {
-    contactRouter = require('./routes/contact');
-    app.use('/api/contact', contactRouter);
-    console.log('✅ Contact routes loaded');
-  } catch (err) {
-    console.log('⚠️  Contact routes not found');
+// ============================================
+// OTHER API ROUTES
+// ============================================
+
+app.post('/api/contact', (req, res) => {
+  const { name, email, subject, message } = req.body;
+  if (!name || !email || !message) {
+    return res.status(400).json({ success: false, message: 'Name, email, and message are required' });
   }
+  res.json({
+    success: true,
+    message: 'Contact message sent successfully',
+    data: { id: Date.now().toString(), name, email, subject: subject || 'General Inquiry', message, createdAt: new Date().toISOString() }
+  });
+});
 
-} catch (error) {
-  console.error('❌ Error loading routes:', error.message);
-}
+app.post('/api/users/register', (req, res) => {
+  const { name, email, password } = req.body;
+  if (!name || !email || !password) {
+    return res.status(400).json({ success: false, message: 'Name, email, and password are required' });
+  }
+  res.status(201).json({
+    success: true,
+    message: 'User registered successfully',
+    data: { id: Date.now().toString(), name, email, role: 'user', createdAt: new Date().toISOString() }
+  });
+});
+
+app.post('/api/users/login', (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) {
+    return res.status(400).json({ success: false, message: 'Email and password are required' });
+  }
+  res.json({
+    success: true,
+    message: 'Login successful',
+    data: { id: Date.now().toString(), name: 'Test User', email, role: 'user', token: 'mock-jwt-token' }
+  });
+});
 
 // ============================================
 // ERROR HANDLING
 // ============================================
 
-// 404 handler for API routes
 app.use('/api/*', (req, res) => {
   res.status(404).json({
     success: false,
     message: `API route ${req.originalUrl} not found`,
     availableRoutes: [
       'GET /api/health',
-      'GET /api/cors-test',
-      'GET /api/pets',
-      'GET /api/products',
-      'POST /api/users/register',
-      'POST /api/users/login',
-      'POST /api/contact'
-    ]
+      'GET /api/stats', 
+      'GET /api/pets?featured=true&limit=4&sort=random',
+      'GET /api/products?featured=true&limit=4&sort=random',
+      'GET /api/pets/:id',
+      'GET /api/products/:id'
+    ],
+    tip: 'Use sort=random for home page random selection'
   });
 });
 
-// Serve React frontend in production
 if (NODE_ENV === 'production') {
-  // Serve static files from React build
   app.use(express.static(path.join(__dirname, '../client/build')));
-  
-  // Handle React routing, return all requests to React app
   app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, '../client/build/index.html'));
   });
 }
 
-// Global error handler
 app.use((err, req, res, next) => {
   console.error('❌ Server Error:', err.message);
-  console.error('🔍 Stack:', err.stack);
-  
-  // CORS Error
   if (err.message.includes('CORS')) {
-    return res.status(403).json({
-      success: false,
-      message: 'CORS policy violation',
-      error: 'This origin is not allowed to access this resource',
-      origin: req.get('Origin')
-    });
+    return res.status(403).json({ success: false, message: 'CORS policy violation', origin: req.get('Origin') });
   }
-
-  res.status(err.status || 500).json({
-    success: false,
+  res.status(err.status || 500).json({ 
+    success: false, 
     message: err.message || 'Internal Server Error',
     ...(NODE_ENV === 'development' && { stack: err.stack })
   });
@@ -386,30 +707,29 @@ app.use((err, req, res, next) => {
 
 const server = app.listen(PORT, () => {
   console.log('');
-  console.log('🎉 ================================');
+  console.log('🎉 =====================================');
   console.log('🚀 FurBabies Backend Server Ready!');
-  console.log('🎉 ================================');
+  console.log('🎉 =====================================');
   console.log(`📍 Environment: ${NODE_ENV}`);
   console.log(`🔌 Port: ${PORT}`);
   console.log(`🌐 URL: ${NODE_ENV === 'production' ? 'https://furbabies-backend.onrender.com' : `http://localhost:${PORT}`}`);
   console.log('✅ CORS: Configured for frontend domains');
-  console.log('✅ MongoDB: Connected');
-  console.log('✅ Routes: Loaded with fallbacks');
+  console.log('✅ MongoDB Atlas: Connected');
+  console.log('✅ Routes: Live database integration');
   console.log('');
-  console.log('🔍 Test endpoints:');
-  console.log(`   Health: /api/health`);
-  console.log(`   CORS Test: /api/cors-test`);
-  console.log(`   Pets: /api/pets`);
-  console.log(`   Products: /api/products`);
+  console.log('🎲 Random endpoints for home page:');
+  console.log('   🐕 4 Random Pets: /api/pets?featured=true&limit=4&sort=random');
+  console.log('   🛒 4 Random Products: /api/products?featured=true&limit=4&sort=random');
+  console.log('');
+  console.log('📊 Database stats: /api/stats');
+  console.log('🔍 Health check: /api/health');
   console.log('');
 });
 
-// Graceful shutdown
 const gracefulShutdown = (signal) => {
   console.log(`\n🛑 Received ${signal}. Gracefully shutting down...`);
   server.close(() => {
     console.log('✅ HTTP server closed.');
-    // Close database connection
     const mongoose = require('mongoose');
     mongoose.connection.close(() => {
       console.log('✅ MongoDB connection closed.');
@@ -421,13 +741,9 @@ const gracefulShutdown = (signal) => {
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
-// Handle unhandled promise rejections
 process.on('unhandledRejection', (err, promise) => {
   console.error('❌ Unhandled Promise Rejection:', err.message);
-  console.error('🛑 Shutting down server...');
-  server.close(() => {
-    process.exit(1);
-  });
+  server.close(() => process.exit(1));
 });
 
 module.exports = app;

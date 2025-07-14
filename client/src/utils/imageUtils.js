@@ -141,6 +141,7 @@ export const getCardImageProps = (item, size = 'medium') => {
   if (imagePath && typeof imagePath === 'string') {
     imagePath = imagePath.replace('/pets/', '/pet/');
     imagePath = imagePath.replace('/products/', '/product/');
+    console.log('🔧 Image path corrected for', category, ':', imagePath);
   }
   
   const itemName = item?.name || item?.title || 'Item';
