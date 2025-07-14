@@ -48,10 +48,12 @@ export const getGoogleStorageUrl = (imagePath, size = 'medium', category = 'pet'
   // Clean the path and ensure correct structure
   let cleanPath = imagePath.trim().replace(/^\/+/, '').replace(/\/+/g, '/');
   
-  // FIX: Correct common path mistakes
-  // Change "pets/" to "pet/" and "products/" to "product/"
+  // 🚨 CRITICAL FIX: Correct plural paths to singular
+  // Your database/API is returning "pets/" and "products/" but bucket uses "pet/" and "product/"
   cleanPath = cleanPath.replace(/^pets\//, 'pet/');
   cleanPath = cleanPath.replace(/^products\//, 'product/');
+  
+  console.log(`🔧 Path correction: "${imagePath}" → "${cleanPath}"`);
   
   // If path doesn't start with a folder, add the category folder
   if (!cleanPath.includes('/')) {
@@ -119,7 +121,14 @@ export const getCardImageProps = (item, size = 'medium') => {
   }
 
   // Use imageUrl if available (from backend), otherwise use image field
-  const imagePath = item?.imageUrl || item?.image;
+  let imagePath = item?.imageUrl || item?.image;
+  
+  // 🚨 CRITICAL FIX: Correct backend-constructed URLs with wrong plural paths
+  if (imagePath && typeof imagePath === 'string') {
+    imagePath = imagePath.replace('/pets/', '/pet/');
+    imagePath = imagePath.replace('/products/', '/product/');
+  }
+  
   const itemName = item?.name || item?.title || 'Item';
   const altText = `${itemName} - ${category}`;
   
