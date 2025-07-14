@@ -1,181 +1,342 @@
-// services/api.js
+// client/src/services/api.js - ENHANCED VERSION FOR RENDER
 import axios from 'axios';
 
-// Create axios instance
+// Enhanced configuration for Render deployment
 const api = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:10000/api',
+  baseURL: process.env.NODE_ENV === 'production' 
+    ? 'https://furbabies-backend.onrender.com/api'
+    : 'http://localhost:5000/api',
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 5000, // 5 second timeout
+  timeout: 30000, // Increased to 30 seconds for Render cold starts
 });
 
-// Helper function to generate image URLs with fallbacks
-export const getImageUrl = (imagePath, fallback = '/images/placeholder.png') => {
-  if (!imagePath) return fallback;
-  
-  // If it's already a full URL, return as is
-  if (imagePath.startsWith('http')) return imagePath;
-  
-  // Build backend URL
-  const baseURL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
-  return `${baseURL.replace('/api', '')}/${imagePath}`;
+// Retry configuration
+const RETRY_CONFIG = {
+  retries: 3,
+  retryDelay: 1000, // Start with 1 second
+  retryCondition: (error) => {
+    // Retry on network errors or 5xx status codes
+    return !error.response || error.response.status >= 500 || error.code === 'ECONNABORTED';
+  }
 };
 
-// Request interceptor to add auth token - SAFER VERSION
+// Exponential backoff delay
+const getRetryDelay = (retryCount) => {
+  return Math.min(RETRY_CONFIG.retryDelay * Math.pow(2, retryCount), 10000);
+};
+
+// Enhanced request interceptor with retry logic
+const createRequestWithRetry = (config) => {
+  return new Promise((resolve, reject) => {
+    let retryCount = 0;
+    
+    const makeRequest = async () => {
+      try {
+        const response = await api(config);
+        resolve(response);
+      } catch (error) {
+        console.error(`API Error (attempt ${retryCount + 1}):`, error.message);
+        
+        if (retryCount < RETRY_CONFIG.retries && RETRY_CONFIG.retryCondition(error)) {
+          retryCount++;
+          const delay = getRetryDelay(retryCount);
+          
+          console.log(`Retrying in ${delay}ms... (${retryCount}/${RETRY_CONFIG.retries})`);
+          
+          setTimeout(makeRequest, delay);
+        } else {
+          reject(error);
+        }
+      }
+    };
+    
+    makeRequest();
+  });
+};
+
+// Request interceptor to add auth token
 api.interceptors.request.use(
   (config) => {
-    // Check if localStorage is available (browser environment)
-    if (typeof window !== 'undefined' && window.localStorage) {
-      const token = localStorage.getItem('token');
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-      }
+    const token = localStorage.getItem('authToken');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
-// Response interceptor for handling auth errors - SAFER VERSION
+// Response interceptor for error handling
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    console.error('API error:', error);
+    console.error('API Response Error:', {
+      message: error.message,
+      status: error.response?.status,
+      url: error.config?.url,
+      method: error.config?.method
+    });
     
-    // Check if we're in browser environment before accessing localStorage/window
-    if (typeof window !== 'undefined' && error.response?.status === 401) {
-      localStorage.removeItem('token');
+    if (error.response?.status === 401) {
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('user');
       window.location.href = '/login';
     }
     return Promise.reject(error);
   }
 );
 
-// Auth functions
-export const authAPI = {
-  login: async (credentials) => {
-    const response = await api.post('/auth/login', credentials);
-    return response.data;
-  },
-  
-  register: async (userData) => {
-    const response = await api.post('/auth/register', userData);
-    return response.data;
-  },
-  
-  logout: async () => {
-    const response = await api.post('/auth/logout');
-    localStorage.removeItem('token');
-    return response.data;
-  },
-  
-  forgotPassword: async (email) => {
-    const response = await api.post('/auth/forgot-password', { email });
-    return response.data;
-  },
-  
-  resetPassword: async (token, password) => {
-    const response = await api.post('/auth/reset-password', { token, password });
-    return response.data;
-  },
-  
-  getProfile: async () => {
-    const response = await api.get('/auth/profile');
-    return response.data;
-  },
-  
-  updateProfile: async (userData) => {
-    const response = await api.put('/auth/profile', userData);
-    return response.data;
-  }
+// Enhanced API methods with retry logic
+const createAPIMethod = (method, url, data = null) => {
+  return (params = {}) => {
+    const config = {
+      method,
+      url,
+      ...params
+    };
+    
+    if (data) {
+      config.data = data;
+    }
+    
+    return createRequestWithRetry(config);
+  };
 };
 
-// Pet functions
+// ===== PET API =====
 export const petAPI = {
-  getAllPets: async (params) => {
-    const response = await api.get('/pets', { params });
-    return response.data;
+  getAllPets: (params = {}) => {
+    const searchParams = new URLSearchParams();
+    Object.keys(params).forEach(key => {
+      if (params[key] !== undefined && params[key] !== '') {
+        searchParams.append(key, params[key]);
+      }
+    });
+    
+    return createRequestWithRetry({
+      method: 'GET',
+      url: `/pets?${searchParams}`
+    });
   },
   
-  getPetById: async (id) => {
-    const response = await api.get(`/pets/${id}`);
-    return response.data;
+  getFeaturedPets: (limit = 6) => {
+    return createRequestWithRetry({
+      method: 'GET',
+      url: `/pets/featured?limit=${limit}`
+    });
   },
   
-  createPet: async (petData) => {
-    const response = await api.post('/pets', petData);
-    return response.data;
+  getPetById: (id) => {
+    return createRequestWithRetry({
+      method: 'GET',
+      url: `/pets/${id}`
+    });
   },
   
-  updatePet: async (id, petData) => {
-    const response = await api.put(`/pets/${id}`, petData);
-    return response.data;
+  createPet: (petData) => {
+    return createRequestWithRetry({
+      method: 'POST',
+      url: '/pets',
+      data: petData
+    });
   },
   
-  deletePet: async (id) => {
-    const response = await api.delete(`/pets/${id}`);
-    return response.data;
+  updatePet: (id, petData) => {
+    return createRequestWithRetry({
+      method: 'PUT',
+      url: `/pets/${id}`,
+      data: petData
+    });
   },
   
-  addToFavorites: async (petId) => {
-    const response = await api.post(`/pets/${petId}/favorite`);
-    return response.data;
-  },
-  
-  removeFromFavorites: async (petId) => {
-    const response = await api.delete(`/pets/${petId}/favorite`);
-    return response.data;
+  deletePet: (id) => {
+    return createRequestWithRetry({
+      method: 'DELETE',
+      url: `/pets/${id}`
+    });
   }
 };
 
-// Contact functions
-export const contactAPI = {
-  submitContact: async (contactData) => {
-    const response = await api.post('/contact', contactData);
-    return response.data;
+// ===== PRODUCT API =====
+export const productAPI = {
+  getAllProducts: (params = {}) => {
+    const searchParams = new URLSearchParams();
+    Object.keys(params).forEach(key => {
+      if (params[key] !== undefined && params[key] !== '') {
+        searchParams.append(key, params[key]);
+      }
+    });
+    
+    return createRequestWithRetry({
+      method: 'GET',
+      url: `/products?${searchParams}`
+    });
   },
   
-  getAllContacts: async () => {
-    const response = await api.get('/admin/contacts');
-    return response.data;
+  getFeaturedProducts: (limit = 6) => {
+    return createRequestWithRetry({
+      method: 'GET',
+      url: `/products/featured?limit=${limit}`
+    });
   },
   
-  updateContactStatus: async (id, status) => {
-    const response = await api.put(`/admin/contacts/${id}`, { status });
-    return response.data;
+  getProductById: (id) => {
+    return createRequestWithRetry({
+      method: 'GET',
+      url: `/products/${id}`
+    });
   },
   
-  deleteContact: async (id) => {
-    const response = await api.delete(`/admin/contacts/${id}`);
-    return response.data;
+  getCategories: () => {
+    return createRequestWithRetry({
+      method: 'GET',
+      url: '/products/categories'
+    });
+  },
+  
+  getBrands: () => {
+    return createRequestWithRetry({
+      method: 'GET',
+      url: '/products/brands'
+    });
   }
 };
 
-// Admin functions
-export const adminAPI = {
-  getDashboardStats: async () => {
-    const response = await api.get('/admin/dashboard');
-    return response.data;
+// ===== USER API =====
+export const userAPI = {
+  register: (userData) => {
+    return createRequestWithRetry({
+      method: 'POST',
+      url: '/users/register',
+      data: userData
+    });
   },
   
-  getAllUsers: async () => {
-    const response = await api.get('/admin/users');
-    return response.data;
+  login: (credentials) => {
+    return createRequestWithRetry({
+      method: 'POST',
+      url: '/users/login',
+      data: credentials
+    });
   },
   
-  updateUserRole: async (userId, role) => {
-    const response = await api.put(`/admin/users/${userId}/role`, { role });
-    return response.data;
+  getProfile: () => {
+    return createRequestWithRetry({
+      method: 'GET',
+      url: '/users/profile'
+    });
   },
   
-  deleteUser: async (userId) => {
-    const response = await api.delete(`/admin/users/${userId}`);
-    return response.data;
+  updateProfile: (userData) => {
+    return createRequestWithRetry({
+      method: 'PUT',
+      url: '/users/profile',
+      data: userData
+    });
+  },
+  
+  addFavorite: (petId) => {
+    return createRequestWithRetry({
+      method: 'POST',
+      url: `/users/favorites/${petId}`
+    });
+  },
+  
+  removeFavorite: (petId) => {
+    return createRequestWithRetry({
+      method: 'DELETE',
+      url: `/users/favorites/${petId}`
+    });
+  },
+  
+  getFavorites: () => {
+    return createRequestWithRetry({
+      method: 'GET',
+      url: '/users/favorites'
+    });
   }
 };
 
-// Export the axios instance as default
+// ===== HEALTH CHECK =====
+export const healthAPI = {
+  check: () => {
+    return createRequestWithRetry({
+      method: 'GET',
+      url: '/health'
+    });
+  }
+};
+
+// ===== UTILITY FUNCTIONS =====
+export const handleApiError = (error) => {
+  console.error('API Error Details:', {
+    message: error.message,
+    status: error.response?.status,
+    statusText: error.response?.statusText,
+    url: error.config?.url,
+    method: error.config?.method,
+    timeout: error.code === 'ECONNABORTED',
+    networkError: !error.response
+  });
+  
+  if (error.response) {
+    // Server responded with error status
+    const message = error.response.data?.message || 'Server error occurred';
+    return {
+      message,
+      status: error.response.status,
+      data: error.response.data,
+      type: 'server_error'
+    };
+  } else if (error.request) {
+    // Request was made but no response (network error or timeout)
+    const isTimeout = error.code === 'ECONNABORTED';
+    return {
+      message: isTimeout 
+        ? 'Request timed out. The server might be waking up from sleep mode.'
+        : 'Network error. Please check your connection.',
+      status: 0,
+      data: null,
+      type: isTimeout ? 'timeout' : 'network_error'
+    };
+  } else {
+    // Something else happened
+    return {
+      message: error.message || 'An unexpected error occurred',
+      status: 0,
+      data: null,
+      type: 'unknown_error'
+    };
+  }
+};
+
+// Test API connection with better error handling
+export const testConnection = async () => {
+  try {
+    console.log('🔍 Testing API connection...');
+    const response = await healthAPI.check();
+    console.log('✅ API Connection successful:', response.data);
+    return { success: true, data: response.data };
+  } catch (error) {
+    const errorDetails = handleApiError(error);
+    console.error('❌ API Connection failed:', errorDetails);
+    return { success: false, error: errorDetails };
+  }
+};
+
+// Wake up the server (useful for Render cold starts)
+export const wakeUpServer = async () => {
+  try {
+    console.log('🌅 Waking up server...');
+    await testConnection();
+    console.log('✅ Server is awake!');
+    return true;
+  } catch (error) {
+    console.error('❌ Failed to wake up server:', error);
+    return false;
+  }
+};
+
 export default api;
