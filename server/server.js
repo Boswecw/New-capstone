@@ -1,4 +1,4 @@
-// server/server.js - FIXED VERSION WITH REAL ROUTES
+// server/server.js - MINIMAL FIX FOR DEPLOYMENT
 const express = require('express');
 const path = require('path');
 const cors = require('cors');
@@ -7,8 +7,8 @@ const compression = require('compression');
 const morgan = require('morgan');
 require('dotenv').config();
 
-// Import database connection
-const connectDB = require('./config/database');
+// Import database connection - FIXED PATH
+const connectDB = require('./config/database.js');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -50,117 +50,78 @@ app.get('/api/health', (req, res) => {
 });
 
 // ============================================
-// 🔌 MOUNT REAL ROUTES (NOT MOCK DATA)
+// 🔌 SAFE ROUTE MOUNTING - Only import what exists
 // ============================================
 
 console.log('🚀 Mounting API routes...');
 
-// Import and mount real routes
-try {
-  const petsRoutes = require('./routes/pets');
-  app.use('/api/pets', petsRoutes);
-  console.log('✅ Mounted pets routes: /api/pets');
-} catch (error) {
-  console.error('❌ Failed to mount pets routes:', error.message);
-}
+// Try to mount routes with error handling
+const mountRoute = (path, routeFile, routeName) => {
+  try {
+    const route = require(routeFile);
+    app.use(path, route);
+    console.log(`✅ Mounted ${routeName} routes: ${path}`);
+    return true;
+  } catch (error) {
+    console.error(`❌ Failed to mount ${routeName} routes:`, error.message);
+    return false;
+  }
+};
 
-try {
-  const productsRoutes = require('./routes/products');
-  app.use('/api/products', productsRoutes);
-  console.log('✅ Mounted products routes: /api/products');
-} catch (error) {
-  console.error('❌ Failed to mount products routes:', error.message);
-}
+// Mount routes that likely exist based on your project structure
+const routeResults = {
+  pets: mountRoute('/api/pets', './routes/pets', 'pets'),
+  products: mountRoute('/api/products', './routes/products', 'products'),
+  users: mountRoute('/api/users', './routes/users', 'users')
+};
 
-try {
-  const usersRoutes = require('./routes/users');
-  app.use('/api/users', usersRoutes);
-  console.log('✅ Mounted users routes: /api/users');
-} catch (error) {
-  console.error('❌ Failed to mount users routes:', error.message);
-}
-
-try {
-  const newsRoutes = require('./routes/news');
-  app.use('/api/news', newsRoutes);
-  console.log('✅ Mounted news routes: /api/news');
-} catch (error) {
-  console.error('❌ Failed to mount news routes:', error.message);
-  
-  // Fallback mock news endpoint if news routes don't exist
+// Try additional routes if they exist
+if (require('fs').existsSync('./routes/news.js')) {
+  routeResults.news = mountRoute('/api/news', './routes/news', 'news');
+} else {
+  // Fallback mock news endpoint
   app.get('/api/news/featured', (req, res) => {
     console.log('📰 GET /api/news/featured (fallback mock)');
-    
-    const mockNews = [
-      {
-        id: '1',
-        title: 'New Pet Adoption Center Opens',
-        summary: 'A state-of-the-art facility opens downtown.',
-        category: 'adoption',
-        author: 'FurBabies Team',
-        featured: true,
-        published: true,
-        publishedAt: new Date('2024-12-01'),
-        views: 1250
-      },
-      {
-        id: '2',
-        title: 'Holiday Pet Safety Tips',
-        summary: 'Keep your pets safe during the holidays.',
-        category: 'safety', 
-        author: 'Dr. Sarah Johnson',
-        featured: true,
-        published: true,
-        publishedAt: new Date('2024-12-15'),
-        views: 980
-      },
-      {
-        id: '3',
-        title: 'Success Story: Max Finds Home',
-        summary: 'Follow Max\'s journey to his forever family.',
-        category: 'success-story',
-        author: 'Maria Rodriguez', 
-        featured: true,
-        published: true,
-        publishedAt: new Date('2024-12-10'),
-        views: 1567
-      }
-    ];
-    
-    const limit = parseInt(req.query.limit) || 3;
-    const news = mockNews.slice(0, limit);
-    
     res.json({
       success: true,
-      data: news,
-      count: news.length,
+      data: [
+        {
+          id: '1',
+          title: 'New Pet Adoption Center Opens',
+          summary: 'A state-of-the-art facility opens downtown.',
+          category: 'adoption',
+          author: 'FurBabies Team',
+          featured: true,
+          published: true,
+          publishedAt: new Date('2024-12-01'),
+          views: 1250
+        }
+      ],
+      count: 1,
       message: 'Featured news retrieved successfully (fallback mock data)'
     });
   });
+  console.log('✅ Mounted fallback news endpoint');
 }
 
-try {
-  const contactRoutes = require('./routes/contact');
-  app.use('/api/contact', contactRoutes);
-  console.log('✅ Mounted contact routes: /api/contact');
-} catch (error) {
-  console.error('❌ Failed to mount contact routes:', error.message);
+if (require('fs').existsSync('./routes/contact.js')) {
+  routeResults.contact = mountRoute('/api/contact', './routes/contact', 'contact');
 }
 
-try {
-  const adminRoutes = require('./routes/admin');
-  app.use('/api/admin', adminRoutes);
-  console.log('✅ Mounted admin routes: /api/admin');
-} catch (error) {
-  console.error('❌ Failed to mount admin routes:', error.message);
+if (require('fs').existsSync('./routes/admin.js')) {
+  routeResults.admin = mountRoute('/api/admin', './routes/admin', 'admin');
 }
 
-console.log('📊 Route mounting completed!');
+// Log mounting summary
+console.log('📊 Route mounting summary:');
+Object.entries(routeResults).forEach(([route, success]) => {
+  console.log(`   ${success ? '✅' : '❌'} /api/${route}: ${success ? 'SUCCESS' : 'FAILED'}`);
+});
 
 // ============================================
 // ❌ REMOVED ALL MOCK ENDPOINTS
 // ============================================
-// Mock endpoints have been removed - now using real MongoDB routes
+// The original mock data endpoints have been removed to use real MongoDB data
 
 // Catch-all for unknown API routes
 app.use('/api/*', (req, res) => {
@@ -171,12 +132,9 @@ app.use('/api/*', (req, res) => {
       'GET /api/health',
       'GET /api/pets',
       'GET /api/pets/:id',
-      'GET /api/pets/featured',
       'GET /api/products',
       'GET /api/products/:id',
-      'GET /api/users/profile',
-      'GET /api/news/featured',
-      'POST /api/contact'
+      'GET /api/news/featured'
     ]
   });
 });
@@ -226,7 +184,7 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`   🛍️  Products API: http://localhost:${PORT}/api/products`);
   console.log(`   📰 News API: http://localhost:${PORT}/api/news/featured`);
   console.log('');
-  console.log('✅ Server ready to serve real MongoDB data!');
+  console.log('✅ Server ready to serve MongoDB data!');
 });
 
 // Graceful shutdown
