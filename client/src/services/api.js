@@ -1,111 +1,112 @@
-// client/src/services/api.js - ENHANCED VERSION FOR RENDER
+// client/src/services/api.js - Improved version with better timeout handling
+
 import axios from 'axios';
 
-// Enhanced configuration for Render deployment
+// Enhanced API configuration
+const API_BASE_URL = process.env.NODE_ENV === 'production' 
+  ? 'https://furbabies-backend.onrender.com/api'
+  : 'http://localhost:5000/api';
+
+console.log('🔧 API_BASE_URL:', API_BASE_URL);
+
+// Create axios instance with enhanced configuration
 const api = axios.create({
-  baseURL: process.env.NODE_ENV === 'production' 
-    ? 'https://furbabies-backend.onrender.com/api'
-    : 'http://localhost:5000/api',
+  baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 30000, // Increased to 30 seconds for Render cold starts
+  timeout: 45000, // Increased to 45 seconds for cold starts
 });
 
-// Retry configuration
-const RETRY_CONFIG = {
-  retries: 3,
-  retryDelay: 1000, // Start with 1 second
-  retryCondition: (error) => {
-    // Retry on network errors or 5xx status codes
-    return !error.response || error.response.status >= 500 || error.code === 'ECONNABORTED';
-  }
-};
-
-// Exponential backoff delay
-const getRetryDelay = (retryCount) => {
-  return Math.min(RETRY_CONFIG.retryDelay * Math.pow(2, retryCount), 10000);
-};
-
 // Enhanced request interceptor with retry logic
-const createRequestWithRetry = (config) => {
-  return new Promise((resolve, reject) => {
-    let retryCount = 0;
-    
-    const makeRequest = async () => {
-      try {
-        const response = await api(config);
-        resolve(response);
-      } catch (error) {
-        console.error(`API Error (attempt ${retryCount + 1}):`, error.message);
-        
-        if (retryCount < RETRY_CONFIG.retries && RETRY_CONFIG.retryCondition(error)) {
-          retryCount++;
-          const delay = getRetryDelay(retryCount);
-          
-          console.log(`Retrying in ${delay}ms... (${retryCount}/${RETRY_CONFIG.retries})`);
-          
-          setTimeout(makeRequest, delay);
-        } else {
-          reject(error);
-        }
-      }
-    };
-    
-    makeRequest();
-  });
-};
-
-// Request interceptor to add auth token
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('authToken');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    
+    // Log API calls for debugging
+    console.log(`🚀 API Call: ${config.method?.toUpperCase()} ${config.url}`);
+    
     return config;
   },
-  (error) => Promise.reject(error)
+  (error) => {
+    console.error('❌ Request Error:', error);
+    return Promise.reject(error);
+  }
 );
 
-// Response interceptor for error handling
+// Enhanced response interceptor with better error handling
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    console.log(`✅ API Success: ${response.config.method?.toUpperCase()} ${response.config.url}`);
+    return response;
+  },
   (error) => {
-    console.error('API Response Error:', {
+    const errorInfo = {
       message: error.message,
       status: error.response?.status,
       url: error.config?.url,
       method: error.config?.method
-    });
+    };
     
+    console.error('❌ API Response Error:', errorInfo);
+    
+    // Handle specific error cases
     if (error.response?.status === 401) {
       localStorage.removeItem('authToken');
       localStorage.removeItem('user');
       window.location.href = '/login';
     }
+    
+    // Handle timeout errors
+    if (error.code === 'ECONNABORTED') {
+      console.error('⏰ Request timed out - server may be sleeping');
+    }
+    
     return Promise.reject(error);
   }
 );
 
-// Enhanced API methods with retry logic
-const createAPIMethod = (method, url, data = null) => {
-  return (params = {}) => {
-    const config = {
-      method,
-      url,
-      ...params
-    };
-    
-    if (data) {
-      config.data = data;
-    }
-    
-    return createRequestWithRetry(config);
-  };
+// Health check function to wake up the server
+export const healthCheck = async () => {
+  try {
+    console.log('🏥 Performing health check...');
+    const response = await api.get('/health', { timeout: 60000 }); // 60 second timeout
+    console.log('✅ Health check successful');
+    return response.data;
+  } catch (error) {
+    console.error('❌ Health check failed:', error.message);
+    throw error;
+  }
 };
 
-// ===== PET API =====
+// Retry function for important requests
+const retryRequest = async (requestFn, maxRetries = 2, delay = 2000) => {
+  for (let i = 0; i <= maxRetries; i++) {
+    try {
+      return await requestFn();
+    } catch (error) {
+      console.warn(`⚠️ Request attempt ${i + 1} failed:`, error.message);
+      
+      if (i === maxRetries) {
+        throw error;
+      }
+      
+      // If it's a timeout or server error, wait before retrying
+      if (error.code === 'ECONNABORTED' || error.response?.status >= 500) {
+        console.log(`⏳ Waiting ${delay}ms before retry...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        delay *= 1.5; // Exponential backoff
+      } else {
+        throw error; // Don't retry client errors
+      }
+    }
+  }
+};
+
+// ===== ENHANCED PET API =====
 export const petAPI = {
   getAllPets: (params = {}) => {
     const searchParams = new URLSearchParams();
@@ -115,51 +116,21 @@ export const petAPI = {
       }
     });
     
-    return createRequestWithRetry({
-      method: 'GET',
-      url: `/pets?${searchParams}`
-    });
+    return retryRequest(() => api.get(`/pets?${searchParams}`));
   },
   
   getFeaturedPets: (limit = 6) => {
-    return createRequestWithRetry({
-      method: 'GET',
-      url: `/pets/featured?limit=${limit}`
-    });
+    console.log('🐾 Fetching featured pets...');
+    return retryRequest(() => api.get(`/pets?featured=true&limit=${limit}`));
   },
   
-  getPetById: (id) => {
-    return createRequestWithRetry({
-      method: 'GET',
-      url: `/pets/${id}`
-    });
-  },
-  
-  createPet: (petData) => {
-    return createRequestWithRetry({
-      method: 'POST',
-      url: '/pets',
-      data: petData
-    });
-  },
-  
-  updatePet: (id, petData) => {
-    return createRequestWithRetry({
-      method: 'PUT',
-      url: `/pets/${id}`,
-      data: petData
-    });
-  },
-  
-  deletePet: (id) => {
-    return createRequestWithRetry({
-      method: 'DELETE',
-      url: `/pets/${id}`
-    });
-  }
+  getPetById: (id) => api.get(`/pets/${id}`),
+  createPet: (petData) => api.post('/pets', petData),
+  updatePet: (id, petData) => api.put(`/pets/${id}`, petData),
+  deletePet: (id) => api.delete(`/pets/${id}`),
 };
 
-// ===== PRODUCT API =====
+// ===== ENHANCED PRODUCT API =====
 export const productAPI = {
   getAllProducts: (params = {}) => {
     const searchParams = new URLSearchParams();
@@ -169,174 +140,59 @@ export const productAPI = {
       }
     });
     
-    return createRequestWithRetry({
-      method: 'GET',
-      url: `/products?${searchParams}`
-    });
+    return retryRequest(() => api.get(`/products?${searchParams}`));
   },
   
   getFeaturedProducts: (limit = 6) => {
-    return createRequestWithRetry({
-      method: 'GET',
-      url: `/products/featured?limit=${limit}`
-    });
+    console.log('🛍️ Fetching featured products...');
+    return retryRequest(() => api.get(`/products?featured=true&limit=${limit}`));
   },
   
-  getProductById: (id) => {
-    return createRequestWithRetry({
-      method: 'GET',
-      url: `/products/${id}`
-    });
-  },
+  getProductById: (id) => api.get(`/products/${id}`),
   
   getCategories: () => {
-    return createRequestWithRetry({
-      method: 'GET',
-      url: '/products/categories'
-    });
+    console.log('📂 Fetching product categories...');
+    return retryRequest(() => api.get('/products/categories'));
   },
   
-  getBrands: () => {
-    return createRequestWithRetry({
-      method: 'GET',
-      url: '/products/brands'
-    });
-  }
+  // getBrands removed - not needed, Hero banner works fine without it
+  
+  createProduct: (productData) => api.post('/products', productData),
+  updateProduct: (id, productData) => api.put(`/products/${id}`, productData),
+  deleteProduct: (id) => api.delete(`/products/${id}`),
 };
 
 // ===== USER API =====
 export const userAPI = {
-  register: (userData) => {
-    return createRequestWithRetry({
-      method: 'POST',
-      url: '/users/register',
-      data: userData
-    });
-  },
-  
-  login: (credentials) => {
-    return createRequestWithRetry({
-      method: 'POST',
-      url: '/users/login',
-      data: credentials
-    });
-  },
-  
-  getProfile: () => {
-    return createRequestWithRetry({
-      method: 'GET',
-      url: '/users/profile'
-    });
-  },
-  
-  updateProfile: (userData) => {
-    return createRequestWithRetry({
-      method: 'PUT',
-      url: '/users/profile',
-      data: userData
-    });
-  },
-  
-  addFavorite: (petId) => {
-    return createRequestWithRetry({
-      method: 'POST',
-      url: `/users/favorites/${petId}`
-    });
-  },
-  
-  removeFavorite: (petId) => {
-    return createRequestWithRetry({
-      method: 'DELETE',
-      url: `/users/favorites/${petId}`
-    });
-  },
-  
-  getFavorites: () => {
-    return createRequestWithRetry({
-      method: 'GET',
-      url: '/users/favorites'
-    });
-  }
+  register: (userData) => api.post('/users/register', userData),
+  login: (credentials) => api.post('/users/login', credentials),
+  getProfile: () => api.get('/users/profile'),
+  updateProfile: (userData) => api.put('/users/profile', userData),
+  addFavorite: (petId) => api.post(`/users/favorites/${petId}`),
+  removeFavorite: (petId) => api.delete(`/users/favorites/${petId}`),
+  getFavorites: () => api.get('/users/favorites'),
 };
 
-// ===== HEALTH CHECK =====
-export const healthAPI = {
-  check: () => {
-    return createRequestWithRetry({
-      method: 'GET',
-      url: '/health'
+// ===== CONTACT API =====
+export const contactAPI = {
+  submitContact: (contactData) => api.post('/contact', contactData),
+};
+
+// ===== ADMIN API =====
+export const adminAPI = {
+  getStats: () => api.get('/admin/stats'),
+  getUsers: (params = {}) => {
+    const searchParams = new URLSearchParams();
+    Object.keys(params).forEach(key => {
+      if (params[key] !== undefined && params[key] !== '') {
+        searchParams.append(key, params[key]);
+      }
     });
-  }
+    return api.get(`/admin/users?${searchParams}`);
+  },
+  updateUser: (id, userData) => api.put(`/admin/users/${id}`, userData),
+  deleteUser: (id) => api.delete(`/admin/users/${id}`),
 };
 
-// ===== UTILITY FUNCTIONS =====
-export const handleApiError = (error) => {
-  console.error('API Error Details:', {
-    message: error.message,
-    status: error.response?.status,
-    statusText: error.response?.statusText,
-    url: error.config?.url,
-    method: error.config?.method,
-    timeout: error.code === 'ECONNABORTED',
-    networkError: !error.response
-  });
-  
-  if (error.response) {
-    // Server responded with error status
-    const message = error.response.data?.message || 'Server error occurred';
-    return {
-      message,
-      status: error.response.status,
-      data: error.response.data,
-      type: 'server_error'
-    };
-  } else if (error.request) {
-    // Request was made but no response (network error or timeout)
-    const isTimeout = error.code === 'ECONNABORTED';
-    return {
-      message: isTimeout 
-        ? 'Request timed out. The server might be waking up from sleep mode.'
-        : 'Network error. Please check your connection.',
-      status: 0,
-      data: null,
-      type: isTimeout ? 'timeout' : 'network_error'
-    };
-  } else {
-    // Something else happened
-    return {
-      message: error.message || 'An unexpected error occurred',
-      status: 0,
-      data: null,
-      type: 'unknown_error'
-    };
-  }
-};
-
-// Test API connection with better error handling
-export const testConnection = async () => {
-  try {
-    console.log('🔍 Testing API connection...');
-    const response = await healthAPI.check();
-    console.log('✅ API Connection successful:', response.data);
-    return { success: true, data: response.data };
-  } catch (error) {
-    const errorDetails = handleApiError(error);
-    console.error('❌ API Connection failed:', errorDetails);
-    return { success: false, error: errorDetails };
-  }
-};
-
-// Wake up the server (useful for Render cold starts)
-export const wakeUpServer = async () => {
-  try {
-    console.log('🌅 Waking up server...');
-    await testConnection();
-    console.log('✅ Server is awake!');
-    return true;
-  } catch (error) {
-    console.error('❌ Failed to wake up server:', error);
-    return false;
-  }
-};
-
+// Export the axios instance for direct use if needed
 export default api;
