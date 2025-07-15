@@ -1,5 +1,5 @@
 // ==========================================
-// FILE 3: client/src/components/NewsSection.js - HYBRID VERSION
+// FILE: client/src/components/NewsSection.js - FIXED FOR RENDER
 // ==========================================
 import React, { useState, useEffect } from "react";
 import {
@@ -134,24 +134,22 @@ const NewsSection = () => {
               <Col key={article.id || index} lg={4} md={6}>
                 <Card className="h-100 border-0 shadow-sm hover-shadow">
                   {article.imageUrl && (
-                    <PetImage
-                      petType={article.type || "other"}
-                      imagePath={article.imageUrl}
+                    <Card.Img
+                      variant="top"
+                      src={article.imageUrl}
                       alt={article.title || "Article image"}
-                      size="medium"
-                      className="w-100"
                       style={{
                         height: "200px",
                         objectFit: "cover",
                         objectPosition: "center",
-                        borderTopLeftRadius: "0.375rem",
-                        borderTopRightRadius: "0.375rem",
                       }}
-                      onError={() =>
+                      onError={(e) => {
                         console.warn(
                           `❌ Failed to load article image: ${article.imageUrl}`
-                        )
-                      }
+                        );
+                        // Set fallback image
+                        e.target.src = 'https://via.placeholder.com/400x200/f8f9fa/6c757d?text=Pet+News';
+                      }}
                     />
                   )}
 
