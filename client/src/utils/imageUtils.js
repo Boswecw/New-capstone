@@ -1,15 +1,9 @@
-// client/src/utils/imageUtils.js - UPDATED WITH BACKEND PROXY CORS WORKAROUND
+// client/src/utils/imageUtils.js - FIXED FOR BACKEND PROXY
 
 /**
- * Backend API configuration for image proxy
+ * Backend API configuration - CRITICAL FOR CORS WORKAROUND
  */
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://furbabies-backend.onrender.com/api';
-
-/**
- * Google Cloud Storage configuration (for reference)
- */
-const BUCKET_NAME = 'furbabies-petstore';
-const BUCKET_BASE_URL = `https://storage.googleapis.com/${BUCKET_NAME}`;
 
 /**
  * Default fallback images based on content type
@@ -22,36 +16,55 @@ const DEFAULT_IMAGES = {
 };
 
 /**
- * Get image URL using backend proxy to avoid CORS issues
+ * Get image URL through backend proxy - ONLY WAY TO AVOID CORS
  * @param {string} imagePath - Image path from database (e.g., "pet/cat.png")
- * @param {string} size - Size preset (unused for now, for future optimization)
+ * @param {string} size - Size preset (unused for now)
  * @param {string} category - Category for fallback selection
- * @returns {string} Complete image URL through backend proxy
+ * @returns {string} Backend proxy URL
  */
 export const getGoogleStorageUrl = (imagePath, size = 'medium', category = 'pet') => {
-  // Handle invalid input
+  console.log(`🖼️ getGoogleStorageUrl called with:`, { imagePath, size, category });
+  
+  // Handle invalid/empty input
   if (!imagePath || typeof imagePath !== 'string' || imagePath.trim() === '') {
     console.warn('🖼️ Invalid image path, using fallback:', category);
     return DEFAULT_IMAGES[category] || DEFAULT_IMAGES.pet;
   }
   
-  // Return complete URLs as-is (already processed imageUrl from backend)
+  // If it's already a complete URL, check if it's our backend proxy
   if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
-    return imagePath;
+    // If it's already our backend proxy URL, return as-is
+    if (imagePath.includes(`${API_BASE_URL}/images/`)) {
+      console.log(`🖼️ Already backend proxy URL:`, imagePath);
+      return imagePath;
+    }
+    
+    // If it's a direct Google Cloud Storage URL, extract the path and route through backend
+    if (imagePath.includes('storage.googleapis.com/furbabies-petstore/')) {
+      const pathMatch = imagePath.match(/furbabies-petstore\/(.+)$/);
+      if (pathMatch) {
+        const extractedPath = pathMatch[1];
+        const proxyUrl = `${API_BASE_URL}/images/${extractedPath}`;
+        console.log(`🖼️ Converting GCS URL to proxy:`, { original: imagePath, proxy: proxyUrl });
+        return proxyUrl;
+      }
+    }
+    
+    // For any other complete URL, return as fallback
+    console.warn('🖼️ Unknown URL format, using fallback:', imagePath);
+    return DEFAULT_IMAGES[category] || DEFAULT_IMAGES.pet;
   }
   
   // Clean relative paths and construct backend proxy URL
   const cleanPath = imagePath.trim().replace(/^\/+/, '').replace(/\/+/g, '/');
-  
-  // Use backend proxy to avoid CORS issues with Google Cloud Storage
   const proxyUrl = `${API_BASE_URL}/images/${cleanPath}`;
   
-  console.log(`🖼️ Image proxy URL: ${cleanPath} → ${proxyUrl}`);
+  console.log(`🖼️ Backend proxy URL created:`, { imagePath, cleanPath, proxyUrl });
   return proxyUrl;
 };
 
 /**
- * Get optimized image props for React components with enhanced error handling
+ * Get optimized image props for React components
  * @param {string} imagePath - Image path or full URL
  * @param {string} alt - Alt text for accessibility
  * @param {string} size - Size preset
@@ -68,14 +81,14 @@ export const getOptimizedImageProps = (imagePath, alt, size = 'medium', category
     onError: (e) => {
       const currentSrc = e.target.src;
       
+      console.warn(`🖼️ Image failed to load: ${currentSrc}`);
+      
       // Only try fallback once to prevent infinite loops
       if (!e.target.hasTriedFallback && !currentSrc.includes('placeholder')) {
         e.target.hasTriedFallback = true;
         const fallbackUrl = DEFAULT_IMAGES[category] || DEFAULT_IMAGES.pet;
         
-        console.warn(`🖼️ Image failed to load: ${currentSrc}`);
-        console.warn(`🖼️ Using fallback: ${fallbackUrl}`);
-        
+        console.warn(`🖼️ Using fallback image: ${fallbackUrl}`);
         e.target.src = fallbackUrl;
         
         // Track failed images for debugging
@@ -100,6 +113,7 @@ export const getOptimizedImageProps = (imagePath, alt, size = 'medium', category
     baseProps.decoding = 'async';
   }
   
+  console.log(`🖼️ Image props created:`, { imagePath, imageUrl, alt, category });
   return baseProps;
 };
 
@@ -143,7 +157,7 @@ export const getOptimizedBackgroundImage = (imagePath, size = 'large', category 
 };
 
 /**
- * Test if image URL is accessible (useful for admin tools)
+ * Test if image URL is accessible through backend proxy
  * @param {string} imagePath - Image path to test
  * @param {string} category - Category for fallback
  * @returns {Promise<object>} Test result with accessibility info
@@ -154,7 +168,7 @@ export const testImageUrl = async (imagePath, category = 'pet') => {
   try {
     const response = await fetch(url, { 
       method: 'HEAD',
-      mode: 'cors' // This should work now with backend proxy
+      mode: 'cors'
     });
     
     return {
@@ -166,40 +180,16 @@ export const testImageUrl = async (imagePath, category = 'pet') => {
       corsHeaders: {
         origin: response.headers.get('access-control-allow-origin'),
         methods: response.headers.get('access-control-allow-methods')
-      }
+      },
+      proxyWorking: true
     };
   } catch (error) {
     return {
       url,
       accessible: false,
       error: error.message,
-      isCorsError: error.message.includes('CORS')
-    };
-  }
-};
-
-/**
- * Test direct Google Cloud Storage access (for debugging)
- * @param {string} imagePath - Image path to test
- * @returns {Promise<object>} Test result
- */
-export const testDirectBucketAccess = async (imagePath) => {
-  const directUrl = `${BUCKET_BASE_URL}/${imagePath}`;
-  
-  try {
-    const response = await fetch(directUrl, { method: 'HEAD' });
-    return {
-      directUrl,
-      accessible: response.ok,
-      status: response.status,
-      corsBlocked: false
-    };
-  } catch (error) {
-    return {
-      directUrl,
-      accessible: false,
-      corsBlocked: error.message.includes('CORS'),
-      error: error.message
+      isCorsError: error.message.includes('CORS'),
+      proxyWorking: false
     };
   }
 };
@@ -208,7 +198,7 @@ export const testDirectBucketAccess = async (imagePath) => {
  * Legacy compatibility function
  * @param {string} imagePath - Image path
  * @param {string} size - Size preset
- * @returns {string} Image URL
+ * @returns {string} Image URL through backend proxy
  */
 export const getImageUrl = (imagePath, size = 'medium') => {
   // Detect category from path
@@ -228,20 +218,54 @@ export const getImageUrl = (imagePath, size = 'medium') => {
 };
 
 /**
- * Debug function to check image loading issues
+ * Debug function to check image configuration
  * @returns {object} Debug information
  */
 export const getImageDebugInfo = () => {
   return {
     apiBaseUrl: API_BASE_URL,
-    bucketName: BUCKET_NAME,
-    bucketBaseUrl: BUCKET_BASE_URL,
-    proxyEnabled: true,
-    failedImages: window.failedImages || [],
+    proxyEndpoint: `${API_BASE_URL}/images/`,
+    corsWorkaround: 'Backend Proxy (Required for free Google Cloud Storage)',
     defaultImages: DEFAULT_IMAGES,
-    corsWorkaround: 'Backend Proxy',
+    failedImages: window.failedImages || [],
+    testUrls: {
+      samplePetImage: `${API_BASE_URL}/images/pet/hedge-hog-A.jpg`,
+      sampleProductImage: `${API_BASE_URL}/images/product/covered-litter-box.png`
+    },
+    instructions: 'All images MUST go through backend proxy to avoid CORS issues',
     timestamp: new Date().toISOString()
   };
+};
+
+/**
+ * Force backend proxy for any URL (utility function)
+ * @param {string} anyImageUrl - Any image URL
+ * @returns {string} Backend proxy URL
+ */
+export const forceBackendProxy = (anyImageUrl) => {
+  if (!anyImageUrl) return DEFAULT_IMAGES.pet;
+  
+  // If already backend proxy, return as-is
+  if (anyImageUrl.includes(`${API_BASE_URL}/images/`)) {
+    return anyImageUrl;
+  }
+  
+  // Extract path from Google Cloud Storage URL
+  if (anyImageUrl.includes('storage.googleapis.com/furbabies-petstore/')) {
+    const pathMatch = anyImageUrl.match(/furbabies-petstore\/(.+)$/);
+    if (pathMatch) {
+      return `${API_BASE_URL}/images/${pathMatch[1]}`;
+    }
+  }
+  
+  // If it looks like a relative path, use it directly
+  if (!anyImageUrl.startsWith('http')) {
+    const cleanPath = anyImageUrl.replace(/^\/+/, '');
+    return `${API_BASE_URL}/images/${cleanPath}`;
+  }
+  
+  // Fallback
+  return DEFAULT_IMAGES.pet;
 };
 
 /**
@@ -249,12 +273,12 @@ export const getImageDebugInfo = () => {
  */
 export const imageConfig = {
   apiBaseUrl: API_BASE_URL,
-  bucketName: BUCKET_NAME,
-  bucketBaseUrl: BUCKET_BASE_URL,
+  proxyEndpoint: `${API_BASE_URL}/images/`,
+  bucketName: 'furbabies-petstore',
+  corsWorkaround: 'Backend Proxy',
   defaults: DEFAULT_IMAGES,
   supportedFormats: ['jpg', 'jpeg', 'png', 'webp', 'gif'],
   maxFileSize: '10MB',
-  corsWorkaround: 'Backend Proxy',
   folders: {
     pets: 'pet',
     products: 'product', 
@@ -272,9 +296,9 @@ const imageUtils = {
   getCardImageProps,
   getOptimizedBackgroundImage,
   testImageUrl,
-  testDirectBucketAccess,
   getImageUrl,
   getImageDebugInfo,
+  forceBackendProxy,
   imageConfig,
 };
 
