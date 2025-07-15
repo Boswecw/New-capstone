@@ -1,183 +1,377 @@
-// server/server.js - EMERGENCY STABLE VERSION
+// server/server.js - COMPLETE PRODUCTION VERSION WITH ENHANCED CORS
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const mongoose = require('mongoose');
+const connectDB = require('./config/database');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-console.log('🚀 EMERGENCY SERVER STARTING...');
+// ============================================
+// DATABASE CONNECTION
+// ============================================
+console.log('🚀 Starting FurBabies Pet Store Server...');
+console.log('🌐 Environment:', process.env.NODE_ENV || 'development');
 
-// ===== SUPER AGGRESSIVE CORS =====
+// Connect to MongoDB
+connectDB();
+
+// ============================================
+// ENHANCED CORS CONFIGURATION
+// ============================================
+
+// Define allowed origins based on environment
+const allowedOrigins = process.env.NODE_ENV === 'production' 
+  ? [
+      'https://furbabies-frontend.onrender.com',     // Your main frontend
+      'https://furbabies-petstore.onrender.com',     // Alternative naming
+      'https://new-capstone-frontend.onrender.com',  // If using "new-capstone" naming
+      // Add any additional production URLs here
+      /https:\/\/furbabies.*\.onrender\.com$/,       // Allow Render preview URLs for your app
+    ]
+  : [
+      'http://localhost:3000',      // React dev server
+      'http://127.0.0.1:3000',     // Alternative localhost
+      'http://localhost:3001',      // In case React runs on different port
+      'http://localhost:8080',      // Alternative dev ports
+      'http://localhost:4000',      // Common alternative
+    ];
+
 app.use(cors({
-  origin: true, // Allow ALL origins temporarily 
+  origin: function (origin, callback) {
+    // Allow requests with no origin (mobile apps, Postman, etc.)
+    if (!origin) return callback(null, true);
+    
+    // Check if origin is in allowed list
+    const isAllowed = allowedOrigins.some(allowedOrigin => {
+      if (typeof allowedOrigin === 'string') {
+        return origin === allowedOrigin;
+      }
+      // Handle regex patterns
+      return allowedOrigin.test(origin);
+    });
+    
+    if (isAllowed) {
+      callback(null, true);
+    } else {
+      console.warn(`🚫 CORS blocked request from origin: ${origin}`);
+      callback(new Error('CORS policy violation: Origin not allowed'));
+    }
+  },
+  
+  // Allow these HTTP methods
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  
+  // Allow these headers (important for JWT auth and file uploads)
+  allowedHeaders: [
+    'Origin',
+    'X-Requested-With', 
+    'Content-Type', 
+    'Accept',
+    'Authorization',           // For JWT tokens
+    'Cache-Control',
+    'X-File-Name',            // For file uploads
+    'X-File-Size',            // For file uploads
+    'X-File-Type'             // For file uploads
+  ],
+  
+  // Allow credentials (cookies, authorization headers)
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['*']
+  
+  // Cache preflight requests for 24 hours (performance optimization)
+  maxAge: 86400,
+  
+  // Include successful status for preflight
+  optionsSuccessStatus: 200,
+  
+  // Expose these headers to the frontend
+  exposedHeaders: ['X-Total-Count', 'X-Page-Count']
 }));
 
-// Handle preflight for ALL routes
+// ============================================
+// PREFLIGHT HANDLER (For complex requests)
+// ============================================
 app.options('*', (req, res) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', '*');
-  res.sendStatus(200);
+  console.log(`✈️  Preflight request for ${req.path}`);
+  res.status(200).end();
 });
 
-app.use(express.json());
+// ============================================
+// ADDITIONAL MIDDLEWARE SETUP
+// ============================================
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Add CORS headers to ALL responses
+// Request logging middleware
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', '*');
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+  const timestamp = new Date().toISOString();
+  const origin = req.get('Origin') || 'No Origin';
+  console.log(`${timestamp} - ${req.method} ${req.path} - Origin: ${origin}`);
   next();
 });
 
-// ===== HEALTH CHECK =====
+// CORS debugging (Development only)
+if (process.env.NODE_ENV !== 'production') {
+  app.use((req, res, next) => {
+    if (req.method === 'OPTIONS' || req.get('Origin')) {
+      console.log(`🌐 CORS Debug - Origin: ${req.get('Origin') || 'No Origin'}`);
+      console.log(`🌐 CORS Debug - Method: ${req.method}`);
+      if (req.get('Authorization')) {
+        console.log(`🔑 Auth Header Present: ${req.get('Authorization').substring(0, 20)}...`);
+      }
+    }
+    next();
+  });
+}
+
+// ============================================
+// HEALTH CHECK & STATUS ENDPOINTS
+// ============================================
 app.get('/api/health', (req, res) => {
+  const dbStatus = mongoose.connection.readyState;
+  const dbStatusText = {
+    0: 'Disconnected',
+    1: 'Connected', 
+    2: 'Connecting',
+    3: 'Disconnecting'
+  };
+
   res.json({
+    success: true,
     status: 'OK',
-    message: 'Emergency server running',
+    message: 'FurBabies Server is running!',
+    database: {
+      status: dbStatusText[dbStatus] || 'Unknown',
+      readyState: dbStatus,
+      host: mongoose.connection.host || 'Not connected',
+      name: mongoose.connection.name || 'Not connected'
+    },
+    server: {
+      environment: process.env.NODE_ENV || 'development',
+      port: PORT,
+      uptime: process.uptime(),
+      timestamp: new Date().toISOString()
+    },
+    cors: {
+      allowedOrigins: process.env.NODE_ENV === 'production' 
+        ? ['Production origins configured'] 
+        : allowedOrigins,
+      credentials: true
+    }
+  });
+});
+
+// Debug endpoint for development
+app.get('/api/debug', (req, res) => {
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(404).json({ message: 'Debug endpoint not available in production' });
+  }
+  
+  res.json({
+    success: true,
+    message: 'FurBabies Debug Information',
+    environment: {
+      NODE_ENV: process.env.NODE_ENV,
+      MONGODB_URI: process.env.MONGODB_URI ? 'Set' : 'Missing',
+      JWT_SECRET: process.env.JWT_SECRET ? 'Set' : 'Missing',
+      PORT: PORT
+    },
+    cors: {
+      allowedOrigins,
+      currentOrigin: req.get('Origin') || 'No Origin',
+      userAgent: req.get('User-Agent') ? req.get('User-Agent').substring(0, 50) + '...' : 'None'
+    },
+    routes: [
+      'GET /api/health',
+      'GET /api/debug',
+      'GET /api/pets',
+      'GET /api/pets/:id',
+      'GET /api/products',
+      'GET /api/products/:id',
+      'GET /api/news',
+      'POST /api/users/register',
+      'POST /api/users/login',
+      'GET /api/users/profile'
+    ],
+    database: {
+      status: mongoose.connection.readyState,
+      collections: mongoose.connection.db ? 
+        Object.keys(mongoose.connection.db.collections || {}) : []
+    },
     timestamp: new Date().toISOString()
   });
 });
 
-// ===== IMAGE PROXY - SIMPLIFIED =====
-app.get('/api/images/*', (req, res) => {
-  const imagePath = req.params[0];
-  const gcsUrl = `https://storage.googleapis.com/furbabies-petstore/${imagePath}`;
-  
-  console.log(`🖼️ Image proxy redirect: ${imagePath} -> ${gcsUrl}`);
-  
-  // Simple redirect instead of fetch to avoid crashes
-  res.redirect(302, gcsUrl);
-});
+// ============================================
+// API ROUTES - REAL ROUTES (NOT MOCK DATA)
+// ============================================
 
-// ===== PETS ENDPOINT =====
-app.get('/api/pets', (req, res) => {
-  console.log('🐕 GET /api/pets called');
-  
-  const mockPets = [
-    {
-      _id: 'pet001',
-      name: 'Pet 25',
-      type: 'small-pet',
-      breed: 'Hedgehog',
-      age: '1 year',
-      gender: 'male',
-      description: 'A friendly hedgehog.',
-      image: 'pet/hedge-hog-A.jpg',
-      imageUrl: 'https://storage.googleapis.com/furbabies-petstore/pet/hedge-hog-A.jpg',
-      status: 'available',
-      featured: true
-    },
-    {
-      _id: 'pet002',
-      name: 'Koda',
-      type: 'cat',
-      breed: 'Kitten',
-      age: '6 months',
-      gender: 'female',
-      description: 'A playful kitten.',
-      image: 'pet/kitten.png',
-      imageUrl: 'https://storage.googleapis.com/furbabies-petstore/pet/kitten.png',
-      status: 'available',
-      featured: true
-    }
-  ];
-  
-  // Apply filters
-  let filtered = mockPets;
-  if (req.query.featured === 'true') {
-    filtered = filtered.filter(p => p.featured);
+// Route mounting with error handling
+const mountRoute = (path, routeFile, description) => {
+  try {
+    const route = require(routeFile);
+    app.use(path, route);
+    console.log(`✅ ${description} mounted at ${path}`);
+    return true;
+  } catch (error) {
+    console.error(`❌ Failed to mount ${description} at ${path}:`, error.message);
+    
+    // Create a fallback error route
+    app.use(path, (req, res) => {
+      res.status(500).json({
+        success: false,
+        message: `${description} temporarily unavailable`,
+        error: 'Route loading failed'
+      });
+    });
+    return false;
   }
-  
-  const limit = parseInt(req.query.limit) || filtered.length;
-  const result = filtered.slice(0, limit);
-  
-  res.json({
-    success: true,
-    data: result,
-    message: `Found ${result.length} pets`
-  });
-});
+};
 
-// ===== PRODUCTS ENDPOINT =====
-app.get('/api/products', (req, res) => {
-  console.log('🛍️ GET /api/products called');
-  
-  const mockProducts = [
-    {
-      _id: 'prod001',
-      name: 'Covered Litter Box',
-      category: 'Cat Care',
-      price: 49.99,
-      description: 'High-quality litter box.',
-      image: 'product/covered-litter-box.png',
-      imageUrl: 'https://storage.googleapis.com/furbabies-petstore/product/covered-litter-box.png',
-      inStock: true
-    },
-    {
-      _id: 'prod002',
-      name: 'Premium Dog Food',
-      category: 'Dog Care',
-      price: 89.99,
-      description: 'Nutritious dog food.',
-      image: 'product/premum-dog-food.png',
-      imageUrl: 'https://storage.googleapis.com/furbabies-petstore/product/premum-dog-food.png',
-      inStock: true
-    }
-  ];
-  
-  let filtered = mockProducts;
-  if (req.query.inStock === 'true') {
-    filtered = filtered.filter(p => p.inStock);
-  }
-  
-  const limit = parseInt(req.query.limit) || filtered.length;
-  const result = filtered.slice(0, limit);
-  
-  res.json({
-    success: true,
-    data: result,
-    message: `Found ${result.length} products`
-  });
-});
+// Mount all API routes
+console.log('\n📍 Mounting API routes...');
+const routeResults = {
+  pets: mountRoute('/api/pets', './routes/pets', 'Pets API'),
+  products: mountRoute('/api/products', './routes/products', 'Products API'),
+  news: mountRoute('/api/news', './routes/news', 'News API'),
+  users: mountRoute('/api/users', './routes/users', 'Users API'),
+  admin: mountRoute('/api/admin', './routes/admin', 'Admin API')
+};
 
-// ===== CATCH ALL API =====
+// Report route mounting results
+const successCount = Object.values(routeResults).filter(Boolean).length;
+const totalRoutes = Object.keys(routeResults).length;
+console.log(`\n🎯 Routes mounted successfully: ${successCount}/${totalRoutes}`);
+
+if (successCount === 0) {
+  console.error('🚨 CRITICAL: No routes mounted successfully!');
+  console.error('🔍 Check that route files exist and have no syntax errors');
+} else if (successCount < totalRoutes) {
+  console.warn('⚠️  Some routes failed to mount. Check logs above for details.');
+}
+
+// ============================================
+// ERROR HANDLING MIDDLEWARE
+// ============================================
+
+// 404 handler for API routes
 app.use('/api/*', (req, res) => {
   res.status(404).json({
     success: false,
-    message: `Endpoint not found: ${req.originalUrl}`
+    message: `API endpoint ${req.path} not found`,
+    availableEndpoints: [
+      'GET /api/health',
+      'GET /api/pets',
+      'GET /api/products', 
+      'GET /api/news',
+      'POST /api/users/register',
+      'POST /api/users/login',
+      'GET /api/users/profile'
+    ]
   });
 });
 
-// ===== FRONTEND SERVING =====
+// Global error handler
+app.use((err, req, res, next) => {
+  console.error('🚨 Server Error:', err);
+  
+  // Handle CORS errors specifically
+  if (err.message.includes('CORS policy violation')) {
+    return res.status(403).json({
+      success: false,
+      message: 'CORS policy violation',
+      error: 'Origin not allowed'
+    });
+  }
+  
+  // Don't leak error details in production
+  const message = process.env.NODE_ENV === 'production' 
+    ? 'Internal server error' 
+    : err.message;
+    
+  res.status(err.status || 500).json({
+    success: false,
+    message,
+    ...(process.env.NODE_ENV !== 'production' && { stack: err.stack })
+  });
+});
+
+// ============================================
+// STATIC FILES & FRONTEND (PRODUCTION)
+// ============================================
 if (process.env.NODE_ENV === 'production') {
-  const frontendPath = path.join(__dirname, '../client/build');
-  app.use(express.static(frontendPath));
+  console.log('🎭 Production mode: Serving static React build files');
+  
+  // Serve static files from React build
+  app.use(express.static(path.join(__dirname, '../client/build')));
+  
+  // Catch-all handler: send back React's index.html file for client-side routing
   app.get('*', (req, res) => {
-    res.sendFile(path.join(frontendPath, 'index.html'));
+    const indexPath = path.join(__dirname, '../client/build', 'index.html');
+    console.log(`📄 Serving React app for route: ${req.path}`);
+    res.sendFile(indexPath);
   });
 }
 
-// ===== START SERVER =====
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`✅ EMERGENCY SERVER RUNNING ON PORT ${PORT}`);
-  console.log(`   Health: http://localhost:${PORT}/api/health`);
-  console.log(`   Pets: http://localhost:${PORT}/api/pets`);
-  console.log(`   Products: http://localhost:${PORT}/api/products`);
+// ============================================
+// SERVER STARTUP
+// ============================================
+const server = app.listen(PORT, () => {
+  console.log('\n🎉 =====================================');
+  console.log(`🚀 FurBabies Server running on port ${PORT}`);
+  console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`📡 Health check: http://localhost:${PORT}/api/health`);
+  
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(`🔧 Debug info: http://localhost:${PORT}/api/debug`);
+    console.log(`🐾 Pets API: http://localhost:${PORT}/api/pets`);
+    console.log(`🛍️  Products API: http://localhost:${PORT}/api/products`);
+  }
+  
+  console.log(`🔒 CORS configured for: ${allowedOrigins.length} origins`);
+  console.log('🎉 =====================================\n');
 });
 
-// ===== ERROR HANDLING =====
+// ============================================
+// GRACEFUL SHUTDOWN
+// ============================================
+process.on('SIGINT', gracefulShutdown);
+process.on('SIGTERM', gracefulShutdown);
+
+function gracefulShutdown(signal) {
+  console.log(`\n🛑 Received ${signal}. Starting graceful shutdown...`);
+  
+  server.close(() => {
+    console.log('✅ Express server closed');
+    
+    mongoose.connection.close(() => {
+      console.log('✅ MongoDB connection closed');
+      console.log('👋 FurBabies server shutdown complete');
+      process.exit(0);
+    });
+  });
+  
+  // Force shutdown after 10 seconds
+  setTimeout(() => {
+    console.error('❌ Forced shutdown after timeout');
+    process.exit(1);
+  }, 10000);
+}
+
+// Handle uncaught exceptions
 process.on('uncaughtException', (err) => {
-  console.error('💥 Uncaught Exception:', err.message);
-  // Don't exit in emergency mode
+  console.error('💥 Uncaught Exception:', err);
+  console.error('🚨 Shutting down server...');
+  process.exit(1);
 });
 
 process.on('unhandledRejection', (err) => {
-  console.error('💥 Unhandled Rejection:', err.message);
-  // Don't exit in emergency mode
+  console.error('💥 Unhandled Rejection:', err);
+  console.error('🚨 Shutting down server...');
+  server.close(() => {
+    process.exit(1);
+  });
 });
+
+module.exports = app;
