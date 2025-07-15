@@ -16,7 +16,7 @@ import Pets from './pages/Pets';
 import PetDetail from './pages/PetDetail';
 import Products from './pages/Products';
 import ProductDetail from './pages/ProductDetail';
-import News from './pages/News';
+// import News from './pages/News';
 import NewsDetail from './pages/NewsDetail';
 import About from './pages/About';
 import Contact from './pages/Contact';
