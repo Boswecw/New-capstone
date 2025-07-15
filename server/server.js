@@ -4,7 +4,7 @@ const cors = require('cors');
 const path = require('path');
 const mongoose = require('mongoose');
 const connectDB = require('../config/db');
-const newsRoutes = require('./routes/news');
+// const newsRoutes = require('./routes/news');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -234,7 +234,7 @@ console.log('\n📍 Mounting API routes...');
 const routeResults = {
   pets: mountRoute('/api/pets', './routes/pets', 'Pets API'),
   products: mountRoute('/api/products', './routes/products', 'Products API'),
-  news: mountRoute('/api/news', './routes/news', 'News API'),
+  // news: mountRoute('/api/news', './routes/news', 'News API'),
   users: mountRoute('/api/users', './routes/users', 'Users API'),
   admin: mountRoute('/api/admin', './routes/admin', 'Admin API')
 };
@@ -264,7 +264,7 @@ app.use('/api/*', (req, res) => {
       'GET /api/health',
       'GET /api/pets',
       'GET /api/products', 
-      'GET /api/news',
+      // 'GET /api/news',
       'POST /api/users/register',
       'POST /api/users/login',
       'GET /api/users/profile'
