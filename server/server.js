@@ -1,665 +1,599 @@
-// server/server.js - COMPLETE VERSION WITH COMPREHENSIVE DEBUGGING
+// server/server.js - Updated with Image Proxy Support
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const mongoose = require('mongoose');
-const helmet = require('helmet');
-const compression = require('compression');
-const morgan = require('morgan');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// ===== ENVIRONMENT SETUP =====
-if (process.env.NODE_ENV !== 'production') {
-  require('dotenv').config();
-}
-
-console.log('🚀 Starting FurBabies Backend Server...');
-console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
-console.log(`🔌 Port: ${PORT}`);
-console.log(`⏰ Startup Time: ${new Date().toISOString()}`);
-
-// ===== SECURITY & MIDDLEWARE =====
-app.use(helmet({
-  crossOriginResourcePolicy: { policy: "cross-origin" }
+// Basic middleware
+app.use(cors({
+  origin: process.env.NODE_ENV === 'production' 
+    ? ['https://furbabies-frontend.onrender.com', 'https://furbabies-petstore.onrender.com']
+    : ['http://localhost:3000', 'http://127.0.0.1:3000'],
+  credentials: true
 }));
-app.use(compression());
+app.use(express.json());
 
-// Enhanced Morgan logging for debugging
-if (process.env.NODE_ENV === 'production') {
-  app.use(morgan('combined'));
-} else {
-  app.use(morgan('dev'));
-}
-
-// CORS Configuration with debugging
-const corsOptions = {
-  origin: [
-    'http://localhost:3000',
-    'https://furbabies-frontend.onrender.com',
-    /\.onrender\.com$/,
-    /localhost:\d+$/
-  ],
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-auth-token']
-};
-
-app.use(cors(corsOptions));
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-
-// Request logging middleware for debugging
+// Add request logging
 app.use((req, res, next) => {
-  if (req.url.startsWith('/api/')) {
-    console.log(`🌐 ${req.method} ${req.url} - ${new Date().toISOString()}`);
-    if (req.query && Object.keys(req.query).length > 0) {
-      console.log(`🔍 Query:`, req.query);
-    }
-  }
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
   next();
 });
 
-// ===== DATABASE CONNECTION WITH ENHANCED DEBUGGING =====
-const connectDB = async () => {
-  try {
-    const uri = process.env.MONGODB_URI;
-    
-    if (!uri) {
-      console.error('❌ MONGODB_URI not found in environment variables');
-      console.error('🔍 Available env vars:', Object.keys(process.env).filter(key => 
-        key.toLowerCase().includes('mongo')));
-      throw new Error('MONGODB_URI not found in environment variables');
-    }
-
-    // Extract database name from connection string
-    let expectedDatabase = 'test';
-    try {
-      const url = new URL(uri.replace('mongodb+srv://', 'https://').replace('mongodb://', 'https://'));
-      if (url.pathname && url.pathname !== '/') {
-        expectedDatabase = url.pathname.substring(1);
-      }
-    } catch (e) {
-      console.warn('⚠️ Could not parse database name from URI');
-    }
-
-    console.log('🔌 Connecting to MongoDB...');
-    console.log('🌐 Expected Database:', expectedDatabase);
-    
-    const conn = await mongoose.connect(uri, {
-      maxPoolSize: 5,
-      serverSelectionTimeoutMS: 10000,
-      socketTimeoutMS: 45000,
-      connectTimeoutMS: 10000,
-      retryWrites: true,
-      retryReads: true
-    });
-
-    console.log('✅ MongoDB Connected Successfully!');
-    console.log('🏠 Host:', conn.connection.host);
-    console.log('🗃️ Connected Database:', conn.connection.db.databaseName);
-    console.log('🚀 Ready State:', conn.connection.readyState);
-    
-    // Database diagnostic
-    try {
-      const collections = await conn.connection.db.listCollections().toArray();
-      console.log('📂 Available collections:', collections.map(c => c.name));
-      
-      // Count documents in potential collections
-      const possibleCollections = ['pets', 'Pet', 'Pets', 'products', 'Product', 'Products'];
-      for (const collName of possibleCollections) {
-        try {
-          const count = await conn.connection.db.collection(collName).countDocuments();
-          if (count > 0) {
-            console.log(`📊 Collection "${collName}": ${count} documents`);
-          }
-        } catch (e) {
-          // Collection doesn't exist
-        }
-      }
-    } catch (error) {
-      console.warn('⚠️ Could not perform collection diagnostic:', error.message);
-    }
-
-    return conn;
-    
-  } catch (err) {
-    console.error('❌ MongoDB Connection Failed:', err.message);
-    throw err;
-  }
-};
-
-// ===== GOOGLE CLOUD STORAGE CORS WORKAROUND =====
-const BUCKET_NAME = 'furbabies-petstore';
-
-// Image proxy route to handle CORS
+// ===============================================
+// IMAGE PROXY ROUTE - CRITICAL FOR CORS WORKAROUND
+// ===============================================
 app.get('/api/images/*', async (req, res) => {
   try {
-    const imagePath = req.params[0];
-    const bucketUrl = `https://storage.googleapis.com/${BUCKET_NAME}/${imagePath}`;
+    const imagePath = req.params[0]; // Gets everything after /api/images/
+    const gcsUrl = `https://storage.googleapis.com/furbabies-petstore/${imagePath}`;
     
-    console.log(`🖼️ Image proxy request: ${imagePath}`);
-    console.log(`🔗 Redirecting to: ${bucketUrl}`);
+    console.log(`🖼️ Proxying image: ${imagePath} -> ${gcsUrl}`);
     
-    // Set CORS headers
+    // Try to use node-fetch if available, otherwise use native fetch (Node 18+)
+    let fetch;
+    try {
+      fetch = require('node-fetch');
+    } catch (err) {
+      // Use native fetch if node-fetch is not installed (Node 18+)
+      fetch = globalThis.fetch;
+      if (!fetch) {
+        console.error('❌ No fetch implementation available. Install node-fetch: npm install node-fetch');
+        return res.status(500).json({
+          success: false,
+          message: 'Server configuration error: fetch not available'
+        });
+      }
+    }
+    
+    // Fetch image from Google Cloud Storage
+    const response = await fetch(gcsUrl, {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'FurBabies-Backend-Proxy/1.0'
+      }
+    });
+    
+    if (!response.ok) {
+      console.warn(`❌ Image not found: ${gcsUrl} (Status: ${response.status})`);
+      return res.status(404).json({
+        success: false,
+        message: 'Image not found',
+        path: imagePath,
+        status: response.status
+      });
+    }
+    
+    // Get content type from response or infer from file extension
+    const contentType = response.headers.get('content-type') || getContentTypeFromPath(imagePath);
+    
+    // Set appropriate headers
     res.set({
+      'Content-Type': contentType,
+      'Cache-Control': 'public, max-age=31536000, immutable', // Cache for 1 year
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type',
-      'Cache-Control': 'public, max-age=31536000'
+      'X-Proxy-Cache': 'MISS',
+      'X-Image-Source': 'gcs-proxy'
     });
     
-    res.redirect(302, bucketUrl);
+    // Handle HEAD requests
+    if (req.method === 'HEAD') {
+      return res.end();
+    }
+    
+    // Stream the image data
+    const buffer = await response.buffer();
+    res.send(buffer);
+    
+    console.log(`✅ Image proxied successfully: ${imagePath} (${buffer.length} bytes)`);
     
   } catch (error) {
-    console.error('❌ Image proxy error:', error);
-    res.status(404).json({
-      success: false,
-      message: 'Image not found',
-      error: error.message,
-      requestedPath: req.params[0]
-    });
-  }
-});
-
-// Test image route
-app.get('/api/test/image/:folder/:filename', (req, res) => {
-  const { folder, filename } = req.params;
-  const imageUrl = `https://storage.googleapis.com/${BUCKET_NAME}/${folder}/${filename}`;
-  
-  console.log(`🧪 Testing image: ${imageUrl}`);
-  res.redirect(imageUrl);
-});
-
-// ===== DEBUGGING ROUTES =====
-
-// Health check with comprehensive info
-app.get('/api/health', (req, res) => {
-  const healthStatus = {
-    status: 'OK',
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV,
-    server: {
-      uptime: process.uptime(),
-      memory: process.memoryUsage(),
-      version: process.version,
-      platform: process.platform
-    },
-    database: {
-      status: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected',
-      readyState: mongoose.connection.readyState,
-      host: mongoose.connection.host,
-      database: mongoose.connection.db?.databaseName || 'Unknown'
-    },
-    services: {
-      imageProxy: 'Active',
-      cors: 'Enabled',
-      routes: 'Loading...'
-    }
-  };
-  
-  console.log('🏥 Health check requested');
-  res.json(healthStatus);
-});
-
-// Comprehensive database debugging
-app.get('/api/debug/database', async (req, res) => {
-  try {
-    const mongoose = require('mongoose');
-    const db = mongoose.connection.db;
-    
-    if (!db) {
-      return res.status(500).json({
-        success: false,
-        error: 'Database connection not established'
-      });
-    }
-    
-    console.log('🔍 Database debug requested');
-    
-    // Connection info
-    const connectionInfo = {
-      cluster: mongoose.connection.host,
-      database: db.databaseName,
-      readyState: mongoose.connection.readyState,
-      readyStateText: ['disconnected', 'connected', 'connecting', 'disconnecting'][mongoose.connection.readyState],
-      connectionString: process.env.MONGODB_URI ? 'Set (hidden)' : 'Missing'
-    };
-    
-    // List collections with detailed info
-    const collections = await db.listCollections().toArray();
-    const collectionInfo = {};
-    
-    for (const collection of collections) {
-      try {
-        const count = await db.collection(collection.name).countDocuments();
-        const sampleDoc = count > 0 ? await db.collection(collection.name).findOne() : null;
-        
-        collectionInfo[collection.name] = {
-          documentCount: count,
-          sampleDocument: sampleDoc ? {
-            _id: sampleDoc._id,
-            structure: {
-              hasName: !!sampleDoc.name,
-              hasImage: !!sampleDoc.image,
-              hasStatus: !!sampleDoc.status,
-              hasCategory: !!sampleDoc.category,
-              hasFeatured: !!sampleDoc.featured,
-              hasPrice: !!sampleDoc.price,
-              hasInStock: !!sampleDoc.inStock
-            },
-            fields: Object.keys(sampleDoc).slice(0, 15)
-          } : null
-        };
-      } catch (error) {
-        collectionInfo[collection.name] = {
-          error: error.message
-        };
-      }
-    }
-    
-    // Diagnosis
-    const expectedCollections = {
-      pets: collectionInfo.pets || collectionInfo.Pet || collectionInfo.Pets || null,
-      products: collectionInfo.products || collectionInfo.Product || collectionInfo.Products || null
-    };
-    
-    const diagnosis = {
-      totalCollections: collections.length,
-      hasPetsData: !!(expectedCollections.pets?.documentCount > 0),
-      hasProductsData: !!(expectedCollections.products?.documentCount > 0),
-      databaseIssues: [],
-      recommendations: []
-    };
-    
-    // Generate specific issues and recommendations
-    if (connectionInfo.database === 'test') {
-      diagnosis.databaseIssues.push('Connected to "test" database - data likely in different database');
-      diagnosis.recommendations.push('Update MONGODB_URI to include specific database name');
-    }
-    
-    if (collections.length === 0) {
-      diagnosis.databaseIssues.push('No collections found - database appears empty');
-      diagnosis.recommendations.push('Import data or check if connected to correct database');
-    }
-    
-    if (!expectedCollections.pets || expectedCollections.pets.documentCount === 0) {
-      diagnosis.databaseIssues.push('No pets data found');
-      diagnosis.recommendations.push('Check collection naming (pets vs Pet vs Pets) or import data');
-    }
-    
-    if (!expectedCollections.products || expectedCollections.products.documentCount === 0) {
-      diagnosis.databaseIssues.push('No products data found');
-      diagnosis.recommendations.push('Check collection naming (products vs Product vs Products) or import data');
-    }
-    
-    console.log(`📊 Database diagnostic: ${diagnosis.databaseIssues.length} issues found`);
-    
-    res.json({
-      success: true,
-      connection: connectionInfo,
-      collections: collectionInfo,
-      expectedCollections,
-      diagnosis,
-      timestamp: new Date().toISOString()
-    });
-    
-  } catch (error) {
-    console.error('❌ Database debug error:', error);
+    console.error(`❌ Image proxy error for ${req.params[0]}:`, error.message);
     res.status(500).json({
       success: false,
+      message: 'Image proxy error',
       error: error.message,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      path: req.params[0]
     });
   }
 });
 
-// Route mounting status
-app.get('/api/debug/routes', (req, res) => {
+// Handle OPTIONS requests for image proxy
+app.options('/api/images/*', (req, res) => {
+  res.set({
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Max-Age': '86400'
+  });
+  res.status(200).end();
+});
+
+// Helper function to determine content type from file extension
+function getContentTypeFromPath(imagePath) {
+  const ext = path.extname(imagePath).toLowerCase();
+  const contentTypes = {
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.png': 'image/png',
+    '.gif': 'image/gif',
+    '.webp': 'image/webp',
+    '.svg': 'image/svg+xml',
+    '.bmp': 'image/bmp',
+    '.ico': 'image/x-icon'
+  };
+  return contentTypes[ext] || 'image/jpeg';
+}
+
+// ===============================================
+// HEALTH CHECK
+// ===============================================
+app.get('/api/health', (req, res) => {
   res.json({
-    success: true,
-    message: 'Route debugging information',
-    environment: process.env.NODE_ENV,
-    availableRoutes: [
-      'GET /api/health - Server health check',
-      'GET /api/debug/database - Database diagnostic',
-      'GET /api/debug/routes - This route',
-      'GET /api/debug/seed-exact - Seed database with sample data',
-      'GET /api/images/{folder}/{filename} - Image proxy',
-      'GET /api/test/image/{folder}/{filename} - Direct image test',
-      'GET /api/pets - Pet listings (if routes mounted)',
-      'GET /api/products - Product listings (if routes mounted)'
-    ],
-    timestamp: new Date().toISOString()
+    status: 'OK',
+    message: 'FurBabies Backend is running!',
+    timestamp: new Date().toISOString(),
+    version: '1.0.0',
+    environment: process.env.NODE_ENV || 'development',
+    features: {
+      imageProxy: true,
+      cors: true,
+      mockData: true
+    }
   });
 });
 
-// Seeding route with exact data
-app.post('/api/debug/seed-exact', async (req, res) => {
-  try {
-    console.log('🌱 Database seeding requested');
-    
-    const mongoose = require('mongoose');
-    const db = mongoose.connection.db;
-    
-    if (!db) {
-      return res.status(500).json({
-        success: false,
-        error: 'Database not connected'
-      });
+// ===============================================
+// MOCK PETS ENDPOINT
+// ===============================================
+app.get('/api/pets', (req, res) => {
+  console.log('🐕 GET /api/pets called with query:', req.query);
+  
+  const mockPets = [
+    {
+      _id: 'pet001',
+      name: 'Pet 25',
+      type: 'small-pet',
+      breed: 'Hedgehog',
+      age: '1 year',
+      gender: 'male',
+      description: 'A friendly hedgehog looking for a caring home.',
+      image: 'pet/hedge-hog-A.jpg',
+      imageUrl: 'https://storage.googleapis.com/furbabies-petstore/pet/hedge-hog-A.jpg',
+      status: 'available',
+      featured: true,
+      createdAt: new Date('2024-12-01').toISOString()
+    },
+    {
+      _id: 'pet002',
+      name: 'Koda',
+      type: 'cat',
+      breed: 'Kitten',
+      age: '6 months',
+      gender: 'female',
+      description: 'A playful kitten ready for adoption.',
+      image: 'pet/kitten.png',
+      imageUrl: 'https://storage.googleapis.com/furbabies-petstore/pet/kitten.png',
+      status: 'available',
+      featured: true,
+      createdAt: new Date('2024-12-05').toISOString()
+    },
+    {
+      _id: 'pet003',
+      name: 'Maggie',
+      type: 'dog',
+      breed: 'Labrador Puppy',
+      age: '8 weeks',
+      gender: 'female',
+      description: 'An adorable lab puppy looking for her forever family.',
+      image: 'pet/lab-puppy-B.png',
+      imageUrl: 'https://storage.googleapis.com/furbabies-petstore/pet/lab-puppy-B.png',
+      status: 'available',
+      featured: true,
+      createdAt: new Date('2024-12-10').toISOString()
+    },
+    {
+      _id: 'pet004',
+      name: 'Pet 1',
+      type: 'aquatic',
+      breed: 'Beta Fish',
+      age: '6 months',
+      gender: 'unknown',
+      description: 'A beautiful beta fish for aquarium enthusiasts.',
+      image: 'pet/betas-fish.jpg',
+      imageUrl: 'https://storage.googleapis.com/furbabies-petstore/pet/betas-fish.jpg',
+      status: 'available',
+      featured: true,
+      createdAt: new Date('2024-12-08').toISOString()
+    },
+    {
+      _id: 'pet005',
+      name: 'Max',
+      type: 'dog',
+      breed: 'Golden Retriever',
+      age: '3 years',
+      gender: 'male',
+      description: 'A friendly and loyal companion.',
+      image: 'pet/golden-retriever.jpg',
+      imageUrl: 'https://storage.googleapis.com/furbabies-petstore/pet/golden-retriever.jpg',
+      status: 'available',
+      featured: false,
+      createdAt: new Date('2024-11-28').toISOString()
+    },
+    {
+      _id: 'pet006',
+      name: 'Bella',
+      type: 'cat',
+      breed: 'Siamese',
+      age: '2 years',
+      gender: 'female',
+      description: 'A graceful and intelligent cat.',
+      image: 'pet/siamese-cat.jpg',
+      imageUrl: 'https://storage.googleapis.com/furbabies-petstore/pet/siamese-cat.jpg',
+      status: 'available',
+      featured: false,
+      createdAt: new Date('2024-11-30').toISOString()
     }
-    
-    // Sample data based on your Atlas data
-    const samplePets = [
-      {
-        "_id": "p025",
-        "name": "Pet 25",
-        "type": "small-pet",
-        "breed": "Hedge Hog",
-        "age": "6 months",
-        "size": "small",
-        "gender": "male",
-        "description": "Pet 25 is a 6 months-old small-sized Hedge Hog pet with a charming personality. He is looking for a loving home where he can thrive and bring joy to your family.",
-        "image": "pet/hedge-hog-A.jpg",
-        "status": "available",
-        "updatedAt": new Date("2025-07-07T00:26:00.806Z"),
-        "createdBy": "685a27167282678964ac4420",
-        "category": "other",
-        "featured": true
-      },
-      {
-        "_id": "p028",
-        "name": "Koda",
-        "type": "cat",
-        "breed": "Mixed breed",
-        "age": "6 months",
-        "size": "medium",
-        "gender": "male",
-        "description": "Koda is a 6 months-old medium-sized Mixed breed cat with a charming personality. He is looking for a loving home where he can thrive and bring joy to your family.",
-        "image": "pet/kitten.png",
-        "status": "available",
-        "updatedAt": new Date("2025-07-07T00:26:00.806Z"),
-        "createdBy": "685a27167282678964ac4420",
-        "category": "cat",
-        "featured": true
-      },
-      {
-        "_id": "p029",
-        "name": "Maggie",
-        "type": "dog",
-        "breed": "Chocolate Labrador Retriever",
-        "age": "6 months",
-        "size": "medium",
-        "gender": "female",
-        "description": "Maggie is a 6 months-old medium-sized Chocolate Labrador Retriever dog with a charming personality. She is looking for a loving home where she can thrive and bring joy to your family.",
-        "image": "pet/lab-puppy-B.png",
-        "status": "available",
-        "updatedAt": new Date("2025-07-07T00:26:00.806Z"),
-        "createdBy": "685a27167282678964ac4420",
-        "category": "dog",
-        "featured": true
-      },
-      {
-        "_id": "p001",
-        "name": "Pet 1",
-        "type": "fish",
-        "breed": "Betas",
-        "age": "6 months",
-        "size": "medium",
-        "gender": "unknown",
-        "description": "Pet 1 is a 6 months-old medium-sized Betas fish with a charming personality. They is looking for a loving home where they can thrive and bring joy to your family.",
-        "image": "pet/betas-fish.jpg",
-        "status": "available",
-        "updatedAt": new Date("2025-07-07T00:26:00.806Z"),
-        "createdBy": "685a27167282678964ac4420",
-        "category": "aquatic",
-        "featured": true
-      }
-    ];
-
-    const sampleProducts = [
-      {
-        "_id": "prod_002",
-        "name": "Covered Litter Box",
-        "category": "Cat Care",
-        "brand": "Generic",
-        "price": 9.99,
-        "inStock": true,
-        "description": "Give your feline friend privacy and keep odors contained with this spacious covered litter box.",
-        "image": "product/covered-litter-box.png",
-        "featured": true
-      },
-      {
-        "_id": "prod_013",
-        "name": "Premium Dog Food",
-        "category": "Dog Care",
-        "brand": "Generic",
-        "price": 9.99,
-        "inStock": true,
-        "description": "Treat your dog to restaurant-quality nutrition with this premium dog food formula.",
-        "image": "product/premum-dog-food.png",
-        "featured": true
-      }
-    ];
-    
-    // Clear and insert data
-    console.log('🗑️ Clearing existing data...');
-    await db.collection('pets').deleteMany({});
-    await db.collection('products').deleteMany({});
-    
-    console.log('📥 Inserting sample data...');
-    const petResult = await db.collection('pets').insertMany(samplePets);
-    const productResult = await db.collection('products').insertMany(sampleProducts);
-    
-    console.log(`✅ Inserted ${petResult.insertedCount} pets`);
-    console.log(`✅ Inserted ${productResult.insertedCount} products`);
-    
-    res.json({
-      success: true,
-      message: 'Database seeded with sample data!',
-      inserted: {
-        pets: petResult.insertedCount,
-        products: productResult.insertedCount
-      },
-      sampleUrls: {
-        petImage: `${req.protocol}://${req.get('host')}/api/images/pet/hedge-hog-A.jpg`,
-        productImage: `${req.protocol}://${req.get('host')}/api/images/product/covered-litter-box.png`
-      },
-      nextSteps: [
-        'Test: GET /api/pets',
-        'Test: GET /api/products',
-        'Test image loading in frontend'
-      ]
-    });
-    
-  } catch (error) {
-    console.error('❌ Seeding error:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-      stack: error.stack
-    });
+  ];
+  
+  // Handle query parameters
+  let filteredPets = [...mockPets];
+  
+  // Filter by featured status
+  if (req.query.featured === 'true') {
+    filteredPets = filteredPets.filter(pet => pet.featured);
   }
+  
+  // Filter by status
+  if (req.query.status) {
+    filteredPets = filteredPets.filter(pet => pet.status === req.query.status);
+  }
+  
+  // Filter by type/category
+  if (req.query.category) {
+    filteredPets = filteredPets.filter(pet => pet.type === req.query.category);
+  }
+  
+  // Apply limit
+  const limit = parseInt(req.query.limit) || filteredPets.length;
+  const paginatedPets = filteredPets.slice(0, limit);
+  
+  // Wrap in data structure expected by frontend
+  const response = {
+    success: true,
+    data: {
+      data: paginatedPets,
+      totalCount: filteredPets.length,
+      currentPage: 1,
+      totalPages: Math.ceil(filteredPets.length / limit)
+    },
+    message: `Found ${paginatedPets.length} pets matching your criteria`,
+    pagination: {
+      total: filteredPets.length,
+      limit: limit,
+      page: 1,
+      pages: Math.ceil(filteredPets.length / limit)
+    }
+  };
+  
+  console.log(`✅ Returning ${paginatedPets.length} pets (filtered from ${mockPets.length})`);
+  res.json(response);
 });
 
-// ===== ROUTE MOUNTING WITH DEBUGGING =====
-const mountRoute = (path, routePath, routeName) => {
-  try {
-    console.log(`🔍 Loading route: ${routeName} from ${routePath}`);
-    const route = require(routePath);
-    app.use(path, route);
-    console.log(`✅ Mounted route: ${path} (${routeName})`);
-    return true;
-  } catch (error) {
-    console.error(`❌ Failed to mount route ${routeName}:`, error.message);
-    
-    // Create fallback route that explains the error
-    app.use(path, (req, res) => {
-      res.status(500).json({
-        success: false,
-        message: `Route ${routeName} failed to load`,
-        error: error.message,
-        path: routePath,
-        suggestion: `Check if ${routePath} exists and exports a valid Express router`,
-        timestamp: new Date().toISOString()
-      });
-    });
-    
-    return false;
-  }
-};
-
-// Mount routes with debugging
-console.log('📂 Mounting API routes...');
-const routes = [
-  { path: '/api/pets', file: './routes/pets', name: 'Pets' },
-  { path: '/api/products', file: './routes/products', name: 'Products' },
-  { path: '/api/users', file: './routes/users', name: 'Users' },
-  { path: '/api/admin', file: './routes/admin', name: 'Admin' },
-  { path: '/api/news', file: './routes/news', name: 'News' },
-  { path: '/api/contact', file: './routes/contact', name: 'Contact' }
-];
-
-let successCount = 0;
-const routeResults = {};
-
-routes.forEach(({ path, file, name }) => {
-  const success = mountRoute(path, file, name);
-  routeResults[name.toLowerCase()] = success;
-  if (success) successCount++;
+// Get single pet by ID
+app.get('/api/pets/:id', (req, res) => {
+  console.log(`🐕 GET /api/pets/${req.params.id} called`);
+  
+  // Simple mock pet response
+  const mockPet = {
+    _id: req.params.id,
+    name: 'Sample Pet',
+    type: 'dog',
+    breed: 'Mixed Breed',
+    age: '2 years',
+    gender: 'unknown',
+    description: 'A wonderful pet looking for a loving home.',
+    image: 'pet/default-pet.png',
+    imageUrl: 'https://storage.googleapis.com/furbabies-petstore/pet/default-pet.png',
+    status: 'available',
+    featured: false,
+    views: 0,
+    createdAt: new Date().toISOString(),
+    location: 'Pet Adoption Center',
+    vaccinated: true,
+    spayedNeutered: true,
+    goodWithKids: true,
+    goodWithPets: true,
+    energyLevel: 'medium',
+    size: 'medium'
+  };
+  
+  res.json({
+    success: true,
+    data: mockPet
+  });
 });
 
-console.log(`🎯 Routes mounted: ${successCount}/${routes.length}`);
+// ===============================================
+// MOCK PRODUCTS ENDPOINT
+// ===============================================
+app.get('/api/products', (req, res) => {
+  console.log('🛍️ GET /api/products called with query:', req.query);
+  
+  const mockProducts = [
+    {
+      _id: 'prod001',
+      name: 'Covered Litter Box',
+      category: 'Cat Care',
+      price: 49.99,
+      description: 'A high-quality covered litter box for privacy and odor control.',
+      image: 'product/covered-litter-box.png',
+      imageUrl: 'https://storage.googleapis.com/furbabies-petstore/product/covered-litter-box.png',
+      inStock: true,
+      featured: true,
+      rating: 4.5,
+      reviews: 128
+    },
+    {
+      _id: 'prod002',
+      name: 'Premium Dog Food',
+      category: 'Dog Care',
+      price: 89.99,
+      description: 'Nutritious premium dog food for healthy and happy pets.',
+      image: 'product/premum-dog-food.png',
+      imageUrl: 'https://storage.googleapis.com/furbabies-petstore/product/premum-dog-food.png',
+      inStock: true,
+      featured: true,
+      rating: 4.8,
+      reviews: 256
+    },
+    {
+      _id: 'prod003',
+      name: 'Interactive Dog Toy',
+      category: 'Toys',
+      price: 24.99,
+      description: 'Keep your dog entertained with this interactive puzzle toy.',
+      image: 'product/dog-toy.png',
+      imageUrl: 'https://storage.googleapis.com/furbabies-petstore/product/dog-toy.png',
+      inStock: true,
+      featured: false,
+      rating: 4.3,
+      reviews: 89
+    },
+    {
+      _id: 'prod004',
+      name: 'Cat Scratching Post',
+      category: 'Cat Care',
+      price: 79.99,
+      description: 'Durable scratching post to keep your cat happy and furniture safe.',
+      image: 'product/cat-scratching-post.png',
+      imageUrl: 'https://storage.googleapis.com/furbabies-petstore/product/cat-scratching-post.png',
+      inStock: false,
+      featured: false,
+      rating: 4.6,
+      reviews: 167
+    }
+  ];
+  
+  // Handle query parameters
+  let filteredProducts = [...mockProducts];
+  
+  // Filter by inStock
+  if (req.query.inStock === 'true') {
+    filteredProducts = filteredProducts.filter(product => product.inStock);
+  }
+  
+  // Filter by featured
+  if (req.query.featured === 'true') {
+    filteredProducts = filteredProducts.filter(product => product.featured);
+  }
+  
+  // Filter by category
+  if (req.query.category) {
+    filteredProducts = filteredProducts.filter(product => 
+      product.category.toLowerCase().includes(req.query.category.toLowerCase())
+    );
+  }
+  
+  // Apply limit
+  const limit = parseInt(req.query.limit) || filteredProducts.length;
+  const paginatedProducts = filteredProducts.slice(0, limit);
+  
+  const response = {
+    success: true,
+    data: paginatedProducts,
+    pagination: {
+      total: filteredProducts.length,
+      limit: limit,
+      page: 1,
+      pages: Math.ceil(filteredProducts.length / limit)
+    },
+    filters: {
+      inStock: req.query.inStock,
+      featured: req.query.featured,
+      category: req.query.category
+    },
+    message: `Found ${paginatedProducts.length} products matching your criteria`
+  };
+  
+  console.log(`✅ Returning ${paginatedProducts.length} products (filtered from ${mockProducts.length})`);
+  res.json(response);
+});
 
-if (successCount === 0) {
-  console.warn('⚠️ No routes mounted successfully - using debug endpoints only');
-}
+// ===============================================
+// MOCK NEWS ENDPOINT
+// ===============================================
+app.get('/api/news/featured', (req, res) => {
+  console.log('📰 GET /api/news/featured called');
+  
+  const mockNews = [
+    {
+      id: 'news001',
+      title: 'New Pet Adoption Center Opens Downtown',
+      summary: 'A state-of-the-art facility opens to help more pets find homes.',
+      category: 'adoption',
+      author: 'FurBabies Team',
+      featured: true,
+      published: true,
+      publishedAt: new Date('2024-12-01'),
+      views: 1250,
+      image: 'news/adoption-center.jpg'
+    },
+    {
+      id: 'news002',
+      title: 'Holiday Pet Safety Tips',
+      summary: 'Important tips to keep your pets safe during the holiday season.',
+      category: 'safety', 
+      author: 'Dr. Sarah Johnson',
+      featured: true,
+      published: true,
+      publishedAt: new Date('2024-12-15'),
+      views: 980,
+      image: 'news/holiday-safety.jpg'
+    },
+    {
+      id: 'news003',
+      title: 'Success Story: Max Finds His Forever Home',
+      summary: 'Follow Max\'s heartwarming journey to finding his perfect family.',
+      category: 'success-story',
+      author: 'Maria Rodriguez', 
+      featured: true,
+      published: true,
+      publishedAt: new Date('2024-12-10'),
+      views: 1567,
+      image: 'news/max-success.jpg'
+    }
+  ];
+  
+  const limit = parseInt(req.query.limit) || 3;
+  const news = mockNews.slice(0, limit);
+  
+  res.json({
+    success: true,
+    data: news,
+    count: news.length,
+    message: 'Featured news retrieved successfully'
+  });
+});
 
-// ===== ERROR HANDLING =====
-// 404 Handler for API routes
+// ===============================================
+// API DOCUMENTATION ROUTE
+// ===============================================
+app.get('/api', (req, res) => {
+  res.json({
+    message: 'FurBabies Pet Store API',
+    version: '1.0.0',
+    endpoints: {
+      health: 'GET /api/health',
+      pets: {
+        list: 'GET /api/pets',
+        single: 'GET /api/pets/:id',
+        parameters: 'featured, status, category, limit'
+      },
+      products: {
+        list: 'GET /api/products',
+        parameters: 'inStock, featured, category, limit'
+      },
+      news: {
+        featured: 'GET /api/news/featured'
+      },
+      images: {
+        proxy: 'GET /api/images/*',
+        description: 'Proxies images from Google Cloud Storage'
+      }
+    },
+    documentation: 'https://docs.furbabies.com/api'
+  });
+});
+
+// ===============================================
+// ERROR HANDLERS
+// ===============================================
+
+// Catch all API routes that don't exist
 app.use('/api/*', (req, res) => {
-  console.log(`❌ 404 - API endpoint not found: ${req.method} ${req.originalUrl}`);
   res.status(404).json({
     success: false,
     message: `API endpoint not found: ${req.method} ${req.originalUrl}`,
     availableEndpoints: [
       'GET /api/health',
-      'GET /api/debug/database',
-      'GET /api/debug/routes',
-      'POST /api/debug/seed-exact',
-      'GET /api/images/{folder}/{filename}',
-      ...(successCount > 0 ? ['GET /api/pets', 'GET /api/products'] : ['Routes failed to mount - check logs'])
+      'GET /api/pets',
+      'GET /api/pets/:id', 
+      'GET /api/products',
+      'GET /api/news/featured',
+      'GET /api/images/*'
     ],
     timestamp: new Date().toISOString()
   });
 });
 
-// Global Error Handler
-app.use((err, req, res, next) => {
-  console.error('💥 Global error handler:', err);
-  
-  const errorResponse = {
-    success: false,
-    message: 'Internal server error',
-    timestamp: new Date().toISOString()
-  };
-  
-  if (process.env.NODE_ENV === 'development') {
-    errorResponse.error = err.message;
-    errorResponse.stack = err.stack;
-  }
-  
-  res.status(500).json(errorResponse);
-});
-
-// ===== STATIC FILES (PRODUCTION) =====
+// ===============================================
+// SERVE REACT FRONTEND IN PRODUCTION
+// ===============================================
 if (process.env.NODE_ENV === 'production') {
   const frontendPath = path.join(__dirname, '../client/build');
   
-  const fs = require('fs');
-  if (fs.existsSync(frontendPath)) {
-    console.log(`📁 Serving static files from: ${frontendPath}`);
-    app.use(express.static(frontendPath));
-    
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(frontendPath, 'index.html'));
-    });
-  } else {
-    console.warn('⚠️ Frontend build directory not found');
-    app.get('*', (req, res) => {
-      res.json({
-        message: 'FurBabies API Server',
-        status: 'API Only - Frontend build not found',
-        debug: '/api/debug/database'
-      });
-    });
-  }
+  // Serve static files
+  app.use(express.static(frontendPath, {
+    maxAge: '1y',
+    etag: true,
+    lastModified: true,
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith('.html')) {
+        res.set('Cache-Control', 'no-cache');
+      }
+    }
+  }));
+  
+  // Handle React Router - send all non-API requests to index.html
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(frontendPath, 'index.html'));
+  });
 }
 
-// ===== SERVER STARTUP =====
-const startServer = async () => {
-  try {
-    console.log('🔧 Initializing database connection...');
-    await connectDB();
-    
-    console.log('🚀 Starting HTTP server...');
-    app.listen(PORT, '0.0.0.0', () => {
-      console.log('');
-      console.log('🎉 ===== FURBABIES SERVER STARTED =====');
-      console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
-      console.log(`🌐 Port: ${PORT}`);
-      console.log(`🗃️ Database: ${mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected'}`);
-      console.log(`📂 Routes: ${successCount}/${routes.length} mounted`);
-      console.log(`🖼️ Images: CORS proxy enabled`);
-      console.log('');
-      console.log('🔗 Debug endpoints:');
-      console.log(`   Health: /api/health`);
-      console.log(`   Database: /api/debug/database`);
-      console.log(`   Routes: /api/debug/routes`);
-      console.log(`   Seed DB: POST /api/debug/seed-exact`);
-      console.log('');
-      console.log('🔗 API endpoints:');
-      console.log(`   Pets: /api/pets`);
-      console.log(`   Products: /api/products`);
-      console.log(`   Images: /api/images/{folder}/{filename}`);
-      console.log('');
-      console.log('✅ Server ready for requests!');
-      console.log(`🌐 Access at: http://localhost:${PORT}`);
-    });
-    
-  } catch (error) {
-    console.error('💥 Failed to start server:', error);
-    process.exit(1);
-  }
-};
+// ===============================================
+// START SERVER
+// ===============================================
+app.listen(PORT, '0.0.0.0', () => {
+  console.log('🚀 FurBabies Backend Server Starting...');
+  console.log(`   Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`   Port: ${PORT}`);
+  console.log(`   Time: ${new Date().toISOString()}`);
+  console.log('');
+  console.log('📡 Available Endpoints:');
+  console.log(`   Health Check: http://localhost:${PORT}/api/health`);
+  console.log(`   Pets API: http://localhost:${PORT}/api/pets`);
+  console.log(`   Products API: http://localhost:${PORT}/api/products`);
+  console.log(`   News API: http://localhost:${PORT}/api/news/featured`);
+  console.log(`   Image Proxy: http://localhost:${PORT}/api/images/*`);
+  console.log('');
+  console.log('✅ Server is running and ready to handle requests!');
+});
 
-// ===== GRACEFUL SHUTDOWN =====
-const gracefulShutdown = async (signal) => {
-  console.log(`\n🛑 Received ${signal}. Gracefully shutting down...`);
-  
-  try {
-    await mongoose.connection.close();
-    console.log('✅ MongoDB connection closed');
-  } catch (error) {
-    console.error('❌ Error closing MongoDB connection:', error);
-  }
-  
-  process.exit(0);
-};
-
-process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-process.on('SIGINT', () => gracefulShutdown('SIGINT'));
-
+// ===============================================
+// GRACEFUL SHUTDOWN HANDLING
+// ===============================================
 process.on('uncaughtException', (err) => {
   console.error('💥 Uncaught Exception:', err);
-  gracefulShutdown('UNCAUGHT_EXCEPTION');
+  console.error('Stack:', err.stack);
+  process.exit(1);
 });
 
 process.on('unhandledRejection', (err) => {
-  console.error('💥 Unhandled Rejection:', err);
-  gracefulShutdown('UNHANDLED_REJECTION');
+  console.error('💥 Unhandled Promise Rejection:', err);
+  console.error('Stack:', err.stack);
+  process.exit(1);
 });
 
-// Start the server
-startServer();
+process.on('SIGTERM', () => {
+  console.log('👋 SIGTERM received, shutting down gracefully...');
+  process.exit(0);
+});
+
+process.on('SIGINT', () => {
+  console.log('👋 SIGINT received, shutting down gracefully...');
+  process.exit(0);
+});
