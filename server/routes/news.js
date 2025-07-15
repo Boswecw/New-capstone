@@ -3,6 +3,7 @@ const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
 const Article = require('../models/Article');
+const { fetchPetNews } = require('../services/newsAPI');
 const { protect, admin, optionalAuth } = require('../middleware/auth');
 
 // ============================================
@@ -353,6 +354,39 @@ router.get('/:identifier', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error fetching article',
+      error: error.message
+    });
+  }
+});
+
+router.get('/external', async (req, res) => {
+  try {
+    console.log('🌍 GET /api/news/external');
+
+    const query = req.query.q || 'pets OR dogs OR cats';
+    const limit = parseInt(req.query.limit) || 6;
+
+    const result = await fetchPetNews(query, limit);
+
+    if (result.success) {
+      return res.json({
+        success: true,
+        data: result.articles,
+        count: result.articles.length,
+        source: 'NewsAPI.org'
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: result.message || 'Failed to fetch external news',
+      error: result.error
+    });
+  } catch (error) {
+    console.error('❌ Error in external news route:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching external news',
       error: error.message
     });
   }
