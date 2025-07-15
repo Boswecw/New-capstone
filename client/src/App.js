@@ -2,13 +2,13 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
-import { ToastProvider, useToast } from './contexts/ToastContext';
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 import ErrorBoundary from './components/ErrorBoundary';
 
 // Layout Components
 import Header from './components/Header';
 import Footer from './components/Footer';
-import ToastContainer from './components/ToastContainer';
 
 // Pages
 import Home from './pages/Home';
@@ -42,12 +42,6 @@ import 'bootstrap/dist/css/bootstrap.min.css';
 // Custom CSS
 import './App.css';
 
-// Toast Container Component that uses the toast context
-const AppToastContainer = () => {
-  const { toasts, removeToast } = useToast();
-  return <ToastContainer toasts={toasts} removeToast={removeToast} />;
-};
-
 // Placeholder components for admin routes that might not exist yet
 const AdminAnalyticsPlaceholder = () => (
   <div className="container mt-4">
@@ -67,63 +61,72 @@ const App = () => {
   return (
     <ErrorBoundary>
       <AuthProvider>
-        <ToastProvider>
-          <Router>
-            <div className="App">
-              <Header />
-              
-              <main>
-                <Routes>
-                  {/* Public Routes */}
-                  <Route path="/" element={<Home />} />
-                  <Route path="/pets" element={<PetBrowse />} />
-                  <Route path="/pets/:id" element={<PetDetail />} />
-                  <Route path="/products" element={<Products />} />
-                  <Route path="/products/:id" element={<ProductDetail />} />
-                  <Route path="/news" element={<News />} />
-                  <Route path="/news/:id" element={<NewsDetail />} />
-                  <Route path="/about" element={<About />} />
-                  <Route path="/contact" element={<Contact />} />
-                  <Route path="/login" element={<Login />} />
-                  <Route path="/register" element={<Register />} />
+        <Router>
+          <div className="App">
+            <Header />
+            
+            <main>
+              <Routes>
+                {/* Public Routes */}
+                <Route path="/" element={<Home />} />
+                <Route path="/pets" element={<PetBrowse />} />
+                <Route path="/pets/:id" element={<PetDetail />} />
+                <Route path="/products" element={<Products />} />
+                <Route path="/products/:id" element={<ProductDetail />} />
+                <Route path="/news" element={<News />} />
+                <Route path="/news/:id" element={<NewsDetail />} />
+                <Route path="/about" element={<About />} />
+                <Route path="/contact" element={<Contact />} />
+                <Route path="/login" element={<Login />} />
+                <Route path="/register" element={<Register />} />
+                
+                {/* Protected Routes */}
+                <Route path="/profile" element={
+                  <ProtectedRoute>
+                    <Profile />
+                  </ProtectedRoute>
+                } />
+                
+                {/* Admin Routes */}
+                <Route path="/admin" element={
+                  <ProtectedRoute adminOnly>
+                    <AdminDashboard />
+                  </ProtectedRoute>
+                }>
+                  <Route index element={<AdminDashboard />} />
+                  <Route path="pets" element={<AdminPets />} />
+                  <Route path="products" element={<AdminProducts />} />
+                  <Route path="users" element={<AdminUsers />} />
+                  <Route path="contacts" element={<AdminContacts />} />
+                  <Route path="reports" element={<AdminReports />} />
                   
-                  {/* Protected Routes */}
-                  <Route path="/profile" element={
-                    <ProtectedRoute>
-                      <Profile />
-                    </ProtectedRoute>
-                  } />
-                  
-                  {/* Admin Routes */}
-                  <Route path="/admin" element={
-                    <ProtectedRoute adminOnly>
-                      <AdminDashboard />
-                    </ProtectedRoute>
-                  }>
-                    <Route index element={<AdminDashboard />} />
-                    <Route path="pets" element={<AdminPets />} />
-                    <Route path="products" element={<AdminProducts />} />
-                    <Route path="users" element={<AdminUsers />} />
-                    <Route path="contacts" element={<AdminContacts />} />
-                    <Route path="reports" element={<AdminReports />} />
-                    
-                    {/* Safe placeholder components instead of problematic ones */}
-                    <Route path="analytics" element={<AdminAnalyticsPlaceholder />} />
-                    <Route path="settings" element={<AdminSettingsPlaceholder />} />
-                  </Route>
+                  {/* Safe placeholder components instead of problematic ones */}
+                  <Route path="analytics" element={<AdminAnalyticsPlaceholder />} />
+                  <Route path="settings" element={<AdminSettingsPlaceholder />} />
+                </Route>
 
-                  {/* Catch-all route for 404 */}
-                  <Route path="*" element={<NotFound />} />
-                </Routes>
-              </main>
+                {/* Catch-all route for 404 */}
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </main>
 
-              <Footer />
-              
-              {/* Custom Toast Notifications */}
-              <AppToastContainer />
-            </div>
-          </Router>
-        </ToastProvider>
+            <Footer />
+            
+            {/* React-Toastify Toast Container */}
+            <ToastContainer
+              position="top-right"
+              autoClose={3000}
+              hideProgressBar={false}
+              newestOnTop
+              closeOnClick
+              rtl={false}
+              pauseOnFocusLoss
+              draggable
+              pauseOnHover
+              theme="light"
+            />
+          </div>
+        </Router>
       </AuthProvider>
     </ErrorBoundary>
   );
