@@ -24,18 +24,20 @@ connectDB();
 // Define allowed origins based on environment
 const allowedOrigins = process.env.NODE_ENV === 'production' 
   ? [
-      'https://furbabies-frontend.onrender.com',     // Your main frontend
-      'https://furbabies-petstore.onrender.com',     // Alternative naming
-      'https://new-capstone-frontend.onrender.com',  // If using "new-capstone" naming
-      // Add any additional production URLs here
-      /https:\/\/furbabies.*\.onrender\.com$/,       // Allow Render preview URLs for your app
+      // ✅ Use environment variable for production URL
+      process.env.FRONTEND_URL || 'https://new-capstone-frontend.onrender.com',
+      // ✅ Allow all Render URLs as fallback
+      /https:\/\/.*\.onrender\.com$/,
+      // Add specific URLs if needed
+      'https://furbabies-frontend.onrender.com',
+      'https://furbabies-petstore.onrender.com',
     ]
   : [
-      'http://localhost:3000',      // React dev server
-      'http://127.0.0.1:3000',     // Alternative localhost
-      'http://localhost:3001',      // In case React runs on different port
-      'http://localhost:8080',      // Alternative dev ports
-      'http://localhost:4000',      // Common alternative
+      'http://localhost:3000',
+      'http://127.0.0.1:3000',
+      'http://localhost:3001',
+      'http://localhost:8080',
+      'http://localhost:4000',
     ];
 
 app.use(cors({
