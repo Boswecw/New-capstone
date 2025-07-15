@@ -75,12 +75,19 @@ const Browse = () => {
     const RETRY_DELAY = 1000 * attempt; // Exponential backoff
 
     try {
-      console.log(`🔍 Fetching pets (attempt ${attempt}/${MAX_RETRIES})`);
+      console.log(`🔍 Fetching ALL pets (attempt ${attempt}/${MAX_RETRIES})`);
       setLoading(true);
       setError(null);
 
-      // Build query parameters
-      const params = {};
+      // Build query parameters - KEY FIX: Don't include featured=true, fetch ALL pets
+      const params = {
+        limit: 50,  // ✅ Much higher limit to show more pets
+        status: 'available',  // Only show available pets
+        page: 1,
+        sort: 'newest'
+      };
+      
+      // Add optional filters
       if (searchTerm.trim()) params.search = searchTerm.trim();
       if (selectedType) params.type = selectedType;
       if (selectedBreed.trim()) params.breed = selectedBreed.trim();
@@ -88,10 +95,7 @@ const Browse = () => {
       if (selectedGender) params.gender = selectedGender;
       if (selectedSize) params.size = selectedSize;
       
-      // Add status filter to only get available pets
-      params.status = 'available';
-      
-      console.log('🐕 Fetching pets with params:', params);
+      console.log('🐕 Fetching ALL available pets with params:', params);
       
       const response = await petAPI.getAllPets(params);
       console.log('🐾 Browse pets response:', response.data);
