@@ -1,67 +1,118 @@
-// client/src/services/api.js - WORKING VERSION (NewsAPI Commented Out)
+// client/src/services/api.js - FIXED VERSION
 import axios from 'axios';
 
-// Create axios instance with base configuration
+// Create axios instance with improved configuration
 const api = axios.create({
   baseURL: process.env.NODE_ENV === 'production' 
-    ? 'https://furbabies-backend.onrender.com/api'  // Update with your actual backend URL
+    ? 'https://furbabies-backend.onrender.com/api'
     : 'http://localhost:5000/api',
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 10000, // 10 second timeout
+  timeout: 15000, // Increased to 15 seconds
+  retry: 2, // Maximum 2 retries
+  retryDelay: 1000, // 1 second between retries
 });
 
-// Request interceptor to add auth token
+// Enhanced request interceptor
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('authToken');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    
+    // Add retry count to config
+    config.retryCount = config.retryCount || 0;
+    
+    console.log(`🔧 API Request: ${config.method?.toUpperCase()} ${config.url} (attempt ${config.retryCount + 1})`);
     return config;
   },
   (error) => {
+    console.error('❌ Request interceptor error:', error);
     return Promise.reject(error);
   }
 );
 
-// Response interceptor for error handling
+// Enhanced response interceptor with retry logic
 api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('authToken');
-      localStorage.removeItem('user');
-      window.location.href = '/login';
+  (response) => {
+    console.log(`✅ API Success: ${response.config.method?.toUpperCase()} ${response.config.url}`);
+    return response;
+  },
+  async (error) => {
+    const { config } = error;
+    
+    // Don't retry if we don't have a config or already exceeded retries
+    if (!config || config.retryCount >= (config.retry || 2)) {
+      console.error(`❌ API Error (final): ${config?.method?.toUpperCase()} ${config?.url}`, error.message);
+      
+      // Handle auth errors
+      if (error.response?.status === 401) {
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('user');
+        window.location.href = '/login';
+      }
+      
+      return Promise.reject(error);
     }
+
+    // Increment retry count
+    config.retryCount++;
+    
+    // Only retry on network errors or 5xx server errors
+    const shouldRetry = (
+      !error.response || // Network error
+      error.response.status >= 500 || // Server error
+      error.code === 'ECONNABORTED' // Timeout
+    );
+
+    if (shouldRetry) {
+      console.warn(`⚠️ Retrying API call: ${config.method?.toUpperCase()} ${config.url} (attempt ${config.retryCount + 1})`);
+      
+      // Wait before retrying
+      await new Promise(resolve => setTimeout(resolve, config.retryDelay || 1000));
+      
+      return api.request(config);
+    }
+
+    console.error(`❌ API Error (no retry): ${config.method?.toUpperCase()} ${config.url}`, error.message);
     return Promise.reject(error);
   }
 );
-
-// ===== USER API =====
-export const userAPI = {
-  register: (userData) => api.post('/users/register', userData),
-  login: (credentials) => api.post('/users/login', credentials),
-  getProfile: () => api.get('/users/profile'),
-  updateProfile: (userData) => api.put('/users/profile', userData),
-  addFavorite: (petId) => api.post(`/users/favorites/${petId}`),
-  removeFavorite: (petId) => api.delete(`/users/favorites/${petId}`),
-  getFavorites: () => api.get('/users/favorites'),
-};
 
 // ===== PET API =====
 export const petAPI = {
-  getAllPets: (params = {}) => {
-    const searchParams = new URLSearchParams();
-    Object.keys(params).forEach(key => {
-      if (params[key] !== undefined && params[key] !== '') {
-        searchParams.append(key, params[key]);
-      }
-    });
-    return api.get(`/pets?${searchParams}`);
+  getAllPets: async (params = {}) => {
+    try {
+      const searchParams = new URLSearchParams();
+      Object.keys(params).forEach(key => {
+        if (params[key] !== undefined && params[key] !== '') {
+          searchParams.append(key, params[key]);
+        }
+      });
+      
+      console.log('🐕 Fetching pets with params:', params);
+      const response = await api.get(`/pets?${searchParams}`);
+      
+      return response;
+    } catch (error) {
+      console.error('❌ petAPI.getAllPets error:', error);
+      throw error;
+    }
   },
-  getPetById: (id) => api.get(`/pets/${id}`),
+  
+  getPetById: async (id) => {
+    try {
+      console.log(`🐕 Fetching pet: ${id}`);
+      const response = await api.get(`/pets/${id}`);
+      return response;
+    } catch (error) {
+      console.error(`❌ petAPI.getPetById error for ${id}:`, error);
+      throw error;
+    }
+  },
+  
   createPet: (petData) => api.post('/pets', petData),
   updatePet: (id, petData) => api.put(`/pets/${id}`, petData),
   deletePet: (id) => api.delete(`/pets/${id}`),
@@ -69,24 +120,32 @@ export const petAPI = {
 
 // ===== PRODUCT API =====
 export const productAPI = {
-  getAllProducts: (params = {}) => {
-    const searchParams = new URLSearchParams();
-    Object.keys(params).forEach(key => {
-      if (params[key] !== undefined && params[key] !== '') {
-        searchParams.append(key, params[key]);
-      }
-    });
-    return api.get(`/products?${searchParams}`);
+  getAllProducts: async (params = {}) => {
+    try {
+      const searchParams = new URLSearchParams();
+      Object.keys(params).forEach(key => {
+        if (params[key] !== undefined && params[key] !== '') {
+          searchParams.append(key, params[key]);
+        }
+      });
+      
+      console.log('🛒 Fetching products with params:', params);
+      const response = await api.get(`/products?${searchParams}`);
+      
+      return response;
+    } catch (error) {
+      console.error('❌ productAPI.getAllProducts error:', error);
+      throw error;
+    }
   },
+  
   getProductById: (id) => api.get(`/products/${id}`),
   createProduct: (productData) => api.post('/products', productData),
   updateProduct: (id, productData) => api.put(`/products/${id}`, productData),
   deleteProduct: (id) => api.delete(`/products/${id}`),
 };
 
-// ===== NEWS API ===== 
-// 🚫 REAL API COMMENTED OUT - USING MOCK DATA FOR NOW
-/*
+// ===== NEWS API =====
 export const newsAPI = {
   getAllNews: (params = {}) => {
     const searchParams = new URLSearchParams();
@@ -97,156 +156,43 @@ export const newsAPI = {
     });
     return api.get(`/news?${searchParams}`);
   },
+  
   getNewsById: (id) => api.get(`/news/${id}`),
-  getFeaturedNews: (limit = 5) => api.get(`/news/featured?limit=${limit}`),
+  
+  getFeaturedNews: async (limit = 5) => {
+    try {
+      console.log(`📰 Fetching featured news (limit: ${limit})`);
+      const response = await api.get(`/news/featured?limit=${limit}`);
+      return response;
+    } catch (error) {
+      console.error('❌ newsAPI.getFeaturedNews error:', error);
+      throw error;
+    }
+  },
+  
   getNewsCategories: () => api.get('/news/categories'),
   getNewsByCategory: (category, params = {}) => {
     const searchParams = new URLSearchParams({ category, ...params });
     return api.get(`/news/category/${category}?${searchParams}`);
   },
 };
-*/
-
-// 🆕 TEMPORARY: Mock newsAPI to prevent build errors
-export const newsAPI = {
-  getAllNews: (params = {}) => {
-    console.log('🚧 Using mock newsAPI - getAllNews');
-    return Promise.resolve({ 
-      data: { 
-        success: true, 
-        data: [], 
-        message: 'News section temporarily unavailable' 
-      } 
-    });
-  },
-  getNewsById: (id) => {
-    console.log('🚧 Using mock newsAPI - getNewsById');
-    return Promise.resolve({ 
-      data: { 
-        success: false, 
-        data: null, 
-        message: 'News article not found' 
-      } 
-    });
-  },
-  getFeaturedNews: (limit = 5) => {
-    console.log('🚧 Using mock newsAPI - getFeaturedNews');
-    return Promise.resolve({ 
-      data: { 
-        success: true, 
-        data: [], 
-        message: 'Featured news temporarily unavailable' 
-      } 
-    });
-  },
-  getNewsCategories: () => {
-    console.log('🚧 Using mock newsAPI - getNewsCategories');
-    return Promise.resolve({ 
-      data: { 
-        success: true, 
-        data: [
-          { name: 'adoption', displayName: 'Adoption', count: 0 },
-          { name: 'health', displayName: 'Health', count: 0 },
-          { name: 'training', displayName: 'Training', count: 0 }
-        ], 
-        message: 'News categories (mock data)' 
-      } 
-    });
-  },
-  getNewsByCategory: (category, params = {}) => {
-    console.log('🚧 Using mock newsAPI - getNewsByCategory');
-    return Promise.resolve({ 
-      data: { 
-        success: true, 
-        data: [], 
-        message: `No news articles found for category: ${category}` 
-      } 
-    });
-  },
-};
-
-// ===== CONTACT API =====
-export const contactAPI = {
-  submitContact: (contactData) => api.post('/contact', contactData),
-  getAllContacts: () => api.get('/contact'),
-  getContactById: (id) => api.get(`/contact/${id}`),
-  updateContact: (id, contactData) => api.put(`/contact/${id}`, contactData),
-  deleteContact: (id) => api.delete(`/contact/${id}`),
-};
-
-// ===== ADMIN API ===== 
-export const adminAPI = {
-  // Dashboard stats
-  getStats: () => api.get('/admin/stats'),
-  
-  // User management
-  getAllUsers: (params = {}) => {
-    const searchParams = new URLSearchParams();
-    Object.keys(params).forEach(key => {
-      if (params[key] !== undefined && params[key] !== '') {
-        searchParams.append(key, params[key]);
-      }
-    });
-    return api.get(`/admin/users?${searchParams}`);
-  },
-  getUserById: (id) => api.get(`/admin/users/${id}`),
-  updateUser: (id, userData) => api.put(`/admin/users/${id}`, userData),
-  deleteUser: (id) => api.delete(`/admin/users/${id}`),
-  
-  // Pet management
-  getAllPets: (params = {}) => {
-    const searchParams = new URLSearchParams();
-    Object.keys(params).forEach(key => {
-      if (params[key] !== undefined && params[key] !== '') {
-        searchParams.append(key, params[key]);
-      }
-    });
-    return api.get(`/admin/pets?${searchParams}`);
-  },
-  
-  // Contact management
-  getAllContacts: (params = {}) => {
-    const searchParams = new URLSearchParams();
-    Object.keys(params).forEach(key => {
-      if (params[key] !== undefined && params[key] !== '') {
-        searchParams.append(key, params[key]);
-      }
-    });
-    return api.get(`/admin/contacts?${searchParams}`);
-  },
-  
-  // Settings
-  getSettings: () => api.get('/admin/settings'),
-  updateSettings: (settingsData) => api.put('/admin/settings', settingsData),
-  
-  // Analytics
-  getAnalytics: (params = {}) => {
-    const searchParams = new URLSearchParams();
-    Object.keys(params).forEach(key => {
-      if (params[key] !== undefined && params[key] !== '') {
-        searchParams.append(key, params[key]);
-      }
-    });
-    return api.get(`/admin/analytics?${searchParams}`);
-  },
-};
 
 // ===== UTILITY FUNCTIONS =====
 export const handleApiError = (error) => {
-  console.error('API Error:', error);
+  console.error('🔧 API Error Handler:', error);
   
   if (error.response) {
     // Server responded with error status
-    const message = error.response.data?.message || 'An error occurred';
+    const message = error.response.data?.message || `Server error: ${error.response.status}`;
     return {
       message,
       status: error.response.status,
       data: error.response.data
     };
   } else if (error.request) {
-    // Request was made but no response
+    // Request was made but no response (network error)
     return {
-      message: 'Network error. Please check your connection.',
+      message: 'Network error. Please check your connection and try again.',
       status: 0,
       data: null
     };
@@ -263,6 +209,7 @@ export const handleApiError = (error) => {
 // Test API connection
 export const testConnection = async () => {
   try {
+    console.log('🔧 Testing API connection...');
     const response = await api.get('/health');
     console.log('✅ API Connection successful:', response.data);
     return { success: true, data: response.data };
