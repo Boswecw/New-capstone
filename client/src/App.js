@@ -69,7 +69,7 @@ const App = () => {
               <Routes>
                 {/* Public Routes */}
                 <Route path="/" element={<Home />} />
-                <Route path="/pets" element={<PetBrowse />} />
+                <Route path="/pets" element={<Pets/>} />
                 <Route path="/pets/:id" element={<PetDetail />} />
                 <Route path="/products" element={<Products />} />
                 <Route path="/products/:id" element={<ProductDetail />} />

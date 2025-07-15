@@ -1,8 +1,9 @@
-// client/src/pages/Browse.js - Fixed filtering to match actual pet data
+// client/src/pages/Browse.js - Corrected version
 import React, { useState, useEffect, useCallback } from 'react';
 import { Container, Row, Col, Spinner, Alert, Form, Button, InputGroup } from 'react-bootstrap';
 import { useSearchParams } from 'react-router-dom';
 import { FaSearch, FaFilter, FaTimes } from 'react-icons/fa';
+import { toast } from 'react-toastify';
 import PetCard from '../components/PetCard';
 import { petAPI } from '../services/api';
 
@@ -12,14 +13,14 @@ const Browse = () => {
   const [error, setError] = useState(null);
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // Search and filter states - FIXED: Use 'type' instead of 'category'
+  // Search and filter states
   const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
   const [selectedType, setSelectedType] = useState(searchParams.get('type') || '');
   const [selectedBreed, setSelectedBreed] = useState(searchParams.get('breed') || '');
   const [ageRange, setAgeRange] = useState(searchParams.get('age') || '');
   const [showFilters, setShowFilters] = useState(false);
 
-  // ✅ FIXED: Updated to match actual pet types in your database
+  // Pet types - corrected to match actual database values
   const petTypes = [
     { value: '', label: 'All Pets' },
     { value: 'dog', label: 'Dogs' },
@@ -43,13 +44,11 @@ const Browse = () => {
       setLoading(true);
       setError(null);
 
-      // ✅ FIXED: Send 'type' parameter instead of 'category'
-      const params = {
-        ...(searchTerm && { search: searchTerm }),
-        ...(selectedType && { type: selectedType }),
-        ...(selectedBreed && { breed: selectedBreed }),
-        ...(ageRange && { age: ageRange })
-      };
+      const params = {};
+      if (searchTerm) params.search = searchTerm;
+      if (selectedType) params.type = selectedType;
+      if (selectedBreed) params.breed = selectedBreed;
+      if (ageRange) params.age = ageRange;
 
       console.log('🔍 Fetching pets with params:', params);
       const response = await petAPI.getAllPets(params);
@@ -59,6 +58,7 @@ const Browse = () => {
     } catch (err) {
       console.error('Error fetching pets:', err);
       setError('Failed to load pets. Please try again.');
+      toast.error('Failed to load pets');
     } finally {
       setLoading(false);
     }
@@ -98,10 +98,10 @@ const Browse = () => {
     setShowFilters(false);
   };
 
-  // Handle search
+  // Handle search form submission
   const handleSearch = (e) => {
     e.preventDefault();
-    fetchPets();
+    // fetchPets will be called automatically via useEffect
   };
 
   return (
@@ -199,13 +199,17 @@ const Browse = () => {
                 <span className="badge bg-primary">Search: {searchTerm}</span>
               )}
               {selectedType && (
-                <span className="badge bg-success">Type: {petTypes.find(t => t.value === selectedType)?.label}</span>
+                <span className="badge bg-success">
+                  Type: {petTypes.find(t => t.value === selectedType)?.label}
+                </span>
               )}
               {selectedBreed && (
                 <span className="badge bg-info">Breed: {selectedBreed}</span>
               )}
               {ageRange && (
-                <span className="badge bg-warning">Age: {ageRanges.find(a => a.value === ageRange)?.label}</span>
+                <span className="badge bg-warning">
+                  Age: {ageRanges.find(a => a.value === ageRange)?.label}
+                </span>
               )}
             </div>
           </Col>
@@ -226,6 +230,11 @@ const Browse = () => {
             <Alert variant="danger" className="text-center">
               <i className="fas fa-exclamation-triangle me-2"></i>
               {error}
+              <div className="mt-2">
+                <Button variant="outline-danger" onClick={fetchPets}>
+                  Try Again
+                </Button>
+              </div>
             </Alert>
           )}
 
@@ -242,7 +251,10 @@ const Browse = () => {
                   <i className="fas fa-search fa-3x text-muted mb-3"></i>
                   <h4 className="text-muted">No pets found</h4>
                   <p className="text-muted">
-                    Try adjusting your search criteria or <Button variant="link" onClick={clearFilters} className="p-0">clear all filters</Button>
+                    Try adjusting your search criteria or{' '}
+                    <Button variant="link" onClick={clearFilters} className="p-0">
+                      clear all filters
+                    </Button>
                   </p>
                 </div>
               ) : (
