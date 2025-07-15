@@ -1,91 +1,56 @@
-// client/src/components/NewsSection.js
+
+// ==========================================
+// FILE 3: client/src/components/NewsSection.js - HYBRID VERSION
+// ==========================================
 import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, Button, Alert, Spinner, Badge } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
-import { newsAPI } from '../services/api';
+import { newsAPI, newsUtils } from '../services/newsAPI';
 
 const NewsSection = () => {
   const [articles, setArticles] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState(null);
 
-  // Fetch featured news articles
   useEffect(() => {
-    const fetchNews = async () => {
+    const fetchFeaturedNews = async () => {
       try {
-        console.log('📰 Fetching featured news for homepage...');
-        setLoading(true);
-        setError('');
-
+        console.log('📰 NewsSection: Fetching mixed featured news...');
+        
         const response = await newsAPI.getFeaturedNews(3);
         
-        if (response.data.success && response.data.data) {
-          setArticles(response.data.data);
-          console.log(`✅ Loaded ${response.data.data.length} featured articles`);
+        if (response.data.success) {
+          setArticles(response.data.data || []);
+          console.log('✅ NewsSection: Mixed news loaded:', response.data.breakdown);
         } else {
-          console.warn('⚠️ No featured news found');
-          setArticles([]);
+          setError('No news articles available at this time.');
         }
+        
       } catch (err) {
-        console.error('❌ Error fetching featured news:', err);
-        setError('Unable to load news articles at this time.');
+        console.error('❌ NewsSection: Error loading news:', err);
+        setError('Unable to load news at this time.');
       } finally {
         setLoading(false);
       }
     };
 
-    fetchNews();
+    fetchFeaturedNews();
   }, []);
 
-  // Format date for display
   const formatDate = (dateString) => {
     try {
-      const date = new Date(dateString);
-      return date.toLocaleDateString('en-US', { 
-        year: 'numeric', 
-        month: 'short', 
-        day: 'numeric' 
+      return new Date(dateString).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
       });
-    } catch {
+    } catch (error) {
       return 'Recent';
     }
   };
 
-  // Get category badge color
-  const getCategoryBadgeColor = (category) => {
-    const colors = {
-      'pets': 'primary',
-      'dogs': 'success', 
-      'cats': 'info',
-      'veterinary': 'warning',
-      'adoption': 'danger',
-      'care': 'secondary',
-      'training': 'dark',
-      'health': 'success',
-      'nutrition': 'info'
-    };
-    return colors[category?.toLowerCase()] || 'secondary';
-  };
-
-  // Get category icon
-  const getCategoryIcon = (category) => {
-    const icons = {
-      'pets': 'fas fa-paw',
-      'dogs': 'fas fa-dog', 
-      'cats': 'fas fa-cat',
-      'veterinary': 'fas fa-stethoscope',
-      'adoption': 'fas fa-heart',
-      'care': 'fas fa-hand-holding-heart',
-      'training': 'fas fa-graduation-cap',
-      'health': 'fas fa-heartbeat',
-      'nutrition': 'fas fa-apple-alt'
-    };
-    return icons[category?.toLowerCase()] || 'fas fa-newspaper';
-  };
-
-  // Truncate text to specified length
-  const truncateText = (text, maxLength = 120) => {
-    if (!text) return '';
+  const truncateText = (text, maxLength = 100) => {
+    if (!text) return 'Read the latest news and tips about pet care, health, and wellbeing.';
     return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
   };
 
@@ -134,10 +99,10 @@ const NewsSection = () => {
           <Col>
             <h2 className="h3 mb-3">
               <i className="fas fa-newspaper text-primary me-2"></i>
-              Latest Pet News & Tips
+              Latest Pet News & Stories
             </h2>
             <p className="text-muted lead">
-              Stay informed with the latest pet care advice, health tips, and heartwarming stories
+              Stay informed with pet care tips, success stories, and news from around the web
             </p>
             <hr className="w-25 mx-auto" style={{height: '2px', backgroundColor: '#007bff'}} />
           </Col>
@@ -145,83 +110,82 @@ const NewsSection = () => {
 
         {/* News Articles */}
         <Row className="g-4 mb-4">
-          {articles.map((article, index) => (
-            <Col key={article.id || article._id || index} lg={4} md={6}>
-              <Card className="h-100 border-0 shadow-sm hover-shadow transition-all">
-                {article.imageUrl && (
-                  <Card.Img 
-                    variant="top" 
-                    src={article.imageUrl} 
-                    alt={article.title}
-                    style={{ height: '180px', objectFit: 'cover' }}
-                    onError={(e) => {
-                      e.target.style.display = 'none';
-                    }}
-                  />
-                )}
-                <Card.Body className="d-flex flex-column">
-                  {/* Category Badge */}
-                  <div className="mb-3">
-                    <Badge bg={getCategoryBadgeColor(article.category)} className="d-inline-flex align-items-center">
-                      <i className={`${getCategoryIcon(article.category)} me-1`}></i>
-                      {article.category || 'News'}
-                    </Badge>
-                  </div>
-
-                  {/* Article Title */}
-                  <h5 className="card-title mb-3 fw-bold">
-                    {article.title || 'Pet News Article'}
-                  </h5>
-
-                  {/* Article Summary */}
-                  <p className="card-text text-muted flex-grow-1">
-                    {truncateText(article.summary)}
-                  </p>
-
-                  {/* Meta Information */}
-                  <div className="mt-auto">
-                    <div className="d-flex justify-content-between align-items-center mb-3">
-                      {article.author && (
-                        <small className="text-muted">
-                          <i className="fas fa-user me-1"></i>
-                          {article.author}
-                        </small>
-                      )}
-                      {article.readTime && (
-                        <small className="text-muted">
-                          <i className="fas fa-clock me-1"></i>
-                          {article.readTime}
-                        </small>
+          {articles.map((article, index) => {
+            const sourceInfo = newsUtils.getArticleSource(article);
+            
+            return (
+              <Col key={article.id || index} lg={4} md={6}>
+                <Card className="h-100 border-0 shadow-sm hover-shadow">
+                  {article.imageUrl && (
+                    <Card.Img 
+                      variant="top" 
+                      src={article.imageUrl}
+                      style={{ height: '200px', objectFit: 'cover' }}
+                      onError={(e) => {
+                        e.target.src = 'https://via.placeholder.com/400x200/f8f9fa/6c757d?text=Pet+News';
+                      }}
+                    />
+                  )}
+                  
+                  <Card.Body className="d-flex flex-column">
+                    <div className="mb-2">
+                      {/* Source Badge */}
+                      <Badge bg={sourceInfo.color} className="me-2">
+                        <i className={`${sourceInfo.icon} me-1`}></i>
+                        {sourceInfo.label}
+                      </Badge>
+                      
+                      {/* Featured Badge */}
+                      {article.featured && (
+                        <Badge bg="warning" text="dark">
+                          <i className="fas fa-star me-1"></i>
+                          Featured
+                        </Badge>
                       )}
                     </div>
-                    
-                    <small className="text-muted d-block mb-3">
-                      <i className="fas fa-calendar me-1"></i>
-                      {formatDate(article.publishedAt)}
-                      {article.views && (
-                        <span className="ms-3">
-                          <i className="fas fa-eye me-1"></i>
-                          {article.views} views
-                        </span>
-                      )}
-                    </small>
 
-                    {/* Read More Button */}
-                    <Button
-                      variant="outline-primary"
-                      size="sm"
-                      className="w-100"
-                      as={Link}
-                      to={`/news/${article.slug || article.id || article._id}`}
-                    >
-                      <i className="fas fa-book-open me-2"></i>
-                      Read More
-                    </Button>
-                  </div>
-                </Card.Body>
-              </Card>
-            </Col>
-          ))}
+                    <Card.Title className="h6">
+                      {article.type === 'external' && article.originalUrl ? (
+                        <a 
+                          href={article.originalUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-decoration-none text-dark hover-primary"
+                        >
+                          {article.title}
+                          <i className="fas fa-external-link-alt ms-1 small"></i>
+                        </a>
+                      ) : (
+                        <Link 
+                          to={`/news/${article.id}`}
+                          className="text-decoration-none text-dark hover-primary"
+                        >
+                          {article.title}
+                        </Link>
+                      )}
+                    </Card.Title>
+
+                    <Card.Text className="text-muted flex-grow-1 small">
+                      {truncateText(article.summary)}
+                    </Card.Text>
+
+                    <div className="mt-auto">
+                      <div className="d-flex justify-content-between align-items-center text-muted small">
+                        <span>
+                          <i className="fas fa-user me-1"></i>
+                          {article.author}
+                        </span>
+                        <span>
+                          <i className="fas fa-calendar me-1"></i>
+                          {formatDate(article.publishedAt)}
+                        </span>
+                      </div>
+                    </div>
+                  </Card.Body>
+                </Card>
+              </Col>
+            );
+          })}
         </Row>
 
         {/* View All News Button */}

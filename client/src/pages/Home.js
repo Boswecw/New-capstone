@@ -1,319 +1,212 @@
-// client/src/pages/Home.js - Updated with News Section
+// client/src/pages/Home.js - FIXED VERSION
 import React, { useState, useEffect, useCallback } from 'react';
-import { Container, Row, Col, Card, Button, Alert, Spinner } from 'react-bootstrap';
+import { Container, Row, Col, Alert, Button } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
-import { petAPI, productAPI } from '../services/api';
+
+// Components
 import HeroBanner from '../components/HeroBanner';
 import SectionHeader from '../components/SectionHeader';
 import PetCard from '../components/PetCard';
 import ProductCard from '../components/ProductCard';
 import NewsSection from '../components/NewsSection';
-import { useToast } from '../contexts/ToastContext';
-import { useAuth } from '../contexts/AuthContext';
+// ✅ REMOVE ToastContainer import from here since it's now in App.js
 
-// Toast container component
-const ToastContainer = ({ toasts, removeToast }) => (
-  <div className="toast-container position-fixed top-0 end-0 p-3" style={{ zIndex: 1050 }}>
-    {toasts.map(toast => (
-      <div 
-        key={toast.id}
-        className={`toast show mb-2 ${toast.type === 'error' ? 'bg-danger text-white' : 
-                   toast.type === 'success' ? 'bg-success text-white' : 
-                   toast.type === 'warning' ? 'bg-warning text-dark' : 'bg-info text-white'}`}
-        role="alert"
-      >
-        <div className="d-flex">
-          <div className="toast-body">
-            <strong>{toast.title && `${toast.title}: `}</strong>
-            {toast.message}
-          </div>
-          <button 
-            type="button" 
-            className="btn-close btn-close-white me-2 m-auto" 
-            onClick={() => removeToast(toast.id)}
-            aria-label="Close"
-          ></button>
-        </div>
-      </div>
-    ))}
-  </div>
-);
+// Services & Hooks
+import { petAPI, productAPI } from '../services/api';
+import useToast from '../hooks/useToast'; // ✅ This now works with ToastProvider
 
 const Home = () => {
   // State management
   const [featuredPets, setFeaturedPets] = useState([]);
   const [featuredProducts, setFeaturedProducts] = useState([]);
-  const [petsLoading, setPetsLoading] = useState(true);
-  const [productsLoading, setProductsLoading] = useState(true);
-  const [petsError, setPetsError] = useState('');
-  const [productsError, setProductsError] = useState('');
+  const [petsError, setPetsError] = useState(null);
+  const [productsError, setProductsError] = useState(null);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
 
-  // Contexts
-  const { toasts, addToast, removeToast } = useToast();
-  const { user } = useAuth();
+  // ✅ Toast notifications - now properly connected to ToastProvider
+  const { showSuccess, showError, showInfo } = useToast();
 
-  // Toast helpers
-  const showSuccess = useCallback((message, title = 'Success') => {
-    addToast({ type: 'success', title, message });
-  }, [addToast]);
-
-  const showError = useCallback((message, title = 'Error') => {
-    addToast({ type: 'error', title, message });
-  }, [addToast]);
-
-  const showInfo = useCallback((message, title = 'Info') => {
-    addToast({ type: 'info', title, message });
-  }, [addToast]);
-
-  // Fetch featured pets
+  // Fetch featured pets with better error handling
   const fetchFeaturedPets = useCallback(async () => {
     try {
-      setPetsLoading(true);
-      setPetsError('');
-      console.log('🐾 Fetching featured pets...');
-
+      console.log('🏠 Home: Fetching featured pets...');
+      
+      // Use specific featured pets API call
       const response = await petAPI.getAllPets({ 
         featured: true, 
         limit: 4,
-        status: 'available'
+        status: 'available' 
       });
-
-      if (response.data.success && response.data.data) {
-        const pets = response.data.data;
+      
+      const pets = response.data?.data || [];
+      
+      if (pets.length > 0) {
         console.log('✅ Featured pets loaded:', pets.length);
         setFeaturedPets(pets);
+        setPetsError(null);
         
-        if (!isInitialLoad && pets.length > 0) {
-          showSuccess(`Loaded ${pets.length} featured pets`, 'Pets Updated');
+        // Only show success toast on manual refresh, not initial load
+        if (!isInitialLoad) {
+          showSuccess(`${pets.length} featured pets loaded!`);
         }
       } else {
-        console.warn('⚠️ No featured pets found');
-        setFeaturedPets([]);
-        showInfo('No featured pets available right now.');
+        setPetsError('No featured pets available at this time.');
+        showInfo('No featured pets available right now. Check back soon!');
       }
     } catch (err) {
       console.error('❌ Error loading featured pets:', err);
       const errorMessage = 'Unable to load featured pets at this time.';
       setPetsError(errorMessage);
       showError(errorMessage);
-    } finally {
-      setPetsLoading(false);
     }
-  }, [isInitialLoad, showSuccess, showError, showInfo]);
+  }, [showSuccess, showError, showInfo, isInitialLoad]);
 
-  // Fetch featured products
+  // Fetch featured products with better error handling
   const fetchFeaturedProducts = useCallback(async () => {
     try {
-      setProductsLoading(true);
-      setProductsError('');
-      console.log('🛍️ Fetching featured products...');
-
+      console.log('🏠 Home: Fetching featured products...');
+      
       const response = await productAPI.getAllProducts({ 
         featured: true, 
         limit: 4,
-        inStock: true
+        status: 'available' 
       });
-
-      if (response.data.success && response.data.data) {
-        const products = response.data.data;
+      
+      const products = response.data?.data || [];
+      
+      if (products.length > 0) {
         console.log('✅ Featured products loaded:', products.length);
         setFeaturedProducts(products);
+        setProductsError(null);
         
-        if (!isInitialLoad && products.length > 0) {
-          showSuccess(`Loaded ${products.length} featured products`, 'Products Updated');
+        if (!isInitialLoad) {
+          showSuccess(`${products.length} featured products loaded!`);
         }
       } else {
-        console.warn('⚠️ No featured products found');
-        setFeaturedProducts([]);
-        showInfo('No featured products available right now.');
+        setProductsError('No featured products available at this time.');
+        showInfo('No featured products available right now. Check back soon!');
       }
     } catch (err) {
       console.error('❌ Error loading featured products:', err);
       const errorMessage = 'Unable to load featured products at this time.';
       setProductsError(errorMessage);
       showError(errorMessage);
-    } finally {
-      setProductsLoading(false);
     }
-  }, [isInitialLoad, showSuccess, showError, showInfo]);
+  }, [showSuccess, showError, showInfo, isInitialLoad]);
 
-  // Load all data on mount
+  // Initial data fetch
   useEffect(() => {
     const loadData = async () => {
-      console.log('🏠 Home: Initial data load starting...');
-      
-      // Load both in parallel for better performance
-      await Promise.allSettled([
+      await Promise.all([
         fetchFeaturedPets(),
         fetchFeaturedProducts()
       ]);
-      
       setIsInitialLoad(false);
-      console.log('🏠 Home: Initial data load complete');
     };
-
+    
     loadData();
   }, [fetchFeaturedPets, fetchFeaturedProducts]);
 
-  // Manual refresh handler
-  const handleRefresh = useCallback(async () => {
-    showInfo('Refreshing featured content...');
-    await Promise.allSettled([
-      fetchFeaturedPets(),
-      fetchFeaturedProducts()
-    ]);
-  }, [fetchFeaturedPets, fetchFeaturedProducts, showInfo]);
+  // Manual refresh handlers
+  const handleRefreshPets = () => {
+    fetchFeaturedPets();
+  };
 
-  // Add to favorites handler (future feature)
-  const handleAddToFavorites = useCallback((pet) => {
-    // TODO: Implement actual favorites functionality
-    showSuccess(`${pet.name} added to favorites!`, 'Added to Favorites');
-    console.log('Adding to favorites:', pet.name);
-  }, [showSuccess]);
+  const handleRefreshProducts = () => {
+    fetchFeaturedProducts();
+  };
 
   return (
     <div className="home-page">
-      {/* Toast notifications */}
-      <ToastContainer toasts={toasts} removeToast={removeToast} />
-      
-      {/* Hero section */}
+      {/* Hero Section */}
       <HeroBanner />
 
-      {/* Featured Pets Section */}
       <Container className="py-5">
-        <div className="d-flex justify-content-between align-items-center mb-4">
-          <SectionHeader 
-            title="Featured Pets" 
-            subtitle="Meet our adorable pets looking for loving homes" 
-          />
-          <Button 
-            variant="outline-primary" 
-            size="sm" 
-            onClick={handleRefresh}
-          >
-            <i className="fas fa-sync-alt me-2"></i>
-            Refresh
-          </Button>
-        </div>
-
+        {/* Featured Pets Section */}
+        <SectionHeader 
+          title="Featured Pets" 
+          subtitle="Find your perfect companion today"
+        />
+        
         {petsError ? (
           <Alert variant="warning" className="text-center">
-            <i className="fas fa-exclamation-triangle me-2"></i>
-            {petsError}
-            <div className="mt-3">
-              <Button as={Link} to="/browse" variant="primary" className="me-2">
-                Browse All Pets
-              </Button>
-              <Button variant="outline-primary" onClick={fetchFeaturedPets}>
-                Try Again
-              </Button>
-            </div>
+            <p className="mb-2">{petsError}</p>
+            <Button variant="outline-primary" size="sm" onClick={handleRefreshPets}>
+              <i className="fas fa-sync-alt me-2"></i>Try Again
+            </Button>
           </Alert>
-        ) : featuredPets.length === 0 ? (
-          <div className="text-center py-5">
-            {petsLoading ? (
-              <>
-                <Spinner animation="border" className="mb-3" />
-                <h5>Loading adorable pets...</h5>
-              </>
-            ) : (
-              <>
-                <i className="fas fa-paw fa-3x text-muted mb-3"></i>
-                <h5>No featured pets available</h5>
-                <p className="text-muted">Check back soon for new furry friends!</p>
-                <Button as={Link} to="/browse" variant="primary">
-                  Browse All Pets
-                </Button>
-              </>
-            )}
-          </div>
         ) : (
-          <Row className="g-4">
-            {featuredPets.map((pet) => (
-              <Col key={pet._id} lg={3} md={6} sm={6}>
-                <PetCard 
-                  pet={pet} 
-                  onAddToFavorites={handleAddToFavorites}
-                  showFavoriteButton={!!user}
-                />
+          <Row className="g-4 mb-5">
+            {featuredPets.length > 0 ? (
+              featuredPets.map(pet => (
+                <Col key={pet._id} lg={3} md={4} sm={6}>
+                  <PetCard pet={pet} />
+                </Col>
+              ))
+            ) : (
+              <Col xs={12}>
+                <div className="text-center py-5">
+                  <div className="spinner-border text-primary mb-3" role="status">
+                    <span className="visually-hidden">Loading pets...</span>
+                  </div>
+                  <p className="text-muted">Loading featured pets...</p>
+                </div>
               </Col>
-            ))}
+            )}
           </Row>
         )}
 
-        {/* View All Pets Button */}
-        {featuredPets.length > 0 && (
-          <div className="text-center mt-4">
-            <Button as={Link} to="/browse" variant="primary" size="lg">
-              <i className="fas fa-paw me-2"></i>
-              View All Pets
-            </Button>
-          </div>
-        )}
-      </Container>
+        <div className="text-center mb-5">
+          <Link to="/browse?type=pets" className="btn btn-outline-primary">
+            <i className="fas fa-paw me-2"></i>View All Pets
+          </Link>
+        </div>
 
-      {/* Featured Products Section */}
-      <Container className="py-5 bg-light">
+        {/* Featured Products Section */}
         <SectionHeader 
           title="Featured Products" 
-          subtitle="Everything your pet needs for a happy, healthy life" 
+          subtitle="Quality supplies for your furry friends"
         />
-
+        
         {productsError ? (
           <Alert variant="warning" className="text-center">
-            <i className="fas fa-exclamation-triangle me-2"></i>
-            {productsError}
-            <div className="mt-3">
-              <Button as={Link} to="/products" variant="primary" className="me-2">
-                Browse All Products
-              </Button>
-              <Button variant="outline-primary" onClick={fetchFeaturedProducts}>
-                Try Again
-              </Button>
-            </div>
+            <p className="mb-2">{productsError}</p>
+            <Button variant="outline-primary" size="sm" onClick={handleRefreshProducts}>
+              <i className="fas fa-sync-alt me-2"></i>Try Again
+            </Button>
           </Alert>
-        ) : featuredProducts.length === 0 ? (
-          <div className="text-center py-5">
-            {productsLoading ? (
-              <>
-                <Spinner animation="border" className="mb-3" />
-                <h5>Loading products...</h5>
-              </>
-            ) : (
-              <>
-                <i className="fas fa-shopping-bag fa-3x text-muted mb-3"></i>
-                <h5>No featured products available</h5>
-                <p className="text-muted">Check back soon for new products!</p>
-                <Button as={Link} to="/products" variant="primary">
-                  Browse All Products
-                </Button>
-              </>
-            )}
-          </div>
         ) : (
-          <Row className="g-4">
-            {featuredProducts.map((product) => (
-              <Col key={product._id} lg={3} md={6} sm={6}>
-                <ProductCard product={product} />
+          <Row className="g-4 mb-5">
+            {featuredProducts.length > 0 ? (
+              featuredProducts.map(product => (
+                <Col key={product._id} lg={3} md={4} sm={6}>
+                  <ProductCard product={product} />
+                </Col>
+              ))
+            ) : (
+              <Col xs={12}>
+                <div className="text-center py-5">
+                  <div className="spinner-border text-primary mb-3" role="status">
+                    <span className="visually-hidden">Loading products...</span>
+                  </div>
+                  <p className="text-muted">Loading featured products...</p>
+                </div>
               </Col>
-            ))}
+            )}
           </Row>
         )}
 
-        {/* View All Products Button */}
-        {featuredProducts.length > 0 && (
-          <div className="text-center mt-4">
-            <Button as={Link} to="/products" variant="primary" size="lg">
-              <i className="fas fa-shopping-bag me-2"></i>
-              View All Products
-            </Button>
-          </div>
-        )}
+        <div className="text-center mb-5">
+          <Link to="/browse?type=products" className="btn btn-outline-primary">
+            <i className="fas fa-shopping-bag me-2"></i>View All Products
+          </Link>
+        </div>
+
+        {/* News Section */}
+        <NewsSection />
       </Container>
 
-      {/* ✅ NEWS SECTION - Added at the bottom */}
-      <NewsSection />
+      {/* ✅ ToastContainer is now handled in App.js - no need to include here */}
     </div>
   );
 };
