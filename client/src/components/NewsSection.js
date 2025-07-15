@@ -1,11 +1,19 @@
-
 // ==========================================
 // FILE 3: client/src/components/NewsSection.js - HYBRID VERSION
 // ==========================================
-import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, Button, Alert, Spinner, Badge } from 'react-bootstrap';
-import { Link } from 'react-router-dom';
-import { newsAPI, newsUtils } from '../services/newsAPI';
+import React, { useState, useEffect } from "react";
+import {
+  Container,
+  Row,
+  Col,
+  Card,
+  Button,
+  Alert,
+  Spinner,
+  Badge,
+} from "react-bootstrap";
+import { Link } from "react-router-dom";
+import { newsAPI, newsUtils } from "../services/newsAPI";
 
 const NewsSection = () => {
   const [articles, setArticles] = useState([]);
@@ -15,20 +23,22 @@ const NewsSection = () => {
   useEffect(() => {
     const fetchFeaturedNews = async () => {
       try {
-        console.log('📰 NewsSection: Fetching mixed featured news...');
-        
+        console.log("📰 NewsSection: Fetching mixed featured news...");
+
         const response = await newsAPI.getFeaturedNews(3);
-        
+
         if (response.data.success) {
           setArticles(response.data.data || []);
-          console.log('✅ NewsSection: Mixed news loaded:', response.data.breakdown);
+          console.log(
+            "✅ NewsSection: Mixed news loaded:",
+            response.data.breakdown
+          );
         } else {
-          setError('No news articles available at this time.');
+          setError("No news articles available at this time.");
         }
-        
       } catch (err) {
-        console.error('❌ NewsSection: Error loading news:', err);
-        setError('Unable to load news at this time.');
+        console.error("❌ NewsSection: Error loading news:", err);
+        setError("Unable to load news at this time.");
       } finally {
         setLoading(false);
       }
@@ -39,19 +49,22 @@ const NewsSection = () => {
 
   const formatDate = (dateString) => {
     try {
-      return new Date(dateString).toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric'
+      return new Date(dateString).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
       });
     } catch (error) {
-      return 'Recent';
+      return "Recent";
     }
   };
 
   const truncateText = (text, maxLength = 100) => {
-    if (!text) return 'Read the latest news and tips about pet care, health, and wellbeing.';
-    return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
+    if (!text)
+      return "Read the latest news and tips about pet care, health, and wellbeing.";
+    return text.length > maxLength
+      ? text.substring(0, maxLength) + "..."
+      : text;
   };
 
   if (loading) {
@@ -102,9 +115,13 @@ const NewsSection = () => {
               Latest Pet News & Stories
             </h2>
             <p className="text-muted lead">
-              Stay informed with pet care tips, success stories, and news from around the web
+              Stay informed with pet care tips, success stories, and news from
+              around the web
             </p>
-            <hr className="w-25 mx-auto" style={{height: '2px', backgroundColor: '#007bff'}} />
+            <hr
+              className="w-25 mx-auto"
+              style={{ height: "2px", backgroundColor: "#007bff" }}
+            />
           </Col>
         </Row>
 
@@ -112,21 +129,32 @@ const NewsSection = () => {
         <Row className="g-4 mb-4">
           {articles.map((article, index) => {
             const sourceInfo = newsUtils.getArticleSource(article);
-            
+
             return (
               <Col key={article.id || index} lg={4} md={6}>
                 <Card className="h-100 border-0 shadow-sm hover-shadow">
                   {article.imageUrl && (
-                    <Card.Img 
-                      variant="top" 
-                      src={article.imageUrl}
-                      style={{ height: '200px', objectFit: 'cover' }}
-                      onError={(e) => {
-                        e.target.src = 'https://via.placeholder.com/400x200/f8f9fa/6c757d?text=Pet+News';
+                    <PetImage
+                      petType={article.type || "other"}
+                      imagePath={article.imageUrl}
+                      alt={article.title || "Article image"}
+                      size="medium"
+                      className="w-100"
+                      style={{
+                        height: "200px",
+                        objectFit: "cover",
+                        objectPosition: "center",
+                        borderTopLeftRadius: "0.375rem",
+                        borderTopRightRadius: "0.375rem",
                       }}
+                      onError={() =>
+                        console.warn(
+                          `❌ Failed to load article image: ${article.imageUrl}`
+                        )
+                      }
                     />
                   )}
-                  
+
                   <Card.Body className="d-flex flex-column">
                     <div className="mb-2">
                       {/* Source Badge */}
@@ -134,7 +162,7 @@ const NewsSection = () => {
                         <i className={`${sourceInfo.icon} me-1`}></i>
                         {sourceInfo.label}
                       </Badge>
-                      
+
                       {/* Featured Badge */}
                       {article.featured && (
                         <Badge bg="warning" text="dark">
@@ -145,8 +173,8 @@ const NewsSection = () => {
                     </div>
 
                     <Card.Title className="h6">
-                      {article.type === 'external' && article.originalUrl ? (
-                        <a 
+                      {article.type === "external" && article.originalUrl ? (
+                        <a
                           href={article.originalUrl}
                           target="_blank"
                           rel="noopener noreferrer"
@@ -156,7 +184,7 @@ const NewsSection = () => {
                           <i className="fas fa-external-link-alt ms-1 small"></i>
                         </a>
                       ) : (
-                        <Link 
+                        <Link
                           to={`/news/${article.id}`}
                           className="text-decoration-none text-dark hover-primary"
                         >
@@ -191,10 +219,10 @@ const NewsSection = () => {
         {/* View All News Button */}
         <Row>
           <Col className="text-center">
-            <Button 
-              variant="primary" 
+            <Button
+              variant="primary"
               size="lg"
-              as={Link} 
+              as={Link}
               to="/news"
               className="px-5"
             >
