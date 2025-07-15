@@ -1,144 +1,180 @@
-// server/server.js - FIXED FOR RENDER DEPLOYMENT
+// server/server.js - COMPLETE WORKING VERSION WITH CORS WORKAROUND
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const mongoose = require('mongoose');
+const helmet = require('helmet');
+const compression = require('compression');
 const morgan = require('morgan');
 
-// ✅ FIXED: Use the correct database config file that exists
-const connectDB = require('../config/db');
-
-// Import middleware
-const { errorHandler } = require('./middleware/errorHandler');
-
-// Create Express app
 const app = express();
+const PORT = process.env.PORT || 5000;
 
 // ===== ENVIRONMENT SETUP =====
-const PORT = process.env.PORT || 5000;
-const NODE_ENV = process.env.NODE_ENV || 'development';
+if (process.env.NODE_ENV !== 'production') {
+  require('dotenv').config();
+}
 
-console.log('🚀 Starting FurBabies Pet Store Server...');
-console.log(`📦 Environment: ${NODE_ENV}`);
-console.log(`🌐 Port: ${PORT}`);
-console.log('📁 Working Directory:', process.cwd());
-console.log('📂 Server File:', __filename);
+console.log('🚀 Starting FurBabies Backend Server...');
+console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
+console.log(`🔌 Port: ${PORT}`);
 
-// ===== DATABASE CONNECTION =====
-const initializeDatabase = async () => {
-  try {
-    console.log('🔌 Connecting to database...');
-    await connectDB();
-    console.log('✅ Database connected successfully!');
-  } catch (error) {
-    console.error('❌ Database connection failed:', error.message);
-    // Don't exit on Render - let the service restart
-    if (NODE_ENV !== 'production') {
-      process.exit(1);
-    }
-  }
-};
-
-// ===== MIDDLEWARE SETUP =====
-console.log('🛠️ Setting up middleware...');
+// ===== SECURITY & MIDDLEWARE =====
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
+app.use(compression());
+app.use(morgan('combined'));
 
 // CORS Configuration
 const corsOptions = {
-  origin: function (origin, callback) {
-    const allowedOrigins = [
-      'http://localhost:3000',
-      'http://localhost:3001', 
-      'https://new-capstone-frontend.onrender.com',
-      'https://furbabies-petstore.onrender.com',
-      'https://furbabies-frontend.onrender.com',  // ✅ ADDED: Current frontend URL
-      'https://furbabies-backend.onrender.com'    // ✅ ADDED: Allow same-origin requests
-    ];
-    
-    // Allow requests with no origin (mobile apps, etc.)
-    if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      console.log(`✅ CORS allowed origin: ${origin}`);
-      callback(null, true);
-    } else {
-      console.log(`🚫 CORS blocked origin: ${origin}`);
-      console.log(`🔍 Allowed origins:`, allowedOrigins);
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
+  origin: [
+    'http://localhost:3000',
+    'https://furbabies-frontend.onrender.com',
+    /\.onrender\.com$/
+  ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-auth-token']
 };
 
 app.use(cors(corsOptions));
-
-// ✅ EMERGENCY: Add permissive CORS for Render debugging (remove in production)
-if (NODE_ENV === 'production') {
-  app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', 'https://furbabies-frontend.onrender.com');
-    res.header('Access-Control-Allow-Credentials', 'true');
-    res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Origin,X-Requested-With,Content-Type,Accept,Authorization');
-    next();
-  });
-}
-
-// Basic middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Logging
-if (NODE_ENV === 'production') {
-  app.use(morgan('combined'));
-} else {
-  app.use(morgan('dev'));
-}
-
-// ===== ENHANCED ROUTE MOUNTING =====
-const mountRoute = (path, routePath) => {
+// ===== DATABASE CONNECTION =====
+const connectDB = async () => {
   try {
-    console.log(`🔍 Attempting to mount route: ${path} from ${routePath}`);
+    const uri = process.env.MONGODB_URI;
     
-    // Check if file exists before requiring
-    const fs = require('fs');
-    let fullPath;
-    try {
-      fullPath = require.resolve(routePath);
-      console.log(`✅ Route file found: ${fullPath}`);
-    } catch (resolveError) {
-      throw new Error(`Route file not found: ${routePath}`);
+    if (!uri) {
+      throw new Error('MONGODB_URI not found in environment variables');
+    }
+
+    console.log('🔌 Connecting to MongoDB...');
+    
+    const conn = await mongoose.connect(uri, {
+      maxPoolSize: 5,
+      serverSelectionTimeoutMS: 10000,
+      socketTimeoutMS: 45000,
+      retryWrites: true,
+    });
+
+    console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
+    console.log(`🗃️ Database: ${conn.connection.db.databaseName}`);
+    
+    return conn;
+  } catch (err) {
+    console.error('❌ MongoDB Connection Failed:', err.message);
+    
+    if (process.env.NODE_ENV === 'production') {
+      console.error('🚨 RENDER: Check MONGODB_URI environment variable');
     }
     
-    // Require the route
-    const route = require(routePath);
-    console.log(`✅ Route required successfully: ${path}`);
-    
-    // Validate it's a proper Express router
-    if (typeof route !== 'function') {
-      throw new Error(`Route file ${routePath} does not export a valid Express router`);
+    // Don't exit in production, let Render restart
+    if (process.env.NODE_ENV !== 'production') {
+      process.exit(1);
     }
+    throw err;
+  }
+};
+
+// ===== GOOGLE CLOUD STORAGE CORS WORKAROUND =====
+const BUCKET_NAME = 'furbabies-petstore';
+
+// Image proxy route to handle CORS
+app.get('/api/images/*', async (req, res) => {
+  try {
+    const imagePath = req.params[0];
+    const bucketUrl = `https://storage.googleapis.com/${BUCKET_NAME}/${imagePath}`;
     
-    // Mount the route
-    app.use(path, route);
-    console.log(`✅ Mounted route successfully: ${path}`);
-    return true;
+    console.log(`🖼️ Proxying image: ${imagePath}`);
+    
+    // Set CORS headers
+    res.set({
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET',
+      'Access-Control-Allow-Headers': 'Content-Type',
+      'Cache-Control': 'public, max-age=31536000' // 1 year cache
+    });
+    
+    // Redirect to Google Cloud Storage with CORS headers
+    res.redirect(302, bucketUrl);
     
   } catch (error) {
-    console.error(`❌ Failed to mount route ${path}:`);
-    console.error(`   File: ${routePath}`);
-    console.error(`   Error: ${error.message}`);
+    console.error('❌ Image proxy error:', error);
+    res.status(404).json({
+      success: false,
+      message: 'Image not found',
+      error: error.message
+    });
+  }
+});
+
+// Test image endpoint
+app.get('/api/test-image/:folder/:filename', async (req, res) => {
+  const { folder, filename } = req.params;
+  const imageUrl = `https://storage.googleapis.com/${BUCKET_NAME}/${folder}/${filename}`;
+  
+  try {
+    const fetch = require('node-fetch');
+    const response = await fetch(imageUrl, { method: 'HEAD' });
     
-    // Create a fallback route that shows the error
+    res.json({
+      success: true,
+      imageUrl,
+      accessible: response.ok,
+      status: response.status,
+      headers: {
+        contentType: response.headers.get('content-type'),
+        contentLength: response.headers.get('content-length')
+      }
+    });
+  } catch (error) {
+    res.json({
+      success: false,
+      imageUrl,
+      accessible: false,
+      error: error.message
+    });
+  }
+});
+
+// ===== HEALTH CHECK =====
+app.get('/api/health', (req, res) => {
+  const healthStatus = {
+    status: 'OK',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV,
+    database: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected',
+    uptime: process.uptime(),
+    memory: process.memoryUsage(),
+    version: '1.0.0'
+  };
+  
+  console.log('🏥 Health check requested');
+  res.json(healthStatus);
+});
+
+// ===== ROUTE MOUNTING =====
+const mountRoute = (path, routePath, routeName) => {
+  try {
+    console.log(`🔍 Loading route: ${routeName} from ${routePath}`);
+    const route = require(routePath);
+    app.use(path, route);
+    console.log(`✅ Mounted route: ${path} (${routeName})`);
+    return true;
+  } catch (error) {
+    console.error(`❌ Failed to mount route ${routeName}:`, error.message);
+    
+    // Create error endpoint for debugging
     app.use(path, (req, res) => {
       res.status(500).json({
         success: false,
-        message: `Route ${path} failed to load`,
+        message: `Route ${routeName} failed to load`,
         error: error.message,
-        debug: {
-          routePath,
-          timestamp: new Date().toISOString(),
-          environment: NODE_ENV
-        }
+        path: routePath,
+        timestamp: new Date().toISOString()
       });
     });
     
@@ -146,161 +182,179 @@ const mountRoute = (path, routePath) => {
   }
 };
 
-// ===== BASIC HEALTH CHECK =====
-app.get('/api/health', (req, res) => {
-  console.log('🏥 Health check requested');
-  res.json({
-    success: true,
-    status: 'OK',
-    message: 'FurBabies server is running!',
-    timestamp: new Date().toISOString(),
-    environment: NODE_ENV,
-    port: PORT,
-    uptime: process.uptime()
-  });
+// Mount all routes
+console.log('📂 Mounting API routes...');
+const routes = [
+  { path: '/api/pets', file: './routes/pets', name: 'Pets' },
+  { path: '/api/products', file: './routes/products', name: 'Products' },
+  { path: '/api/users', file: './routes/users', name: 'Users' },
+  { path: '/api/admin', file: './routes/admin', name: 'Admin' },
+  { path: '/api/news', file: './routes/news', name: 'News' },
+  { path: '/api/contact', file: './routes/contact', name: 'Contact' }
+];
+
+let successCount = 0;
+routes.forEach(({ path, file, name }) => {
+  if (mountRoute(path, file, name)) {
+    successCount++;
+  }
 });
 
-// ===== MOUNT API ROUTES =====
-console.log('🚀 Starting to mount API routes...');
+console.log(`🎯 Routes mounted: ${successCount}/${routes.length}`);
 
-const routeResults = {
-  users: mountRoute('/api/users', './routes/users'),
-  pets: mountRoute('/api/pets', './routes/pets'),
-  products: mountRoute('/api/products', './routes/products'),
-  admin: mountRoute('/api/admin', './routes/admin'),
-  news: mountRoute('/api/news', './routes/news'),
-  contact: mountRoute('/api/contact', './routes/contact'),
-  webhooks: mountRoute('/api/webhooks', './routes/webhooks')
-};
-
-// Log mounting summary
-console.log('📊 Route mounting summary:');
-Object.entries(routeResults).forEach(([route, success]) => {
-  console.log(`   ${success ? '✅' : '❌'} /api/${route}: ${success ? 'SUCCESS' : 'FAILED'}`);
-});
-
-const successCount = Object.values(routeResults).filter(Boolean).length;
-const totalRoutes = Object.keys(routeResults).length;
-console.log(`🎯 Routes mounted: ${successCount}/${totalRoutes}`);
-
-if (successCount === 0) {
-  console.error('🚨 CRITICAL: No routes mounted successfully!');
-  console.error('🔍 Check that route files exist and have no syntax errors');
-}
-
-// ===== ROUTE DEBUGGING ENDPOINT =====
+// ===== DEBUG ROUTES =====
 app.get('/api/debug/routes', (req, res) => {
-  res.json({
+  const routeInfo = {
     success: true,
-    message: 'Route debugging information',
-    mountingResults: routeResults,
-    availableRoutes: Object.keys(routeResults).filter(key => routeResults[key]).map(key => `/api/${key}`),
-    failedRoutes: Object.keys(routeResults).filter(key => !routeResults[key]).map(key => `/api/${key}`),
-    environment: NODE_ENV,
+    message: 'FurBabies API Debug Information',
+    environment: process.env.NODE_ENV,
+    database: {
+      status: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected',
+      host: mongoose.connection.host,
+      name: mongoose.connection.name
+    },
+    routes: {
+      mounted: successCount,
+      total: routes.length,
+      available: [
+        'GET /api/health',
+        'GET /api/pets',
+        'GET /api/products',
+        'GET /api/users',
+        'GET /api/news',
+        'GET /api/images/:folder/:filename',
+        'GET /api/debug/routes'
+      ]
+    },
+    timestamp: new Date().toISOString()
+  };
+  
+  res.json(routeInfo);
+});
+
+// ===== ERROR HANDLING =====
+// 404 Handler for API routes
+app.use('/api/*', (req, res) => {
+  console.log(`❌ 404 - API endpoint not found: ${req.method} ${req.originalUrl}`);
+  res.status(404).json({
+    success: false,
+    message: `API endpoint not found: ${req.method} ${req.originalUrl}`,
+    availableEndpoints: [
+      'GET /api/health',
+      'GET /api/pets',
+      'GET /api/products',
+      'GET /api/users',
+      'GET /api/news/featured',
+      'GET /api/images/{folder}/{filename}',
+      'GET /api/debug/routes'
+    ],
     timestamp: new Date().toISOString()
   });
 });
 
-// ===== SERVE STATIC FILES (FOR PRODUCTION) =====
-if (NODE_ENV === 'production') {
-  // Serve static files from the React app build directory
-  const buildPath = path.join(__dirname, '../client/build');
-  console.log(`📁 Serving static files from: ${buildPath}`);
+// Global Error Handler
+app.use((err, req, res, next) => {
+  console.error('💥 Global error handler:', err);
   
-  app.use(express.static(buildPath));
+  const errorResponse = {
+    success: false,
+    message: 'Internal server error',
+    timestamp: new Date().toISOString()
+  };
   
-  // Catch all handler: send back React's index.html file for client-side routing
-  app.get('*', (req, res) => {
-    console.log(`🌐 Serving React app for: ${req.path}`);
-    res.sendFile(path.join(buildPath, 'index.html'));
-  });
-} else {
-  // Development catch-all
-  app.get('*', (req, res) => {
-    res.status(404).json({
-      success: false,
-      message: 'Route not found',
-      path: req.path,
-      method: req.method,
-      availableRoutes: [
-        'GET /api/health',
-        'GET /api/debug/routes',
-        ...Object.keys(routeResults).filter(key => routeResults[key]).map(key => `* /api/${key}`)
-      ]
+  if (process.env.NODE_ENV === 'development') {
+    errorResponse.error = err.message;
+    errorResponse.stack = err.stack;
+  }
+  
+  res.status(500).json(errorResponse);
+});
+
+// ===== STATIC FILES (PRODUCTION) =====
+if (process.env.NODE_ENV === 'production') {
+  const frontendPath = path.join(__dirname, '../client/build');
+  
+  // Check if build directory exists
+  const fs = require('fs');
+  if (fs.existsSync(frontendPath)) {
+    console.log(`📁 Serving static files from: ${frontendPath}`);
+    app.use(express.static(frontendPath));
+    
+    // Catch-all handler for React Router
+    app.get('*', (req, res) => {
+      res.sendFile(path.join(frontendPath, 'index.html'));
     });
-  });
+  } else {
+    console.warn('⚠️ Frontend build directory not found');
+    app.get('*', (req, res) => {
+      res.json({
+        message: 'FurBabies API Server',
+        status: 'API Only - Frontend build not found',
+        endpoints: '/api/health'
+      });
+    });
+  }
 }
 
-// ===== ERROR HANDLING MIDDLEWARE =====
-app.use(errorHandler);
+// ===== SERVER STARTUP =====
+const startServer = async () => {
+  try {
+    // Connect to database first
+    await connectDB();
+    
+    // Start server
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log('');
+      console.log('🎉 ===== FURBABIES SERVER STARTED =====');
+      console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`🌐 Port: ${PORT}`);
+      console.log(`🗃️ Database: ${mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected'}`);
+      console.log(`📂 Routes: ${successCount}/${routes.length} mounted`);
+      console.log(`🖼️ Images: CORS workaround enabled`);
+      console.log('');
+      console.log('🔗 Available endpoints:');
+      console.log(`   Health: /api/health`);
+      console.log(`   Pets: /api/pets`);
+      console.log(`   Products: /api/products`);
+      console.log(`   Images: /api/images/{folder}/{filename}`);
+      console.log(`   Debug: /api/debug/routes`);
+      console.log('');
+      console.log('✅ Server is ready for requests!');
+    });
+    
+  } catch (error) {
+    console.error('💥 Failed to start server:', error);
+    process.exit(1);
+  }
+};
 
 // ===== GRACEFUL SHUTDOWN =====
-const gracefulShutdown = (signal) => {
-  console.log(`\n🛑 Received ${signal}. Shutting down gracefully...`);
-  server.close(() => {
-    console.log('✅ HTTP server closed.');
-    process.exit(0);
-  });
+const gracefulShutdown = async (signal) => {
+  console.log(`\n🛑 Received ${signal}. Gracefully shutting down...`);
+  
+  try {
+    await mongoose.connection.close();
+    console.log('✅ MongoDB connection closed');
+  } catch (error) {
+    console.error('❌ Error closing MongoDB connection:', error);
+  }
+  
+  process.exit(0);
 };
 
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
-// ===== START SERVER =====
-const startServer = async () => {
-  try {
-    // Initialize database first
-    await initializeDatabase();
-    
-    // Start the server
-    const server = app.listen(PORT, () => {
-      console.log('');
-      console.log('🎉 ===================================');
-      console.log('🚀 FurBabies Pet Store Server Started!');
-      console.log('🎉 ===================================');
-      console.log(`🌐 Environment: ${NODE_ENV}`);
-      console.log(`🔗 Server URL: http://localhost:${PORT}`);
-      console.log(`🏥 Health Check: http://localhost:${PORT}/api/health`);
-      console.log(`🐛 Debug Routes: http://localhost:${PORT}/api/debug/routes`);
-      console.log(`⚙️  Mounted Routes: ${successCount}/${totalRoutes}`);
-      console.log('🎉 ===================================');
-      console.log('');
-      
-      // Store server reference for graceful shutdown
-      global.server = server;
-    });
-    
-    // Handle server errors
-    server.on('error', (error) => {
-      if (error.syscall !== 'listen') {
-        throw error;
-      }
-      
-      const bind = typeof PORT === 'string' ? 'Pipe ' + PORT : 'Port ' + PORT;
-      
-      switch (error.code) {
-        case 'EACCES':
-          console.error(`❌ ${bind} requires elevated privileges`);
-          process.exit(1);
-          break;
-        case 'EADDRINUSE':
-          console.error(`❌ ${bind} is already in use`);
-          process.exit(1);
-          break;
-        default:
-          throw error;
-      }
-    });
-    
-  } catch (error) {
-    console.error('❌ Failed to start server:', error.message);
-    if (NODE_ENV !== 'production') {
-      process.exit(1);
-    }
-  }
-};
+// Handle uncaught exceptions
+process.on('uncaughtException', (err) => {
+  console.error('💥 Uncaught Exception:', err);
+  process.exit(1);
+});
 
-// ===== INITIALIZE APPLICATION =====
+process.on('unhandledRejection', (err) => {
+  console.error('💥 Unhandled Rejection:', err);
+  process.exit(1);
+});
+
+// Start the server
 startServer();
-
-module.exports = app;
