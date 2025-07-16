@@ -1,35 +1,50 @@
-// server/server.js - FIXED for Your Existing MongoDB Data Structure
+// server.js - Complete Corrected Version for FurBabies Backend
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const helmet = require('helmet');
 const compression = require('compression');
 const rateLimit = require('express-rate-limit');
-const path = require('path');
+const morgan = require('morgan');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// ===== MIDDLEWARE =====
+// ===== SECURITY & MIDDLEWARE =====
 app.use(helmet());
 app.use(compression());
+
+// CORS configuration
 app.use(cors({
   origin: process.env.NODE_ENV === 'production' 
-    ? true // Allow all origins in production, or specify your domain
-    : ['http://localhost:3000'],
-  credentials: true
+    ? [
+        'https://furbabies-petstore.onrender.com',
+        'https://new-capstone.onrender.com',
+        'https://furbabies-frontend.onrender.com'
+      ]
+    : ['http://localhost:3000', 'http://localhost:3001'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100
+  max: 100, // limit each IP to 100 requests per windowMs
+  message: 'Too many requests from this IP, please try again later.'
 });
 app.use('/api/', limiter);
 
+// Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Logging
+if (process.env.NODE_ENV !== 'production') {
+  app.use(morgan('dev'));
+}
 
 // ===== DATABASE CONNECTION =====
 const connectDB = async () => {
@@ -40,67 +55,124 @@ const connectDB = async () => {
     });
     console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
     console.log(`📊 Database: ${conn.connection.name}`);
+    return conn;
   } catch (error) {
     console.error('❌ MongoDB connection error:', error);
     process.exit(1);
   }
 };
 
-// ===== SCHEMAS FOR YOUR EXISTING DATA =====
+// ===== DATABASE SCHEMAS =====
 const petSchema = new mongoose.Schema({
-  _id: { type: String, required: true }, // Your IDs are strings like "p025"
-  name: String,
-  type: String,
+  _id: { type: String, required: true }, // Custom string IDs like "p025"
+  name: { type: String, required: true },
+  type: { type: String, required: true }, // dog, cat, fish, bird, small-pet
   breed: String,
   age: String,
   size: String,
   gender: String,
   description: String,
-  image: String,
-  status: String,
-  updatedAt: Date,
+  image: String, // Path like "pet/hedge-hog-A.jpg"
+  status: { type: String, default: 'available' }, // available, adopted, pending
+  updatedAt: { type: Date, default: Date.now },
   createdBy: mongoose.Schema.Types.ObjectId,
-  category: String,
-  featured: Boolean
-}, { _id: false }); // Disable auto ObjectId since you use custom string IDs
+  category: String, // dog, cat, aquatic, other
+  featured: { type: Boolean, default: false },
+  views: { type: Number, default: 0 },
+  likes: { type: Number, default: 0 }
+}, { 
+  _id: false, // Don't auto-generate ObjectId
+  timestamps: true 
+});
 
 const productSchema = new mongoose.Schema({
-  _id: { type: String, required: true }, // Your IDs are strings like "prod_001"
-  name: String,
-  category: String,
+  _id: { type: String, required: true }, // Custom string IDs like "prod_002"
+  name: { type: String, required: true },
+  category: { type: String, required: true },
   brand: String,
-  price: Number,
-  inStock: Boolean,
+  price: { type: Number, required: true },
+  inStock: { type: Boolean, default: true },
   description: String,
-  image: String,
-  featured: mongoose.Schema.Types.Mixed // Handle both boolean true and string "true"
-}, { _id: false });
+  image: String, // Path like "product/covered-litter-box.png"
+  featured: mongoose.Schema.Types.Mixed, // Handle both boolean true and string "true"
+  views: { type: Number, default: 0 },
+  rating: { type: Number, default: 0 },
+  reviewCount: { type: Number, default: 0 }
+}, { 
+  _id: false,
+  timestamps: true 
+});
+
+// Create indexes for better performance
+petSchema.index({ featured: 1, status: 1 });
+petSchema.index({ type: 1, status: 1 });
+petSchema.index({ category: 1, status: 1 });
+petSchema.index({ name: 'text', description: 'text', breed: 'text' });
+
+productSchema.index({ featured: 1, inStock: 1 });
+productSchema.index({ category: 1, inStock: 1 });
+productSchema.index({ brand: 1, inStock: 1 });
+productSchema.index({ name: 'text', description: 'text', category: 'text' });
 
 const Pet = mongoose.model('Pet', petSchema);
 const Product = mongoose.model('Product', productSchema);
 
+// ===== UTILITY FUNCTIONS =====
+const addImageUrl = (item) => {
+  return {
+    ...item,
+    imageUrl: item.image ? `https://storage.googleapis.com/furbabies-petstore/${item.image}` : null,
+    hasImage: !!item.image
+  };
+};
+
+const addPetFields = (pet) => {
+  return {
+    ...addImageUrl(pet),
+    displayName: pet.name || 'Unnamed Pet',
+    isAvailable: pet.status === 'available',
+    daysSincePosted: Math.floor((new Date() - new Date(pet.updatedAt || pet.createdAt)) / (1000 * 60 * 60 * 24))
+  };
+};
+
+const addProductFields = (product) => {
+  return {
+    ...addImageUrl(product),
+    displayName: product.name || 'Unnamed Product',
+    formattedPrice: typeof product.price === 'number' ? `$${product.price.toFixed(2)}` : 'N/A'
+  };
+};
+
 // ===== HEALTH CHECK =====
 app.get('/api/health', async (req, res) => {
   try {
-    // Test database connection
     const petCount = await Pet.countDocuments();
     const productCount = await Product.countDocuments();
+    const featuredPets = await Pet.countDocuments({ featured: true, status: 'available' });
+    const featuredProducts = await Product.countDocuments({
+      $or: [{ featured: true }, { featured: "true" }],
+      inStock: true
+    });
     
     res.json({ 
       success: true, 
-      message: 'FurBabies API is running',
-      environment: process.env.NODE_ENV,
+      message: 'FurBabies Backend API is running',
+      environment: process.env.NODE_ENV || 'development',
       timestamp: new Date().toISOString(),
       database: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected',
       collections: {
         pets: petCount,
-        products: productCount
-      }
+        products: productCount,
+        featuredPets: featuredPets,
+        featuredProducts: featuredProducts
+      },
+      version: '1.0.0'
     });
   } catch (error) {
+    console.error('Health check error:', error);
     res.status(500).json({
       success: false,
-      message: 'Database connection issue',
+      message: 'Health check failed',
       error: error.message
     });
   }
@@ -125,11 +197,23 @@ app.get('/api/pets/featured', async (req, res) => {
       {
         $addFields: {
           imageUrl: {
-            $concat: ["https://storage.googleapis.com/furbabies-petstore/", "$image"]
+            $cond: {
+              if: { $ne: ["$image", null] },
+              then: { $concat: ["https://storage.googleapis.com/furbabies-petstore/", "$image"] },
+              else: null
+            }
           },
           hasImage: { $ne: ["$image", null] },
           displayName: { $ifNull: ["$name", "Unnamed Pet"] },
-          isAvailable: { $eq: ["$status", "available"] }
+          isAvailable: { $eq: ["$status", "available"] },
+          daysSincePosted: {
+            $floor: {
+              $divide: [
+                { $subtract: [new Date(), { $ifNull: ["$updatedAt", "$createdAt"] }] },
+                86400000 // milliseconds in a day
+              ]
+            }
+          }
         }
       }
     ]);
@@ -161,7 +245,7 @@ app.get('/api/products/featured', async (req, res) => {
     const limit = parseInt(req.query.limit) || 4;
     
     // Get random featured products using aggregation
-    // NOTE: Products have featured as STRING "true", not boolean true
+    // Handle both boolean true and string "true" for featured field
     const featuredProducts = await Product.aggregate([
       { 
         $match: { 
@@ -176,12 +260,20 @@ app.get('/api/products/featured', async (req, res) => {
       {
         $addFields: {
           imageUrl: {
-            $concat: ["https://storage.googleapis.com/furbabies-petstore/", "$image"]
+            $cond: {
+              if: { $ne: ["$image", null] },
+              then: { $concat: ["https://storage.googleapis.com/furbabies-petstore/", "$image"] },
+              else: null
+            }
           },
           hasImage: { $ne: ["$image", null] },
           displayName: { $ifNull: ["$name", "Unnamed Product"] },
           formattedPrice: {
-            $concat: ["$", { $toString: "$price" }]
+            $cond: {
+              if: { $ne: ["$price", null] },
+              then: { $concat: ["$", { $toString: "$price" }] },
+              else: "N/A"
+            }
           }
         }
       }
@@ -206,13 +298,117 @@ app.get('/api/products/featured', async (req, res) => {
   }
 });
 
-// ===== ALL PETS ENDPOINT (For Browse Page) =====
+// ===== FEATURED NEWS ENDPOINT =====
+app.get('/api/news/featured', async (req, res) => {
+  try {
+    console.log('📰 GET /api/news/featured - Mock news data');
+    
+    const limit = parseInt(req.query.limit) || 3;
+    
+    // Mock news data (replace with real database when you add news collection)
+    const mockNews = [
+      {
+        id: '1',
+        title: 'New Pet Adoption Center Opens Downtown',
+        summary: 'A state-of-the-art facility opens downtown to help more pets find loving homes.',
+        category: 'adoption',
+        author: 'FurBabies Team',
+        featured: true,
+        published: true,
+        publishedAt: new Date('2024-12-01'),
+        views: 1250,
+        imageUrl: 'https://storage.googleapis.com/furbabies-petstore/news/adoption-center.jpg'
+      },
+      {
+        id: '2',
+        title: 'Holiday Pet Safety Tips',
+        summary: 'Keep your beloved pets safe during the holiday season with these essential safety tips.',
+        category: 'safety', 
+        author: 'Dr. Sarah Johnson',
+        featured: true,
+        published: true,
+        publishedAt: new Date('2024-12-15'),
+        views: 980,
+        imageUrl: 'https://storage.googleapis.com/furbabies-petstore/news/holiday-safety.jpg'
+      },
+      {
+        id: '3',
+        title: 'Success Story: Max Finds His Forever Home',
+        summary: 'Follow Max\'s heartwarming journey from shelter to his loving forever family.',
+        category: 'success-story',
+        author: 'Maria Rodriguez', 
+        featured: true,
+        published: true,
+        publishedAt: new Date('2024-12-10'),
+        views: 1567,
+        imageUrl: 'https://storage.googleapis.com/furbabies-petstore/news/max-success.jpg'
+      },
+      {
+        id: '4',
+        title: 'Winter Pet Care Essentials',
+        summary: 'Prepare your furry friends for winter weather with these essential care tips.',
+        category: 'care',
+        author: 'Dr. Mike Chen',
+        featured: true,
+        published: true,
+        publishedAt: new Date('2024-11-28'),
+        views: 892,
+        imageUrl: 'https://storage.googleapis.com/furbabies-petstore/news/winter-care.jpg'
+      },
+      {
+        id: '5',
+        title: 'Volunteer Appreciation Event Success',
+        summary: 'Celebrating our amazing volunteers who make a real difference in pets\' lives.',
+        category: 'community',
+        author: 'FurBabies Team',
+        featured: true,
+        published: true,
+        publishedAt: new Date('2024-11-20'),
+        views: 743,
+        imageUrl: 'https://storage.googleapis.com/furbabies-petstore/news/volunteers.jpg'
+      },
+      {
+        id: '6',
+        title: 'Pet Training Workshop Series Announced',
+        summary: 'Join our expert trainers for monthly workshops on pet behavior and training.',
+        category: 'training',
+        author: 'Jessica Smith',
+        featured: true,
+        published: true,
+        publishedAt: new Date('2024-11-15'),
+        views: 456,
+        imageUrl: 'https://storage.googleapis.com/furbabies-petstore/news/training-workshop.jpg'
+      }
+    ];
+    
+    // Return random selection of news items
+    const shuffled = mockNews.sort(() => 0.5 - Math.random());
+    const selectedNews = shuffled.slice(0, limit);
+    
+    res.json({
+      success: true,
+      data: selectedNews,
+      count: selectedNews.length,
+      message: `${selectedNews.length} featured news items retrieved`
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching featured news:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching featured news',
+      error: error.message
+    });
+  }
+});
+
+// ===== ALL PETS ENDPOINT (Browse Page) =====
 app.get('/api/pets', async (req, res) => {
   try {
     console.log('🐕 GET /api/pets - Query params:', req.query);
 
     // Build query object
-    const query = { status: 'available' };
+    const query = { status: 'available' }; // Only show available pets by default
 
     // Apply filters
     if (req.query.type && req.query.type !== 'all') {
@@ -227,11 +423,16 @@ app.get('/api/pets', async (req, res) => {
       query.breed = new RegExp(req.query.breed, 'i');
     }
     
+    if (req.query.size && req.query.size !== 'all') {
+      query.size = req.query.size;
+    }
+    
+    if (req.query.gender && req.query.gender !== 'all') {
+      query.gender = req.query.gender;
+    }
+    
     if (req.query.featured === 'true') {
-      query.$or = [
-        { featured: true },      // Handle boolean true
-        { featured: "true" }     // Handle string "true"
-      ];
+      query.featured = true;
     }
 
     // Search functionality
@@ -257,8 +458,14 @@ app.get('/api/pets', async (req, res) => {
       case 'name':
         sortOptions = { name: 1 };
         break;
+      case 'age':
+        sortOptions = { age: 1 };
+        break;
       case 'newest':
         sortOptions = { updatedAt: -1 };
+        break;
+      case 'oldest':
+        sortOptions = { updatedAt: 1 };
         break;
       case 'featured':
         sortOptions = { featured: -1, updatedAt: -1 };
@@ -274,13 +481,7 @@ app.get('/api/pets', async (req, res) => {
       .lean();
 
     // Add computed fields
-    const enrichedPets = pets.map(pet => ({
-      ...pet,
-      imageUrl: pet.image ? `https://storage.googleapis.com/furbabies-petstore/${pet.image}` : null,
-      hasImage: !!pet.image,
-      displayName: pet.name || 'Unnamed Pet',
-      isAvailable: pet.status === 'available'
-    }));
+    const enrichedPets = pets.map(addPetFields);
 
     console.log(`🐕 Found ${enrichedPets.length} pets (Total: ${total})`);
 
@@ -293,6 +494,16 @@ app.get('/api/pets', async (req, res) => {
         limit,
         pages: Math.ceil(total / limit),
         hasMore: skip + enrichedPets.length < total
+      },
+      filters: {
+        type: req.query.type || 'all',
+        breed: req.query.breed || 'all',
+        category: req.query.category || 'all',
+        size: req.query.size || 'all',
+        gender: req.query.gender || 'all',
+        search: req.query.search || '',
+        sort: req.query.sort || 'newest',
+        featured: req.query.featured || 'all'
       }
     });
 
@@ -318,12 +529,33 @@ app.get('/api/products', async (req, res) => {
       query.category = new RegExp(req.query.category, 'i');
     }
     
+    if (req.query.brand && req.query.brand !== 'all') {
+      query.brand = new RegExp(req.query.brand, 'i');
+    }
+    
     if (req.query.inStock === 'true') {
       query.inStock = true;
+    } else if (req.query.inStock === 'false') {
+      query.inStock = false;
     }
     
     if (req.query.featured === 'true') {
-      query.featured = true;
+      // Handle both boolean true and string "true"
+      query.$or = [
+        { featured: true },      // Handle boolean true
+        { featured: "true" }     // Handle string "true"
+      ];
+    }
+
+    // Price range filter
+    if (req.query.minPrice || req.query.maxPrice) {
+      query.price = {};
+      if (req.query.minPrice) {
+        query.price.$gte = parseFloat(req.query.minPrice);
+      }
+      if (req.query.maxPrice) {
+        query.price.$lte = parseFloat(req.query.maxPrice);
+      }
     }
 
     // Search functionality
@@ -338,33 +570,62 @@ app.get('/api/products', async (req, res) => {
     }
 
     // Pagination
-    const limit = parseInt(req.query.limit) || 12;
     const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 12;
     const skip = (page - 1) * limit;
+
+    // Sorting
+    let sortOptions = { name: 1 }; // Default: alphabetical
+    
+    switch (req.query.sort) {
+      case 'price-low':
+        sortOptions = { price: 1 };
+        break;
+      case 'price-high':
+        sortOptions = { price: -1 };
+        break;
+      case 'newest':
+        sortOptions = { createdAt: -1 };
+        break;
+      case 'featured':
+        sortOptions = { featured: -1, name: 1 };
+        break;
+      case 'category':
+        sortOptions = { category: 1, name: 1 };
+        break;
+    }
 
     // Execute query
     const total = await Product.countDocuments(query);
     const products = await Product.find(query)
-      .sort({ name: 1 })
+      .sort(sortOptions)
       .limit(limit)
       .skip(skip)
       .lean();
 
     // Add computed fields
-    const enrichedProducts = products.map(product => ({
-      ...product,
-      imageUrl: product.image ? `https://storage.googleapis.com/furbabies-petstore/${product.image}` : null,
-      hasImage: !!product.image,
-      displayName: product.name || 'Unnamed Product',
-      formattedPrice: typeof product.price === 'number' ? `$${product.price.toFixed(2)}` : 'N/A'
-    }));
+    const enrichedProducts = products.map(addProductFields);
 
     console.log(`🛒 Found ${enrichedProducts.length} products (Total: ${total})`);
 
     res.json({
       success: true,
       data: enrichedProducts,
-      count: enrichedProducts.length
+      pagination: {
+        total,
+        page,
+        limit,
+        pages: Math.ceil(total / limit),
+        hasMore: skip + enrichedProducts.length < total
+      },
+      filters: {
+        category: req.query.category || 'all',
+        brand: req.query.brand || 'all',
+        inStock: req.query.inStock || 'all',
+        search: req.query.search || '',
+        sort: req.query.sort || 'name',
+        featured: req.query.featured || 'all'
+      }
     });
 
   } catch (error) {
@@ -382,25 +643,24 @@ app.get('/api/pets/:id', async (req, res) => {
   try {
     console.log('🐕 GET /api/pets/:id - Pet ID:', req.params.id);
     
-    // Your IDs are strings, so we can query directly
     const pet = await Pet.findById(req.params.id).lean();
 
     if (!pet) {
+      console.log('🐕 Pet not found');
       return res.status(404).json({ 
         success: false, 
         message: 'Pet not found' 
       });
     }
 
-    // Add computed fields
-    const enrichedPet = {
-      ...pet,
-      imageUrl: pet.image ? `https://storage.googleapis.com/furbabies-petstore/${pet.image}` : null,
-      hasImage: !!pet.image,
-      displayName: pet.name || 'Unnamed Pet',
-      isAvailable: pet.status === 'available'
-    };
+    // Increment view count
+    await Pet.updateOne({ _id: req.params.id }, { $inc: { views: 1 } });
 
+    // Add computed fields
+    const enrichedPet = addPetFields(pet);
+
+    console.log('🐕 Pet found:', enrichedPet.displayName);
+    
     res.json({
       success: true,
       data: enrichedPet
@@ -424,20 +684,20 @@ app.get('/api/products/:id', async (req, res) => {
     const product = await Product.findById(req.params.id).lean();
     
     if (!product) {
+      console.log('🛒 Product not found');
       return res.status(404).json({
         success: false,
         message: "Product not found"
       });
     }
 
+    // Increment view count
+    await Product.updateOne({ _id: req.params.id }, { $inc: { views: 1 } });
+
     // Add computed fields
-    const enrichedProduct = {
-      ...product,
-      imageUrl: product.image ? `https://storage.googleapis.com/furbabies-petstore/${product.image}` : null,
-      hasImage: !!product.image,
-      displayName: product.name || 'Unnamed Product',
-      formattedPrice: typeof product.price === 'number' ? `$${product.price.toFixed(2)}` : 'N/A'
-    };
+    const enrichedProduct = addProductFields(product);
+
+    console.log('🛒 Product found:', enrichedProduct.displayName);
     
     res.json({
       success: true,
@@ -453,6 +713,111 @@ app.get('/api/products/:id', async (req, res) => {
   }
 });
 
+// ===== METADATA ENDPOINTS =====
+
+// Get pet types
+app.get('/api/pets/meta/types', async (req, res) => {
+  try {
+    const types = await Pet.distinct('type', { status: 'available' });
+    
+    const typesWithCount = await Promise.all(
+      types.map(async (type) => {
+        const count = await Pet.countDocuments({ 
+          type: type, 
+          status: 'available' 
+        });
+        return { 
+          _id: type, 
+          name: type.charAt(0).toUpperCase() + type.slice(1), 
+          count,
+          value: type 
+        };
+      })
+    );
+    
+    res.json({ 
+      success: true, 
+      data: typesWithCount.filter(t => t.count > 0)
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error fetching pet types', 
+      error: error.message 
+    });
+  }
+});
+
+// Get product categories
+app.get('/api/products/meta/categories', async (req, res) => {
+  try {
+    const categories = await Product.distinct('category');
+    
+    const categoriesWithCount = await Promise.all(
+      categories.map(async (category) => {
+        const count = await Product.countDocuments({ category, inStock: true });
+        return { 
+          _id: category, 
+          name: category, 
+          count,
+          value: category 
+        };
+      })
+    );
+    
+    res.json({ 
+      success: true, 
+      data: categoriesWithCount.filter(c => c.count > 0).sort((a, b) => a.name.localeCompare(b.name))
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error fetching categories', 
+      error: error.message 
+    });
+  }
+});
+
+// ===== CONTACT FORM ENDPOINT =====
+app.post('/api/contact', async (req, res) => {
+  try {
+    console.log('📞 POST /api/contact - Contact form submission');
+    
+    const { name, email, subject, message, petId } = req.body;
+    
+    // Basic validation
+    if (!name || !email || !message) {
+      return res.status(400).json({
+        success: false,
+        message: 'Name, email, and message are required'
+      });
+    }
+    
+    // Here you would typically save to database and/or send email
+    // For now, just return success
+    console.log('Contact form data:', { name, email, subject, message, petId });
+    
+    res.json({
+      success: true,
+      message: 'Thank you for your message! We will get back to you soon.',
+      data: {
+        name,
+        email,
+        subject: subject || 'General Inquiry',
+        submittedAt: new Date().toISOString()
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ Error processing contact form:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to process contact form',
+      error: error.message
+    });
+  }
+});
+
 // ===== 404 HANDLER FOR API ROUTES =====
 app.use('/api/*', (req, res) => {
   res.status(404).json({
@@ -463,74 +828,78 @@ app.use('/api/*', (req, res) => {
       'GET /api/pets',
       'GET /api/pets/featured?limit=4',
       'GET /api/pets/:id',
+      'GET /api/pets/meta/types',
       'GET /api/products',
       'GET /api/products/featured?limit=4',
-      'GET /api/products/:id'
-    ]
+      'GET /api/products/:id',
+      'GET /api/products/meta/categories',
+      'GET /api/news/featured?limit=3',
+      'POST /api/contact'
+    ],
+    timestamp: new Date().toISOString()
   });
 });
 
-// ===== SERVE REACT FRONTEND IN PRODUCTION =====
-if (process.env.NODE_ENV === 'production') {
-  const frontendPath = path.join(__dirname, '../client/build');
-  app.use(express.static(frontendPath));
-  
-  app.get('*', (req, res) => {
-    res.sendFile(path.join(frontendPath, 'index.html'));
-  });
-}
-
-// ===== ERROR HANDLING =====
+// ===== GLOBAL ERROR HANDLER =====
 app.use((err, req, res, next) => {
   console.error('🔥 Server Error:', err);
-  res.status(500).json({
+  
+  res.status(err.status || 500).json({
     success: false,
-    message: 'Internal server error',
-    error: process.env.NODE_ENV === 'development' ? err.message : undefined
+    message: err.message || 'Internal server error',
+    error: process.env.NODE_ENV === 'development' ? err.stack : undefined,
+    timestamp: new Date().toISOString()
   });
 });
 
 // ===== START SERVER =====
 const startServer = async () => {
   try {
+    // Connect to database first
     await connectDB();
     
+    // Test database connection
+    const petCount = await Pet.countDocuments();
+    const productCount = await Product.countDocuments();
+    console.log(`📊 Database contains ${petCount} pets and ${productCount} products`);
+    
+    // Start server
     app.listen(PORT, '0.0.0.0', () => {
-      console.log('🚀 FurBabies Server starting...');
+      console.log('\n🚀 FurBabies Backend Server Status:');
       console.log(`   Environment: ${process.env.NODE_ENV || 'development'}`);
       console.log(`   Port: ${PORT}`);
       console.log(`   Database: Connected to MongoDB Atlas`);
+      console.log(`   CORS: Enabled for production domains`);
       console.log('✅ Server is running successfully!');
       console.log('\n📍 Available endpoints:');
+      console.log('   🏥 Health check: /api/health');
       console.log('   🏠 Featured pets: /api/pets/featured?limit=4');
       console.log('   🛒 Featured products: /api/products/featured?limit=4');
+      console.log('   📰 Featured news: /api/news/featured?limit=3');
       console.log('   🔍 Browse pets: /api/pets');
       console.log('   🛍️ Browse products: /api/products');
+      console.log('   📞 Contact form: POST /api/contact');
+      console.log('\n🎯 Ready to serve your frontend!');
     });
+    
   } catch (error) {
     console.error('❌ Failed to start server:', error);
     process.exit(1);
   }
 };
 
-startServer();
-
 // ===== GRACEFUL SHUTDOWN =====
-process.on('SIGTERM', () => {
-  console.log('🛑 SIGTERM received. Shutting down gracefully...');
+const gracefulShutdown = (signal) => {
+  console.log(`\n🛑 ${signal} received. Shutting down gracefully...`);
+  
   mongoose.connection.close(() => {
     console.log('📊 Database connection closed');
     process.exit(0);
   });
-});
+};
 
-process.on('SIGINT', () => {
-  console.log('🛑 SIGINT received. Shutting down gracefully...');
-  mongoose.connection.close(() => {
-    console.log('📊 Database connection closed');
-    process.exit(0);
-  });
-});
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 process.on('uncaughtException', (err) => {
   console.error('💥 Uncaught Exception:', err);
@@ -541,3 +910,6 @@ process.on('unhandledRejection', (err) => {
   console.error('💥 Unhandled Rejection:', err);
   process.exit(1);
 });
+
+// Start the server
+startServer();
