@@ -1,6 +1,6 @@
-// client/src/pages/Browse.js - Corrected with Image Loading Fixes and Better Error Handling
+// client/src/pages/Browse.js - SIMPLE VERSION WITHOUT useCallback
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Container, 
   Row, 
@@ -57,21 +57,21 @@ const Browse = () => {
   const genderOptions = useMemo(() => [
     { value: '', label: 'Any Gender' },
     { value: 'male', label: 'Male' },
-    { value: 'female', label: 'Female' }
+    { value: 'female', label: 'Female' },
+    { value: 'unknown', label: 'Unknown' }
   ], []);
 
   const sizeOptions = useMemo(() => [
     { value: '', label: 'Any Size' },
     { value: 'small', label: 'Small' },
     { value: 'medium', label: 'Medium' },
-    { value: 'large', label: 'Large' },
-    { value: 'extra-large', label: 'Extra Large' }
+    { value: 'large', label: 'Large' }
   ], []);
 
-  // Enhanced fetch function with retry logic and better error handling
-  const fetchPets = useCallback(async (attempt = 1) => {
+  // Fetch pets function - SIMPLIFIED VERSION
+  const fetchPets = async (attempt = 1) => {
     const MAX_RETRIES = 3;
-    const RETRY_DELAY = 1000 * attempt; // Exponential backoff
+    const RETRY_DELAY = 1000 * attempt;
 
     try {
       console.log(`🔍 Fetching ALL pets (attempt ${attempt}/${MAX_RETRIES})`);
@@ -147,7 +147,7 @@ const Browse = () => {
     } finally {
       setLoading(false);
     }
-  }, [searchTerm, selectedType, selectedBreed, ageRange, selectedGender, selectedSize]);
+  };
 
   // Update URL parameters when filters change
   useEffect(() => {
@@ -175,10 +175,10 @@ const Browse = () => {
   // Fetch pets when component mounts or filters change
   useEffect(() => {
     fetchPets();
-  }, [fetchPets]);
+  }, [searchTerm, selectedType, selectedBreed, ageRange, selectedGender, selectedSize]);
 
   // Clear all filters
-  const clearFilters = useCallback(() => {
+  const clearFilters = () => {
     setSearchTerm('');
     setSelectedType('');
     setSelectedBreed('');
@@ -186,18 +186,18 @@ const Browse = () => {
     setSelectedGender('');
     setSelectedSize('');
     setShowFilters(false);
-  }, []);
+  };
 
   // Handle search form submission
-  const handleSearch = useCallback((e) => {
+  const handleSearch = (e) => {
     e.preventDefault();
     fetchPets();
-  }, [fetchPets]);
+  };
 
   // Manual retry function
-  const handleRetry = useCallback(() => {
+  const handleRetry = () => {
     fetchPets();
-  }, [fetchPets]);
+  };
 
   // Get active filters for display
   const activeFilters = useMemo(() => {
