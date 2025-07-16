@@ -1,4 +1,4 @@
-// server.js - Complete Corrected Version for FurBabies Backend
+// server.js - Complete Version with Dual URL Response for Maximum Compatibility
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -118,11 +118,65 @@ const Pet = mongoose.model('Pet', petSchema);
 const Product = mongoose.model('Product', productSchema);
 
 // ===== UTILITY FUNCTIONS =====
+
+// 🚀 DUAL URL APPROACH: Provide both direct and API URLs for maximum compatibility
 const addImageUrl = (item) => {
+  if (!item.image) {
+    // Return appropriate placeholder for missing images
+    let placeholderUrl;
+    if (item.type) {
+      // Pet placeholders with emojis and colors
+      switch(item.type) {
+        case 'dog':
+          placeholderUrl = 'https://via.placeholder.com/400x300/FF6B6B/FFFFFF?text=🐕+Dog';
+          break;
+        case 'cat':
+          placeholderUrl = 'https://via.placeholder.com/400x300/4ECDC4/FFFFFF?text=🐱+Cat';
+          break;
+        case 'fish':
+          placeholderUrl = 'https://via.placeholder.com/400x300/3498DB/FFFFFF?text=🐠+Fish';
+          break;
+        case 'bird':
+          placeholderUrl = 'https://via.placeholder.com/400x300/9B59B6/FFFFFF?text=🦜+Bird';
+          break;
+        case 'small-pet':
+          placeholderUrl = 'https://via.placeholder.com/400x300/F39C12/FFFFFF?text=🐹+Small+Pet';
+          break;
+        default:
+          placeholderUrl = 'https://via.placeholder.com/400x300/95A5A6/FFFFFF?text=🐾+Pet';
+      }
+    } else if (item.category || item.price !== undefined) {
+      // Product placeholder
+      placeholderUrl = 'https://via.placeholder.com/400x300/8E44AD/FFFFFF?text=🛍️+Product';
+    } else {
+      placeholderUrl = 'https://via.placeholder.com/400x300/BDC3C7/FFFFFF?text=📷+Image';
+    }
+    
+    return {
+      ...item,
+      imageUrl: placeholderUrl,
+      hasImage: false
+    };
+  }
+
+  // 🎯 DUAL URL STRATEGY: Provide both formats for frontend flexibility
+  
+  // Direct bucket URL (simpler, faster if it works)
+  const directUrl = `https://storage.googleapis.com/furbabies-petstore/${item.image}`;
+  
+  // API URL (more compatible with CORS restrictions)
+  const encodedPath = encodeURIComponent(item.image);
+  const apiUrl = `https://storage.googleapis.com/storage/v1/b/furbabies-petstore/o/${encodedPath}?alt=media`;
+  
   return {
     ...item,
-    imageUrl: item.image ? `https://storage.googleapis.com/furbabies-petstore/${item.image}` : null,
-    hasImage: !!item.image
+    imageUrl: directUrl,              // Primary URL (try this first)
+    imageUrlFallback: apiUrl,         // Backup URL (if primary fails)
+    imageUrlDirect: directUrl,        // Explicit direct URL
+    imageUrlApi: apiUrl,              // Explicit API URL
+    hasImage: true,
+    originalImagePath: item.image,
+    imageStrategy: 'dual'             // Indicates dual URL strategy
   };
 };
 
@@ -166,7 +220,13 @@ app.get('/api/health', async (req, res) => {
         featuredPets: featuredPets,
         featuredProducts: featuredProducts
       },
-      version: '1.0.0'
+      version: '1.0.0',
+      imageStrategy: 'dual-url (direct + API fallback)',
+      features: {
+        randomSelection: 'enabled',
+        dualImageUrls: 'enabled',
+        placeholderFallback: 'enabled'
+      }
     });
   } catch (error) {
     console.error('Health check error:', error);
@@ -193,38 +253,20 @@ app.get('/api/pets/featured', async (req, res) => {
           status: 'available' 
         } 
       },
-      { $sample: { size: limit } }, // Random selection
-      {
-        $addFields: {
-          imageUrl: {
-            $cond: {
-              if: { $ne: ["$image", null] },
-              then: { $concat: ["https://storage.googleapis.com/furbabies-petstore/", "$image"] },
-              else: null
-            }
-          },
-          hasImage: { $ne: ["$image", null] },
-          displayName: { $ifNull: ["$name", "Unnamed Pet"] },
-          isAvailable: { $eq: ["$status", "available"] },
-          daysSincePosted: {
-            $floor: {
-              $divide: [
-                { $subtract: [new Date(), { $ifNull: ["$updatedAt", "$createdAt"] }] },
-                86400000 // milliseconds in a day
-              ]
-            }
-          }
-        }
-      }
+      { $sample: { size: limit } } // Random selection
     ]);
 
-    console.log(`🏠 Returning ${featuredPets.length} random featured pets`);
+    // Apply dual URL transformation
+    const enrichedPets = featuredPets.map(addPetFields);
+
+    console.log(`🏠 Returning ${enrichedPets.length} random featured pets with dual image URLs`);
     
     res.json({
       success: true,
-      data: featuredPets,
-      count: featuredPets.length,
-      message: `${featuredPets.length} featured pets selected randomly`
+      data: enrichedPets,
+      count: enrichedPets.length,
+      message: `${enrichedPets.length} featured pets selected randomly`,
+      imageStrategy: 'dual-url'
     });
 
   } catch (error) {
@@ -256,36 +298,20 @@ app.get('/api/products/featured', async (req, res) => {
           inStock: true 
         } 
       },
-      { $sample: { size: limit } }, // Random selection
-      {
-        $addFields: {
-          imageUrl: {
-            $cond: {
-              if: { $ne: ["$image", null] },
-              then: { $concat: ["https://storage.googleapis.com/furbabies-petstore/", "$image"] },
-              else: null
-            }
-          },
-          hasImage: { $ne: ["$image", null] },
-          displayName: { $ifNull: ["$name", "Unnamed Product"] },
-          formattedPrice: {
-            $cond: {
-              if: { $ne: ["$price", null] },
-              then: { $concat: ["$", { $toString: "$price" }] },
-              else: "N/A"
-            }
-          }
-        }
-      }
+      { $sample: { size: limit } } // Random selection
     ]);
 
-    console.log(`🛒 Returning ${featuredProducts.length} random featured products`);
+    // Apply dual URL transformation
+    const enrichedProducts = featuredProducts.map(addProductFields);
+
+    console.log(`🛒 Returning ${enrichedProducts.length} random featured products with dual image URLs`);
     
     res.json({
       success: true,
-      data: featuredProducts,
-      count: featuredProducts.length,
-      message: `${featuredProducts.length} featured products selected randomly`
+      data: enrichedProducts,
+      count: enrichedProducts.length,
+      message: `${enrichedProducts.length} featured products selected randomly`,
+      imageStrategy: 'dual-url'
     });
 
   } catch (error) {
@@ -305,7 +331,7 @@ app.get('/api/news/featured', async (req, res) => {
     
     const limit = parseInt(req.query.limit) || 3;
     
-    // Mock news data (replace with real database when you add news collection)
+    // Mock news data with placeholder images
     const mockNews = [
       {
         id: '1',
@@ -317,7 +343,8 @@ app.get('/api/news/featured', async (req, res) => {
         published: true,
         publishedAt: new Date('2024-12-01'),
         views: 1250,
-        imageUrl: 'https://storage.googleapis.com/furbabies-petstore/news/adoption-center.jpg'
+        imageUrl: 'https://via.placeholder.com/600x400/2ECC71/FFFFFF?text=🏢+Adoption+Center',
+        hasImage: true
       },
       {
         id: '2',
@@ -329,7 +356,8 @@ app.get('/api/news/featured', async (req, res) => {
         published: true,
         publishedAt: new Date('2024-12-15'),
         views: 980,
-        imageUrl: 'https://storage.googleapis.com/furbabies-petstore/news/holiday-safety.jpg'
+        imageUrl: 'https://via.placeholder.com/600x400/E74C3C/FFFFFF?text=🎄+Holiday+Safety',
+        hasImage: true
       },
       {
         id: '3',
@@ -341,7 +369,8 @@ app.get('/api/news/featured', async (req, res) => {
         published: true,
         publishedAt: new Date('2024-12-10'),
         views: 1567,
-        imageUrl: 'https://storage.googleapis.com/furbabies-petstore/news/max-success.jpg'
+        imageUrl: 'https://via.placeholder.com/600x400/F39C12/FFFFFF?text=🏠+Success+Story',
+        hasImage: true
       },
       {
         id: '4',
@@ -353,7 +382,8 @@ app.get('/api/news/featured', async (req, res) => {
         published: true,
         publishedAt: new Date('2024-11-28'),
         views: 892,
-        imageUrl: 'https://storage.googleapis.com/furbabies-petstore/news/winter-care.jpg'
+        imageUrl: 'https://via.placeholder.com/600x400/3498DB/FFFFFF?text=❄️+Winter+Care',
+        hasImage: true
       },
       {
         id: '5',
@@ -365,7 +395,8 @@ app.get('/api/news/featured', async (req, res) => {
         published: true,
         publishedAt: new Date('2024-11-20'),
         views: 743,
-        imageUrl: 'https://storage.googleapis.com/furbabies-petstore/news/volunteers.jpg'
+        imageUrl: 'https://via.placeholder.com/600x400/9B59B6/FFFFFF?text=👥+Volunteers',
+        hasImage: true
       },
       {
         id: '6',
@@ -377,7 +408,8 @@ app.get('/api/news/featured', async (req, res) => {
         published: true,
         publishedAt: new Date('2024-11-15'),
         views: 456,
-        imageUrl: 'https://storage.googleapis.com/furbabies-petstore/news/training-workshop.jpg'
+        imageUrl: 'https://via.placeholder.com/600x400/1ABC9C/FFFFFF?text=🎯+Training',
+        hasImage: true
       }
     ];
     
@@ -480,10 +512,10 @@ app.get('/api/pets', async (req, res) => {
       .skip(skip)
       .lean();
 
-    // Add computed fields
+    // Add computed fields with dual image URLs
     const enrichedPets = pets.map(addPetFields);
 
-    console.log(`🐕 Found ${enrichedPets.length} pets (Total: ${total})`);
+    console.log(`🐕 Found ${enrichedPets.length} pets (Total: ${total}) with dual image URLs`);
 
     res.json({
       success: true,
@@ -504,7 +536,8 @@ app.get('/api/pets', async (req, res) => {
         search: req.query.search || '',
         sort: req.query.sort || 'newest',
         featured: req.query.featured || 'all'
-      }
+      },
+      imageStrategy: 'dual-url'
     });
 
   } catch (error) {
@@ -603,10 +636,10 @@ app.get('/api/products', async (req, res) => {
       .skip(skip)
       .lean();
 
-    // Add computed fields
+    // Add computed fields with dual image URLs
     const enrichedProducts = products.map(addProductFields);
 
-    console.log(`🛒 Found ${enrichedProducts.length} products (Total: ${total})`);
+    console.log(`🛒 Found ${enrichedProducts.length} products (Total: ${total}) with dual image URLs`);
 
     res.json({
       success: true,
@@ -625,7 +658,8 @@ app.get('/api/products', async (req, res) => {
         search: req.query.search || '',
         sort: req.query.sort || 'name',
         featured: req.query.featured || 'all'
-      }
+      },
+      imageStrategy: 'dual-url'
     });
 
   } catch (error) {
@@ -656,7 +690,7 @@ app.get('/api/pets/:id', async (req, res) => {
     // Increment view count
     await Pet.updateOne({ _id: req.params.id }, { $inc: { views: 1 } });
 
-    // Add computed fields
+    // Add computed fields with dual image URLs
     const enrichedPet = addPetFields(pet);
 
     console.log('🐕 Pet found:', enrichedPet.displayName);
@@ -694,7 +728,7 @@ app.get('/api/products/:id', async (req, res) => {
     // Increment view count
     await Product.updateOne({ _id: req.params.id }, { $inc: { views: 1 } });
 
-    // Add computed fields
+    // Add computed fields with dual image URLs
     const enrichedProduct = addProductFields(product);
 
     console.log('🛒 Product found:', enrichedProduct.displayName);
@@ -836,7 +870,8 @@ app.use('/api/*', (req, res) => {
       'GET /api/news/featured?limit=3',
       'POST /api/contact'
     ],
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    imageStrategy: 'dual-url'
   });
 });
 
@@ -870,6 +905,7 @@ const startServer = async () => {
       console.log(`   Port: ${PORT}`);
       console.log(`   Database: Connected to MongoDB Atlas`);
       console.log(`   CORS: Enabled for production domains`);
+      console.log(`   🎯 Image Strategy: Dual URL (direct + API fallback)`);
       console.log('✅ Server is running successfully!');
       console.log('\n📍 Available endpoints:');
       console.log('   🏥 Health check: /api/health');
@@ -879,7 +915,7 @@ const startServer = async () => {
       console.log('   🔍 Browse pets: /api/pets');
       console.log('   🛍️ Browse products: /api/products');
       console.log('   📞 Contact form: POST /api/contact');
-      console.log('\n🎯 Ready to serve your frontend!');
+      console.log('\n🎯 Dual URL Strategy: Frontend can try direct URLs first, fallback to API URLs!');
     });
     
   } catch (error) {
