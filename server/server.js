@@ -1,4 +1,4 @@
-// server/server.js - FIXED FOR RENDER DEPLOYMENT
+// server/server.js - COMPLETE UPDATED VERSION WITH RANDOM ENDPOINTS
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -109,6 +109,8 @@ app.get('/api/health', (req, res) => {
 });
 
 // ===== PETS ENDPOINTS =====
+
+// Get all pets with filtering
 app.get('/api/pets', async (req, res) => {
   try {
     console.log('🐕 GET /api/pets called with params:', req.query);
@@ -194,6 +196,45 @@ app.get('/api/pets', async (req, res) => {
   }
 });
 
+// ✅ NEW: Get random pets for home page
+app.get('/api/pets/random', async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 4;
+    console.log(`🎲 GET /api/pets/random - Limit: ${limit}`);
+    console.log('🌐 Request origin:', req.get('Origin'));
+    
+    const randomPets = await Pet.aggregate([
+      { $match: { status: 'available' } },
+      { $sample: { size: limit } }
+    ]);
+    
+    const enrichedPets = randomPets.map(pet => ({
+      ...pet,
+      imageUrl: pet.image ? `https://storage.googleapis.com/furbabies-petstore/${pet.image}` : null,
+      hasImage: !!pet.image,
+      displayName: pet.name || 'Unnamed Pet',
+      isAvailable: pet.status === 'available'
+    }));
+    
+    console.log(`✅ Returning ${enrichedPets.length} random pets`);
+    
+    res.json({
+      success: true,
+      data: enrichedPets,
+      count: enrichedPets.length,
+      message: 'Random pets retrieved successfully'
+    });
+    
+  } catch (error) {
+    console.error('❌ Error fetching random pets:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching random pets',
+      error: error.message
+    });
+  }
+});
+
 // Get single pet by ID
 app.get('/api/pets/:id', async (req, res) => {
   try {
@@ -232,6 +273,8 @@ app.get('/api/pets/:id', async (req, res) => {
 });
 
 // ===== PRODUCTS ENDPOINTS =====
+
+// Get all products with filtering
 app.get('/api/products', async (req, res) => {
   try {
     console.log('🛒 GET /api/products called with params:', req.query);
@@ -313,6 +356,45 @@ app.get('/api/products', async (req, res) => {
   }
 });
 
+// ✅ NEW: Get random products for home page
+app.get('/api/products/random', async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 4;
+    console.log(`🎲 GET /api/products/random - Limit: ${limit}`);
+    console.log('🌐 Request origin:', req.get('Origin'));
+    
+    const randomProducts = await Product.aggregate([
+      { $match: { inStock: true } },
+      { $sample: { size: limit } }
+    ]);
+    
+    const enrichedProducts = randomProducts.map(product => ({
+      ...product,
+      imageUrl: product.image ? `https://storage.googleapis.com/furbabies-petstore/${product.image}` : null,
+      hasImage: !!product.image,
+      displayName: product.name || 'Product',
+      isAvailable: product.inStock
+    }));
+    
+    console.log(`✅ Returning ${enrichedProducts.length} random products`);
+    
+    res.json({
+      success: true,
+      data: enrichedProducts,
+      count: enrichedProducts.length,
+      message: 'Random products retrieved successfully'
+    });
+    
+  } catch (error) {
+    console.error('❌ Error fetching random products:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching random products',
+      error: error.message
+    });
+  }
+});
+
 // Get single product by ID
 app.get('/api/products/:id', async (req, res) => {
   try {
@@ -367,8 +449,9 @@ app.get('/api/news/featured', (req, res) => {
       publishedAt: new Date('2024-12-01'),
       views: 1250,
       likes: 89,
-      image: 'pet/golden-retriever-pup.png',
-      imageUrl: 'https://storage.googleapis.com/furbabies-petstore/pet/golden-retriever-pup.png'
+      // Use working image from your bucket
+      image: 'brand/FurBabiesicon.png',
+      imageUrl: 'https://storage.googleapis.com/furbabies-petstore/brand/FurBabiesicon.png'
     },
     {
       id: '2',
@@ -381,8 +464,8 @@ app.get('/api/news/featured', (req, res) => {
       publishedAt: new Date('2024-12-15'),
       views: 980,
       likes: 67,
-      image: 'pet/cat.png',
-      imageUrl: 'https://storage.googleapis.com/furbabies-petstore/pet/cat.png'
+      image: 'brand/FurBabiesicon.png',
+      imageUrl: 'https://storage.googleapis.com/furbabies-petstore/brand/FurBabiesicon.png'
     },
     {
       id: '3',
@@ -395,8 +478,8 @@ app.get('/api/news/featured', (req, res) => {
       publishedAt: new Date('2024-12-10'),
       views: 1567,
       likes: 234,
-      image: 'pet/dog-b.png',
-      imageUrl: 'https://storage.googleapis.com/furbabies-petstore/pet/dog-b.png'
+      image: 'brand/FurBabiesicon.png',
+      imageUrl: 'https://storage.googleapis.com/furbabies-petstore/brand/FurBabiesicon.png'
     }
   ];
   
@@ -421,8 +504,10 @@ app.use('/api/*', (req, res) => {
     availableEndpoints: [
       'GET /api/health',
       'GET /api/pets',
+      'GET /api/pets/random',
       'GET /api/pets/:id',
       'GET /api/products',
+      'GET /api/products/random',
       'GET /api/products/:id',
       'GET /api/news/featured'
     ]
@@ -480,7 +565,17 @@ const startServer = async () => {
       console.log('   - https://furbabies-backend.onrender.com');
       console.log('   - http://localhost:3000');
       console.log('   - http://localhost:3001');
-      console.log('   - https://localhost:3000');
+      
+      // Log available endpoints
+      console.log('📋 Available API Endpoints:');
+      console.log('   - GET /api/health');
+      console.log('   - GET /api/pets');
+      console.log('   - GET /api/pets/random ✅ NEW');
+      console.log('   - GET /api/pets/:id');
+      console.log('   - GET /api/products');
+      console.log('   - GET /api/products/random ✅ NEW');
+      console.log('   - GET /api/products/:id');
+      console.log('   - GET /api/news/featured');
     });
     
     // Handle graceful shutdown
