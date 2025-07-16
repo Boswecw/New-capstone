@@ -1,62 +1,53 @@
-// server/routes/pets.js - FIXED VERSION WITH FEATURED FILTER
+// server/routes/pets.js - ENHANCED VERSION with Random Featured Selection
 const express = require('express');
-const router = express.Router();
-const mongoose = require('mongoose');
 const Pet = require('../models/Pet');
-const { protect, admin, optionalAuth } = require('../middleware/auth');
+const { protect, admin } = require('../middleware/auth');
+const { validateObjectId } = require('../middleware/validation');
+const router = express.Router();
 
-// ============================================
-// VALIDATION FUNCTIONS
-// ============================================
-
-// Validate MongoDB ObjectId format
-const validateObjectId = (req, res, next) => {
-  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-    return res.status(400).json({ 
-      success: false, 
-      message: "Invalid ID format" 
-    });
-  }
-  next();
-};
-
-// ============================================
-// FEATURED PETS ENDPOINT (Must come before /:id route)
-// ============================================
+// ⭐ NEW: Get random featured pets for home page
 router.get('/featured', async (req, res) => {
   try {
-    console.log('🐕 GET /api/pets/featured');
-
-    const limit = parseInt(req.query.limit) || 10;
+    console.log('🏠 GET /api/pets/featured - Random selection requested');
     
-    const featuredPets = await Pet.find({ 
-      featured: true, 
-      status: 'available' 
-    })
-    .sort({ createdAt: -1 })
-    .limit(limit)
-    .lean();
+    const limit = parseInt(req.query.limit) || 4;
+    
+    // Use MongoDB aggregation for true random selection
+    const featuredPets = await Pet.aggregate([
+      { 
+        $match: { 
+          featured: true, 
+          status: 'available' 
+        } 
+      },
+      { $sample: { size: limit } }, // ⭐ This provides random selection
+      {
+        $addFields: {
+          imageUrl: {
+            $cond: {
+              if: { $ne: ["$image", null] },
+              then: { $concat: ["https://storage.googleapis.com/furbabies-petstore/", "$image"] },
+              else: null
+            }
+          },
+          hasImage: { $ne: ["$image", null] },
+          displayName: { $ifNull: ["$name", "Unnamed Pet"] },
+          isAvailable: { $eq: ["$status", "available"] }
+        }
+      }
+    ]);
 
-    // Add computed fields
-    const enrichedPets = featuredPets.map(pet => ({
-      ...pet,
-      imageUrl: pet.image ? `https://storage.googleapis.com/furbabies-petstore/${pet.image}` : null,
-      hasImage: !!pet.image,
-      displayName: pet.name || 'Unnamed Pet',
-      isAvailable: true
-    }));
-
-    console.log(`🐕 Found ${enrichedPets.length} featured pets`);
-
+    console.log(`🏠 Returning ${featuredPets.length} random featured pets`);
+    
     res.json({
       success: true,
-      data: enrichedPets,
-      count: enrichedPets.length,
-      message: `Found ${enrichedPets.length} featured pets`
+      data: featuredPets,
+      count: featuredPets.length,
+      message: `${featuredPets.length} featured pets selected randomly`
     });
 
   } catch (error) {
-    console.error('❌ Error fetching featured pets:', error);
+    console.error('❌ Error fetching random featured pets:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching featured pets',
@@ -65,165 +56,133 @@ router.get('/featured', async (req, res) => {
   }
 });
 
-// ============================================
-// GET ALL PETS WITH ADVANCED FILTERING
-// ============================================
+// ⭐ ENHANCED: Get all pets with advanced filtering and sorting
 router.get('/', async (req, res) => {
   try {
     console.log('🐕 GET /api/pets - Query params:', req.query);
 
     // Build query object
-    const query = {};
+    const query = { status: 'available' }; // Only show available pets by default
 
-    // ✅ FEATURED FILTER - This was missing!
-    if (req.query.featured === "true") {
-      query.featured = true;
-      console.log('🐕 Filtering for featured pets');
-    }
-
-    // Status/Availability filter
-    if (req.query.available !== undefined && req.query.available !== 'all') {
-      query.status = req.query.available === 'true' ? 'available' : { $ne: 'available' };
-      console.log('🐕 Filtering by availability:', query.status);
-    }
-
-    // Default to available pets if no status specified
-    if (!req.query.available && !req.query.status) {
-      query.status = 'available';
-      console.log('🐕 Defaulting to available pets');
-    }
-
-    // Type filter (dog, cat, fish, etc.)
+    // Type filter (dog, cat, fish, bird, small-pet)
     if (req.query.type && req.query.type !== 'all') {
       query.type = req.query.type;
-      console.log('🐕 Filtering by type:', req.query.type);
     }
 
-    // Category filter (same as type, but different field name)
+    // Category filter (dog, cat, aquatic, other)
     if (req.query.category && req.query.category !== 'all') {
       query.category = req.query.category;
-      console.log('🐕 Filtering by category:', req.query.category);
     }
 
     // Breed filter
     if (req.query.breed && req.query.breed !== 'all') {
-      query.breed = new RegExp(req.query.breed, 'i'); // Case insensitive
-      console.log('🐕 Filtering by breed:', req.query.breed);
+      query.breed = new RegExp(req.query.breed, 'i');
+    }
+
+    // Featured filter
+    if (req.query.featured === 'true') {
+      query.featured = true;
+    }
+
+    // Search functionality
+    if (req.query.search) {
+      const searchRegex = new RegExp(req.query.search, 'i');
+      query.$or = [
+        { name: searchRegex },
+        { breed: searchRegex },
+        { description: searchRegex },
+        { type: searchRegex }
+      ];
+    }
+
+    // Age filter
+    if (req.query.age && req.query.age !== 'all') {
+      const ageRegex = new RegExp(req.query.age, 'i');
+      query.age = ageRegex;
     }
 
     // Size filter
     if (req.query.size && req.query.size !== 'all') {
       query.size = req.query.size;
-      console.log('🐕 Filtering by size:', req.query.size);
     }
 
     // Gender filter
     if (req.query.gender && req.query.gender !== 'all') {
       query.gender = req.query.gender;
-      console.log('🐕 Filtering by gender:', req.query.gender);
     }
-
-    // Age filter
-    if (req.query.age && req.query.age !== 'all') {
-      // You can expand this logic based on your age categories
-      const ageRegex = new RegExp(req.query.age, 'i');
-      query.age = ageRegex;
-      console.log('🐕 Filtering by age:', req.query.age);
-    }
-
-    // Text search across multiple fields
-    if (req.query.search) {
-      const searchRegex = new RegExp(req.query.search, "i");
-      query.$or = [
-        { name: searchRegex },
-        { breed: searchRegex },
-        { description: searchRegex },
-        { type: searchRegex },
-        { category: searchRegex }
-      ];
-      console.log('🐕 Text search filter:', req.query.search);
-    }
-
-    console.log('🐕 Built query:', JSON.stringify(query, null, 2));
 
     // Pagination
-    const limit = parseInt(req.query.limit) || 20;
     const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 12;
     const skip = (page - 1) * limit;
 
-    console.log('🐕 Pagination:', { limit, page, skip });
-
-    // Sort options
+    // Sorting
     let sortOptions = { createdAt: -1 }; // Default: newest first
     
     switch (req.query.sort) {
-      case 'name': 
-        sortOptions = { name: 1 }; 
-        console.log('🐕 Sorting by name A-Z');
+      case 'name':
+        sortOptions = { name: 1 };
         break;
-      case 'age': 
-        sortOptions = { age: 1 }; 
-        console.log('🐕 Sorting by age (youngest first)');
-        break;
-      case 'newest': 
-        sortOptions = { createdAt: -1 }; 
-        console.log('🐕 Sorting by newest first');
-        break;
-      case 'oldest': 
-        sortOptions = { createdAt: 1 }; 
-        console.log('🐕 Sorting by oldest first');
+      case 'age':
+        sortOptions = { age: 1 };
         break;
       case 'featured':
         sortOptions = { featured: -1, createdAt: -1 };
-        console.log('🐕 Sorting by featured first');
         break;
-      default:
-        console.log('🐕 Using default sort (newest first)');
+      case 'random':
+        // For random sorting, we'll use aggregation pipeline
+        break;
     }
 
-    // Execute query with error handling
     let pets;
     let total;
-    
-    try {
-      // Get total count for pagination
+
+    if (req.query.sort === 'random') {
+      // Use aggregation for random sorting
+      const pipeline = [
+        { $match: query },
+        { $sample: { size: limit } },
+        {
+          $addFields: {
+            imageUrl: {
+              $cond: {
+                if: { $ne: ["$image", null] },
+                then: { $concat: ["https://storage.googleapis.com/furbabies-petstore/", "$image"] },
+                else: null
+              }
+            },
+            hasImage: { $ne: ["$image", null] },
+            displayName: { $ifNull: ["$name", "Unnamed Pet"] },
+            isAvailable: { $eq: ["$status", "available"] }
+          }
+        }
+      ];
+      
+      pets = await Pet.aggregate(pipeline);
+      total = await Pet.countDocuments(query);
+    } else {
+      // Regular query with sorting
       total = await Pet.countDocuments(query);
       
-      // Get paginated pets
-      pets = await Pet.find(query)
+      const dbPets = await Pet.find(query)
         .sort(sortOptions)
         .limit(limit)
         .skip(skip)
-        .lean(); // Use lean() for better performance
-        
-      console.log(`🐕 Found ${pets.length} pets (Total: ${total})`);
-      
-      // Log first few pets for debugging
-      if (pets.length > 0) {
-        console.log('🐕 Sample pets:', pets.slice(0, 3).map(p => ({ 
-          id: p._id, 
-          name: p.name, 
-          featured: p.featured, 
-          status: p.status 
-        })));
-      }
-      
-    } catch (dbError) {
-      console.error('🐕 Database error:', dbError);
-      throw dbError;
+        .lean();
+
+      // Add computed fields
+      pets = dbPets.map(pet => ({
+        ...pet,
+        imageUrl: pet.image ? `https://storage.googleapis.com/furbabies-petstore/${pet.image}` : null,
+        hasImage: !!pet.image,
+        displayName: pet.name || 'Unnamed Pet',
+        isAvailable: pet.status === 'available',
+        daysSincePosted: Math.floor((new Date() - new Date(pet.createdAt)) / (1000 * 60 * 60 * 24))
+      }));
     }
 
-    // Add computed fields to each pet
-    pets = pets.map(pet => ({
-      ...pet,
-      imageUrl: pet.image ? `https://storage.googleapis.com/furbabies-petstore/${pet.image}` : null,
-      hasImage: !!pet.image,
-      displayName: pet.name || 'Unnamed Pet',
-      isAvailable: pet.status === 'available',
-      daysSincePosted: Math.floor((new Date() - new Date(pet.createdAt)) / (1000 * 60 * 60 * 24))
-    }));
+    console.log(`🐕 Found ${pets.length} pets (Total: ${total})`);
 
-    // Return success response
     res.json({
       success: true,
       data: pets,
@@ -235,15 +194,13 @@ router.get('/', async (req, res) => {
         hasMore: skip + pets.length < total
       },
       filters: {
-        featured: req.query.featured || 'false',
         type: req.query.type || 'all',
         breed: req.query.breed || 'all',
         category: req.query.category || 'all',
-        available: req.query.available || 'all',
         search: req.query.search || '',
-        sort: req.query.sort || 'newest'
-      },
-      message: `Found ${pets.length} pets matching your criteria`
+        sort: req.query.sort || 'newest',
+        featured: req.query.featured || 'all'
+      }
     });
 
   } catch (error) {
@@ -256,9 +213,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// ============================================
-// GET SINGLE PET BY ID
-// ============================================
+// Get single pet by ID
 router.get('/:id', validateObjectId, async (req, res) => {
   try {
     console.log('🐕 GET /api/pets/:id - Pet ID:', req.params.id);
@@ -279,28 +234,97 @@ router.get('/:id', validateObjectId, async (req, res) => {
       imageUrl: pet.image ? `https://storage.googleapis.com/furbabies-petstore/${pet.image}` : null,
       hasImage: !!pet.image,
       displayName: pet.name || 'Unnamed Pet',
-      isAvailable: pet.status === 'available',
-      daysSincePosted: Math.floor((new Date() - new Date(pet.createdAt)) / (1000 * 60 * 60 * 24))
+      isAvailable: pet.status === 'available'
     };
 
-    // Increment view count if field exists
-    if (pet.views !== undefined) {
-      await Pet.findByIdAndUpdate(pet._id, { $inc: { views: 1 } });
-      console.log('🐕 Incremented view count');
-    }
-
     console.log('🐕 Pet found:', enrichedPet.displayName);
+    
+    res.json({
+      success: true,
+      data: enrichedPet
+    });
+    
+  } catch (error) {
+    console.error('❌ Error fetching pet:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch pet',
+      error: error.message
+    });
+  }
+});
 
+// Get pet types for filtering
+router.get('/meta/types', async (req, res) => {
+  try {
+    console.log('🐕 GET /api/pets/meta/types');
+    
+    const types = await Pet.distinct('type', { status: 'available' });
+    
+    const typesWithCount = await Promise.all(
+      types.map(async (type) => {
+        const count = await Pet.countDocuments({ 
+          type: type, 
+          status: 'available' 
+        });
+        return { 
+          _id: type, 
+          name: type.charAt(0).toUpperCase() + type.slice(1), 
+          count,
+          value: type 
+        };
+      })
+    );
+
+    console.log(`🐕 Found ${typesWithCount.length} pet types`);
+    
     res.json({ 
       success: true, 
-      data: enrichedPet 
+      data: typesWithCount.filter(t => t.count > 0)
     });
-
   } catch (error) {
-    console.error('❌ Error retrieving pet:', error);
+    console.error('❌ Error fetching pet types:', error);
     res.status(500).json({ 
       success: false, 
-      message: 'Error retrieving pet', 
+      message: 'Error fetching pet types', 
+      error: error.message 
+    });
+  }
+});
+
+// Get pet breeds by type
+router.get('/meta/breeds/:type', async (req, res) => {
+  try {
+    const { type } = req.params;
+    console.log(`🐕 GET /api/pets/meta/breeds/${type}`);
+    
+    const breeds = await Pet.distinct('breed', { 
+      type: type,
+      status: 'available' 
+    });
+    
+    const breedsWithCount = await Promise.all(
+      breeds.map(async (breed) => {
+        const count = await Pet.countDocuments({ 
+          type: type,
+          breed: breed,
+          status: 'available'
+        });
+        return { name: breed, count, value: breed };
+      })
+    );
+
+    console.log(`🐕 Found ${breedsWithCount.length} breeds for ${type}`);
+    
+    res.json({ 
+      success: true, 
+      data: breedsWithCount.filter(b => b.count > 0).sort((a, b) => a.name.localeCompare(b.name))
+    });
+  } catch (error) {
+    console.error('❌ Error fetching breeds:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error fetching breeds', 
       error: error.message 
     });
   }

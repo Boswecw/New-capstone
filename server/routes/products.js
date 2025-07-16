@@ -1,62 +1,59 @@
-// server/routes/products.js - FIXED VERSION WITH PROPER FILTERS
+// server/routes/products.js - ENHANCED VERSION with Random Featured Selection
 const express = require('express');
-const router = express.Router();
-const mongoose = require('mongoose');
 const Product = require('../models/Product');
 const { protect, admin } = require('../middleware/auth');
+const { validateObjectId } = require('../middleware/validation');
+const router = express.Router();
 
-// ============================================
-// VALIDATION FUNCTIONS
-// ============================================
-
-// Validate MongoDB ObjectId format
-const validateObjectId = (req, res, next) => {
-  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-    return res.status(400).json({ 
-      success: false, 
-      message: "Invalid ID format" 
-    });
-  }
-  next();
-};
-
-// ============================================
-// FEATURED PRODUCTS ENDPOINT (Must come before /:id route)
-// ============================================
+// ⭐ NEW: Get random featured products for home page
 router.get('/featured', async (req, res) => {
   try {
-    console.log('🛒 GET /api/products/featured');
-
-    const limit = parseInt(req.query.limit) || 10;
+    console.log('🛒 GET /api/products/featured - Random selection requested');
     
-    const featuredProducts = await Product.find({ 
-      featured: true, 
-      inStock: true 
-    })
-    .sort({ createdAt: -1 })
-    .limit(limit)
-    .lean();
+    const limit = parseInt(req.query.limit) || 4;
+    
+    // Use MongoDB aggregation for true random selection
+    const featuredProducts = await Product.aggregate([
+      { 
+        $match: { 
+          featured: true, 
+          inStock: true 
+        } 
+      },
+      { $sample: { size: limit } }, // ⭐ This provides random selection
+      {
+        $addFields: {
+          imageUrl: {
+            $cond: {
+              if: { $ne: ["$image", null] },
+              then: { $concat: ["https://storage.googleapis.com/furbabies-petstore/", "$image"] },
+              else: null
+            }
+          },
+          hasImage: { $ne: ["$image", null] },
+          displayName: { $ifNull: ["$name", "Unnamed Product"] },
+          formattedPrice: {
+            $cond: {
+              if: { $ne: ["$price", null] },
+              then: { $concat: ["$", { $toString: "$price" }] },
+              else: "N/A"
+            }
+          }
+        }
+      }
+    ]);
 
-    // Add computed fields
-    const enrichedProducts = featuredProducts.map(product => ({
-      ...product,
-      imageUrl: product.image ? `https://storage.googleapis.com/furbabies-petstore/${product.image}` : null,
-      hasImage: !!product.image,
-      displayName: product.name || 'Unnamed Product',
-      formattedPrice: `${product.price.toFixed(2)}`
-    }));
-
-    console.log(`🛒 Found ${enrichedProducts.length} featured products`);
-
+    console.log(`🛒 Returning ${featuredProducts.length} random featured products`);
+    
     res.json({
       success: true,
-      data: enrichedProducts,
-      count: enrichedProducts.length,
-      message: `Found ${enrichedProducts.length} featured products`
+      data: featuredProducts,
+      count: featuredProducts.length,
+      message: `${featuredProducts.length} featured products selected randomly`
     });
 
   } catch (error) {
-    console.error('❌ Error fetching featured products:', error);
+    console.error('❌ Error fetching random featured products:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching featured products',
@@ -65,9 +62,7 @@ router.get('/featured', async (req, res) => {
   }
 });
 
-// ============================================
-// GET ALL PRODUCTS WITH ADVANCED FILTERING
-// ============================================
+// ⭐ ENHANCED: Get all products with advanced filtering and sorting
 router.get('/', async (req, res) => {
   try {
     console.log('🛒 GET /api/products - Query params:', req.query);
@@ -75,145 +70,133 @@ router.get('/', async (req, res) => {
     // Build query object
     const query = {};
 
-    // ✅ FEATURED FILTER
-    if (req.query.featured === "true") {
-      query.featured = true;
-      console.log('🛒 Filtering for featured products');
-    }
-
-    // ✅ IN STOCK FILTER - Handle both string and boolean values
-    if (req.query.inStock !== undefined && req.query.inStock !== 'all') {
-      query.inStock = req.query.inStock === "true" || req.query.inStock === true;
-      console.log('🛒 Filtering by inStock:', query.inStock);
-    }
-
     // Category filter
     if (req.query.category && req.query.category !== 'all') {
-      query.category = new RegExp(req.query.category, 'i'); // Case insensitive
-      console.log('🛒 Filtering by category:', req.query.category);
+      query.category = new RegExp(req.query.category, 'i');
     }
 
     // Brand filter
     if (req.query.brand && req.query.brand !== 'all') {
-      query.brand = new RegExp(req.query.brand, 'i'); // Case insensitive
-      console.log('🛒 Filtering by brand:', req.query.brand);
+      query.brand = new RegExp(req.query.brand, 'i');
     }
 
-    // Price range filtering
+    // Stock filter
+    if (req.query.inStock === 'true') {
+      query.inStock = true;
+    } else if (req.query.inStock === 'false') {
+      query.inStock = false;
+    }
+
+    // Featured filter
+    if (req.query.featured === 'true') {
+      query.featured = true;
+    }
+
+    // Price range filter
     if (req.query.minPrice || req.query.maxPrice) {
       query.price = {};
       if (req.query.minPrice) {
         query.price.$gte = parseFloat(req.query.minPrice);
-        console.log('🛒 Min price filter:', req.query.minPrice);
       }
       if (req.query.maxPrice) {
         query.price.$lte = parseFloat(req.query.maxPrice);
-        console.log('🛒 Max price filter:', req.query.maxPrice);
       }
     }
 
-    // Text search across multiple fields
+    // Search functionality
     if (req.query.search) {
-      const searchRegex = new RegExp(req.query.search, "i");
+      const searchRegex = new RegExp(req.query.search, 'i');
       query.$or = [
         { name: searchRegex },
         { description: searchRegex },
-        { brand: searchRegex },
         { category: searchRegex },
+        { brand: searchRegex }
       ];
-      console.log('🛒 Text search filter:', req.query.search);
     }
-
-    // Image filter - Only include if explicitly requested
-    if (req.query.withImage === "true") {
-      query.image = { $exists: true, $nin: ["", null] };
-      console.log('🛒 Filtering for products with images');
-    }
-
-    console.log('🛒 Built query:', JSON.stringify(query, null, 2));
 
     // Pagination
-    const limit = parseInt(req.query.limit) || 20;
     const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 12;
     const skip = (page - 1) * limit;
 
-    console.log('🛒 Pagination:', { limit, page, skip });
-
-    // Sort options
+    // Sorting
     let sortOptions = { createdAt: -1 }; // Default: newest first
     
     switch (req.query.sort) {
-      case 'name': 
-        sortOptions = { name: 1 }; 
-        console.log('🛒 Sorting by name A-Z');
+      case 'name':
+        sortOptions = { name: 1 };
         break;
-      case 'price-low': 
-        sortOptions = { price: 1 }; 
-        console.log('🛒 Sorting by price (low to high)');
+      case 'price-low':
+        sortOptions = { price: 1 };
         break;
-      case 'price-high': 
-        sortOptions = { price: -1 }; 
-        console.log('🛒 Sorting by price (high to low)');
-        break;
-      case 'newest': 
-        sortOptions = { createdAt: -1 }; 
-        console.log('🛒 Sorting by newest first');
-        break;
-      case 'oldest': 
-        sortOptions = { createdAt: 1 }; 
-        console.log('🛒 Sorting by oldest first');
+      case 'price-high':
+        sortOptions = { price: -1 };
         break;
       case 'featured':
         sortOptions = { featured: -1, createdAt: -1 };
-        console.log('🛒 Sorting by featured first');
         break;
-      default:
-        console.log('🛒 Using default sort (newest first)');
+      case 'category':
+        sortOptions = { category: 1, name: 1 };
+        break;
+      case 'random':
+        // For random sorting, we'll use aggregation pipeline
+        break;
     }
 
-    // Execute query with error handling
     let products;
     let total;
-    
-    try {
-      // Get total count for pagination
+
+    if (req.query.sort === 'random') {
+      // Use aggregation for random sorting
+      const pipeline = [
+        { $match: query },
+        { $sample: { size: limit } },
+        {
+          $addFields: {
+            imageUrl: {
+              $cond: {
+                if: { $ne: ["$image", null] },
+                then: { $concat: ["https://storage.googleapis.com/furbabies-petstore/", "$image"] },
+                else: null
+              }
+            },
+            hasImage: { $ne: ["$image", null] },
+            displayName: { $ifNull: ["$name", "Unnamed Product"] },
+            formattedPrice: {
+              $cond: {
+                if: { $ne: ["$price", null] },
+                then: { $concat: ["$", { $toString: "$price" }] },
+                else: "N/A"
+              }
+            }
+          }
+        }
+      ];
+      
+      products = await Product.aggregate(pipeline);
+      total = await Product.countDocuments(query);
+    } else {
+      // Regular query with sorting
       total = await Product.countDocuments(query);
       
-      // Get paginated products
-      products = await Product.find(query)
+      const dbProducts = await Product.find(query)
         .sort(sortOptions)
         .limit(limit)
         .skip(skip)
-        .lean(); // Use lean() for better performance
-        
-      console.log(`🛒 Found ${products.length} products (Total: ${total})`);
-      
-      // Log first few products for debugging
-      if (products.length > 0) {
-        console.log('🛒 Sample products:', products.slice(0, 3).map(p => ({ 
-          id: p._id, 
-          name: p.name, 
-          featured: p.featured, 
-          inStock: p.inStock,
-          price: p.price
-        })));
-      }
-      
-    } catch (dbError) {
-      console.error('🛒 Database error:', dbError);
-      throw dbError;
+        .lean();
+
+      // Add computed fields
+      products = dbProducts.map(product => ({
+        ...product,
+        imageUrl: product.image ? `https://storage.googleapis.com/furbabies-petstore/${product.image}` : null,
+        hasImage: !!product.image,
+        displayName: product.name || 'Unnamed Product',
+        formattedPrice: typeof product.price === 'number' ? `$${product.price.toFixed(2)}` : 'N/A'
+      }));
     }
 
-    // Add computed fields to each product
-    products = products.map(product => ({
-      ...product,
-      imageUrl: product.image ? `https://storage.googleapis.com/furbabies-petstore/${product.image}` : null,
-      hasImage: !!product.image,
-      displayName: product.name || 'Unnamed Product',
-      formattedPrice: `$${product.price.toFixed(2)}`
-    }));
+    console.log(`🛒 Found ${products.length} products (Total: ${total})`);
 
-    // Return success response
     res.json({
       success: true,
       data: products,
@@ -225,32 +208,29 @@ router.get('/', async (req, res) => {
         hasMore: skip + products.length < total
       },
       filters: {
-        featured: req.query.featured || 'false',
         category: req.query.category || 'all',
         brand: req.query.brand || 'all',
         inStock: req.query.inStock || 'all',
         search: req.query.search || '',
-        sort: req.query.sort || 'newest'
-      },
-      message: `Found ${products.length} products matching your criteria`
+        sort: req.query.sort || 'newest',
+        featured: req.query.featured || 'all'
+      }
     });
 
   } catch (error) {
-    console.error("❌ Error fetching products:", error);
+    console.error('❌ Error fetching products:', error);
     res.status(500).json({
       success: false,
-      message: "Failed to fetch products",
+      message: 'Failed to fetch products',
       error: error.message
     });
   }
 });
 
-// ============================================
-// GET SINGLE PRODUCT BY ID
-// ============================================
-router.get("/:id", validateObjectId, async (req, res) => {
+// Get single product by ID
+router.get('/:id', validateObjectId, async (req, res) => {
   try {
-    console.log('🛒 GET /products/:id - Product ID:', req.params.id);
+    console.log('🛒 GET /api/products/:id - Product ID:', req.params.id);
     
     const product = await Product.findById(req.params.id).lean();
     
@@ -268,7 +248,7 @@ router.get("/:id", validateObjectId, async (req, res) => {
       imageUrl: product.image ? `https://storage.googleapis.com/furbabies-petstore/${product.image}` : null,
       hasImage: !!product.image,
       displayName: product.name || 'Unnamed Product',
-      formattedPrice: `$${product.price.toFixed(2)}`
+      formattedPrice: typeof product.price === 'number' ? `$${product.price.toFixed(2)}` : 'N/A'
     };
 
     console.log('🛒 Product found:', enrichedProduct.displayName);
@@ -287,47 +267,72 @@ router.get("/:id", validateObjectId, async (req, res) => {
   }
 });
 
-// ============================================
-// FEATURED PRODUCTS ENDPOINT (Alternative route)
-// ============================================
-router.get('/featured', async (req, res) => {
+// Get product categories for filtering
+router.get('/meta/categories', async (req, res) => {
   try {
-    console.log('🛒 GET /api/products/featured');
-
-    const limit = parseInt(req.query.limit) || 10;
+    console.log('🛒 GET /api/products/meta/categories');
     
-    const featuredProducts = await Product.find({ 
-      featured: true, 
-      inStock: true 
-    })
-    .sort({ createdAt: -1 })
-    .limit(limit)
-    .lean();
+    const categories = await Product.distinct('category');
+    
+    const categoriesWithCount = await Promise.all(
+      categories.map(async (category) => {
+        const count = await Product.countDocuments({ category });
+        return { 
+          _id: category, 
+          name: category, 
+          count,
+          value: category 
+        };
+      })
+    );
 
-    // Add computed fields
-    const enrichedProducts = featuredProducts.map(product => ({
-      ...product,
-      imageUrl: product.image ? `https://storage.googleapis.com/furbabies-petstore/${product.image}` : null,
-      hasImage: !!product.image,
-      displayName: product.name || 'Unnamed Product',
-      formattedPrice: `$${product.price.toFixed(2)}`
-    }));
-
-    console.log(`🛒 Found ${enrichedProducts.length} featured products`);
-
-    res.json({
-      success: true,
-      data: enrichedProducts,
-      count: enrichedProducts.length,
-      message: `Found ${enrichedProducts.length} featured products`
+    console.log(`🛒 Found ${categoriesWithCount.length} product categories`);
+    
+    res.json({ 
+      success: true, 
+      data: categoriesWithCount.filter(c => c.count > 0).sort((a, b) => a.name.localeCompare(b.name))
     });
-
   } catch (error) {
-    console.error('❌ Error fetching featured products:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching featured products',
-      error: error.message
+    console.error('❌ Error fetching product categories:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error fetching categories', 
+      error: error.message 
+    });
+  }
+});
+
+// Get product brands for filtering
+router.get('/meta/brands', async (req, res) => {
+  try {
+    console.log('🛒 GET /api/products/meta/brands');
+    
+    const brands = await Product.distinct('brand');
+    
+    const brandsWithCount = await Promise.all(
+      brands.map(async (brand) => {
+        const count = await Product.countDocuments({ brand });
+        return { 
+          _id: brand, 
+          name: brand, 
+          count,
+          value: brand 
+        };
+      })
+    );
+
+    console.log(`🛒 Found ${brandsWithCount.length} product brands`);
+    
+    res.json({ 
+      success: true, 
+      data: brandsWithCount.filter(b => b.count > 0).sort((a, b) => a.name.localeCompare(b.name))
+    });
+  } catch (error) {
+    console.error('❌ Error fetching product brands:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error fetching brands', 
+      error: error.message 
     });
   }
 });
