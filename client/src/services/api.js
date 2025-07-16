@@ -67,6 +67,22 @@ const petAPI = {
   deletePet: (id) => api.delete(`/pets/${id}`),
   addToFavorites: (petId) => api.post(`/pets/${petId}/favorites`),
   removeFromFavorites: (petId) => api.delete(`/pets/${petId}/favorites`),
+  
+  // Add missing getRandomPets method
+  getRandomPets: (limit = 6) => {
+    const searchParams = new URLSearchParams();
+    searchParams.append('limit', limit);
+    searchParams.append('random', 'true');
+    return api.get(`/pets?${searchParams}`);
+  },
+  
+  // Add missing getRandomProducts method (if needed)
+  getFeaturedPets: (limit = 6) => {
+    const searchParams = new URLSearchParams();
+    searchParams.append('featured', 'true');
+    searchParams.append('limit', limit);
+    return api.get(`/pets?${searchParams}`);
+  },
 };
 
 // ===== PRODUCT API =====
@@ -84,6 +100,22 @@ const productAPI = {
   createProduct: (productData) => api.post('/products', productData),
   updateProduct: (id, productData) => api.put(`/products/${id}`, productData),
   deleteProduct: (id) => api.delete(`/products/${id}`),
+  
+  // Add missing getRandomProducts method
+  getRandomProducts: (limit = 6) => {
+    const searchParams = new URLSearchParams();
+    searchParams.append('limit', limit);
+    searchParams.append('random', 'true');
+    return api.get(`/products?${searchParams}`);
+  },
+  
+  // Add missing getFeaturedProducts method
+  getFeaturedProducts: (limit = 6) => {
+    const searchParams = new URLSearchParams();
+    searchParams.append('featured', 'true');
+    searchParams.append('limit', limit);
+    return api.get(`/products?${searchParams}`);
+  },
 };
 
 // ===== NEWS API =====
