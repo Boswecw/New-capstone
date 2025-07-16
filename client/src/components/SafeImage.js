@@ -1,133 +1,76 @@
-// client/src/components/SafeImage.js - ROBUST IMAGE COMPONENT
-import React, { useState, useEffect } from 'react';
+// client/src/components/SafeImage.js - NEW COMPONENT
+import React, { useState, useCallback } from 'react';
+import { Spinner } from 'react-bootstrap';
 
 const SafeImage = ({ 
   src, 
   alt, 
-  className = "", 
-  style = {}, 
-  fallbackText = "Image",
-  type = "product", // 'product', 'pet', 'general'
+  className = '', 
+  style = {},
+  showSpinner = true,
+  fallbackSrc = 'https://images.unsplash.com/photo-1548767797-d8c844163c4c?w=400&h=300&fit=crop&q=80',
   onLoad,
   onError,
-  loading = "lazy",
-  ...props
+  ...props 
 }) => {
-  const [imageSrc, setImageSrc] = useState(src);
-  const [hasError, setHasError] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [currentSrc, setCurrentSrc] = useState(src);
 
-  // Reliable fallback images with multiple backup options
-  const getFallbackImage = (type, text) => {
-    const encodedText = encodeURIComponent(text);
+  const handleLoad = useCallback(() => {
+    setLoading(false);
+    setError(false);
+    onLoad?.();
+  }, [onLoad]);
+
+  const handleError = useCallback((e) => {
+    setLoading(false);
     
-    // Primary fallbacks using via.placeholder.com
-    const primaryFallbacks = {
-      product: `https://via.placeholder.com/400x300/4ECDC4/FFFFFF?text=${encodedText}`,
-      pet: `https://via.placeholder.com/400x300/FF6B6B/FFFFFF?text=🐾+${encodedText}`,
-      general: `https://via.placeholder.com/300x200/f5f5f5/999999?text=${encodedText}`
-    };
-
-    // Secondary fallbacks using picsum.photos with blur for aesthetic appeal
-    const secondaryFallbacks = {
-      product: `https://picsum.photos/400/300?blur=2&random=${Math.floor(Math.random() * 1000)}`,
-      pet: `https://picsum.photos/400/300?blur=2&random=${Math.floor(Math.random() * 1000)}`,
-      general: `https://picsum.photos/300/200?blur=2&random=${Math.floor(Math.random() * 1000)}`
-    };
-
-    // Ultimate fallback using data URIs (always works)
-    const dataUriFallbacks = {
-      product: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300'%3E%3Crect width='100%25' height='100%25' fill='%234ECDC4'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' font-family='Arial, sans-serif' font-size='16' fill='%23FFFFFF'%3E🛍️ Product%3C/text%3E%3C/svg%3E",
-      pet: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300'%3E%3Crect width='100%25' height='100%25' fill='%23FF6B6B'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' font-family='Arial, sans-serif' font-size='16' fill='%23FFFFFF'%3E🐾 Pet%3C/text%3E%3C/svg%3E",
-      general: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='200'%3E%3Crect width='100%25' height='100%25' fill='%23f5f5f5'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' font-family='Arial, sans-serif' font-size='16' fill='%23999999'%3ENo Image%3C/text%3E%3C/svg%3E"
-    };
-
-    return {
-      primary: primaryFallbacks[type] || primaryFallbacks.general,
-      secondary: secondaryFallbacks[type] || secondaryFallbacks.general,
-      ultimate: dataUriFallbacks[type] || dataUriFallbacks.general
-    };
-  };
-
-  const handleError = (event) => {
-    console.warn(`🚫 Image failed to load: ${imageSrc}`);
-    
-    if (!hasError) {
-      setHasError(true);
-      const fallback = getFallbackImage(type, fallbackText);
-      
-      // Try primary fallback first
-      if (!imageSrc.includes('placeholder')) {
-        setImageSrc(fallback.primary);
-      } else if (!imageSrc.includes('picsum')) {
-        // If placeholder failed, try picsum
-        setImageSrc(fallback.secondary);
-      } else {
-        // If all external services fail, use data URI
-        setImageSrc(fallback.ultimate);
-      }
+    // Try fallback if we haven't already
+    if (!error && currentSrc !== fallbackSrc) {
+      setError(true);
+      setCurrentSrc(fallbackSrc);
+      console.warn(`Image failed: ${src}, using fallback`);
+    } else {
+      setError(true);
+      onError?.(e);
     }
-    setIsLoading(false);
-    
-    // Call parent's onError handler if provided
-    if (onError) {
-      onError(event);
-    }
-  };
-
-  const handleLoad = (event) => {
-    setIsLoading(false);
-    console.log(`✅ Image loaded successfully: ${imageSrc}`);
-    
-    // Call parent's onLoad handler if provided
-    if (onLoad) {
-      onLoad(event);
-    }
-  };
-
-  // Reset state when src prop changes
-  useEffect(() => {
-    if (src !== imageSrc && !hasError) {
-      setImageSrc(src);
-      setHasError(false);
-      setIsLoading(true);
-    }
-  }, [src]);
+  }, [error, currentSrc, fallbackSrc, src, onError]);
 
   return (
-    <div className={`safe-image-container ${className}`} style={style}>
-      {isLoading && (
-        <div 
-          className="image-loading-placeholder d-flex align-items-center justify-content-center bg-light"
-          style={{ 
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            minHeight: '200px', 
-            zIndex: 1,
-            ...style 
-          }}
-        >
-          <div className="text-muted">Loading...</div>
+    <div className={`position-relative ${className}`} style={style}>
+      {/* Loading spinner */}
+      {loading && showSpinner && (
+        <div className="position-absolute top-50 start-50 translate-middle">
+          <Spinner animation="border" size="sm" variant="primary" />
         </div>
       )}
+      
+      {/* Image */}
       <img
-        src={imageSrc}
-        alt={alt}
-        className={`img-fluid ${isLoading ? 'opacity-0' : 'opacity-100'}`}
-        style={{ 
-          ...style, 
-          width: '100%', 
-          height: 'auto',
-          transition: 'opacity 0.3s ease-in-out'
-        }}
-        onError={handleError}
-        onLoad={handleLoad}
-        loading={loading}
         {...props}
+        src={currentSrc}
+        alt={alt}
+        onLoad={handleLoad}
+        onError={handleError}
+        style={{
+          opacity: loading ? 0.5 : 1,
+          transition: 'opacity 0.3s ease',
+          width: '100%',
+          height: 'auto'
+        }}
       />
+      
+      {/* Error overlay */}
+      {error && currentSrc === fallbackSrc && (
+        <div className="position-absolute top-50 start-50 translate-middle text-center">
+          <div className="text-muted">
+            <i className="fas fa-image fa-2x mb-2"></i>
+            <br />
+            <small>Image unavailable</small>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
