@@ -1,57 +1,54 @@
-// server/server.js - COMPLETE UPDATED VERSION WITH RANDOM ENDPOINTS
+// server/server.js - FIXED for Your Existing MongoDB Data Structure
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const helmet = require('helmet');
+const compression = require('compression');
+const rateLimit = require('express-rate-limit');
 const path = require('path');
 require('dotenv').config();
 
 const app = express();
+const PORT = process.env.PORT || 5000;
 
-// ===== RENDER-SPECIFIC PORT CONFIGURATION =====
-const PORT = process.env.PORT || 10000;
-console.log(`🚀 Starting server on port ${PORT}`);
+// ===== MIDDLEWARE =====
+app.use(helmet());
+app.use(compression());
+app.use(cors({
+  origin: process.env.NODE_ENV === 'production' 
+    ? true // Allow all origins in production, or specify your domain
+    : ['http://localhost:3000'],
+  credentials: true
+}));
 
-// ===== MONGODB CONNECTION =====
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100
+});
+app.use('/api/', limiter);
+
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// ===== DATABASE CONNECTION =====
 const connectDB = async () => {
   try {
-    console.log('🔄 Connecting to MongoDB...');
-    
     const conn = await mongoose.connect(process.env.MONGODB_URI, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
-      maxPoolSize: 10,
-      serverSelectionTimeoutMS: 5000,
-      socketTimeoutMS: 45000,
-      connectTimeoutMS: 10000,
-      retryWrites: true,
-      w: 'majority'
     });
-
-    console.log(`✅ MongoDB Connected: ${conn.connection.db.databaseName}`);
-    
-    // Connection event handlers
-    mongoose.connection.on('error', (err) => {
-      console.error('❌ MongoDB error:', err.message);
-    });
-    
-    mongoose.connection.on('disconnected', () => {
-      console.warn('⚠️ MongoDB disconnected');
-    });
-    
-    return conn;
+    console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
+    console.log(`📊 Database: ${conn.connection.name}`);
   } catch (error) {
-    console.error('❌ MongoDB connection failed:', error.message);
-    
-    // For Render deployment, don't exit - let it restart
-    if (process.env.NODE_ENV !== 'production') {
-      process.exit(1);
-    }
-    throw error;
+    console.error('❌ MongoDB connection error:', error);
+    process.exit(1);
   }
 };
 
-// ===== MONGOOSE SCHEMAS =====
+// ===== SCHEMAS FOR YOUR EXISTING DATA =====
 const petSchema = new mongoose.Schema({
+  _id: { type: String, required: true }, // Your IDs are strings like "p025"
   name: String,
   type: String,
   breed: String,
@@ -60,65 +57,164 @@ const petSchema = new mongoose.Schema({
   gender: String,
   description: String,
   image: String,
-  status: { type: String, default: 'available' },
+  status: String,
+  updatedAt: Date,
+  createdBy: mongoose.Schema.Types.ObjectId,
   category: String,
-  featured: { type: Boolean, default: false },
-  createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now }
-});
+  featured: Boolean
+}, { _id: false }); // Disable auto ObjectId since you use custom string IDs
 
 const productSchema = new mongoose.Schema({
+  _id: { type: String, required: true }, // Your IDs are strings like "prod_001"
   name: String,
   category: String,
   brand: String,
   price: Number,
-  inStock: { type: Boolean, default: true },
+  inStock: Boolean,
   description: String,
   image: String,
-  featured: { type: Boolean, default: false },
-  createdAt: { type: Date, default: Date.now }
-});
+  featured: mongoose.Schema.Types.Mixed // Handle both boolean true and string "true"
+}, { _id: false });
 
 const Pet = mongoose.model('Pet', petSchema);
 const Product = mongoose.model('Product', productSchema);
 
-// ===== MIDDLEWARE =====
-app.use(cors({
-  origin: [
-    'https://furbabies-frontend.onrender.com',
-    'https://furbabies-backend.onrender.com',
-    'http://localhost:3000',
-    'http://localhost:3001'
-  ],
-  credentials: true
-}));
-
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-
 // ===== HEALTH CHECK =====
-app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'OK',
-    message: 'FurBabies server is running!',
-    timestamp: new Date().toISOString(),
-    port: PORT,
-    environment: process.env.NODE_ENV,
-    database: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected'
-  });
+app.get('/api/health', async (req, res) => {
+  try {
+    // Test database connection
+    const petCount = await Pet.countDocuments();
+    const productCount = await Product.countDocuments();
+    
+    res.json({ 
+      success: true, 
+      message: 'FurBabies API is running',
+      environment: process.env.NODE_ENV,
+      timestamp: new Date().toISOString(),
+      database: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected',
+      collections: {
+        pets: petCount,
+        products: productCount
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Database connection issue',
+      error: error.message
+    });
+  }
 });
 
-// ===== PETS ENDPOINTS =====
+// ===== FEATURED PETS ENDPOINT (Random Selection) =====
+app.get('/api/pets/featured', async (req, res) => {
+  try {
+    console.log('🏠 GET /api/pets/featured - Random selection requested');
+    
+    const limit = parseInt(req.query.limit) || 4;
+    
+    // Get random featured pets using aggregation
+    const featuredPets = await Pet.aggregate([
+      { 
+        $match: { 
+          featured: true, 
+          status: 'available' 
+        } 
+      },
+      { $sample: { size: limit } }, // Random selection
+      {
+        $addFields: {
+          imageUrl: {
+            $concat: ["https://storage.googleapis.com/furbabies-petstore/", "$image"]
+          },
+          hasImage: { $ne: ["$image", null] },
+          displayName: { $ifNull: ["$name", "Unnamed Pet"] },
+          isAvailable: { $eq: ["$status", "available"] }
+        }
+      }
+    ]);
 
-// Get all pets with filtering
+    console.log(`🏠 Returning ${featuredPets.length} random featured pets`);
+    
+    res.json({
+      success: true,
+      data: featuredPets,
+      count: featuredPets.length,
+      message: `${featuredPets.length} featured pets selected randomly`
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching random featured pets:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching featured pets',
+      error: error.message
+    });
+  }
+});
+
+// ===== FEATURED PRODUCTS ENDPOINT (Random Selection) =====
+app.get('/api/products/featured', async (req, res) => {
+  try {
+    console.log('🛒 GET /api/products/featured - Random selection requested');
+    
+    const limit = parseInt(req.query.limit) || 4;
+    
+    // Get random featured products using aggregation
+    // NOTE: Products have featured as STRING "true", not boolean true
+    const featuredProducts = await Product.aggregate([
+      { 
+        $match: { 
+          $or: [
+            { featured: true },      // Handle boolean true
+            { featured: "true" }     // Handle string "true"
+          ],
+          inStock: true 
+        } 
+      },
+      { $sample: { size: limit } }, // Random selection
+      {
+        $addFields: {
+          imageUrl: {
+            $concat: ["https://storage.googleapis.com/furbabies-petstore/", "$image"]
+          },
+          hasImage: { $ne: ["$image", null] },
+          displayName: { $ifNull: ["$name", "Unnamed Product"] },
+          formattedPrice: {
+            $concat: ["$", { $toString: "$price" }]
+          }
+        }
+      }
+    ]);
+
+    console.log(`🛒 Returning ${featuredProducts.length} random featured products`);
+    
+    res.json({
+      success: true,
+      data: featuredProducts,
+      count: featuredProducts.length,
+      message: `${featuredProducts.length} featured products selected randomly`
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching random featured products:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching featured products',
+      error: error.message
+    });
+  }
+});
+
+// ===== ALL PETS ENDPOINT (For Browse Page) =====
 app.get('/api/pets', async (req, res) => {
   try {
-    console.log('🐕 GET /api/pets called with params:', req.query);
-    console.log('🌐 Request origin:', req.get('Origin'));
-    
+    console.log('🐕 GET /api/pets - Query params:', req.query);
+
+    // Build query object
     const query = { status: 'available' };
-    
-    // Add filters
+
+    // Apply filters
     if (req.query.type && req.query.type !== 'all') {
       query.type = req.query.type;
     }
@@ -131,38 +227,52 @@ app.get('/api/pets', async (req, res) => {
       query.breed = new RegExp(req.query.breed, 'i');
     }
     
+    if (req.query.featured === 'true') {
+      query.$or = [
+        { featured: true },      // Handle boolean true
+        { featured: "true" }     // Handle string "true"
+      ];
+    }
+
+    // Search functionality
     if (req.query.search) {
       const searchRegex = new RegExp(req.query.search, 'i');
       query.$or = [
         { name: searchRegex },
         { breed: searchRegex },
-        { description: searchRegex }
+        { description: searchRegex },
+        { type: searchRegex }
       ];
     }
-    
-    if (req.query.featured === 'true') {
-      query.featured = true;
-    }
-    
+
     // Pagination
-    const limit = parseInt(req.query.limit) || 20;
     const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 12;
     const skip = (page - 1) * limit;
-    
+
     // Sorting
-    let sortOptions = { createdAt: -1 };
-    if (req.query.sort === 'name') sortOptions = { name: 1 };
-    if (req.query.sort === 'newest') sortOptions = { createdAt: -1 };
-    if (req.query.sort === 'oldest') sortOptions = { createdAt: 1 };
+    let sortOptions = { updatedAt: -1 }; // Default: most recently updated
     
+    switch (req.query.sort) {
+      case 'name':
+        sortOptions = { name: 1 };
+        break;
+      case 'newest':
+        sortOptions = { updatedAt: -1 };
+        break;
+      case 'featured':
+        sortOptions = { featured: -1, updatedAt: -1 };
+        break;
+    }
+
+    // Execute query
+    const total = await Pet.countDocuments(query);
     const pets = await Pet.find(query)
       .sort(sortOptions)
       .limit(limit)
       .skip(skip)
       .lean();
-      
-    const total = await Pet.countDocuments(query);
-    
+
     // Add computed fields
     const enrichedPets = pets.map(pet => ({
       ...pet,
@@ -171,9 +281,9 @@ app.get('/api/pets', async (req, res) => {
       displayName: pet.name || 'Unnamed Pet',
       isAvailable: pet.status === 'available'
     }));
-    
-    console.log(`✅ Returning ${enrichedPets.length} pets out of ${total} total`);
-    
+
+    console.log(`🐕 Found ${enrichedPets.length} pets (Total: ${total})`);
+
     res.json({
       success: true,
       data: enrichedPets,
@@ -182,73 +292,107 @@ app.get('/api/pets', async (req, res) => {
         page,
         limit,
         pages: Math.ceil(total / limit),
-        hasMore: skip + pets.length < total
+        hasMore: skip + enrichedPets.length < total
       }
     });
-    
+
   } catch (error) {
     console.error('❌ Error fetching pets:', error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching pets',
+      message: 'Failed to fetch pets',
       error: error.message
     });
   }
 });
 
-// ✅ NEW: Get random pets for home page
-app.get('/api/pets/random', async (req, res) => {
+// ===== ALL PRODUCTS ENDPOINT =====
+app.get('/api/products', async (req, res) => {
   try {
-    const limit = parseInt(req.query.limit) || 4;
-    console.log(`🎲 GET /api/pets/random - Limit: ${limit}`);
-    console.log('🌐 Request origin:', req.get('Origin'));
-    
-    const randomPets = await Pet.aggregate([
-      { $match: { status: 'available' } },
-      { $sample: { size: limit } }
-    ]);
-    
-    const enrichedPets = randomPets.map(pet => ({
-      ...pet,
-      imageUrl: pet.image ? `https://storage.googleapis.com/furbabies-petstore/${pet.image}` : null,
-      hasImage: !!pet.image,
-      displayName: pet.name || 'Unnamed Pet',
-      isAvailable: pet.status === 'available'
-    }));
-    
-    console.log(`✅ Returning ${enrichedPets.length} random pets`);
-    
-    res.json({
-      success: true,
-      data: enrichedPets,
-      count: enrichedPets.length,
-      message: 'Random pets retrieved successfully'
-    });
-    
-  } catch (error) {
-    console.error('❌ Error fetching random pets:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching random pets',
-      error: error.message
-    });
-  }
-});
+    console.log('🛒 GET /api/products - Query params:', req.query);
 
-// Get single pet by ID
-app.get('/api/pets/:id', async (req, res) => {
-  try {
-    console.log('🐕 GET /api/pets/:id called with ID:', req.params.id);
-    
-    const pet = await Pet.findById(req.params.id).lean();
-    
-    if (!pet) {
-      return res.status(404).json({
-        success: false,
-        message: 'Pet not found'
-      });
+    const query = {};
+
+    // Apply filters
+    if (req.query.category && req.query.category !== 'all') {
+      query.category = new RegExp(req.query.category, 'i');
     }
     
+    if (req.query.inStock === 'true') {
+      query.inStock = true;
+    }
+    
+    if (req.query.featured === 'true') {
+      query.featured = true;
+    }
+
+    // Search functionality
+    if (req.query.search) {
+      const searchRegex = new RegExp(req.query.search, 'i');
+      query.$or = [
+        { name: searchRegex },
+        { description: searchRegex },
+        { category: searchRegex },
+        { brand: searchRegex }
+      ];
+    }
+
+    // Pagination
+    const limit = parseInt(req.query.limit) || 12;
+    const page = parseInt(req.query.page) || 1;
+    const skip = (page - 1) * limit;
+
+    // Execute query
+    const total = await Product.countDocuments(query);
+    const products = await Product.find(query)
+      .sort({ name: 1 })
+      .limit(limit)
+      .skip(skip)
+      .lean();
+
+    // Add computed fields
+    const enrichedProducts = products.map(product => ({
+      ...product,
+      imageUrl: product.image ? `https://storage.googleapis.com/furbabies-petstore/${product.image}` : null,
+      hasImage: !!product.image,
+      displayName: product.name || 'Unnamed Product',
+      formattedPrice: typeof product.price === 'number' ? `$${product.price.toFixed(2)}` : 'N/A'
+    }));
+
+    console.log(`🛒 Found ${enrichedProducts.length} products (Total: ${total})`);
+
+    res.json({
+      success: true,
+      data: enrichedProducts,
+      count: enrichedProducts.length
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching products:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch products',
+      error: error.message
+    });
+  }
+});
+
+// ===== SINGLE PET ENDPOINT =====
+app.get('/api/pets/:id', async (req, res) => {
+  try {
+    console.log('🐕 GET /api/pets/:id - Pet ID:', req.params.id);
+    
+    // Your IDs are strings, so we can query directly
+    const pet = await Pet.findById(req.params.id).lean();
+
+    if (!pet) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Pet not found' 
+      });
+    }
+
+    // Add computed fields
     const enrichedPet = {
       ...pet,
       imageUrl: pet.image ? `https://storage.googleapis.com/furbabies-petstore/${pet.image}` : null,
@@ -256,7 +400,7 @@ app.get('/api/pets/:id', async (req, res) => {
       displayName: pet.name || 'Unnamed Pet',
       isAvailable: pet.status === 'available'
     };
-    
+
     res.json({
       success: true,
       data: enrichedPet
@@ -266,237 +410,50 @@ app.get('/api/pets/:id', async (req, res) => {
     console.error('❌ Error fetching pet:', error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching pet',
+      message: 'Failed to fetch pet',
       error: error.message
     });
   }
 });
 
-// ===== PRODUCTS ENDPOINTS =====
-
-// Get all products with filtering
-app.get('/api/products', async (req, res) => {
-  try {
-    console.log('🛒 GET /api/products called with params:', req.query);
-    console.log('🌐 Request origin:', req.get('Origin'));
-    
-    const query = { inStock: true };
-    
-    // Add filters
-    if (req.query.category && req.query.category !== 'all') {
-      query.category = req.query.category;
-    }
-    
-    if (req.query.brand && req.query.brand !== 'all') {
-      query.brand = new RegExp(req.query.brand, 'i');
-    }
-    
-    if (req.query.featured === 'true') {
-      query.featured = true;
-    }
-    
-    if (req.query.search) {
-      const searchRegex = new RegExp(req.query.search, 'i');
-      query.$or = [
-        { name: searchRegex },
-        { brand: searchRegex },
-        { description: searchRegex }
-      ];
-    }
-    
-    // Pagination
-    const limit = parseInt(req.query.limit) || 20;
-    const page = parseInt(req.query.page) || 1;
-    const skip = (page - 1) * limit;
-    
-    // Sorting
-    let sortOptions = { createdAt: -1 };
-    if (req.query.sort === 'name') sortOptions = { name: 1 };
-    if (req.query.sort === 'price') sortOptions = { price: 1 };
-    if (req.query.sort === 'price-desc') sortOptions = { price: -1 };
-    
-    const products = await Product.find(query)
-      .sort(sortOptions)
-      .limit(limit)
-      .skip(skip)
-      .lean();
-      
-    const total = await Product.countDocuments(query);
-    
-    // Add computed fields
-    const enrichedProducts = products.map(product => ({
-      ...product,
-      imageUrl: product.image ? `https://storage.googleapis.com/furbabies-petstore/${product.image}` : null,
-      hasImage: !!product.image,
-      displayName: product.name || 'Product',
-      isAvailable: product.inStock
-    }));
-    
-    console.log(`✅ Returning ${enrichedProducts.length} products out of ${total} total`);
-    
-    res.json({
-      success: true,
-      data: enrichedProducts,
-      pagination: {
-        total,
-        page,
-        limit,
-        pages: Math.ceil(total / limit),
-        hasMore: skip + products.length < total
-      }
-    });
-    
-  } catch (error) {
-    console.error('❌ Error fetching products:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching products',
-      error: error.message
-    });
-  }
-});
-
-// ✅ NEW: Get random products for home page
-app.get('/api/products/random', async (req, res) => {
-  try {
-    const limit = parseInt(req.query.limit) || 4;
-    console.log(`🎲 GET /api/products/random - Limit: ${limit}`);
-    console.log('🌐 Request origin:', req.get('Origin'));
-    
-    const randomProducts = await Product.aggregate([
-      { $match: { inStock: true } },
-      { $sample: { size: limit } }
-    ]);
-    
-    const enrichedProducts = randomProducts.map(product => ({
-      ...product,
-      imageUrl: product.image ? `https://storage.googleapis.com/furbabies-petstore/${product.image}` : null,
-      hasImage: !!product.image,
-      displayName: product.name || 'Product',
-      isAvailable: product.inStock
-    }));
-    
-    console.log(`✅ Returning ${enrichedProducts.length} random products`);
-    
-    res.json({
-      success: true,
-      data: enrichedProducts,
-      count: enrichedProducts.length,
-      message: 'Random products retrieved successfully'
-    });
-    
-  } catch (error) {
-    console.error('❌ Error fetching random products:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching random products',
-      error: error.message
-    });
-  }
-});
-
-// Get single product by ID
+// ===== SINGLE PRODUCT ENDPOINT =====
 app.get('/api/products/:id', async (req, res) => {
   try {
-    console.log('🛒 GET /api/products/:id called with ID:', req.params.id);
+    console.log('🛒 GET /api/products/:id - Product ID:', req.params.id);
     
     const product = await Product.findById(req.params.id).lean();
     
     if (!product) {
       return res.status(404).json({
         success: false,
-        message: 'Product not found'
+        message: "Product not found"
       });
     }
-    
+
+    // Add computed fields
     const enrichedProduct = {
       ...product,
       imageUrl: product.image ? `https://storage.googleapis.com/furbabies-petstore/${product.image}` : null,
       hasImage: !!product.image,
-      displayName: product.name || 'Product',
-      isAvailable: product.inStock
+      displayName: product.name || 'Unnamed Product',
+      formattedPrice: typeof product.price === 'number' ? `$${product.price.toFixed(2)}` : 'N/A'
     };
     
     res.json({
       success: true,
       data: enrichedProduct
     });
-    
   } catch (error) {
-    console.error('❌ Error fetching product:', error);
+    console.error("❌ Error fetching product:", error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching product',
+      message: "Failed to fetch product",
       error: error.message
     });
   }
 });
 
-// ===== NEWS ENDPOINTS =====
-app.get('/api/news/featured', (req, res) => {
-  console.log('📰 GET /api/news/featured called with params:', req.query);
-  console.log('🌐 Request origin:', req.get('Origin'));
-  
-  const mockNews = [
-    {
-      id: '1',
-      title: 'New Pet Adoption Center Opens Downtown',
-      summary: 'A state-of-the-art pet adoption facility has opened its doors.',
-      category: 'adoption',
-      author: 'FurBabies Team',
-      featured: true,
-      published: true,
-      publishedAt: new Date('2024-12-01'),
-      views: 1250,
-      likes: 89,
-      // Use working image from your bucket
-      image: 'brand/FurBabiesicon.png',
-      imageUrl: 'https://storage.googleapis.com/furbabies-petstore/brand/FurBabiesicon.png'
-    },
-    {
-      id: '2',
-      title: 'Holiday Pet Safety Tips',
-      summary: 'Keep your furry friends safe during the holiday season.',
-      category: 'safety',
-      author: 'Dr. Sarah Johnson',
-      featured: true,
-      published: true,
-      publishedAt: new Date('2024-12-15'),
-      views: 980,
-      likes: 67,
-      image: 'brand/FurBabiesicon.png',
-      imageUrl: 'https://storage.googleapis.com/furbabies-petstore/brand/FurBabiesicon.png'
-    },
-    {
-      id: '3',
-      title: 'Success Story: Max Finds His Forever Home',
-      summary: 'Follow Max the Golden Retriever journey from shelter to family.',
-      category: 'success-story',
-      author: 'Maria Rodriguez',
-      featured: true,
-      published: true,
-      publishedAt: new Date('2024-12-10'),
-      views: 1567,
-      likes: 234,
-      image: 'brand/FurBabiesicon.png',
-      imageUrl: 'https://storage.googleapis.com/furbabies-petstore/brand/FurBabiesicon.png'
-    }
-  ];
-  
-  const limit = parseInt(req.query.limit) || 3;
-  const news = mockNews.slice(0, limit);
-  
-  console.log(`✅ Returning ${news.length} news articles`);
-  
-  res.json({
-    success: true,
-    data: news,
-    count: news.length,
-    message: 'Featured news retrieved successfully'
-  });
-});
-
-// ===== ERROR HANDLING =====
+// ===== 404 HANDLER FOR API ROUTES =====
 app.use('/api/*', (req, res) => {
   res.status(404).json({
     success: false,
@@ -504,17 +461,16 @@ app.use('/api/*', (req, res) => {
     availableEndpoints: [
       'GET /api/health',
       'GET /api/pets',
-      'GET /api/pets/random',
+      'GET /api/pets/featured?limit=4',
       'GET /api/pets/:id',
       'GET /api/products',
-      'GET /api/products/random',
-      'GET /api/products/:id',
-      'GET /api/news/featured'
+      'GET /api/products/featured?limit=4',
+      'GET /api/products/:id'
     ]
   });
 });
 
-// ===== SERVE REACT FRONTEND =====
+// ===== SERVE REACT FRONTEND IN PRODUCTION =====
 if (process.env.NODE_ENV === 'production') {
   const frontendPath = path.join(__dirname, '../client/build');
   app.use(express.static(frontendPath));
@@ -524,82 +480,64 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
-// ===== GRACEFUL SHUTDOWN =====
-const gracefulShutdown = async (signal) => {
-  console.log(`\n🛑 Received ${signal}. Shutting down gracefully...`);
-  
-  server.close(() => {
-    console.log('✅ HTTP server closed');
-    
-    mongoose.connection.close(() => {
-      console.log('✅ MongoDB connection closed');
-      process.exit(0);
-    });
+// ===== ERROR HANDLING =====
+app.use((err, req, res, next) => {
+  console.error('🔥 Server Error:', err);
+  res.status(500).json({
+    success: false,
+    message: 'Internal server error',
+    error: process.env.NODE_ENV === 'development' ? err.message : undefined
   });
-  
-  // Force close after 10 seconds
-  setTimeout(() => {
-    console.log('⏰ Forcing shutdown after 10 seconds');
-    process.exit(1);
-  }, 10000);
-};
+});
 
 // ===== START SERVER =====
 const startServer = async () => {
   try {
-    // Connect to MongoDB first
     await connectDB();
     
-    // Then start the server
-    const server = app.listen(PORT, '0.0.0.0', () => {
-      console.log('🚀 FurBabies Backend Server Starting...');
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log('🚀 FurBabies Server starting...');
       console.log(`   Environment: ${process.env.NODE_ENV || 'development'}`);
       console.log(`   Port: ${PORT}`);
-      console.log(`   CORS: Enabled for frontend domains`);
-      console.log(`   API Health: /api/health`);
-      console.log('✅ Backend server is running successfully!');
-      
-      // Log allowed origins
-      console.log('🌐 Allowed Origins:');
-      console.log('   - https://furbabies-frontend.onrender.com');
-      console.log('   - https://furbabies-backend.onrender.com');
-      console.log('   - http://localhost:3000');
-      console.log('   - http://localhost:3001');
-      
-      // Log available endpoints
-      console.log('📋 Available API Endpoints:');
-      console.log('   - GET /api/health');
-      console.log('   - GET /api/pets');
-      console.log('   - GET /api/pets/random ✅ NEW');
-      console.log('   - GET /api/pets/:id');
-      console.log('   - GET /api/products');
-      console.log('   - GET /api/products/random ✅ NEW');
-      console.log('   - GET /api/products/:id');
-      console.log('   - GET /api/news/featured');
+      console.log(`   Database: Connected to MongoDB Atlas`);
+      console.log('✅ Server is running successfully!');
+      console.log('\n📍 Available endpoints:');
+      console.log('   🏠 Featured pets: /api/pets/featured?limit=4');
+      console.log('   🛒 Featured products: /api/products/featured?limit=4');
+      console.log('   🔍 Browse pets: /api/pets');
+      console.log('   🛍️ Browse products: /api/products');
     });
-    
-    // Handle graceful shutdown
-    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
-    
-    // Handle uncaught exceptions
-    process.on('uncaughtException', (err) => {
-      console.error('💥 Uncaught Exception:', err);
-      process.exit(1);
-    });
-    
-    process.on('unhandledRejection', (err) => {
-      console.error('💥 Unhandled Rejection:', err);
-      process.exit(1);
-    });
-    
-    return server;
-    
   } catch (error) {
     console.error('❌ Failed to start server:', error);
     process.exit(1);
   }
 };
 
-// Start the server
 startServer();
+
+// ===== GRACEFUL SHUTDOWN =====
+process.on('SIGTERM', () => {
+  console.log('🛑 SIGTERM received. Shutting down gracefully...');
+  mongoose.connection.close(() => {
+    console.log('📊 Database connection closed');
+    process.exit(0);
+  });
+});
+
+process.on('SIGINT', () => {
+  console.log('🛑 SIGINT received. Shutting down gracefully...');
+  mongoose.connection.close(() => {
+    console.log('📊 Database connection closed');
+    process.exit(0);
+  });
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('💥 Uncaught Exception:', err);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (err) => {
+  console.error('💥 Unhandled Rejection:', err);
+  process.exit(1);
+});
