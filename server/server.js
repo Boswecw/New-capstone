@@ -1,4 +1,4 @@
-// server.js - Complete Version with Dual URL Response for Maximum Compatibility
+// server.js - Complete Version with Fixed Placeholders (NO EMOJIS)
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -125,31 +125,32 @@ const addImageUrl = (item) => {
     // Return appropriate placeholder for missing images
     let placeholderUrl;
     if (item.type) {
-      // Pet placeholders with emojis and colors
+      // ✅ FIXED: Pet placeholders WITHOUT emojis
       switch(item.type) {
         case 'dog':
-          placeholderUrl = 'https://via.placeholder.com/400x300/FF6B6B/FFFFFF?text=🐕+Dog';
+          placeholderUrl = 'https://via.placeholder.com/400x300/FF6B6B/FFFFFF?text=Dog';
           break;
         case 'cat':
-          placeholderUrl = 'https://via.placeholder.com/400x300/4ECDC4/FFFFFF?text=🐱+Cat';
+          placeholderUrl = 'https://via.placeholder.com/400x300/4ECDC4/FFFFFF?text=Cat';
           break;
         case 'fish':
-          placeholderUrl = 'https://via.placeholder.com/400x300/3498DB/FFFFFF?text=🐠+Fish';
+          placeholderUrl = 'https://via.placeholder.com/400x300/3498DB/FFFFFF?text=Fish';
           break;
         case 'bird':
-          placeholderUrl = 'https://via.placeholder.com/400x300/9B59B6/FFFFFF?text=🦜+Bird';
+          placeholderUrl = 'https://via.placeholder.com/400x300/9B59B6/FFFFFF?text=Bird';
           break;
         case 'small-pet':
-          placeholderUrl = 'https://via.placeholder.com/400x300/F39C12/FFFFFF?text=🐹+Small+Pet';
+          placeholderUrl = 'https://via.placeholder.com/400x300/F39C12/FFFFFF?text=Small+Pet';
           break;
         default:
-          placeholderUrl = 'https://via.placeholder.com/400x300/95A5A6/FFFFFF?text=🐾+Pet';
+          placeholderUrl = 'https://via.placeholder.com/400x300/95A5A6/FFFFFF?text=Pet';
       }
     } else if (item.category || item.price !== undefined) {
-      // Product placeholder
-      placeholderUrl = 'https://via.placeholder.com/400x300/8E44AD/FFFFFF?text=🛍️+Product';
+      // ✅ FIXED: Product placeholder WITHOUT emoji
+      placeholderUrl = 'https://via.placeholder.com/400x300/8E44AD/FFFFFF?text=Product';
     } else {
-      placeholderUrl = 'https://via.placeholder.com/400x300/BDC3C7/FFFFFF?text=📷+Image';
+      // ✅ FIXED: Default placeholder WITHOUT emoji
+      placeholderUrl = 'https://via.placeholder.com/400x300/BDC3C7/FFFFFF?text=Image';
     }
     
     return {
@@ -331,7 +332,7 @@ app.get('/api/news/featured', async (req, res) => {
     
     const limit = parseInt(req.query.limit) || 3;
     
-    // Mock news data with placeholder images
+    // ✅ FIXED: Mock news data with placeholders WITHOUT emojis
     const mockNews = [
       {
         id: '1',
@@ -343,7 +344,7 @@ app.get('/api/news/featured', async (req, res) => {
         published: true,
         publishedAt: new Date('2024-12-01'),
         views: 1250,
-        imageUrl: 'https://via.placeholder.com/600x400/2ECC71/FFFFFF?text=🏢+Adoption+Center',
+        imageUrl: 'https://via.placeholder.com/600x400/2ECC71/FFFFFF?text=Adoption+Center',
         hasImage: true
       },
       {
@@ -356,7 +357,7 @@ app.get('/api/news/featured', async (req, res) => {
         published: true,
         publishedAt: new Date('2024-12-15'),
         views: 980,
-        imageUrl: 'https://via.placeholder.com/600x400/E74C3C/FFFFFF?text=🎄+Holiday+Safety',
+        imageUrl: 'https://via.placeholder.com/600x400/E74C3C/FFFFFF?text=Holiday+Safety',
         hasImage: true
       },
       {
@@ -369,7 +370,7 @@ app.get('/api/news/featured', async (req, res) => {
         published: true,
         publishedAt: new Date('2024-12-10'),
         views: 1567,
-        imageUrl: 'https://via.placeholder.com/600x400/F39C12/FFFFFF?text=🏠+Success+Story',
+        imageUrl: 'https://via.placeholder.com/600x400/F39C12/FFFFFF?text=Success+Story',
         hasImage: true
       },
       {
@@ -382,7 +383,7 @@ app.get('/api/news/featured', async (req, res) => {
         published: true,
         publishedAt: new Date('2024-11-28'),
         views: 892,
-        imageUrl: 'https://via.placeholder.com/600x400/3498DB/FFFFFF?text=❄️+Winter+Care',
+        imageUrl: 'https://via.placeholder.com/600x400/3498DB/FFFFFF?text=Winter+Care',
         hasImage: true
       },
       {
@@ -395,7 +396,7 @@ app.get('/api/news/featured', async (req, res) => {
         published: true,
         publishedAt: new Date('2024-11-20'),
         views: 743,
-        imageUrl: 'https://via.placeholder.com/600x400/9B59B6/FFFFFF?text=👥+Volunteers',
+        imageUrl: 'https://via.placeholder.com/600x400/9B59B6/FFFFFF?text=Volunteers',
         hasImage: true
       },
       {
@@ -408,7 +409,7 @@ app.get('/api/news/featured', async (req, res) => {
         published: true,
         publishedAt: new Date('2024-11-15'),
         views: 456,
-        imageUrl: 'https://via.placeholder.com/600x400/1ABC9C/FFFFFF?text=🎯+Training',
+        imageUrl: 'https://via.placeholder.com/600x400/1ABC9C/FFFFFF?text=Training',
         hasImage: true
       }
     ];
