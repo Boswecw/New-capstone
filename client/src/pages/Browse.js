@@ -35,20 +35,19 @@ const Browse = () => {
   const [selectedSize, setSelectedSize] = useState(searchParams.get('size') || '');
   const [showFilters, setShowFilters] = useState(false);
 
-  // Filter options
+  // Filter options - Updated to match your actual pets.json data
   const petTypes = useMemo(() => [
     { value: '', label: 'All Pets' },
     { value: 'dog', label: 'Dogs' },
     { value: 'cat', label: 'Cats' },
     { value: 'fish', label: 'Fish & Aquatic' },
-    { value: 'bird', label: 'Birds' },
     { value: 'small-pet', label: 'Small Pets' },
-    { value: 'rabbit', label: 'Rabbits' },
-    { value: 'reptile', label: 'Reptiles' }
+    { value: 'bird', label: 'Birds' }
   ], []);
 
   const ageRanges = useMemo(() => [
     { value: '', label: 'Any Age' },
+    { value: '6 months', label: '6 Months' },
     { value: 'puppy', label: 'Puppy/Kitten (0-1 year)' },
     { value: 'young', label: 'Young (1-3 years)' },
     { value: 'adult', label: 'Adult (3-7 years)' },
@@ -79,15 +78,15 @@ const Browse = () => {
       setLoading(true);
       setError(null);
 
-      // Build query parameters - KEY FIX: Don't include featured=true, fetch ALL pets
+      // Build query parameters - KEY FIX: Get ALL available pets (not just featured)
       const params = {
-        limit: 50,  // ✅ Much higher limit to show more pets
+        limit: 100,  // ✅ High limit to get all 55+ pets from your database
         status: 'available',  // Only show available pets
         page: 1,
-        sort: 'newest'
+        sort: 'featured'  // Show featured pets first, then others
       };
       
-      // Add optional filters
+      // Add optional filters for user search/filtering
       if (searchTerm.trim()) params.search = searchTerm.trim();
       if (selectedType) params.type = selectedType;
       if (selectedBreed.trim()) params.breed = selectedBreed.trim();
