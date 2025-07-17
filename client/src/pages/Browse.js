@@ -1,4 +1,4 @@
-// client/src/pages/Browse.js - VERSION WITHOUT react-icons
+// client/src/pages/Browse.js - UPDATED VERSION
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
@@ -14,10 +14,14 @@ import {
   Card,
 } from "react-bootstrap";
 import { useSearchParams } from "react-router-dom";
+
+// ✅ EXPLICIT IMPORT - This ensures we get the updated PetCard with SafeImage
 import PetCard from "../components/PetCard";
 import { petAPI } from "../services/api";
 
 const Browse = () => {
+  console.log('🔍 Browse component loaded - PetCard should now use SafeImage');
+  
   // State management
   const [pets, setPets] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -89,231 +93,195 @@ const Browse = () => {
     []
   );
 
-  // FIXED: Complete fetchPets function
+  // Fetch pets function
   const fetchPets = useCallback(
     async (attempt = 1) => {
       const MAX_RETRIES = 3;
       const RETRY_DELAY = 1000 * attempt;
 
       try {
-        console.log(`🔍 Fetching pets (attempt ${attempt}/${MAX_RETRIES})`);
+        console.log(`🔍 Browse: Fetching pets (attempt ${attempt}/${MAX_RETRIES})`);
         setLoading(true);
         setError(null);
 
-        // Build query parameters for ALL available pets
+        // Build query parameters
         const queryParams = {
-          // Always get available pets first
           available: true,
-          // Add limit for performance (can be adjusted)
           limit: 50,
         };
 
         // Add filters if they exist
-        if (searchTerm.trim()) queryParams.search = searchTerm.trim();
-        if (selectedType) queryParams.type = selectedType;
-        if (selectedBreed.trim()) queryParams.breed = selectedBreed.trim();
-        if (ageRange) queryParams.age = ageRange;
-        if (selectedGender) queryParams.gender = selectedGender;
-        if (selectedSize) queryParams.size = selectedSize;
-
-        console.log("📋 Query params:", queryParams);
-
-        // Make API call
-        const response = await petAPI.getAllPets(queryParams);
-
-        console.log("📡 API Response:", response);
-
-        // Handle different response structures
-        let petsData = [];
-        if (response.data?.data) {
-          petsData = response.data.data;
-        } else if (response.data?.pets) {
-          petsData = response.data.pets;
-        } else if (Array.isArray(response.data)) {
-          petsData = response.data;
-        } else {
-          console.warn("⚠️ Unexpected response structure:", response);
-          petsData = [];
+        if (searchTerm.trim()) {
+          queryParams.search = searchTerm.trim();
+        }
+        if (selectedType) {
+          queryParams.species = selectedType;
+        }
+        if (selectedBreed) {
+          queryParams.breed = selectedBreed;
+        }
+        if (ageRange) {
+          queryParams.age = ageRange;
+        }
+        if (selectedGender) {
+          queryParams.gender = selectedGender;
+        }
+        if (selectedSize) {
+          queryParams.size = selectedSize;
         }
 
-        setPets(petsData);
-        setRetryAttempts(0);
+        console.log('🔍 Browse: Query params:', queryParams);
 
-        console.log(`✅ Successfully loaded ${petsData.length} pets`);
-      } catch (err) {
-        console.error(`❌ Error fetching pets (attempt ${attempt}):`, err);
-
-        if (attempt < MAX_RETRIES) {
-          console.log(`🔄 Retrying in ${RETRY_DELAY}ms...`);
-          setRetryAttempts(attempt);
-          setTimeout(() => fetchPets(attempt + 1), RETRY_DELAY);
+        const response = await petAPI.getAllPets(queryParams);
+        
+        if (response.success && response.data) {
+          setPets(response.data);
+          console.log(`✅ Browse: Loaded ${response.data.length} pets`);
         } else {
-          const errorMessage =
-            err.response?.data?.message ||
-            err.message ||
-            "Failed to load pets. Please try again later.";
-          setError(errorMessage);
-          setRetryAttempts(0);
+          console.warn('⚠️ Browse: No pets returned from API');
+          setPets([]);
+        }
+        
+        setRetryAttempts(0);
+      } catch (err) {
+        console.error('❌ Browse: Error fetching pets:', err);
+        setError(err.message || 'Failed to load pets');
+        
+        if (attempt < MAX_RETRIES) {
+          setTimeout(() => {
+            setRetryAttempts(attempt);
+            fetchPets(attempt + 1);
+          }, RETRY_DELAY);
         }
       } finally {
         setLoading(false);
       }
     },
-    [
-      searchTerm,
-      selectedType,
-      selectedBreed,
-      ageRange,
-      selectedGender,
-      selectedSize,
-    ]
+    [searchTerm, selectedType, selectedBreed, ageRange, selectedGender, selectedSize]
   );
 
-  // Handle search form submission
-  const handleSearch = useCallback(
-    (e) => {
-      e.preventDefault();
-      updateUrlParams();
-      fetchPets();
-    },
-    [fetchPets]
-  );
+  // Load pets on mount and when filters change
+  useEffect(() => {
+    fetchPets();
+  }, [fetchPets]);
 
-  // Update URL parameters
-  const updateUrlParams = useCallback(() => {
-    const newParams = new URLSearchParams();
+  // Update URL params when filters change
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (searchTerm) params.set("search", searchTerm);
+    if (selectedType) params.set("type", selectedType);
+    if (selectedBreed) params.set("breed", selectedBreed);
+    if (ageRange) params.set("age", ageRange);
+    if (selectedGender) params.set("gender", selectedGender);
+    if (selectedSize) params.set("size", selectedSize);
+    
+    setSearchParams(params);
+  }, [searchTerm, selectedType, selectedBreed, ageRange, selectedGender, selectedSize, setSearchParams]);
 
-    if (searchTerm.trim()) newParams.set("search", searchTerm.trim());
-    if (selectedType) newParams.set("type", selectedType);
-    if (selectedBreed.trim()) newParams.set("breed", selectedBreed.trim());
-    if (ageRange) newParams.set("age", ageRange);
-    if (selectedGender) newParams.set("gender", selectedGender);
-    if (selectedSize) newParams.set("size", selectedSize);
+  // Handle search
+  const handleSearch = (e) => {
+    e.preventDefault();
+    fetchPets();
+  };
 
-    setSearchParams(newParams);
-  }, [
-    searchTerm,
-    selectedType,
-    selectedBreed,
-    ageRange,
-    selectedGender,
-    selectedSize,
-    setSearchParams,
-  ]);
+  // Handle filter changes
+  const handleFilterChange = (filterType, value) => {
+    switch (filterType) {
+      case "type":
+        setSelectedType(value);
+        break;
+      case "breed":
+        setSelectedBreed(value);
+        break;
+      case "age":
+        setAgeRange(value);
+        break;
+      case "gender":
+        setSelectedGender(value);
+        break;
+      case "size":
+        setSelectedSize(value);
+        break;
+      default:
+        break;
+    }
+  };
 
   // Clear all filters
-  const clearFilters = useCallback(() => {
+  const clearFilters = () => {
     setSearchTerm("");
     setSelectedType("");
     setSelectedBreed("");
     setAgeRange("");
     setSelectedGender("");
     setSelectedSize("");
-    setSearchParams(new URLSearchParams());
-    fetchPets();
-  }, [setSearchParams, fetchPets]);
+    setSearchParams({});
+  };
 
-  // Get active filters for display
-  const activeFilters = useMemo(() => {
-    const filters = [];
-    if (searchTerm.trim()) filters.push(`Search: "${searchTerm}"`);
-    if (selectedType)
-      filters.push(
-        `Type: ${petTypes.find((t) => t.value === selectedType)?.label}`
-      );
-    if (selectedBreed.trim()) filters.push(`Breed: ${selectedBreed}`);
-    if (ageRange)
-      filters.push(
-        `Age: ${ageRanges.find((a) => a.value === ageRange)?.label}`
-      );
-    if (selectedGender)
-      filters.push(
-        `Gender: ${
-          genderOptions.find((g) => g.value === selectedGender)?.label
-        }`
-      );
-    if (selectedSize)
-      filters.push(
-        `Size: ${sizeOptions.find((s) => s.value === selectedSize)?.label}`
-      );
-    return filters;
-  }, [
-    searchTerm,
-    selectedType,
-    selectedBreed,
-    ageRange,
-    selectedGender,
-    selectedSize,
-    petTypes,
-    ageRanges,
-    genderOptions,
-    sizeOptions,
-  ]);
-
-  // Initial load and URL parameter changes
-  useEffect(() => {
-    fetchPets();
-  }, [fetchPets]);
-
-  // Manual retry function
+  // Handle retry
   const handleRetry = () => {
     setRetryAttempts(0);
     fetchPets();
   };
 
+  // Active filters for display
+  const activeFilters = [
+    searchTerm && `Search: "${searchTerm}"`,
+    selectedType && `Type: ${petTypes.find(t => t.value === selectedType)?.label}`,
+    selectedBreed && `Breed: ${selectedBreed}`,
+    ageRange && `Age: ${ageRanges.find(a => a.value === ageRange)?.label}`,
+    selectedGender && `Gender: ${genderOptions.find(g => g.value === selectedGender)?.label}`,
+    selectedSize && `Size: ${sizeOptions.find(s => s.value === selectedSize)?.label}`,
+  ].filter(Boolean);
+
   return (
-    <Container fluid className="py-4">
-      <Row className="justify-content-center">
-        <Col xl={10}>
+    <Container className="py-4">
+      <Row>
+        <Col>
           {/* Header */}
-          <div className="text-center mb-4">
-            <h1 className="display-5 fw-bold text-primary mb-2">
-              <i className="fas fa-paw me-2"></i>
-              Browse Our Pets
-            </h1>
-            <p className="lead text-muted">
-              Find your perfect companion from our loving pets waiting for homes
-            </p>
+          <div className="d-flex justify-content-between align-items-center mb-4">
+            <div>
+              <h1 className="h2 mb-1">Browse Pets</h1>
+              <p className="text-muted mb-0">
+                Find your perfect companion from our available pets
+              </p>
+            </div>
+            <Button
+              variant="outline-primary"
+              onClick={() => setShowFilters(!showFilters)}
+            >
+              <i className="fas fa-filter me-2"></i>
+              {showFilters ? "Hide Filters" : "Show Filters"}
+            </Button>
           </div>
 
-          {/* Search Form */}
-          <Card className="shadow-sm mb-4">
-            <Card.Body>
-              <Form onSubmit={handleSearch}>
-                <InputGroup size="lg">
-                  <Form.Control
-                    type="text"
-                    placeholder="Search pets by name, breed, or description..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    aria-label="Search pets"
-                  />
-                  <Button variant="primary" type="submit" disabled={loading}>
-                    <i className="fas fa-search me-1"></i>
-                    Search
-                  </Button>
-                  <Button
-                    variant="outline-secondary"
-                    onClick={() => setShowFilters(!showFilters)}
-                    title={showFilters ? "Hide filters" : "Show filters"}
-                    aria-expanded={showFilters}
-                  >
-                    <i className="fas fa-filter me-1"></i>
-                    Filters
-                  </Button>
-                </InputGroup>
-              </Form>
+          {/* Search Bar */}
+          <Form onSubmit={handleSearch} className="mb-4">
+            <InputGroup>
+              <Form.Control
+                type="text"
+                placeholder="Search pets by name, breed, or description..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+              <Button variant="primary" type="submit">
+                <i className="fas fa-search"></i>
+              </Button>
+            </InputGroup>
+          </Form>
 
-              {/* Advanced Filters */}
-              {showFilters && (
-                <div className="mt-3 p-3 bg-light rounded">
-                  <Row>
-                    <Col md={4} className="mb-3">
-                      <Form.Label className="fw-semibold">Pet Type</Form.Label>
+          {/* Filters */}
+          {showFilters && (
+            <Card className="mb-4">
+              <Card.Body>
+                <h5 className="card-title mb-3">Filter Options</h5>
+                <Row>
+                  <Col md={6} lg={3} className="mb-3">
+                    <Form.Group>
+                      <Form.Label>Pet Type</Form.Label>
                       <Form.Select
                         value={selectedType}
-                        onChange={(e) => setSelectedType(e.target.value)}
-                        aria-label="Filter by pet type"
+                        onChange={(e) => handleFilterChange("type", e.target.value)}
                       >
                         {petTypes.map((type) => (
                           <option key={type.value} value={type.value}>
@@ -321,23 +289,14 @@ const Browse = () => {
                           </option>
                         ))}
                       </Form.Select>
-                    </Col>
-                    <Col md={4} className="mb-3">
-                      <Form.Label className="fw-semibold">Breed</Form.Label>
-                      <Form.Control
-                        type="text"
-                        placeholder="Enter breed..."
-                        value={selectedBreed}
-                        onChange={(e) => setSelectedBreed(e.target.value)}
-                        aria-label="Filter by breed"
-                      />
-                    </Col>
-                    <Col md={4} className="mb-3">
-                      <Form.Label className="fw-semibold">Age Range</Form.Label>
+                    </Form.Group>
+                  </Col>
+                  <Col md={6} lg={3} className="mb-3">
+                    <Form.Group>
+                      <Form.Label>Age Range</Form.Label>
                       <Form.Select
                         value={ageRange}
-                        onChange={(e) => setAgeRange(e.target.value)}
-                        aria-label="Filter by age range"
+                        onChange={(e) => handleFilterChange("age", e.target.value)}
                       >
                         {ageRanges.map((age) => (
                           <option key={age.value} value={age.value}>
@@ -345,13 +304,14 @@ const Browse = () => {
                           </option>
                         ))}
                       </Form.Select>
-                    </Col>
-                    <Col md={6} className="mb-3">
-                      <Form.Label className="fw-semibold">Gender</Form.Label>
+                    </Form.Group>
+                  </Col>
+                  <Col md={6} lg={3} className="mb-3">
+                    <Form.Group>
+                      <Form.Label>Gender</Form.Label>
                       <Form.Select
                         value={selectedGender}
-                        onChange={(e) => setSelectedGender(e.target.value)}
-                        aria-label="Filter by gender"
+                        onChange={(e) => handleFilterChange("gender", e.target.value)}
                       >
                         {genderOptions.map((gender) => (
                           <option key={gender.value} value={gender.value}>
@@ -359,13 +319,14 @@ const Browse = () => {
                           </option>
                         ))}
                       </Form.Select>
-                    </Col>
-                    <Col md={6} className="mb-3">
-                      <Form.Label className="fw-semibold">Size</Form.Label>
+                    </Form.Group>
+                  </Col>
+                  <Col md={6} lg={3} className="mb-3">
+                    <Form.Group>
+                      <Form.Label>Size</Form.Label>
                       <Form.Select
                         value={selectedSize}
-                        onChange={(e) => setSelectedSize(e.target.value)}
-                        aria-label="Filter by size"
+                        onChange={(e) => handleFilterChange("size", e.target.value)}
                       >
                         {sizeOptions.map((size) => (
                           <option key={size.value} value={size.value}>
@@ -373,44 +334,34 @@ const Browse = () => {
                           </option>
                         ))}
                       </Form.Select>
-                    </Col>
-                  </Row>
+                    </Form.Group>
+                  </Col>
+                </Row>
 
-                  {/* Filter Actions */}
-                  <div className="d-flex justify-content-between align-items-center mt-3">
-                    <div>
-                      {activeFilters.length > 0 && (
-                        <div>
-                          <small className="text-muted me-2">
-                            Active filters:
-                          </small>
-                          {activeFilters.map((filter, index) => (
-                            <Badge
-                              key={index}
-                              bg="secondary"
-                              className="me-1 mb-1"
-                            >
-                              {filter}
-                            </Badge>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    <div>
+                {/* Active Filters Display */}
+                {activeFilters.length > 0 && (
+                  <div className="mt-3">
+                    <div className="d-flex flex-wrap align-items-center gap-2">
+                      <small className="text-muted">Active filters:</small>
+                      {activeFilters.map((filter, index) => (
+                        <Badge key={index} bg="secondary" className="me-1">
+                          {filter}
+                        </Badge>
+                      ))}
                       <Button
                         variant="outline-danger"
                         size="sm"
                         onClick={clearFilters}
                       >
                         <i className="fas fa-times me-1"></i>
-                        Clear Filters
+                        Clear All
                       </Button>
                     </div>
                   </div>
-                </div>
-              )}
-            </Card.Body>
-          </Card>
+                )}
+              </Card.Body>
+            </Card>
+          )}
 
           {/* Results Section */}
           <Row>
@@ -468,18 +419,21 @@ const Browse = () => {
                   {/* Pet Grid */}
                   {pets.length > 0 ? (
                     <Row>
-                      {pets.map((pet) => (
-                        <Col
-                          key={pet._id}
-                          xs={12}
-                          sm={6}
-                          md={4}
-                          lg={3}
-                          className="mb-4"
-                        >
-                          <PetCard pet={pet} />
-                        </Col>
-                      ))}
+                      {pets.map((pet) => {
+                        console.log(`🐾 Rendering pet: ${pet.name} with SafeImage`);
+                        return (
+                          <Col
+                            key={pet._id}
+                            xs={12}
+                            sm={6}
+                            md={4}
+                            lg={3}
+                            className="mb-4"
+                          >
+                            <PetCard pet={pet} />
+                          </Col>
+                        );
+                      })}
                     </Row>
                   ) : (
                     <div className="text-center py-5">
