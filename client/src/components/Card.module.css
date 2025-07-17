@@ -87,14 +87,14 @@
 
 /* Different object-fit modes for different content types */
 .petImg {
-  object-fit: contain; /* ✅ Shows the FULL pet image without cropping */
+  object-fit:scale-down; /* ✅ Shows the FULL pet image without cropping */
   object-position: center;
   padding: 8px; /* Small padding so image doesn't touch edges */
   background: #f8f9fa; /* Light background visible around image */
 }
 
 .productImg {
-  object-fit: contain; /* ✅ BETTER: Shows full product image without cropping */
+  object-fit:scale-down; /* ✅ BETTER: Shows full product image without cropping */
   object-position: center;
   padding: var(--space-xs, 4px); /* ✅ REDUCED: Less padding for more image space */
   background: #ffffff;
