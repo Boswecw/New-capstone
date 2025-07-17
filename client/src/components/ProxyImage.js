@@ -1,4 +1,4 @@
-// client/src/components/ProxyImage.js - ENHANCED VERSION
+// client/src/components/ProxyImage.js - FIXED VERSION
 
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { Spinner } from 'react-bootstrap';
@@ -90,7 +90,7 @@ const ProxyImage = ({
     }
   }), []);
 
-  // Build primary image URL from your backend
+  // FIXED: Build primary image URL from your backend
   const buildPrimaryImageUrl = useCallback((item) => {
     if (!item) return null;
 
@@ -106,7 +106,7 @@ const ProxyImage = ({
     // Clean the path
     const cleanPath = imagePath.replace(/^\/+/, '');
     
-    // Use your backend image proxy
+    // Use your backend image proxy - FIXED: Complete URL construction
     const baseUrl = process.env.NODE_ENV === 'production' 
       ? 'https://furbabies-backend.onrender.com'
       : 'http://localhost:5000';
@@ -139,15 +139,29 @@ const ProxyImage = ({
     return fallbackImages.default;
   }, [fallbackImages]);
 
-  // Determine which image source to use
+  // FIXED: Determine which image source to use
   const imageSource = useMemo(() => {
-    if (imageState.error || !item) {
+    // If there's no item, use fallback immediately
+    if (!item) {
       return getFallbackImage(category);
     }
-    return buildPrimaryImageUrl(item) || getFallbackImage(category);
+
+    // If we had an error with the primary image, use fallback
+    if (imageState.error) {
+      return getFallbackImage(category);
+    }
+
+    // Try to get primary image URL
+    const primaryUrl = buildPrimaryImageUrl(item);
+    if (primaryUrl) {
+      return primaryUrl;
+    }
+
+    // If no primary URL available, use fallback
+    return getFallbackImage(category);
   }, [item, category, imageState.error, buildPrimaryImageUrl, getFallbackImage]);
 
-  // Handle image load success
+  // FIXED: Handle image load success
   const handleLoad = useCallback((e) => {
     console.log(`✅ Image loaded successfully: ${e.target.src}`);
     setImageState(prev => ({ 
@@ -159,25 +173,25 @@ const ProxyImage = ({
     onLoad?.(e);
   }, [onLoad]);
 
-  // Handle image load error with retry logic
+  // FIXED: Handle image load error with retry logic
   const handleError = useCallback((e) => {
     console.log(`❌ Image load error: ${e.target.src}`);
     
     setImageState(prev => {
       const newRetryCount = prev.retryCount + 1;
       
-      // If we haven't already switched to fallback, do so now
-      if (newRetryCount === 1 && !prev.error) {
+      // If this is the first failure and we're not already using a fallback
+      if (newRetryCount === 1 && !prev.error && !e.target.src.includes('unsplash.com')) {
         console.log(`🔄 Switching to fallback image for category: ${category}`);
         return {
           ...prev,
           error: true,
-          loading: false,
+          loading: true, // Keep loading until fallback loads
           retryCount: newRetryCount
         };
       }
       
-      // If fallback also fails, show error state
+      // If fallback also fails, stop loading and show error
       return {
         ...prev,
         error: true,
@@ -189,7 +203,7 @@ const ProxyImage = ({
     onError?.(e);
   }, [category, onError]);
 
-  // Reset state when item changes
+  // FIXED: Reset state when item changes
   useEffect(() => {
     setImageState({
       loading: true,
@@ -256,7 +270,7 @@ const ProxyImage = ({
     );
   }
 
-  // Show error state if fallback also failed
+  // Show error state if all attempts failed
   if (imageState.error && imageState.retryCount > 1) {
     return (
       <div style={containerStyle}>
@@ -265,6 +279,7 @@ const ProxyImage = ({
     );
   }
 
+  // FIXED: Render the actual image
   return (
     <div style={containerStyle}>
       <img
