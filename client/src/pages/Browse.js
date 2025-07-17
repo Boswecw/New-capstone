@@ -1,21 +1,21 @@
 // client/src/pages/Browse.js - VERSION WITHOUT react-icons
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { 
-  Container, 
-  Row, 
-  Col, 
-  Spinner, 
-  Alert, 
-  Form, 
-  Button, 
-  InputGroup, 
+import React, { useState, useEffect, useMemo, useCallback } from "react";
+import {
+  Container,
+  Row,
+  Col,
+  Spinner,
+  Alert,
+  Form,
+  Button,
+  InputGroup,
   Badge,
-  Card
-} from 'react-bootstrap';
-import { useSearchParams } from 'react-router-dom';
-import PetCard from '../components/PetCard';
-import { petAPI } from '../services/api';
+  Card,
+} from "react-bootstrap";
+import { useSearchParams } from "react-router-dom";
+import PetCard from "../components/PetCard";
+import { petAPI } from "../services/api";
 
 const Browse = () => {
   // State management
@@ -26,146 +26,189 @@ const Browse = () => {
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Filter states
-  const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
-  const [selectedType, setSelectedType] = useState(searchParams.get('type') || '');
-  const [selectedBreed, setSelectedBreed] = useState(searchParams.get('breed') || '');
-  const [ageRange, setAgeRange] = useState(searchParams.get('age') || '');
-  const [selectedGender, setSelectedGender] = useState(searchParams.get('gender') || '');
-  const [selectedSize, setSelectedSize] = useState(searchParams.get('size') || '');
+  const [searchTerm, setSearchTerm] = useState(
+    searchParams.get("search") || ""
+  );
+  const [selectedType, setSelectedType] = useState(
+    searchParams.get("type") || ""
+  );
+  const [selectedBreed, setSelectedBreed] = useState(
+    searchParams.get("breed") || ""
+  );
+  const [ageRange, setAgeRange] = useState(searchParams.get("age") || "");
+  const [selectedGender, setSelectedGender] = useState(
+    searchParams.get("gender") || ""
+  );
+  const [selectedSize, setSelectedSize] = useState(
+    searchParams.get("size") || ""
+  );
   const [showFilters, setShowFilters] = useState(false);
 
   // Filter options
-  const petTypes = useMemo(() => [
-    { value: '', label: 'All Pets' },
-    { value: 'dog', label: 'Dogs' },
-    { value: 'cat', label: 'Cats' },
-    { value: 'fish', label: 'Fish & Aquatic' },
-    { value: 'small-pet', label: 'Small Pets' },
-    { value: 'bird', label: 'Birds' }
-  ], []);
+  const petTypes = useMemo(
+    () => [
+      { value: "", label: "All Pets" },
+      { value: "dog", label: "Dogs" },
+      { value: "cat", label: "Cats" },
+      { value: "fish", label: "Fish & Aquatic" },
+      { value: "small-pet", label: "Small Pets" },
+      { value: "bird", label: "Birds" },
+    ],
+    []
+  );
 
-  const ageRanges = useMemo(() => [
-    { value: '', label: 'Any Age' },
-    { value: '6 months', label: '6 Months' },
-    { value: 'puppy', label: 'Puppy/Kitten (0-1 year)' },
-    { value: 'young', label: 'Young (1-3 years)' },
-    { value: 'adult', label: 'Adult (3-7 years)' },
-    { value: 'senior', label: 'Senior (7+ years)' }
-  ], []);
+  const ageRanges = useMemo(
+    () => [
+      { value: "", label: "Any Age" },
+      { value: "6 months", label: "6 Months" },
+      { value: "puppy", label: "Puppy/Kitten (0-1 year)" },
+      { value: "young", label: "Young (1-3 years)" },
+      { value: "adult", label: "Adult (3-7 years)" },
+      { value: "senior", label: "Senior (7+ years)" },
+    ],
+    []
+  );
 
-  const genderOptions = useMemo(() => [
-    { value: '', label: 'Any Gender' },
-    { value: 'male', label: 'Male' },
-    { value: 'female', label: 'Female' },
-    { value: 'unknown', label: 'Unknown' }
-  ], []);
+  const genderOptions = useMemo(
+    () => [
+      { value: "", label: "Any Gender" },
+      { value: "male", label: "Male" },
+      { value: "female", label: "Female" },
+      { value: "unknown", label: "Unknown" },
+    ],
+    []
+  );
 
-  const sizeOptions = useMemo(() => [
-    { value: '', label: 'Any Size' },
-    { value: 'small', label: 'Small' },
-    { value: 'medium', label: 'Medium' },
-    { value: 'large', label: 'Large' }
-  ], []);
+  const sizeOptions = useMemo(
+    () => [
+      { value: "", label: "Any Size" },
+      { value: "small", label: "Small" },
+      { value: "medium", label: "Medium" },
+      { value: "large", label: "Large" },
+    ],
+    []
+  );
 
   // FIXED: Complete fetchPets function
-  const fetchPets = useCallback(async (attempt = 1) => {
-    const MAX_RETRIES = 3;
-    const RETRY_DELAY = 1000 * attempt;
+  const fetchPets = useCallback(
+    async (attempt = 1) => {
+      const MAX_RETRIES = 3;
+      const RETRY_DELAY = 1000 * attempt;
 
-    try {
-      console.log(`🔍 Fetching pets (attempt ${attempt}/${MAX_RETRIES})`);
-      setLoading(true);
-      setError(null);
+      try {
+        console.log(`🔍 Fetching pets (attempt ${attempt}/${MAX_RETRIES})`);
+        setLoading(true);
+        setError(null);
 
-      // Build query parameters for ALL available pets
-      const queryParams = {
-        // Always get available pets first
-        available: true,
-        // Add limit for performance (can be adjusted)
-        limit: 50
-      };
+        // Build query parameters for ALL available pets
+        const queryParams = {
+          // Always get available pets first
+          available: true,
+          // Add limit for performance (can be adjusted)
+          limit: 50,
+        };
 
-      // Add filters if they exist
-      if (searchTerm.trim()) queryParams.search = searchTerm.trim();
-      if (selectedType) queryParams.type = selectedType;
-      if (selectedBreed.trim()) queryParams.breed = selectedBreed.trim();
-      if (ageRange) queryParams.age = ageRange;
-      if (selectedGender) queryParams.gender = selectedGender;
-      if (selectedSize) queryParams.size = selectedSize;
+        // Add filters if they exist
+        if (searchTerm.trim()) queryParams.search = searchTerm.trim();
+        if (selectedType) queryParams.type = selectedType;
+        if (selectedBreed.trim()) queryParams.breed = selectedBreed.trim();
+        if (ageRange) queryParams.age = ageRange;
+        if (selectedGender) queryParams.gender = selectedGender;
+        if (selectedSize) queryParams.size = selectedSize;
 
-      console.log('📋 Query params:', queryParams);
+        console.log("📋 Query params:", queryParams);
 
-      // Make API call
-      const response = await petAPI.getAllPets(queryParams);
-      
-      console.log('📡 API Response:', response);
+        // Make API call
+        const response = await petAPI.getAllPets(queryParams);
 
-      // Handle different response structures
-      let petsData = [];
-      if (response.data?.data) {
-        petsData = response.data.data;
-      } else if (response.data?.pets) {
-        petsData = response.data.pets;
-      } else if (Array.isArray(response.data)) {
-        petsData = response.data;
-      } else {
-        console.warn('⚠️ Unexpected response structure:', response);
-        petsData = [];
-      }
+        console.log("📡 API Response:", response);
 
-      setPets(petsData);
-      setRetryAttempts(0);
-      
-      console.log(`✅ Successfully loaded ${petsData.length} pets`);
+        // Handle different response structures
+        let petsData = [];
+        if (response.data?.data) {
+          petsData = response.data.data;
+        } else if (response.data?.pets) {
+          petsData = response.data.pets;
+        } else if (Array.isArray(response.data)) {
+          petsData = response.data;
+        } else {
+          console.warn("⚠️ Unexpected response structure:", response);
+          petsData = [];
+        }
 
-    } catch (err) {
-      console.error(`❌ Error fetching pets (attempt ${attempt}):`, err);
-      
-      if (attempt < MAX_RETRIES) {
-        console.log(`🔄 Retrying in ${RETRY_DELAY}ms...`);
-        setRetryAttempts(attempt);
-        setTimeout(() => fetchPets(attempt + 1), RETRY_DELAY);
-      } else {
-        const errorMessage = err.response?.data?.message || 
-                           err.message || 
-                           'Failed to load pets. Please try again later.';
-        setError(errorMessage);
+        setPets(petsData);
         setRetryAttempts(0);
+
+        console.log(`✅ Successfully loaded ${petsData.length} pets`);
+      } catch (err) {
+        console.error(`❌ Error fetching pets (attempt ${attempt}):`, err);
+
+        if (attempt < MAX_RETRIES) {
+          console.log(`🔄 Retrying in ${RETRY_DELAY}ms...`);
+          setRetryAttempts(attempt);
+          setTimeout(() => fetchPets(attempt + 1), RETRY_DELAY);
+        } else {
+          const errorMessage =
+            err.response?.data?.message ||
+            err.message ||
+            "Failed to load pets. Please try again later.";
+          setError(errorMessage);
+          setRetryAttempts(0);
+        }
+      } finally {
+        setLoading(false);
       }
-    } finally {
-      setLoading(false);
-    }
-  }, [searchTerm, selectedType, selectedBreed, ageRange, selectedGender, selectedSize]);
+    },
+    [
+      searchTerm,
+      selectedType,
+      selectedBreed,
+      ageRange,
+      selectedGender,
+      selectedSize,
+    ]
+  );
 
   // Handle search form submission
-  const handleSearch = useCallback((e) => {
-    e.preventDefault();
-    updateUrlParams();
-    fetchPets();
-  }, [fetchPets]);
+  const handleSearch = useCallback(
+    (e) => {
+      e.preventDefault();
+      updateUrlParams();
+      fetchPets();
+    },
+    [fetchPets]
+  );
 
   // Update URL parameters
   const updateUrlParams = useCallback(() => {
     const newParams = new URLSearchParams();
-    
-    if (searchTerm.trim()) newParams.set('search', searchTerm.trim());
-    if (selectedType) newParams.set('type', selectedType);
-    if (selectedBreed.trim()) newParams.set('breed', selectedBreed.trim());
-    if (ageRange) newParams.set('age', ageRange);
-    if (selectedGender) newParams.set('gender', selectedGender);
-    if (selectedSize) newParams.set('size', selectedSize);
-    
+
+    if (searchTerm.trim()) newParams.set("search", searchTerm.trim());
+    if (selectedType) newParams.set("type", selectedType);
+    if (selectedBreed.trim()) newParams.set("breed", selectedBreed.trim());
+    if (ageRange) newParams.set("age", ageRange);
+    if (selectedGender) newParams.set("gender", selectedGender);
+    if (selectedSize) newParams.set("size", selectedSize);
+
     setSearchParams(newParams);
-  }, [searchTerm, selectedType, selectedBreed, ageRange, selectedGender, selectedSize, setSearchParams]);
+  }, [
+    searchTerm,
+    selectedType,
+    selectedBreed,
+    ageRange,
+    selectedGender,
+    selectedSize,
+    setSearchParams,
+  ]);
 
   // Clear all filters
   const clearFilters = useCallback(() => {
-    setSearchTerm('');
-    setSelectedType('');
-    setSelectedBreed('');
-    setAgeRange('');
-    setSelectedGender('');
-    setSelectedSize('');
+    setSearchTerm("");
+    setSelectedType("");
+    setSelectedBreed("");
+    setAgeRange("");
+    setSelectedGender("");
+    setSelectedSize("");
     setSearchParams(new URLSearchParams());
     fetchPets();
   }, [setSearchParams, fetchPets]);
@@ -174,13 +217,38 @@ const Browse = () => {
   const activeFilters = useMemo(() => {
     const filters = [];
     if (searchTerm.trim()) filters.push(`Search: "${searchTerm}"`);
-    if (selectedType) filters.push(`Type: ${petTypes.find(t => t.value === selectedType)?.label}`);
+    if (selectedType)
+      filters.push(
+        `Type: ${petTypes.find((t) => t.value === selectedType)?.label}`
+      );
     if (selectedBreed.trim()) filters.push(`Breed: ${selectedBreed}`);
-    if (ageRange) filters.push(`Age: ${ageRanges.find(a => a.value === ageRange)?.label}`);
-    if (selectedGender) filters.push(`Gender: ${genderOptions.find(g => g.value === selectedGender)?.label}`);
-    if (selectedSize) filters.push(`Size: ${sizeOptions.find(s => s.value === selectedSize)?.label}`);
+    if (ageRange)
+      filters.push(
+        `Age: ${ageRanges.find((a) => a.value === ageRange)?.label}`
+      );
+    if (selectedGender)
+      filters.push(
+        `Gender: ${
+          genderOptions.find((g) => g.value === selectedGender)?.label
+        }`
+      );
+    if (selectedSize)
+      filters.push(
+        `Size: ${sizeOptions.find((s) => s.value === selectedSize)?.label}`
+      );
     return filters;
-  }, [searchTerm, selectedType, selectedBreed, ageRange, selectedGender, selectedSize, petTypes, ageRanges, genderOptions, sizeOptions]);
+  }, [
+    searchTerm,
+    selectedType,
+    selectedBreed,
+    ageRange,
+    selectedGender,
+    selectedSize,
+    petTypes,
+    ageRanges,
+    genderOptions,
+    sizeOptions,
+  ]);
 
   // Initial load and URL parameter changes
   useEffect(() => {
@@ -203,7 +271,9 @@ const Browse = () => {
               <i className="fas fa-paw me-2"></i>
               Browse Our Pets
             </h1>
-            <p className="lead text-muted">Find your perfect companion from our loving pets waiting for homes</p>
+            <p className="lead text-muted">
+              Find your perfect companion from our loving pets waiting for homes
+            </p>
           </div>
 
           {/* Search Form */}
@@ -225,7 +295,7 @@ const Browse = () => {
                   <Button
                     variant="outline-secondary"
                     onClick={() => setShowFilters(!showFilters)}
-                    title={showFilters ? 'Hide filters' : 'Show filters'}
+                    title={showFilters ? "Hide filters" : "Show filters"}
                     aria-expanded={showFilters}
                   >
                     <i className="fas fa-filter me-1"></i>
@@ -245,7 +315,7 @@ const Browse = () => {
                         onChange={(e) => setSelectedType(e.target.value)}
                         aria-label="Filter by pet type"
                       >
-                        {petTypes.map(type => (
+                        {petTypes.map((type) => (
                           <option key={type.value} value={type.value}>
                             {type.label}
                           </option>
@@ -269,7 +339,7 @@ const Browse = () => {
                         onChange={(e) => setAgeRange(e.target.value)}
                         aria-label="Filter by age range"
                       >
-                        {ageRanges.map(age => (
+                        {ageRanges.map((age) => (
                           <option key={age.value} value={age.value}>
                             {age.label}
                           </option>
@@ -283,7 +353,7 @@ const Browse = () => {
                         onChange={(e) => setSelectedGender(e.target.value)}
                         aria-label="Filter by gender"
                       >
-                        {genderOptions.map(gender => (
+                        {genderOptions.map((gender) => (
                           <option key={gender.value} value={gender.value}>
                             {gender.label}
                           </option>
@@ -297,7 +367,7 @@ const Browse = () => {
                         onChange={(e) => setSelectedSize(e.target.value)}
                         aria-label="Filter by size"
                       >
-                        {sizeOptions.map(size => (
+                        {sizeOptions.map((size) => (
                           <option key={size.value} value={size.value}>
                             {size.label}
                           </option>
@@ -305,15 +375,21 @@ const Browse = () => {
                       </Form.Select>
                     </Col>
                   </Row>
-                  
+
                   {/* Filter Actions */}
                   <div className="d-flex justify-content-between align-items-center mt-3">
                     <div>
                       {activeFilters.length > 0 && (
                         <div>
-                          <small className="text-muted me-2">Active filters:</small>
+                          <small className="text-muted me-2">
+                            Active filters:
+                          </small>
                           {activeFilters.map((filter, index) => (
-                            <Badge key={index} bg="secondary" className="me-1 mb-1">
+                            <Badge
+                              key={index}
+                              bg="secondary"
+                              className="me-1 mb-1"
+                            >
                               {filter}
                             </Badge>
                           ))}
@@ -321,7 +397,11 @@ const Browse = () => {
                       )}
                     </div>
                     <div>
-                      <Button variant="outline-danger" size="sm" onClick={clearFilters}>
+                      <Button
+                        variant="outline-danger"
+                        size="sm"
+                        onClick={clearFilters}
+                      >
                         <i className="fas fa-times me-1"></i>
                         Clear Filters
                       </Button>
@@ -338,9 +418,15 @@ const Browse = () => {
               {/* Loading State */}
               {loading && (
                 <div className="text-center py-5">
-                  <Spinner animation="border" size="lg" className="text-primary mb-3" />
+                  <Spinner
+                    animation="border"
+                    size="lg"
+                    className="text-primary mb-3"
+                  />
                   <p className="text-muted">
-                    {retryAttempts > 0 ? `Retrying... (${retryAttempts}/3)` : 'Loading pets...'}
+                    {retryAttempts > 0
+                      ? `Retrying... (${retryAttempts}/3)`
+                      : "Loading pets..."}
                   </p>
                 </div>
               )}
@@ -349,7 +435,8 @@ const Browse = () => {
               {error && !loading && (
                 <Alert variant="danger" className="text-center">
                   <i className="fas fa-exclamation-triangle me-2"></i>
-                  <strong>Error: </strong>{error}
+                  <strong>Error: </strong>
+                  {error}
                   <div className="mt-3">
                     <Button variant="outline-danger" onClick={handleRetry}>
                       Try Again
@@ -364,10 +451,14 @@ const Browse = () => {
                   {/* Results Summary */}
                   <div className="d-flex justify-content-between align-items-center mb-3">
                     <h3 className="h5 mb-0">
-                      {pets.length} {pets.length === 1 ? 'Pet' : 'Pets'} Found
+                      {pets.length} {pets.length === 1 ? "Pet" : "Pets"} Found
                     </h3>
                     {activeFilters.length > 0 && (
-                      <Button variant="outline-primary" size="sm" onClick={clearFilters}>
+                      <Button
+                        variant="outline-primary"
+                        size="sm"
+                        onClick={clearFilters}
+                      >
                         <i className="fas fa-times me-1"></i>
                         Clear All Filters
                       </Button>
@@ -378,7 +469,14 @@ const Browse = () => {
                   {pets.length > 0 ? (
                     <Row>
                       {pets.map((pet) => (
-                        <Col key={pet._id} xs={12} sm={6} md={4} lg={3} className="mb-4">
+                        <Col
+                          key={pet._id}
+                          xs={12}
+                          sm={6}
+                          md={4}
+                          lg={3}
+                          className="mb-4"
+                        >
                           <PetCard pet={pet} />
                         </Col>
                       ))}
@@ -390,11 +488,13 @@ const Browse = () => {
                       <p className="text-muted mb-4">
                         {activeFilters.length > 0
                           ? "Try adjusting your search criteria or clear some filters to see more results."
-                          : "There are no pets available at the moment. Please check back later!"
-                        }
+                          : "There are no pets available at the moment. Please check back later!"}
                       </p>
                       {activeFilters.length > 0 && (
-                        <Button variant="outline-primary" onClick={clearFilters}>
+                        <Button
+                          variant="outline-primary"
+                          onClick={clearFilters}
+                        >
                           <i className="fas fa-times me-1"></i>
                           Clear All Filters
                         </Button>
