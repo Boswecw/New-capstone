@@ -1,4 +1,4 @@
-// client/src/pages/admin/AdminPets.js - FIXED VERSION
+// client/src/pages/admin/AdminPets.js - USING SHARED ADMIN API
 import React, { useState, useEffect, useCallback } from "react";
 import {
   Row,
@@ -12,8 +12,8 @@ import {
   Spinner
 } from "react-bootstrap";
 import DataTable from "../../components/DataTable";
-// ✅ FIXED: Import the adminAPI specifically, or use the axios instance
-import api, { adminAPI } from "../../services/api";
+// ✅ UPDATED: Use shared admin API service
+import adminAPI, { adminHelpers } from "../../services/adminAPI";
 
 const AdminPets = () => {
   const [pets, setPets] = useState([]);
@@ -38,29 +38,23 @@ const AdminPets = () => {
       try {
         console.log('🐾 Fetching admin pets...');
         
-        const params = {
+        const params = adminHelpers.buildParams({
           page,
           limit: 10,
           ...filters,
-        };
+        });
 
-        // ✅ FIXED: Use the axios instance directly (if you chose Option 1)
-        // OR use adminAPI.getAllPetsAdmin(params) if you keep the nested structure
-        const response = await api.get(`/admin/pets?${new URLSearchParams(params).toString()}`);
+        // ✅ FIXED: Use shared admin API
+        const response = await adminAPI.getAllPets(params);
+        const data = adminHelpers.handleResponse(response);
         
-        if (response.data.success) {
-          setPets(response.data.data);
-          setPagination(response.data.pagination || {});
-          console.log('✅ Admin pets loaded:', response.data.data.length, 'pets');
-        } else {
-          throw new Error(response.data.message || 'Failed to fetch pets');
-        }
+        setPets(data.data || []);
+        setPagination(adminHelpers.getPaginationInfo(response));
+        console.log('✅ Admin pets loaded:', data.data?.length || 0, 'pets');
+        
       } catch (error) {
-        console.error("❌ Error fetching pets:", error);
-        showAlert(
-          error.response?.data?.message || error.message || "Error fetching pets", 
-          "danger"
-        );
+        const errorMessage = adminHelpers.handleError(error, "Error fetching pets");
+        showAlert(errorMessage, "danger");
       } finally {
         setLoading(false);
       }
@@ -72,21 +66,16 @@ const AdminPets = () => {
     try {
       console.log('📊 Fetching dashboard data...');
       
-      // ✅ FIXED: Use the axios instance directly
-      const response = await api.get('/admin/dashboard');
+      // ✅ FIXED: Use shared admin API
+      const response = await adminAPI.getDashboard();
+      const data = adminHelpers.handleResponse(response);
       
-      if (response.data.success) {
-        console.log('✅ Dashboard data loaded');
-        return response.data.data;
-      } else {
-        throw new Error(response.data.message || 'Failed to fetch dashboard data');
-      }
+      console.log('✅ Dashboard data loaded');
+      return data.data;
+      
     } catch (error) {
-      console.error("❌ Error fetching dashboard data:", error);
-      showAlert(
-        error.response?.data?.message || error.message || "Error fetching dashboard data", 
-        "warning"
-      );
+      const errorMessage = adminHelpers.handleError(error, "Error fetching dashboard data");
+      showAlert(errorMessage, "warning");
       return null;
     }
   }, []);
@@ -126,21 +115,16 @@ const AdminPets = () => {
     try {
       console.log('🗑️ Deleting pet:', deletingPet._id);
       
-      // ✅ FIXED: Use the axios instance directly
-      const response = await api.delete(`/admin/pets/${deletingPet._id}`);
+      // ✅ FIXED: Use shared admin API
+      const response = await adminAPI.deletePet(deletingPet._id);
+      adminHelpers.handleResponse(response);
       
-      if (response.data.success) {
-        showAlert("Pet deleted successfully", "success");
-        fetchPets(); // Refresh the list
-      } else {
-        throw new Error(response.data.message || 'Failed to delete pet');
-      }
+      showAlert("Pet deleted successfully", "success");
+      fetchPets(); // Refresh the list
+      
     } catch (error) {
-      console.error("❌ Error deleting pet:", error);
-      showAlert(
-        error.response?.data?.message || error.message || "Error deleting pet", 
-        "danger"
-      );
+      const errorMessage = adminHelpers.handleError(error, "Error deleting pet");
+      showAlert(errorMessage, "danger");
     } finally {
       setShowDeleteModal(false);
       setDeletingPet(null);
@@ -153,21 +137,16 @@ const AdminPets = () => {
     try {
       console.log('✏️ Updating pet:', editingPet._id);
       
-      // ✅ FIXED: Use the axios instance directly
-      const response = await api.put(`/admin/pets/${editingPet._id}`, updatedPetData);
+      // ✅ FIXED: Use shared admin API
+      const response = await adminAPI.updatePet(editingPet._id, updatedPetData);
+      adminHelpers.handleResponse(response);
       
-      if (response.data.success) {
-        showAlert("Pet updated successfully", "success");
-        fetchPets(); // Refresh the list
-      } else {
-        throw new Error(response.data.message || 'Failed to update pet');
-      }
+      showAlert("Pet updated successfully", "success");
+      fetchPets(); // Refresh the list
+      
     } catch (error) {
-      console.error("❌ Error updating pet:", error);
-      showAlert(
-        error.response?.data?.message || error.message || "Error updating pet", 
-        "danger"
-      );
+      const errorMessage = adminHelpers.handleError(error, "Error updating pet");
+      showAlert(errorMessage, "danger");
     } finally {
       setShowEditModal(false);
       setEditingPet(null);
@@ -176,6 +155,40 @@ const AdminPets = () => {
 
   const handleFilterChange = (newFilters) => {
     setFilters(prev => ({ ...prev, ...newFilters }));
+  };
+
+  const handleCreatePet = async (petData) => {
+    try {
+      console.log('➕ Creating new pet...');
+      
+      // ✅ FIXED: Use shared admin API
+      const response = await adminAPI.createPet(petData);
+      adminHelpers.handleResponse(response);
+      
+      showAlert("Pet created successfully", "success");
+      fetchPets(); // Refresh the list
+      
+    } catch (error) {
+      const errorMessage = adminHelpers.handleError(error, "Error creating pet");
+      showAlert(errorMessage, "danger");
+    }
+  };
+
+  const handleAdoptPet = async (petId, userId) => {
+    try {
+      console.log('❤️ Marking pet as adopted:', petId);
+      
+      // ✅ FIXED: Use shared admin API
+      const response = await adminAPI.adoptPet(petId, userId);
+      adminHelpers.handleResponse(response);
+      
+      showAlert("Pet marked as adopted successfully", "success");
+      fetchPets(); // Refresh the list
+      
+    } catch (error) {
+      const errorMessage = adminHelpers.handleError(error, "Error marking pet as adopted");
+      showAlert(errorMessage, "danger");
+    }
   };
 
   const columns = [
@@ -234,6 +247,16 @@ const AdminPets = () => {
           >
             Delete
           </Button>
+          {pet.status === 'available' && (
+            <Button 
+              variant="outline-success" 
+              size="sm"
+              className="ms-2"
+              onClick={() => handleAdoptPet(pet._id, 'admin')}
+            >
+              Mark Adopted
+            </Button>
+          )}
         </div>
       )
     }
@@ -254,6 +277,17 @@ const AdminPets = () => {
         <Col>
           <h2>Pets Management</h2>
           <p className="text-muted">Manage pet listings and information</p>
+        </Col>
+        <Col xs="auto">
+          <Button 
+            variant="primary"
+            onClick={() => {
+              // You can implement a create pet modal here
+              console.log('Create new pet clicked');
+            }}
+          >
+            <i className="fas fa-plus me-2"></i>Add New Pet
+          </Button>
         </Col>
       </Row>
 
@@ -300,13 +334,25 @@ const AdminPets = () => {
 
       <Card>
         <Card.Body>
-          <DataTable
-            data={pets}
-            columns={columns}
-            loading={loading}
-            pagination={pagination}
-            onPageChange={fetchPets}
-          />
+          {pets.length > 0 ? (
+            <DataTable
+              data={pets}
+              columns={columns}
+              loading={loading}
+              pagination={pagination}
+              onPageChange={fetchPets}
+            />
+          ) : (
+            <div className="text-center py-4">
+              <p className="text-muted">No pets found matching your criteria.</p>
+              <Button 
+                variant="primary"
+                onClick={() => handleCreatePet({})}
+              >
+                Add First Pet
+              </Button>
+            </div>
+          )}
         </Card.Body>
       </Card>
 
@@ -316,8 +362,15 @@ const AdminPets = () => {
           <Modal.Title>Edit Pet</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          {/* Add your pet edit form here */}
           <p>Pet editing form would go here...</p>
+          {editingPet && (
+            <div>
+              <p><strong>Name:</strong> {editingPet.name}</p>
+              <p><strong>Breed:</strong> {editingPet.breed}</p>
+              <p><strong>Age:</strong> {editingPet.age}</p>
+              <p><strong>Status:</strong> {editingPet.status}</p>
+            </div>
+          )}
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={() => setShowEditModal(false)}>
@@ -335,7 +388,7 @@ const AdminPets = () => {
           <Modal.Title>Confirm Delete</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          Are you sure you want to delete {deletingPet?.name}? This action cannot be undone.
+          Are you sure you want to delete <strong>{deletingPet?.name}</strong>? This action cannot be undone.
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={() => setShowDeleteModal(false)}>
