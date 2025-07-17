@@ -1,4 +1,4 @@
-// client/src/pages/Browse.js - SIMPLE FIX
+// client/src/pages/Browse.js - CORRECTED API RESPONSE HANDLING
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
@@ -22,7 +22,6 @@ const Browse = () => {
   
   // State management
   const [pets, setPets] = useState([]);
-  const [allPets, setAllPets] = useState([]); // Store all pets for filtering
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -91,98 +90,69 @@ const Browse = () => {
     []
   );
 
-  // ✅ SIMPLE FIX: Use the same API call as Home.js
+  // ✅ CORRECTED: Use getAllPets with proper response handling
   const fetchPets = useCallback(async () => {
     try {
-      console.log('🔍 Browse: Fetching pets using working API...');
+      console.log('🔍 Browse: Fetching pets...');
       setLoading(true);
       setError(null);
 
-      // Use the SAME API call that works in Home.js
-      const response = await petAPI.getFeaturedPets(50); // Get more pets
+      // Build query parameters
+      const queryParams = {
+        available: true,
+        limit: 50,
+      };
+
+      // Add filters if they exist
+      if (searchTerm.trim()) {
+        queryParams.search = searchTerm.trim();
+      }
+      if (selectedType) {
+        queryParams.type = selectedType;
+      }
+      if (selectedBreed) {
+        queryParams.breed = selectedBreed;
+      }
+      if (ageRange) {
+        queryParams.age = ageRange;
+      }
+      if (selectedGender) {
+        queryParams.gender = selectedGender;
+      }
+      if (selectedSize) {
+        queryParams.size = selectedSize;
+      }
+
+      console.log('🔍 Browse: Query params:', queryParams);
+
+      // ✅ CORRECTED: Use getAllPets and handle the response properly
+      const response = await petAPI.getAllPets(queryParams);
       
-      if (response.data?.success && response.data.data?.length > 0) {
-        setAllPets(response.data.data);
-        console.log(`✅ Browse: Loaded ${response.data.data.length} pets successfully`);
+      console.log('🔍 Browse: Raw API response:', response);
+      
+      // ✅ CORRECTED: Handle the actual response structure from /api/pets
+      if (response.data?.success) {
+        const petsData = response.data.data || [];
+        setPets(petsData);
+        console.log(`✅ Browse: Loaded ${petsData.length} pets successfully`);
       } else {
-        console.warn('⚠️ Browse: No pets returned from API');
-        setAllPets([]);
+        console.warn('⚠️ Browse: API returned success=false');
+        setPets([]);
+        setError(response.data?.message || 'Failed to load pets');
       }
     } catch (err) {
       console.error('❌ Browse: Error fetching pets:', err);
       setError('Failed to load pets. Please try again.');
+      setPets([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [searchTerm, selectedType, selectedBreed, ageRange, selectedGender, selectedSize]);
 
-  // Apply filters to the pets
-  const applyFilters = useCallback(() => {
-    let filteredPets = [...allPets];
-
-    // Apply search filter
-    if (searchTerm.trim()) {
-      const searchLower = searchTerm.toLowerCase();
-      filteredPets = filteredPets.filter(pet => 
-        pet.name?.toLowerCase().includes(searchLower) ||
-        pet.breed?.toLowerCase().includes(searchLower) ||
-        pet.species?.toLowerCase().includes(searchLower) ||
-        pet.description?.toLowerCase().includes(searchLower)
-      );
-    }
-
-    // Apply type filter
-    if (selectedType) {
-      filteredPets = filteredPets.filter(pet => 
-        pet.species?.toLowerCase() === selectedType.toLowerCase()
-      );
-    }
-
-    // Apply breed filter
-    if (selectedBreed) {
-      filteredPets = filteredPets.filter(pet => 
-        pet.breed?.toLowerCase().includes(selectedBreed.toLowerCase())
-      );
-    }
-
-    // Apply gender filter
-    if (selectedGender) {
-      filteredPets = filteredPets.filter(pet => 
-        pet.gender?.toLowerCase() === selectedGender.toLowerCase()
-      );
-    }
-
-    // Apply size filter
-    if (selectedSize) {
-      filteredPets = filteredPets.filter(pet => 
-        pet.size?.toLowerCase() === selectedSize.toLowerCase()
-      );
-    }
-
-    // Apply age filter (simplified)
-    if (ageRange) {
-      filteredPets = filteredPets.filter(pet => {
-        const petAge = pet.age;
-        if (typeof petAge === 'string') {
-          return petAge.toLowerCase().includes(ageRange.toLowerCase());
-        }
-        return true; // Include if age format is unclear
-      });
-    }
-
-    setPets(filteredPets);
-    console.log(`🔍 Browse: Applied filters, showing ${filteredPets.length} pets`);
-  }, [allPets, searchTerm, selectedType, selectedBreed, selectedGender, selectedSize, ageRange]);
-
-  // Load pets on mount
+  // Load pets when component mounts or filters change
   useEffect(() => {
     fetchPets();
   }, [fetchPets]);
-
-  // Apply filters when data or filters change
-  useEffect(() => {
-    applyFilters();
-  }, [applyFilters]);
 
   // Update URL params when filters change
   useEffect(() => {
@@ -200,7 +170,7 @@ const Browse = () => {
   // Handle search
   const handleSearch = (e) => {
     e.preventDefault();
-    applyFilters();
+    fetchPets();
   };
 
   // Handle filter changes
@@ -417,9 +387,6 @@ const Browse = () => {
                   <div className="d-flex justify-content-between align-items-center mb-3">
                     <h3 className="h5 mb-0">
                       {pets.length} {pets.length === 1 ? "Pet" : "Pets"} Found
-                      {allPets.length > 0 && pets.length !== allPets.length && (
-                        <small className="text-muted"> (filtered from {allPets.length})</small>
-                      )}
                     </h3>
                     {activeFilters.length > 0 && (
                       <Button
@@ -459,7 +426,7 @@ const Browse = () => {
                       <p className="text-muted mb-4">
                         {activeFilters.length > 0
                           ? "Try adjusting your search criteria or clear some filters to see more results."
-                          : "Loading pets from our database..."}
+                          : "No pets match your current criteria."}
                       </p>
                       {activeFilters.length > 0 && (
                         <Button
