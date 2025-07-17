@@ -87,8 +87,10 @@
 
 /* Different object-fit modes for different content types */
 .petImg {
-  object-fit: cover;
-  object-position: center center; /* ✅ BETTER: Center both horizontally and vertically */
+  object-fit: contain; /* ✅ Shows the FULL pet image without cropping */
+  object-position: center;
+  padding: 8px; /* Small padding so image doesn't touch edges */
+  background: #f8f9fa; /* Light background visible around image */
 }
 
 .productImg {
