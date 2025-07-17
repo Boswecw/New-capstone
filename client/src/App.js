@@ -1,4 +1,4 @@
-// client/src/App.js - CUSTOM TOAST SYSTEM VERSION
+// client/src/App.js - FIXED VERSION with Browse Route
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { ToastProvider } from './contexts/ToastContext'; // ✅ Custom toast system
@@ -12,6 +12,7 @@ import ToastContainer from './components/ToastContainer'; // ✅ Custom toast co
 // Pages
 import Home from './pages/Home';
 import Pets from './pages/Pets';
+import Browse from './pages/Browse';                     // ✅ ADD THIS IMPORT
 import PetDetail from './pages/PetDetail';
 import Products from './pages/Products';
 import ProductDetail from './pages/ProductDetail';
@@ -55,6 +56,7 @@ const App = () => {
                   {/* ========== PUBLIC ROUTES ========== */}
                   <Route path="/" element={<Home />} />
                   <Route path="/pets" element={<Pets />} />
+                  <Route path="/browse" element={<Browse />} />    {/* ✅ ADD THIS ROUTE */}
                   <Route path="/pets/:id" element={<PetDetail />} />
                   <Route path="/products" element={<Products />} />
                   <Route path="/products/:id" element={<ProductDetail />} />
