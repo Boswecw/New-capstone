@@ -1,32 +1,5 @@
-/* client/src/components/Card.module.css - FIXED IMAGE SIZING */
-
 /* =============================================================================
-   CARD BASE STYLES
-   ============================================================================= */
-
-.card {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  overflow: hidden;
-  background: var(--color-surface, #ffffff);
-  border: 1px solid var(--color-border, #e0e0e0);
-  border-radius: var(--radius-xl, 12px);
-  box-shadow: var(--shadow-sm, 0 2px 4px rgba(0,0,0,0.1));
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  will-change: transform, box-shadow;
-  transform: translateZ(0);
-  backface-visibility: hidden;
-}
-
-.card:hover {
-  transform: translateY(-4px) translateZ(0);
-  box-shadow: var(--shadow-lg, 0 8px 16px rgba(0,0,0,0.15));
-}
-
-/* =============================================================================
-   IMAGE CONTAINERS - FIXED REASONABLE SIZES
+   IMAGE CONTAINERS - OPTIMIZED FOR DISPLAY & SCALING
    ============================================================================= */
 
 .cardImgContainer,
@@ -37,34 +10,36 @@
   align-items: center;
   justify-content: center;
   width: 100%;
-  height: 220px; /* ✅ BETTER: Increased height to show more image content */
+  height: 220px;
   overflow: hidden;
   background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
   border-bottom: 1px solid var(--color-border-light, #e0e0e0);
 }
 
-/* Gradient overlay for better image presentation */
+/* Optional: consistent shape control with aspect-ratio if height is not fixed */
+/*
+.cardImgContainer,
+.petImgContainer,
+.productImgContainer {
+  aspect-ratio: 4 / 3;
+  height: auto;
+}
+*/
+
+/* Gradient overlay */
 .cardImgContainer::before,
 .petImgContainer::before,
 .productImgContainer::before {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  z-index: 1;
   content: "";
-  background: linear-gradient(
-    180deg,
-    transparent 0%,
-    transparent 60%,
-    rgba(0, 0, 0, 0.03) 100%
-  );
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(180deg, transparent 0%, transparent 60%, rgba(0, 0, 0, 0.03) 100%);
   pointer-events: none;
 }
 
 /* =============================================================================
-   IMAGE STYLES - OPTIMIZED FOR BETTER DISPLAY
+   IMAGE STYLES - CLEAN AND RESPONSIVE
    ============================================================================= */
 
 .cardImg,
@@ -77,57 +52,17 @@
   height: 100%;
   max-width: 100%;
   max-height: 100%;
-  object-fit: cover;
+  object-fit: contain; /* ✅ Always show full image */
   object-position: center;
-  transition: all var(--transition-normal, 0.3s ease);
+  padding: var(--space-xs, 4px);
+  background: #f8f9fa;
+  transition: transform 0.3s ease, filter 0.3s ease;
   will-change: transform, filter;
   transform: translateZ(0);
   backface-visibility: hidden;
 }
 
-/* Different object-fit modes for different content types */
-.petImg {
-  object-fit:scale-down; /* ✅ Shows the FULL pet image without cropping */
-  object-position: center;
-  padding: 8px; /* Small padding so image doesn't touch edges */
-  background: #f8f9fa; /* Light background visible around image */
-}
-
-.productImg {
-  object-fit:scale-down; /* ✅ BETTER: Shows full product image without cropping */
-  object-position: center;
-  padding: var(--space-xs, 4px); /* ✅ REDUCED: Less padding for more image space */
-  background: #ffffff;
-}
-
-/* ✅ NEW: Alternative sizing for when images need more space */
-.cardImg.fill,
-.petImg.fill,
-.productImg.fill {
-  object-fit: fill; /* Stretches to fill container exactly */
-}
-
-.cardImg.contain,
-.petImg.contain,
-.productImg.contain {
-  object-fit: contain; /* Shows full image without cropping */
-  padding: var(--space-xs, 4px);
-}
-
-/* ✅ NEW: Better aspect ratio handling */
-.cardImgContainer.wide,
-.petImgContainer.wide,
-.productImgContainer.wide {
-  height: 200px; /* Wider aspect ratio for landscape images */
-}
-
-.cardImgContainer.square,
-.petImgContainer.square,
-.productImgContainer.square {
-  height: 240px; /* More square-like aspect ratio */
-}
-
-/* Enhanced hover effects */
+/* Shared hover effect */
 .card:hover .cardImg,
 .card:hover .petImg,
 .card:hover .productImg {
@@ -145,262 +80,11 @@
 }
 
 @keyframes pulse {
-  0%, 100% {
-    opacity: 0.7;
-  }
-  50% {
-    opacity: 0.9;
-  }
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 0.9; }
 }
 
-/* =============================================================================
-   CARD CONTENT
-   ============================================================================= */
-
-.cardBody {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  justify-content: space-between;
-  padding: var(--space-lg, 16px);
-}
-
-/* =============================================================================
-   TYPOGRAPHY
-   ============================================================================= */
-
-.cardTitle {
-  display: -webkit-box;
-  overflow: hidden;
-  margin-bottom: var(--space-sm, 8px);
-  color: var(--color-text-primary, #333);
-  font-size: var(--font-size-lg, 18px);
-  font-weight: var(--font-semibold, 600);
-  line-height: var(--line-height-tight, 1.2);
-  text-overflow: ellipsis;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-}
-
-.cardSubtitle {
-  display: -webkit-box;
-  overflow: hidden;
-  margin-bottom: var(--space-xs, 4px);
-  color: var(--color-text-secondary, #666);
-  font-size: var(--font-size-sm, 14px);
-  font-weight: var(--font-normal, 400);
-  line-height: var(--line-height-base, 1.5);
-  text-overflow: ellipsis;
-  -webkit-line-clamp: 1;
-  -webkit-box-orient: vertical;
-}
-
-.cardText {
-  display: -webkit-box;
-  overflow: hidden;
-  margin-bottom: var(--space-md, 12px);
-  color: var(--color-text-secondary, #666);
-  font-size: var(--font-size-sm, 14px);
-  font-weight: var(--font-normal, 400);
-  line-height: var(--line-height-relaxed, 1.6);
-  text-overflow: ellipsis;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-}
-
-/* =============================================================================
-   STATUS BADGES
-   ============================================================================= */
-
-.statusBadge {
-  position: absolute;
-  top: var(--space-sm, 8px);
-  right: var(--space-sm, 8px);
-  z-index: 10;
-  padding: var(--space-xs, 4px) var(--space-sm, 8px);
-  color: white;
-  font-size: var(--font-size-xs, 12px);
-  font-weight: var(--font-semibold, 600);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  background: rgba(0, 0, 0, 0.7);
-  border-radius: var(--radius-md, 6px);
-  backdrop-filter: blur(8px);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-}
-
-.statusBadge.available {
-  background: rgba(40, 167, 69, 0.9);
-}
-
-.statusBadge.adopted {
-  background: rgba(108, 117, 125, 0.9);
-}
-
-.statusBadge.pending {
-  background: rgba(255, 193, 7, 0.9);
-  color: var(--color-text-primary, #333);
-}
-
-.statusBadge.unavailable {
-  background: rgba(220, 53, 69, 0.9);
-}
-
-/* =============================================================================
-   RESPONSIVE DESIGN - OPTIMIZED SIZES
-   ============================================================================= */
-
-/* Large screens (1200px+) */
-@media (min-width: 1200px) {
-  .cardImgContainer,
-  .petImgContainer,
-  .productImgContainer {
-    height: 240px; /* ✅ BETTER: More reasonable size for large screens */
-  }
-  
-  .cardTitle {
-    font-size: var(--font-size-xl, 20px);
-  }
-  
-  .cardText {
-    font-size: var(--font-size-base, 16px);
-  }
-}
-
-/* Tablets (768px - 1199px) */
-@media (max-width: 1199px) and (min-width: 768px) {
-  .cardImgContainer,
-  .petImgContainer,
-  .productImgContainer {
-    height: 220px; /* ✅ BETTER: Same as default for consistency */
-  }
-  
-  .cardBody {
-    padding: var(--space-md, 12px);
-  }
-  
-  .card:hover .cardImg,
-  .card:hover .petImg,
-  .card:hover .productImg {
-    transform: scale(1.03) translateZ(0);
-  }
-}
-
-/* Small tablets and large phones (576px - 767px) */
-@media (max-width: 767px) and (min-width: 576px) {
-  .cardImgContainer,
-  .petImgContainer,
-  .productImgContainer {
-    height: 200px; /* ✅ BETTER: Increased for better mobile viewing */
-  }
-  
-  .cardTitle {
-    font-size: var(--font-size-base, 16px);
-    -webkit-line-clamp: 2;
-  }
-  
-  .cardText {
-    font-size: var(--font-size-sm, 14px);
-    -webkit-line-clamp: 2;
-  }
-  
-  .cardBody {
-    padding: var(--space-md, 12px);
-  }
-  
-  .card:hover .cardImg,
-  .card:hover .petImg,
-  .card:hover .productImg {
-    transform: scale(1.02) translateZ(0);
-  }
-}
-
-/* Mobile devices (up to 575px) */
-@media (max-width: 575px) {
-  .cardImgContainer,
-  .petImgContainer,
-  .productImgContainer {
-    height: 180px; /* ✅ BETTER: Reasonable mobile size */
-  }
-  
-  .cardTitle {
-    font-size: var(--font-size-sm, 14px);
-    -webkit-line-clamp: 1;
-  }
-  
-  .cardText {
-    font-size: var(--font-size-xs, 12px);
-    -webkit-line-clamp: 2;
-  }
-  
-  .cardBody {
-    padding: var(--space-sm, 8px);
-  }
-  
-  .statusBadge {
-    top: var(--space-xs, 4px);
-    right: var(--space-xs, 4px);
-    padding: calc(var(--space-xs, 4px) * 0.7) calc(var(--space-sm, 8px) * 0.8);
-    font-size: calc(var(--font-size-xs, 12px) * 0.9);
-  }
-  
-  .card:hover .cardImg,
-  .card:hover .petImg,
-  .card:hover .productImg {
-    transform: scale(1.01) translateZ(0);
-  }
-}
-
-/* =============================================================================
-   ACCESSIBILITY & FOCUS STATES
-   ============================================================================= */
-
-.card:focus-within {
-  box-shadow: 0 0 0 4px rgba(13, 110, 253, 0.25), var(--shadow-lg, 0 8px 16px rgba(0,0,0,0.15));
-  outline: 2px solid var(--color-primary, #007bff);
-  outline-offset: 2px;
-}
-
-.card:focus-within .cardImg,
-.card:focus-within .petImg,
-.card:focus-within .productImg {
-  transform: scale(1.02) translateZ(0);
-}
-
-/* =============================================================================
-   REDUCED MOTION SUPPORT
-   ============================================================================= */
-
-@media (prefers-reduced-motion: reduce) {
-  .card,
-  .cardImg,
-  .petImg,
-  .productImg {
-    transition: none;
-  }
-  
-  .card:hover {
-    transform: none;
-  }
-  
-  .card:hover .cardImg,
-  .card:hover .petImg,
-  .card:hover .productImg {
-    transform: none;
-    filter: none;
-  }
-  
-  .cardImg.loading,
-  .petImg.loading,
-  .productImg.loading {
-    animation: none;
-  }
-}
-
-/* =============================================================================
-   FALLBACK & ERROR STATES
-   ============================================================================= */
-
+/* Error fallback display */
 .imageError {
   display: flex;
   align-items: center;
@@ -417,49 +101,4 @@
   margin-bottom: var(--space-xs, 4px);
   font-size: var(--font-size-2xl, 24px);
   opacity: 0.5;
-}
-
-/* =============================================================================
-   TOUCH DEVICE OPTIMIZATIONS
-   ============================================================================= */
-
-@media (hover: none) and (pointer: coarse) {
-  .card:hover {
-    transform: none;
-    box-shadow: var(--shadow-sm, 0 2px 4px rgba(0,0,0,0.1));
-  }
-
-  .card:hover .cardImg,
-  .card:hover .petImg,
-  .card:hover .productImg {
-    transform: none;
-    filter: none;
-  }
-
-  .card:active {
-    transform: scale(0.98) translateZ(0);
-  }
-}
-
-/* =============================================================================
-   PRINT STYLES
-   ============================================================================= */
-
-@media print {
-  .card {
-    break-inside: avoid;
-    box-shadow: none;
-    border: 1px solid #ccc;
-  }
-  
-  .card:hover {
-    transform: none;
-    box-shadow: none;
-  }
-  
-  .statusBadge {
-    background: white;
-    border: 1px solid #ccc;
-    color: black;
-  }
 }
