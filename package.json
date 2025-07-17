@@ -19,7 +19,8 @@
     "mern-stack",
     "react",
     "nodejs",
-    "mongodb"
+    "mongodb",
+    "image-optimization"
   ],
   "author": "Charlie Boswell",
   "license": "MIT",
@@ -41,7 +42,8 @@
     "morgan": "^1.10.0",
     "multer": "^2.0.1",
     "nodemailer": "^6.10.1",
-    "react-toastify": "^11.0.5"
+    "react-toastify": "^11.0.5",
+    "sharp": "^0.33.5"
   },
   "devDependencies": {
     "concurrently": "^9.2.0",
@@ -50,5 +52,14 @@
   "engines": {
     "node": ">=18.0.0",
     "npm": ">=8.0.0"
-  }
+  },
+  
+ "repository": {
+    "type": "git",
+    "url": "https://github.com/Boswecw/furbabies-petstore.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Boswecw/furbabies-petstore/issues"
+  },
+  "homepage": "https://github.com/Boswecw/furbabies-petstore#readme"
 }

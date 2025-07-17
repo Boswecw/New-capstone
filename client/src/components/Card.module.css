@@ -1,157 +1,195 @@
-/* ===========================    Card.module.css - FIXED VERSION    =========================== */
+/* client/src/components/Card.module.css - Enhanced with proper image sizing */
+
+/* =============================================================================
+   CSS CUSTOM PROPERTIES
+   ============================================================================= */
+
+:root {
+  /* Colors */
+  --color-surface: #ffffff;
+  --color-border: #e0e0e0;
+  --color-border-light: #f0f0f0;
+  --color-light: #f8f9fa;
+  --color-text-primary: #2c3e50;
+  --color-text-secondary: #6c757d;
+  --color-text-muted: #9ca3af;
+  --color-primary: #007bff;
+  --color-success: #28a745;
+  --color-warning: #ffc107;
+  --color-danger: #dc3545;
+  --color-info: #17a2b8;
+  
+  /* Spacing */
+  --space-xs: 0.25rem;
+  --space-sm: 0.5rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2rem;
+  
+  /* Typography */
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-base: 1rem;
+  --font-size-lg: 1.125rem;
+  --font-size-xl: 1.25rem;
+  --font-size-2xl: 1.5rem;
+  --font-size-3xl: 1.875rem;
+  --font-semibold: 600;
+  --font-bold: 700;
+  --line-height-tight: 1.25;
+  --line-height-normal: 1.5;
+  
+  /* Borders */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.5rem;
+  
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  
+  /* Transitions */
+  --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-normal: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* =============================================================================
+   CARD BASE STYLES
+   ============================================================================= */
+
 .card {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: #fff;
-  border-radius: 1rem;
   overflow: hidden;
-  border: 1px solid rgba(0, 0, 0, 0.1);
-  transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
-  position: relative;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-normal);
+  will-change: transform, box-shadow;
+  transform: translateZ(0);
+  backface-visibility: hidden;
 }
 
 .card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+  transform: translateY(-4px) translateZ(0);
+  box-shadow: var(--shadow-lg);
 }
 
-/* ==== Image Containers - FIXED SIZING ==== */
+.card:focus-within {
+  box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.25), var(--shadow-lg);
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* =============================================================================
+   IMAGE CONTAINERS - PROPERLY SIZED
+   ============================================================================= */
+
 .cardImgContainer,
 .petImgContainer,
 .productImgContainer {
-  width: 100%;
-  height: 200px; /* Reduced from 250px for better proportions */
-  overflow: hidden;
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: #f8f9fa;
-  border-bottom: 1px solid #dee2e6;
-  position: relative;
+  width: 100%;
+  height: 250px; /* Base height */
+  overflow: hidden;
+  background: linear-gradient(135deg, var(--color-light) 0%, var(--color-border-light) 100%);
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0; /* Prevent shrinking */
 }
 
-/* ==== Images - PROPER SIZING CONSTRAINTS ==== */
+/* =============================================================================
+   IMAGE STYLES - PROPERLY CONSTRAINED
+   ============================================================================= */
+
 .cardImg,
 .petImg,
 .productImg {
+  display: block;
   width: 100%;
   height: 100%;
-  object-fit: cover; /* Cover for better visual appeal */
-  object-position: center;
-  display: block;
-  transition: transform 0.3s ease, filter 0.3s ease;
-  /* Ensure images don't exceed container */
   max-width: 100%;
   max-height: 100%;
+  object-fit: cover;
+  object-position: center;
+  transition: all var(--transition-normal);
+  will-change: transform, filter;
+  transform: translateZ(0);
+  backface-visibility: hidden;
 }
 
-/* For portraits/tall images, use contain */
+/* Alternative object-fit for better product images */
 .cardImg.contain,
 .petImg.contain,
 .productImg.contain {
   object-fit: contain;
-  background-color: #f8f9fa;
+  padding: var(--space-sm);
+}
+
+/* Cover mode for better visual appeal */
+.cardImg.cover,
+.petImg.cover,
+.productImg.cover {
+  object-fit: cover;
+  object-position: center;
 }
 
 /* Enhanced hover effects */
 .card:hover .cardImg,
 .card:hover .petImg,
 .card:hover .productImg {
-  transform: scale(1.05); /* Slightly reduced scale to prevent overflow */
+  transform: scale(1.03) translateZ(0);
   filter: brightness(1.05) contrast(1.05);
 }
 
-/* ==== Responsive Image Heights ==== */
+/* Loading state */
+.cardImg.loading,
+.petImg.loading,
+.productImg.loading {
+  opacity: 0.7;
+  filter: blur(1px);
+}
+
+/* =============================================================================
+   RESPONSIVE IMAGE HEIGHTS
+   ============================================================================= */
+
+/* Tablet and below */
 @media (max-width: 768px) {
   .cardImgContainer,
   .petImgContainer,
   .productImgContainer {
-    height: 180px; /* Smaller on mobile */
+    height: 200px;
+  }
+  
+  .card:hover .cardImg,
+  .card:hover .petImg,
+  .card:hover .productImg {
+    transform: scale(1.02) translateZ(0);
   }
 }
 
+/* Mobile */
 @media (max-width: 576px) {
   .cardImgContainer,
   .petImgContainer,
   .productImgContainer {
-    height: 160px; /* Even smaller on very small screens */
+    height: 160px;
   }
-}
-
-/* ==== Card Body and Content ==== */
-.cardBody {
-  padding: 1rem;
-  flex-grow: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-}
-
-.cardTitle {
-  font-size: 1.1rem;
-  font-weight: 600;
-  margin-bottom: 0.5rem;
-  color: #2c3e50;
-  line-height: 1.3;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2; /* Standard property for compatibility */
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.cardText {
-  font-size: 0.9rem;
-  color: #6c757d;
-  margin-bottom: 0.75rem;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  line-clamp: 3; /* Standard property for compatibility */
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  line-height: 1.4;
-}
-
-.cardFooter {
-  padding: 0.75rem 1rem;
-  background-color: #f8f9fa;
-  border-top: 1px solid #dee2e6;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  min-height: 60px;
-}
-
-/* ==== Status Badges ==== */
-.statusBadge {
-  position: absolute;
-  top: 0.5rem;
-  right: 0.5rem;
-  padding: 0.25rem 0.5rem;
-  border-radius: 0.375rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  /* Safari 9+ support */
-  -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  z-index: 2;
-}
-
-.statusBadge.available {
-  background: rgba(40, 167, 69, 0.9);
-  color: white;
-}
-
-.statusBadge.adopted {
-  background: rgba(108, 117, 125, 0.9);
-  color: white;
-}
-
-.statusBadge.pending {
-  background: rgba(255, 193, 7, 0.9);
-  color: #212529;
+  
+  .card:hover .cardImg,
+  .card:hover .petImg,
+  .card:hover .productImg {
+    transform: scale(1.01) translateZ(0);
+  }
 }
