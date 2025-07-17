@@ -1,4 +1,4 @@
-/* client/src/components/Card.module.css - Enhanced with proper image sizing */
+/* client/src/components/Card.module.css - ENHANCED VERSION */
 
 /* =============================================================================
    CSS CUSTOM PROPERTIES
@@ -33,20 +33,16 @@
   --font-size-lg: 1.125rem;
   --font-size-xl: 1.25rem;
   --font-size-2xl: 1.5rem;
-  --font-size-3xl: 1.875rem;
   --font-semibold: 600;
   --font-bold: 700;
   --line-height-tight: 1.25;
   --line-height-normal: 1.5;
   
-  /* Borders */
+  /* Borders & Effects */
   --radius-sm: 0.25rem;
   --radius-md: 0.5rem;
   --radius-lg: 0.75rem;
   --radius-xl: 1rem;
-  --radius-2xl: 1.5rem;
-  
-  /* Shadows */
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
@@ -79,18 +75,13 @@
 }
 
 .card:hover {
-  transform: translateY(-4px) translateZ(0);
-  box-shadow: var(--shadow-lg);
-}
-
-.card:focus-within {
-  box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.25), var(--shadow-lg);
-  outline: 2px solid var(--color-primary);
-  outline-offset: 2px;
+  transform: translateY(-6px) translateZ(0);
+  box-shadow: var(--shadow-xl);
+  border-color: var(--color-primary);
 }
 
 /* =============================================================================
-   IMAGE CONTAINERS - PROPERLY SIZED
+   IMAGE CONTAINERS - OPTIMIZED FOR PERFECT SIZING
    ============================================================================= */
 
 .cardImgContainer,
@@ -101,20 +92,41 @@
   align-items: center;
   justify-content: center;
   width: 100%;
-  height: 250px; /* Base height */
+  height: 280px; /* Increased for better proportions */
   overflow: hidden;
-  background: linear-gradient(135deg, var(--color-light) 0%, var(--color-border-light) 100%);
-  border-bottom: 1px solid var(--color-border);
-  flex-shrink: 0; /* Prevent shrinking */
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border-bottom: 1px solid var(--color-border-light);
+}
+
+/* Gradient overlay for better image presentation */
+.cardImgContainer::before,
+.petImgContainer::before,
+.productImgContainer::before {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 1;
+  content: "";
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    transparent 60%,
+    rgba(0, 0, 0, 0.03) 100%
+  );
+  pointer-events: none;
 }
 
 /* =============================================================================
-   IMAGE STYLES - PROPERLY CONSTRAINED
+   IMAGE STYLES - ENHANCED FOR PERFECT FIT
    ============================================================================= */
 
 .cardImg,
 .petImg,
 .productImg {
+  position: relative;
+  z-index: 0;
   display: block;
   width: 100%;
   height: 100%;
@@ -128,28 +140,25 @@
   backface-visibility: hidden;
 }
 
-/* Alternative object-fit for better product images */
-.cardImg.contain,
-.petImg.contain,
-.productImg.contain {
-  object-fit: contain;
-  padding: var(--space-sm);
+/* Different object-fit modes for different content types */
+.petImg {
+  object-fit: cover;
+  object-position: center top; /* Better for pet photos */
 }
 
-/* Cover mode for better visual appeal */
-.cardImg.cover,
-.petImg.cover,
-.productImg.cover {
-  object-fit: cover;
+.productImg {
+  object-fit: contain; /* Better for product photos */
   object-position: center;
+  padding: var(--space-sm);
+  background: #ffffff;
 }
 
 /* Enhanced hover effects */
 .card:hover .cardImg,
 .card:hover .petImg,
 .card:hover .productImg {
-  transform: scale(1.03) translateZ(0);
-  filter: brightness(1.05) contrast(1.05);
+  transform: scale(1.05) translateZ(0);
+  filter: brightness(1.02) contrast(1.03) saturate(1.05);
 }
 
 /* Loading state */
@@ -157,19 +166,193 @@
 .petImg.loading,
 .productImg.loading {
   opacity: 0.7;
-  filter: blur(1px);
+  filter: blur(2px);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 0.9;
+  }
 }
 
 /* =============================================================================
-   RESPONSIVE IMAGE HEIGHTS
+   CARD CONTENT AREAS
    ============================================================================= */
 
-/* Tablet and below */
-@media (max-width: 768px) {
+.cardBody {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: var(--space-lg);
+  background: var(--color-surface);
+}
+
+.cardTitle {
+  display: -webkit-box;
+  overflow: hidden;
+  margin-bottom: var(--space-sm);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-semibold);
+  line-height: var(--line-height-tight);
+  text-overflow: ellipsis;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.cardSubtitle {
+  margin-bottom: var(--space-sm);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+}
+
+.cardText {
+  display: -webkit-box;
+  flex: 1;
+  overflow: hidden;
+  margin-bottom: var(--space-md);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+  text-overflow: ellipsis;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
+/* =============================================================================
+   BADGES AND STATUS INDICATORS
+   ============================================================================= */
+
+.statusBadge {
+  position: absolute;
+  top: var(--space-sm);
+  right: var(--space-sm);
+  z-index: 10;
+  padding: var(--space-xs) var(--space-sm);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: var(--radius-md);
+  backdrop-filter: blur(8px);
+  box-shadow: var(--shadow-sm);
+}
+
+.statusBadge.available {
+  color: var(--color-success);
+  border: 1px solid var(--color-success);
+}
+
+.statusBadge.adopted {
+  color: var(--color-warning);
+  border: 1px solid var(--color-warning);
+}
+
+.statusBadge.pending {
+  color: var(--color-info);
+  border: 1px solid var(--color-info);
+}
+
+.statusBadge.unavailable {
+  color: var(--color-danger);
+  border: 1px solid var(--color-danger);
+}
+
+/* =============================================================================
+   CARD FOOTER
+   ============================================================================= */
+
+.cardFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 60px;
+  padding: var(--space-md) var(--space-lg);
+  background: var(--color-light);
+  border-top: 1px solid var(--color-border-light);
+}
+
+/* =============================================================================
+   RESPONSIVE DESIGN - OPTIMIZED FOR ALL DEVICES
+   ============================================================================= */
+
+/* Large screens (1200px+) */
+@media (min-width: 1200px) {
+  .cardImgContainer,
+  .petImgContainer,
+  .productImgContainer {
+    height: 320px;
+  }
+  
+  .cardTitle {
+    font-size: var(--font-size-xl);
+  }
+  
+  .cardText {
+    font-size: var(--font-size-base);
+  }
+}
+
+/* Tablets (768px - 1199px) */
+@media (max-width: 1199px) and (min-width: 768px) {
+  .cardImgContainer,
+  .petImgContainer,
+  .productImgContainer {
+    height: 240px;
+  }
+  
+  .cardBody {
+    padding: var(--space-md);
+  }
+  
+  .cardFooter {
+    padding: var(--space-sm) var(--space-md);
+    min-height: 55px;
+  }
+  
+  .card:hover .cardImg,
+  .card:hover .petImg,
+  .card:hover .productImg {
+    transform: scale(1.03) translateZ(0);
+  }
+}
+
+/* Small tablets and large phones (576px - 767px) */
+@media (max-width: 767px) and (min-width: 576px) {
   .cardImgContainer,
   .petImgContainer,
   .productImgContainer {
     height: 200px;
+  }
+  
+  .cardTitle {
+    font-size: var(--font-size-base);
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+  }
+  
+  .cardText {
+    font-size: var(--font-size-sm);
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+  }
+  
+  .cardBody {
+    padding: var(--space-md);
+  }
+  
+  .cardFooter {
+    min-height: 50px;
+    padding: var(--space-sm) var(--space-md);
   }
   
   .card:hover .cardImg,
@@ -179,17 +362,141 @@
   }
 }
 
-/* Mobile */
-@media (max-width: 576px) {
+/* Mobile devices (up to 575px) */
+@media (max-width: 575px) {
   .cardImgContainer,
   .petImgContainer,
   .productImgContainer {
-    height: 160px;
+    height: 180px;
+  }
+  
+  .cardTitle {
+    font-size: var(--font-size-sm);
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
+  }
+  
+  .cardText {
+    font-size: var(--font-size-xs);
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+  }
+  
+  .cardBody {
+    padding: var(--space-sm);
+  }
+  
+  .statusBadge {
+    top: var(--space-xs);
+    right: var(--space-xs);
+    padding: calc(var(--space-xs) * 0.7) calc(var(--space-sm) * 0.8);
+    font-size: calc(var(--font-size-xs) * 0.9);
+  }
+  
+  .cardFooter {
+    flex-direction: column;
+    gap: var(--space-xs);
+    min-height: 45px;
+    padding: var(--space-xs) var(--space-sm);
+  }
+  
+  .card:hover {
+    transform: translateY(-3px) translateZ(0);
   }
   
   .card:hover .cardImg,
   .card:hover .petImg,
   .card:hover .productImg {
     transform: scale(1.01) translateZ(0);
+  }
+}
+
+/* =============================================================================
+   ACCESSIBILITY & FOCUS STATES
+   ============================================================================= */
+
+.card:focus-within {
+  box-shadow: 0 0 0 4px rgba(13, 110, 253, 0.25), var(--shadow-lg);
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.card:focus-within .cardImg,
+.card:focus-within .petImg,
+.card:focus-within .productImg {
+  transform: scale(1.02) translateZ(0);
+}
+
+/* =============================================================================
+   REDUCED MOTION SUPPORT
+   ============================================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .cardImg,
+  .petImg,
+  .productImg {
+    transition: none;
+  }
+  
+  .card:hover {
+    transform: none;
+  }
+  
+  .card:hover .cardImg,
+  .card:hover .petImg,
+  .card:hover .productImg {
+    transform: none;
+    filter: none;
+  }
+  
+  .cardImg.loading,
+  .petImg.loading,
+  .productImg.loading {
+    animation: none;
+  }
+}
+
+/* =============================================================================
+   FALLBACK & ERROR STATES
+   ============================================================================= */
+
+.imageError {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  text-align: center;
+}
+
+.imageError i {
+  margin-bottom: var(--space-xs);
+  font-size: var(--font-size-2xl);
+  opacity: 0.5;
+}
+
+/* =============================================================================
+   PRINT STYLES
+   ============================================================================= */
+
+@media print {
+  .card {
+    break-inside: avoid;
+    box-shadow: none;
+    border: 1px solid #ccc;
+  }
+  
+  .card:hover {
+    transform: none;
+    box-shadow: none;
+  }
+  
+  .statusBadge {
+    background: white;
+    border: 1px solid #ccc;
   }
 }

@@ -1,4 +1,4 @@
-// client/src/components/PetCard.js - Updated with optimized image handling
+// client/src/components/PetCard.js - Updated for perfect image sizing
 
 import React from 'react';
 import { Card, Button, Badge } from 'react-bootstrap';
@@ -107,21 +107,21 @@ const PetCard = ({ pet, className = "" }) => {
 
   return (
     <Card className={`${styles.card} ${className} h-100`}>
-      {/* Image Container with Status Badge */}
+      {/* Enhanced Image Container with Perfect Sizing */}
       <div className={styles.petImgContainer}>
         <ProxyImage
           item={pet}
           category={pet.species?.toLowerCase() || 'pet'}
           alt={`${pet.name} - ${pet.breed || pet.species}`}
           size="card-md"
-          className={styles.petImg}
+          className={`${styles.petImg} ${styles.cover}`}
           containerStyle={{ 
             width: '100%', 
-            height: '100%',
-            borderRadius: '0'
+            height: '100%'
           }}
           priority={false}
           lazy={true}
+          fallbackType="unsplash"
         />
         
         {/* Status Badge */}
@@ -136,10 +136,11 @@ const PetCard = ({ pet, className = "" }) => {
             style={{
               width: '32px',
               height: '32px',
-              backgroundColor: 'rgba(255, 255, 255, 0.9)',
+              backgroundColor: 'rgba(255, 255, 255, 0.95)',
               borderRadius: '50%',
-              backdropFilter: 'blur(4px)',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+              backdropFilter: 'blur(8px)',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+              border: '1px solid rgba(255,255,255,0.8)'
             }}
           >
             <i className={`${speciesIcon} text-primary`} style={{ fontSize: '14px' }}></i>
@@ -175,88 +176,43 @@ const PetCard = ({ pet, className = "" }) => {
                   {pet.gender || 'Unknown'}
                   {pet.gender && (
                     <i className={`ms-1 fas fa-${pet.gender.toLowerCase() === 'male' ? 'mars' : 'venus'}`} 
-                       style={{ color: pet.gender.toLowerCase() === 'male' ? '#007bff' : '#e91e63' }}></i>
+                       style={{ color: pet.gender.toLowerCase() === 'male' ? '#007bff' : '#e83e8c' }}></i>
                   )}
                 </strong>
               </div>
             </div>
-
-            {pet.size && (
-              <div className="mb-2">
-                <small className="text-muted d-block">Size</small>
-                <strong className="text-dark">{pet.size}</strong>
-              </div>
-            )}
-
+            
+            {/* Description */}
             {pet.description && (
               <Card.Text className={styles.cardText}>
                 {pet.description}
               </Card.Text>
             )}
-
-            {/* Special Badges */}
-            <div className="d-flex flex-wrap gap-1 mb-2">
-              {pet.goodWithKids && (
-                <Badge bg="success" className="small">
-                  <i className="fas fa-child me-1"></i>
-                  Good with kids
-                </Badge>
-              )}
-              {pet.goodWithPets && (
-                <Badge bg="info" className="small">
-                  <i className="fas fa-paw me-1"></i>
-                  Good with pets
-                </Badge>
-              )}
-              {pet.spayed && (
-                <Badge bg="secondary" className="small">
-                  <i className="fas fa-check me-1"></i>
-                  Spayed/Neutered
-                </Badge>
-              )}
-              {pet.vaccinated && (
-                <Badge bg="primary" className="small">
-                  <i className="fas fa-syringe me-1"></i>
-                  Vaccinated
-                </Badge>
-              )}
-            </div>
           </div>
 
-          {/* Actions */}
-          <div className={styles.cardFooter}>
-            <div className="d-flex justify-content-between align-items-center w-100">
-              <div>
-                {pet.location && (
-                  <small className="text-muted">
-                    <i className="fas fa-map-marker-alt me-1"></i>
-                    {pet.location}
-                  </small>
-                )}
-              </div>
-              
-              <div className="d-flex gap-2">
-                <Link
-                  to={`/pets/${pet._id}`}
-                  className={`${styles.cardButton} ${styles.secondary}`}
-                  style={{ textDecoration: 'none' }}
-                >
-                  <i className="fas fa-info-circle me-1"></i>
-                  Details
-                </Link>
-                
-                {isAvailable && (
-                  <Link
-                    to={`/adopt/${pet._id}`}
-                    className={styles.cardButton}
-                    style={{ textDecoration: 'none' }}
-                  >
-                    <i className="fas fa-heart me-1"></i>
-                    Adopt
-                  </Link>
-                )}
-              </div>
-            </div>
+          {/* Action Button */}
+          <div className="mt-auto">
+            <Link 
+              to={`/pets/${pet._id}`} 
+              className="btn btn-outline-primary w-100"
+              style={{
+                borderRadius: '8px',
+                fontWeight: '500',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              {isAvailable ? (
+                <>
+                  <i className="fas fa-heart me-2"></i>
+                  Learn More
+                </>
+              ) : (
+                <>
+                  <i className="fas fa-info-circle me-2"></i>
+                  View Details
+                </>
+              )}
+            </Link>
           </div>
         </div>
       </Card.Body>

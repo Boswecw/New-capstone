@@ -1,14 +1,13 @@
-// client/src/components/ProxyImage.js - Enhanced unified image component
+// client/src/components/ProxyImage.js - ENHANCED VERSION
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { Spinner } from 'react-bootstrap';
-import { getGoogleStorageUrl, getFallbackImageUrl } from '../utils/imageUtils';
 
 const ProxyImage = ({ 
-  item,
-  category = 'default',
-  alt,
-  className = "",
+  item, 
+  category, 
+  alt = "Image", 
+  className = "", 
   size = "medium",
   style = {},
   containerStyle = {},
@@ -16,281 +15,269 @@ const ProxyImage = ({
   onError,
   priority = false,
   lazy = true,
-  placeholder = true,
-  aspectRatio = null
+  fallbackType = "unsplash"
 }) => {
   const [imageState, setImageState] = useState({
     loading: true,
     error: false,
-    retryCount: 0
+    retryCount: 0,
+    currentSrc: null
   });
 
-  // Size configurations with responsive support
+  // Enhanced fallback images with proper aspect ratios for cards
+  const fallbackImages = useMemo(() => ({
+    dog: 'https://images.unsplash.com/photo-1583337130417-3346a1be7dee?w=400&h=300&fit=crop&q=80&auto=format',
+    cat: 'https://images.unsplash.com/photo-1574144611937-0df059b5ef3e?w=400&h=300&fit=crop&q=80&auto=format',
+    fish: 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400&h=300&fit=crop&q=80&auto=format',
+    bird: 'https://images.unsplash.com/photo-1520637836862-4d197d17c448?w=400&h=300&fit=crop&q=80&auto=format',
+    rabbit: 'https://images.unsplash.com/photo-1585110396000-c9ffd4e4b308?w=400&h=300&fit=crop&q=80&auto=format',
+    'small-pet': 'https://images.unsplash.com/photo-1425082661705-1834bfd09dca?w=400&h=300&fit=crop&q=80&auto=format',
+    hamster: 'https://images.unsplash.com/photo-1425082661705-1834bfd09dca?w=400&h=300&fit=crop&q=80&auto=format',
+    'guinea pig': 'https://images.unsplash.com/photo-1548767797-d8c844163c4c?w=400&h=300&fit=crop&q=80&auto=format',
+    reptile: 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400&h=300&fit=crop&q=80&auto=format',
+    product: 'https://images.unsplash.com/photo-1601758228041-f3b2795255f1?w=400&h=300&fit=crop&q=80&auto=format',
+    'dog-care': 'https://images.unsplash.com/photo-1583337130417-3346a1be7dee?w=400&h=300&fit=crop&q=80&auto=format',
+    'cat-care': 'https://images.unsplash.com/photo-1574144611937-0df059b5ef3e?w=400&h=300&fit=crop&q=80&auto=format',
+    grooming: 'https://images.unsplash.com/photo-1560807707-8cc77767d783?w=400&h=300&fit=crop&q=80&auto=format',
+    food: 'https://images.unsplash.com/photo-1589924691995-400dc9ecc119?w=400&h=300&fit=crop&q=80&auto=format',
+    toys: 'https://images.unsplash.com/photo-1594149929161-86070191b966?w=400&h=300&fit=crop&q=80&auto=format',
+    accessories: 'https://images.unsplash.com/photo-1601758228041-f3b2795255f1?w=400&h=300&fit=crop&q=80&auto=format',
+    default: 'https://images.unsplash.com/photo-1548767797-d8c844163c4c?w=400&h=300&fit=crop&q=80&auto=format'
+  }), []);
+
+  // Size configurations optimized for the new CSS
   const sizeConfig = useMemo(() => ({
-    thumbnail: { 
-      width: '80px', 
+    'card-sm': {
+      maxWidth: '200px',
+      maxHeight: '160px',
+      objectFit: 'cover'
+    },
+    'card-md': {
+      width: '100%',
+      height: '100%',
+      objectFit: 'cover'
+    },
+    'card-lg': {
+      width: '100%',
+      height: '100%',
+      objectFit: 'cover'
+    },
+    thumbnail: {
+      width: '80px',
       height: '80px',
       borderRadius: '50%',
       objectFit: 'cover'
     },
-    small: { 
-      maxWidth: '150px', 
+    small: {
+      maxWidth: '150px',
       maxHeight: '150px',
       objectFit: 'cover'
     },
-    medium: { 
-      maxWidth: '300px', 
+    medium: {
+      maxWidth: '300px',
       maxHeight: '250px',
       objectFit: 'cover'
     },
-    large: { 
-      maxWidth: '500px', 
+    large: {
+      maxWidth: '500px',
       maxHeight: '400px',
       objectFit: 'cover'
-    },
-    card: { 
-      width: '100%', 
-      height: '100%',
-      maxWidth: '100%',
-      maxHeight: '100%',
-      objectFit: 'cover',
-      objectPosition: 'center'
     },
     hero: {
       width: '100%',
       height: '500px',
-      maxWidth: '100%',
-      objectFit: 'cover',
-      objectPosition: 'center'
-    },
-    // New responsive card sizes
-    'card-sm': {
-      width: '100%',
-      height: '160px',
-      maxWidth: '100%',
-      objectFit: 'cover',
-      objectPosition: 'center'
-    },
-    'card-md': {
-      width: '100%',
-      height: '200px',
-      maxWidth: '100%',
-      objectFit: 'cover',
-      objectPosition: 'center'
-    },
-    'card-lg': {
-      width: '100%',
-      height: '250px',
-      maxWidth: '100%',
-      objectFit: 'cover',
-      objectPosition: 'center'
+      objectFit: 'cover'
     }
   }), []);
 
-  // Get image path from item
-  const getImagePath = useCallback(() => {
+  // Build primary image URL from your backend
+  const buildPrimaryImageUrl = useCallback((item) => {
     if (!item) return null;
-    
-    // Handle different item structures
-    if (item.image) return item.image;
-    if (item.imagePath) return item.imagePath;
-    if (item.imageUrl) return item.imageUrl;
-    if (item.photo) return item.photo;
-    if (item.thumbnail) return item.thumbnail;
-    
-    return null;
-  }, [item]);
 
-  // Determine category from item if not provided
-  const getCategory = useCallback(() => {
-    if (category !== 'default') return category;
-    
-    if (!item) return 'default';
-    
-    // Auto-detect category from item
-    if (item.species) return item.species.toLowerCase();
-    if (item.type) return item.type.toLowerCase();
-    if (item.category) {
-      const cat = item.category.toLowerCase();
-      if (cat.includes('dog')) return 'dog';
-      if (cat.includes('cat')) return 'cat';
-      if (cat.includes('fish') || cat.includes('aqua')) return 'fish';
-      if (cat.includes('bird')) return 'bird';
-      return 'product';
-    }
-    if (item.price !== undefined) return 'product';
-    
-    return 'pet';
-  }, [item, category]);
-
-  // Build optimized image URL
-  const buildImageUrl = useCallback(() => {
-    const imagePath = getImagePath();
-    
-    if (!imagePath) {
-      return getFallbackImageUrl(getCategory());
+    // If item has a direct imageUrl, use it
+    if (item.imageUrl && item.imageUrl.startsWith('http')) {
+      return item.imageUrl;
     }
 
-    if (imageState.error || imageState.retryCount > 1) {
-      return getFallbackImageUrl(getCategory());
+    // Build from image property
+    const imagePath = item.image;
+    if (!imagePath) return null;
+
+    // Clean the path
+    const cleanPath = imagePath.replace(/^\/+/, '');
+    
+    // Use your backend image proxy
+    const baseUrl = process.env.NODE_ENV === 'production' 
+      ? 'https://furbabies-backend.onrender.com'
+      : 'http://localhost:5000';
+    
+    return `${baseUrl}/api/images/gcs/${cleanPath}`;
+  }, []);
+
+  // Get fallback image based on category
+  const getFallbackImage = useCallback((category) => {
+    const cleanCategory = category?.toLowerCase().replace(/[^a-z-]/g, '') || 'default';
+    
+    // Direct category match
+    if (fallbackImages[cleanCategory]) {
+      return fallbackImages[cleanCategory];
     }
-
-    return getGoogleStorageUrl(imagePath, getCategory());
-  }, [getImagePath, getCategory, imageState.error, imageState.retryCount]);
-
-  // Generate alt text if not provided
-  const getAltText = useCallback(() => {
-    if (alt) return alt;
     
-    if (!item) return 'Image';
+    // Partial matches for better fallbacks
+    if (cleanCategory.includes('dog')) return fallbackImages.dog;
+    if (cleanCategory.includes('cat')) return fallbackImages.cat;
+    if (cleanCategory.includes('fish')) return fallbackImages.fish;
+    if (cleanCategory.includes('bird')) return fallbackImages.bird;
+    if (cleanCategory.includes('rabbit')) return fallbackImages.rabbit;
+    if (cleanCategory.includes('hamster') || cleanCategory.includes('mouse')) return fallbackImages.hamster;
+    if (cleanCategory.includes('guinea')) return fallbackImages['guinea pig'];
+    if (cleanCategory.includes('reptile') || cleanCategory.includes('lizard') || cleanCategory.includes('snake')) return fallbackImages.reptile;
+    if (cleanCategory.includes('product') || cleanCategory.includes('toy') || cleanCategory.includes('food') || cleanCategory.includes('care')) {
+      return fallbackImages.product;
+    }
     
-    const name = item.name || item.title || item.breed || '';
-    const type = item.species || item.type || item.category || '';
-    
-    return `${name} ${type}`.trim() || 'Pet Image';
-  }, [alt, item]);
+    return fallbackImages.default;
+  }, [fallbackImages]);
 
-  // Handle successful image load
-  const handleImageLoad = useCallback((e) => {
-    setImageState(prev => ({ ...prev, loading: false, error: false }));
+  // Determine which image source to use
+  const imageSource = useMemo(() => {
+    if (imageState.error || !item) {
+      return getFallbackImage(category);
+    }
+    return buildPrimaryImageUrl(item) || getFallbackImage(category);
+  }, [item, category, imageState.error, buildPrimaryImageUrl, getFallbackImage]);
+
+  // Handle image load success
+  const handleLoad = useCallback((e) => {
+    console.log(`✅ Image loaded successfully: ${e.target.src}`);
+    setImageState(prev => ({ 
+      ...prev, 
+      loading: false, 
+      error: false,
+      currentSrc: e.target.src
+    }));
     onLoad?.(e);
   }, [onLoad]);
 
-  // Handle image error with retry logic
-  const handleImageError = useCallback((e) => {
-    console.warn('ProxyImage load error:', buildImageUrl());
+  // Handle image load error with retry logic
+  const handleError = useCallback((e) => {
+    console.log(`❌ Image load error: ${e.target.src}`);
     
     setImageState(prev => {
-      const newState = { ...prev, loading: false };
+      const newRetryCount = prev.retryCount + 1;
       
-      if (prev.retryCount < 2) {
-        // Retry with incremented count
-        newState.retryCount = prev.retryCount + 1;
-        newState.error = false;
-      } else {
-        newState.error = true;
+      // If we haven't already switched to fallback, do so now
+      if (newRetryCount === 1 && !prev.error) {
+        console.log(`🔄 Switching to fallback image for category: ${category}`);
+        return {
+          ...prev,
+          error: true,
+          loading: false,
+          retryCount: newRetryCount
+        };
       }
       
-      return newState;
+      // If fallback also fails, show error state
+      return {
+        ...prev,
+        error: true,
+        loading: false,
+        retryCount: newRetryCount
+      };
     });
     
     onError?.(e);
-  }, [buildImageUrl, onError]);
+  }, [category, onError]);
 
-  // Calculate combined styles
-  const combinedStyle = useMemo(() => {
-    const configStyle = sizeConfig[size] || sizeConfig.medium;
-    
-    let finalStyle = {
-      ...configStyle,
-      ...style,
-      display: 'block',
-      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-      willChange: 'transform, filter',
-      transform: 'translateZ(0)',
-      backfaceVisibility: 'hidden'
-    };
+  // Reset state when item changes
+  useEffect(() => {
+    setImageState({
+      loading: true,
+      error: false,
+      retryCount: 0,
+      currentSrc: null
+    });
+  }, [item?.id, item?.image]);
 
-    // Apply aspect ratio if specified
-    if (aspectRatio) {
-      finalStyle.aspectRatio = aspectRatio;
-      finalStyle.width = '100%';
-      finalStyle.height = 'auto';
-    }
+  // Get computed styles
+  const computedStyle = {
+    ...sizeConfig[size],
+    ...style
+  };
 
-    return finalStyle;
-  }, [size, style, sizeConfig, aspectRatio]);
+  // Enhanced loading spinner
+  const LoadingSpinner = () => (
+    <div 
+      className="d-flex align-items-center justify-content-center w-100 h-100"
+      style={{ 
+        background: 'linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)',
+        minHeight: '150px'
+      }}
+    >
+      <div className="text-center">
+        <Spinner 
+          animation="border" 
+          size="sm" 
+          className="mb-2"
+          style={{ color: '#6c757d' }}
+        />
+        <div style={{ fontSize: '0.875rem', color: '#6c757d' }}>
+          Loading image...
+        </div>
+      </div>
+    </div>
+  );
 
-  // Container styles
-  const finalContainerStyle = useMemo(() => ({
-    position: 'relative',
-    display: 'inline-block',
-    overflow: 'hidden',
-    backgroundColor: '#f8f9fa',
-    borderRadius: '8px',
-    ...containerStyle
-  }), [containerStyle]);
+  // Error state fallback
+  const ErrorFallback = () => (
+    <div 
+      className="d-flex align-items-center justify-content-center w-100 h-100"
+      style={{ 
+        background: 'linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)',
+        minHeight: '150px',
+        color: '#6c757d'
+      }}
+    >
+      <div className="text-center">
+        <i className="fas fa-image fa-2x mb-2" style={{ opacity: 0.5 }}></i>
+        <div style={{ fontSize: '0.875rem' }}>
+          Image unavailable
+        </div>
+      </div>
+    </div>
+  );
 
-  const imageUrl = buildImageUrl();
-  const altText = getAltText();
+  // Show loading state
+  if (imageState.loading) {
+    return (
+      <div style={containerStyle}>
+        <LoadingSpinner />
+      </div>
+    );
+  }
+
+  // Show error state if fallback also failed
+  if (imageState.error && imageState.retryCount > 1) {
+    return (
+      <div style={containerStyle}>
+        <ErrorFallback />
+      </div>
+    );
+  }
 
   return (
-    <div style={finalContainerStyle}>
-      {/* Loading Spinner */}
-      {imageState.loading && placeholder && (
-        <div 
-          className="position-absolute top-50 start-50 translate-middle"
-          style={{ 
-            zIndex: 2,
-            background: 'rgba(255, 255, 255, 0.9)',
-            borderRadius: '50%',
-            padding: '8px',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-          }}
-        >
-          <Spinner animation="border" size="sm" className="text-primary" />
-        </div>
-      )}
-      
-      {/* Placeholder background */}
-      {imageState.loading && (
-        <div 
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1
-          }}
-        >
-          <div style={{ 
-            color: '#6c757d', 
-            fontSize: '2rem',
-            fontWeight: 'bold',
-            fontFamily: 'system-ui, sans-serif'
-          }}>
-            {getCategory() === 'product' ? '📦' : '🐾'}
-          </div>
-        </div>
-      )}
-      
-      {/* Main Image */}
+    <div style={containerStyle}>
       <img
-        src={imageUrl}
-        alt={altText}
+        src={imageSource}
+        alt={alt}
         className={`${className} ${imageState.loading ? 'loading' : ''}`}
-        style={combinedStyle}
-        onLoad={handleImageLoad}
-        onError={handleImageError}
-        loading={lazy && !priority ? "lazy" : "eager"}
-        // Accessibility
-        role="img"
-        aria-label={altText}
-        // Performance hints
+        style={computedStyle}
+        onLoad={handleLoad}
+        onError={handleError}
+        loading={lazy ? "lazy" : "eager"}
         decoding="async"
-        fetchPriority={priority ? "high" : "auto"}
+        crossOrigin="anonymous"
       />
-      
-      {/* Error indicator (development only) */}
-      {process.env.NODE_ENV === 'development' && imageState.error && (
-        <div 
-          className="position-absolute bottom-0 start-0 end-0 text-center"
-          style={{ 
-            fontSize: '10px', 
-            background: 'rgba(255, 193, 7, 0.9)', 
-            color: 'black',
-            padding: '2px',
-            borderRadius: '0 0 4px 4px'
-          }}
-        >
-          Fallback ({imageState.retryCount} retries)
-        </div>
-      )}
     </div>
   );
 };
