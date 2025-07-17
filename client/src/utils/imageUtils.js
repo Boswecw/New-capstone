@@ -1,17 +1,16 @@
-// client/src/utils/imageUtils.js - FIXED VERSION - Corrects image path structure
+// client/src/utils/imageUtils.js - CORRECTED to match actual GCS structure
 
 const BUCKET_NAME = 'furbabies-petstore';
 
-// ✅ FIXED: Use correct backend URL consistently
+// ✅ CORRECTED: Use actual backend URL
 const getProxyBaseUrl = () => {
-  // Always use the backend URL for image requests
   if (process.env.NODE_ENV === 'production') {
     return 'https://furbabies-backend.onrender.com/api/images/gcs';
   }
   return 'http://localhost:5000/api/images/gcs';
 };
 
-// Working fallback images that don't require CORS
+// Working fallback images
 const DEFAULT_IMAGES = {
   pet: 'https://images.unsplash.com/photo-1601758228041-f3b2795255f1?w=400&h=300&fit=crop&q=80&auto=format',
   dog: 'https://images.unsplash.com/photo-1583337130417-3346a1be7dee?w=400&h=300&fit=crop&q=80&auto=format',
@@ -24,11 +23,11 @@ const DEFAULT_IMAGES = {
 };
 
 /**
- * ✅ FIXED: Normalize image paths to use correct folder structure
+ * ✅ CORRECTED: Keep paths as-is since GCS has pet/ (singular)
  * @param {string} imagePath - Original image path
- * @returns {string} Normalized image path
+ * @returns {string} Cleaned image path (no normalization)
  */
-const normalizeImagePath = (imagePath) => {
+const cleanImagePath = (imagePath) => {
   if (!imagePath || typeof imagePath !== 'string') {
     return '';
   }
@@ -38,32 +37,25 @@ const normalizeImagePath = (imagePath) => {
   // Remove leading slashes
   cleanPath = cleanPath.replace(/^\/+/, '');
   
-  // Fix common path issues
+  // Fix double slashes
   cleanPath = cleanPath.replace(/\/+/g, '/');
   
-  // ✅ FIXED: Convert singular "pet" to plural "pets" in path
-  if (cleanPath.startsWith('pet/')) {
-    cleanPath = cleanPath.replace('pet/', 'pets/');
-  }
-  
-  // ✅ FIXED: Ensure pets folder structure
-  if (!cleanPath.startsWith('pets/') && !cleanPath.startsWith('products/')) {
-    // If no folder specified, assume it's a pet image
-    cleanPath = `pets/${cleanPath}`;
-  }
+  // ✅ CORRECTED: DON'T change pet/ to pets/ since GCS actually has pet/
+  // Keep the path exactly as it is in the database
   
   return cleanPath;
 };
 
 /**
- * Get image URL using the proxy route (solves CORS issues)
+ * Get image URL using the proxy route
  * @param {string} imagePath - Path to image in GCS bucket
  * @param {string} category - Category for fallback selection
  * @returns {string} Proxied image URL or fallback
  */
 export const getGoogleStorageUrl = (imagePath, category = 'pet') => {
   if (!imagePath || typeof imagePath !== 'string' || imagePath.trim() === '') {
-    return DEFAULT_IMAGES[category] || DEFAULT_IMAGES.fallback;
+    console.log('🔍 No image path provided, using fallback');
+    return DEFAULT_IMAGES[category] || DEFAULT_IMAGES.default;
   }
   
   // If already a full URL (http/https), return as-is
@@ -71,13 +63,15 @@ export const getGoogleStorageUrl = (imagePath, category = 'pet') => {
     return imagePath;
   }
   
-  // ✅ FIXED: Normalize the path to correct folder structure
-  const cleanPath = normalizeImagePath(imagePath);
+  // ✅ CORRECTED: Keep exact path from database (should be pet/image.png)
+  const cleanPath = cleanImagePath(imagePath);
   const proxyBaseUrl = getProxyBaseUrl();
   
-  console.log(`🖼️ Image URL: ${imagePath} → ${proxyBaseUrl}/${cleanPath}`);
+  const finalUrl = `${proxyBaseUrl}/${cleanPath}`;
   
-  return `${proxyBaseUrl}/${cleanPath}`;
+  console.log(`🖼️ Image URL: ${imagePath} → ${finalUrl}`);
+  
+  return finalUrl;
 };
 
 /**
@@ -125,7 +119,8 @@ export const getCardImageProps = (item, size = 'medium') => {
     src: getGoogleStorageUrl(imagePath, category),
     alt: item.name || item.title || 'Image',
     onError: (e) => {
-      console.warn(`Image load error for ${item.name}:`, imagePath);
+      console.warn(`❌ Image load error for ${item.name}:`, imagePath);
+      console.warn('🔄 Switching to fallback image');
       e.target.src = DEFAULT_IMAGES[category] || DEFAULT_IMAGES.default;
     },
     onLoad: () => {
@@ -170,7 +165,7 @@ export const getPresetImageUrl = (imagePath, preset = 'medium') => {
     return DEFAULT_IMAGES.default;
   }
   
-  const cleanPath = normalizeImagePath(imagePath);
+  const cleanPath = cleanImagePath(imagePath);
   const baseUrl = process.env.NODE_ENV === 'production' 
     ? 'https://furbabies-backend.onrender.com/api/images/preset'
     : 'http://localhost:5000/api/images/preset';
@@ -179,19 +174,17 @@ export const getPresetImageUrl = (imagePath, preset = 'medium') => {
 };
 
 /**
- * Check if image path needs normalization
- * @param {string} imagePath - Image path to check
- * @returns {boolean} True if path needs fixing
+ * Test if image exists at given URL
+ * @param {string} imageUrl - Image URL to test
+ * @returns {Promise<boolean>} True if image exists
  */
-export const needsPathNormalization = (imagePath) => {
-  if (!imagePath || typeof imagePath !== 'string') {
+export const testImageExists = async (imageUrl) => {
+  try {
+    const response = await fetch(imageUrl, { method: 'HEAD' });
+    return response.ok;
+  } catch (error) {
     return false;
   }
-  
-  // Check for common issues that need fixing
-  return imagePath.includes('pet/') || // Should be pets/
-         imagePath.startsWith('/') || // Shouldn't start with /
-         imagePath.includes('//'); // Double slashes
 };
 
 /**
@@ -203,10 +196,10 @@ export const debugImagePath = (imagePath, category = 'pet') => {
   console.group(`🔍 Image Debug: ${imagePath}`);
   console.log('Original path:', imagePath);
   console.log('Category:', category);
-  console.log('Normalized path:', normalizeImagePath(imagePath));
+  console.log('Cleaned path:', cleanImagePath(imagePath));
   console.log('Final URL:', getGoogleStorageUrl(imagePath, category));
   console.log('Fallback URL:', getFallbackImageUrl(category));
-  console.log('Needs normalization:', needsPathNormalization(imagePath));
+  console.log('Direct GCS URL:', `https://storage.googleapis.com/furbabies-petstore/${cleanImagePath(imagePath)}`);
   console.groupEnd();
 };
 
@@ -217,8 +210,8 @@ export default {
   getCardImageProps,
   getOptimizedImageUrl,
   getPresetImageUrl,
-  normalizeImagePath,
-  needsPathNormalization,
+  cleanImagePath,
+  testImageExists,
   debugImagePath,
   DEFAULT_IMAGES
 };
