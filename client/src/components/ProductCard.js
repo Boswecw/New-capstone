@@ -1,16 +1,17 @@
-// client/src/components/ProductCard.js - UPDATED WITH SAFEIMAGE
+// client/src/components/ProductCard.js
 
 import React from 'react';
-import { Card, Button, Badge } from 'react-bootstrap';
+import { Card } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
-import SafeImage from './SafeImage'; // ← Changed from ProxyImage to SafeImage
+import SafeImage from './SafeImage';
 import styles from './Card.module.css';
+import classNames from 'classnames';
 
-const ProductCard = ({ product, className = "" }) => {
+const ProductCard = ({ product, className = "", fitMode = "contain" }) => {
   if (!product) {
     return (
       <Card className={`${styles.card} ${className} h-100`}>
-        <div className={styles.cardImgContainer}>
+        <div className={styles.productImgContainer}>
           <div className="text-center text-muted p-4">
             <i className="fas fa-box fa-2x mb-2" style={{ color: '#dee2e6' }}></i>
             <p className="mb-0">Product information unavailable</p>
@@ -26,109 +27,78 @@ const ProductCard = ({ product, className = "" }) => {
     );
   }
 
-  // Format price
+  // 🔢 Format price
   const formatPrice = (price) => {
-    if (typeof price === 'number') {
-      return `$${price.toFixed(2)}`;
-    }
-    if (typeof price === 'string' && !isNaN(parseFloat(price))) {
-      return `$${parseFloat(price).toFixed(2)}`;
-    }
-    return 'Price N/A';
+    const num = typeof price === 'string' ? parseFloat(price) : price;
+    return !isNaN(num) ? `$${num.toFixed(2)}` : 'Price N/A';
   };
 
-  // Get category icon
+  // 🧩 Match icon based on category keywords
   const getCategoryIcon = () => {
     const category = product.category?.toLowerCase() || '';
-    const icons = {
-      'dog care': 'fas fa-dog',
-      'dog food': 'fas fa-dog',
-      'cat care': 'fas fa-cat',
-      'cat food': 'fas fa-cat',
-      'grooming': 'fas fa-cut',
-      'training': 'fas fa-graduation-cap',
-      'aquarium': 'fas fa-fish',
-      'food': 'fas fa-utensils',
-      'treats': 'fas fa-cookie',
-      'toys': 'fas fa-ball-pile',
-      'toy': 'fas fa-ball-pile',
-      'accessories': 'fas fa-collar',
-      'health': 'fas fa-heartbeat',
-      'supplies': 'fas fa-box',
-      'bedding': 'fas fa-bed',
-      'carriers': 'fas fa-suitcase',
-      'leashes': 'fas fa-link',
-      'collars': 'fas fa-circle'
+    const iconMap = {
+      dog: 'fas fa-dog',
+      cat: 'fas fa-cat',
+      grooming: 'fas fa-cut',
+      training: 'fas fa-graduation-cap',
+      aquarium: 'fas fa-fish',
+      food: 'fas fa-utensils',
+      treat: 'fas fa-cookie',
+      toy: 'fas fa-ball-pile',
+      accessory: 'fas fa-collar',
+      health: 'fas fa-heartbeat',
+      supply: 'fas fa-box',
+      bedding: 'fas fa-bed',
+      carrier: 'fas fa-suitcase',
+      leash: 'fas fa-link',
+      collar: 'fas fa-circle'
     };
-    
-    for (const [key, icon] of Object.entries(icons)) {
-      if (category.includes(key)) return icon;
-    }
-    return 'fas fa-box';
+    return Object.entries(iconMap).find(([key]) => category.includes(key))?.[1] || 'fas fa-box';
   };
 
-  // Get stock status
+  // 📦 Stock status object
   const getStockStatus = () => {
     if (product.inStock === false) {
-      return { 
-        text: 'Out of Stock', 
-        variant: 'danger',
-        className: styles.statusBadge + ' ' + styles.unavailable
-      };
+      return { text: 'Out of Stock', className: `${styles.statusBadge} ${styles.unavailable}` };
     }
-    
-    if (product.stock) {
-      if (product.stock <= 5) {
-        return { 
-          text: 'Low Stock', 
-          variant: 'warning',
-          className: styles.statusBadge + ' ' + styles.pending
-        };
-      }
-      return { 
-        text: 'In Stock', 
-        variant: 'success',
-        className: styles.statusBadge + ' ' + styles.available
-      };
+    if (product.stock <= 5) {
+      return { text: 'Low Stock', className: `${styles.statusBadge} ${styles.pending}` };
     }
-    
-    return { 
-      text: 'Available', 
-      variant: 'success',
-      className: styles.statusBadge + ' ' + styles.available
-    };
+    return { text: 'In Stock', className: `${styles.statusBadge} ${styles.available}` };
   };
 
   const categoryIcon = getCategoryIcon();
   const stockStatus = getStockStatus();
   const isAvailable = product.inStock !== false;
 
+  const imageClass = classNames(styles.productImg, {
+    [styles['fit-contain']]: fitMode === 'contain',
+    [styles['fit-cover']]: fitMode === 'cover',
+    [styles['fit-fill']]: fitMode === 'fill',
+    [styles['fit-scale-down']]: fitMode === 'scale-down',
+  });
+
   return (
     <Card className={`${styles.card} ${className} h-100`}>
-      {/* Image Container with SafeImage */}
       <div className={styles.productImgContainer}>
         <SafeImage
           item={product}
           category="product"
           alt={product.name}
-          className={styles.productImg}
-          showSpinner={true}
-          onLoad={() => console.log(`✅ Product image loaded for: ${product.name}`)}
-          onError={() => console.log(`❌ Product image failed for: ${product.name}`)}
+          className={imageClass}
+          showSpinner
+          onLoad={() => console.log(`✅ Loaded: ${product.name}`)}
+          onError={() => console.warn(`❌ Failed: ${product.name}`)}
         />
-        
-        {/* Stock Badge */}
-        <div className={stockStatus.className}>
-          {stockStatus.text}
-        </div>
-        
-        {/* Category Icon */}
+
+        <div className={stockStatus.className}>{stockStatus.text}</div>
+
         <div className="position-absolute bottom-0 start-0 p-2">
-          <div 
+          <div
             className="d-flex align-items-center justify-content-center"
             style={{
-              width: '32px',
-              height: '32px',
+              width: 32,
+              height: 32,
               backgroundColor: 'rgba(255, 255, 255, 0.95)',
               borderRadius: '50%',
               backdropFilter: 'blur(8px)',
@@ -136,19 +106,15 @@ const ProductCard = ({ product, className = "" }) => {
               border: '1px solid rgba(255,255,255,0.8)'
             }}
           >
-            <i className={`${categoryIcon} text-primary`} style={{ fontSize: '14px' }}></i>
+            <i className={`${categoryIcon} text-primary`} style={{ fontSize: 14 }} />
           </div>
         </div>
       </div>
 
-      {/* Card Body */}
       <Card.Body className={styles.cardBody}>
         <div className="d-flex flex-column h-100">
-          {/* Header */}
           <div className="mb-2">
-            <Card.Title className={styles.cardTitle}>
-              {product.name}
-            </Card.Title>
+            <Card.Title className={styles.cardTitle}>{product.name}</Card.Title>
             {product.category && (
               <Card.Subtitle className={`${styles.cardSubtitle} text-muted`}>
                 {product.category}
@@ -156,47 +122,33 @@ const ProductCard = ({ product, className = "" }) => {
             )}
           </div>
 
-          {/* Product Details */}
           <div className="mb-3 flex-grow-1">
             <div className="row g-2 mb-2">
               <div className="col-6">
-                <small className="text-muted d-block">Price</small>
-                <strong className="text-primary h5 mb-0">{formatPrice(product.price)}</strong>
+                <small className="text-muted">Price</small>
+                <strong className="text-primary h5 d-block">{formatPrice(product.price)}</strong>
               </div>
               <div className="col-6">
-                <small className="text-muted d-block">Stock</small>
-                <strong className="text-dark">
-                  {product.stock || 'Available'}
-                </strong>
+                <small className="text-muted">Stock</small>
+                <strong className="text-dark">{product.stock || 'Available'}</strong>
               </div>
             </div>
-
             {product.description && (
               <Card.Text className={styles.cardText}>
-                {product.description.length > 100 
-                  ? `${product.description.substring(0, 100)}...` 
+                {product.description.length > 100
+                  ? product.description.slice(0, 100) + '...'
                   : product.description}
               </Card.Text>
             )}
           </div>
 
-          {/* Action Button */}
           <div className="mt-auto">
-            <Link 
+            <Link
               to={`/products/${product._id}`}
               className={`btn ${isAvailable ? 'btn-primary' : 'btn-outline-secondary'} w-100`}
             >
-              {isAvailable ? (
-                <>
-                  <i className="fas fa-shopping-cart me-2"></i>
-                  View Product
-                </>
-              ) : (
-                <>
-                  <i className="fas fa-info-circle me-2"></i>
-                  Out of Stock
-                </>
-              )}
+              <i className={`fas ${isAvailable ? 'fa-shopping-cart' : 'fa-info-circle'} me-2`} />
+              {isAvailable ? 'View Product' : 'Out of Stock'}
             </Link>
           </div>
         </div>

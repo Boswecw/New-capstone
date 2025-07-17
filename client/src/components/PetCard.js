@@ -1,16 +1,17 @@
-// client/src/components/PetCard.js - UPDATED WITH SAFEIMAGE
+// client/src/components/PetCard.js
 
 import React from 'react';
-import { Card, Button, Badge } from 'react-bootstrap';
+import { Card } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
-import SafeImage from './SafeImage'; // ← Changed from ProxyImage to SafeImage
+import SafeImage from './SafeImage';
 import styles from './Card.module.css';
+import classNames from 'classnames';
 
-const PetCard = ({ pet, className = "" }) => {
+const PetCard = ({ pet, className = "", fitMode = "contain" }) => {
   if (!pet) {
     return (
       <Card className={`${styles.card} ${className} h-100`}>
-        <div className={styles.cardImgContainer}>
+        <div className={styles.petImgContainer}>
           <div className="text-center text-muted p-4">
             <i className="fas fa-paw fa-2x mb-2" style={{ color: '#dee2e6' }}></i>
             <p className="mb-0">Pet information unavailable</p>
@@ -26,7 +27,7 @@ const PetCard = ({ pet, className = "" }) => {
     );
   }
 
-  // Format age display
+  // 🕒 Format age display
   const formatAge = (age) => {
     if (!age) return 'Age unknown';
     if (typeof age === 'string') return age;
@@ -40,112 +41,94 @@ const PetCard = ({ pet, className = "" }) => {
     return 'Age unknown';
   };
 
-  // Get status badge info
+  // 🟢 Status badge details
   const getStatusInfo = () => {
     const status = pet.status?.toLowerCase() || 'unknown';
-    
-    switch (status) {
-      case 'available':
-        return { 
-          text: 'Available', 
-          variant: 'success',
-          className: styles.statusBadge + ' ' + styles.available
-        };
-      case 'adopted':
-        return { 
-          text: 'Adopted', 
-          variant: 'warning',
-          className: styles.statusBadge + ' ' + styles.adopted
-        };
-      case 'pending':
-        return { 
-          text: 'Pending', 
-          variant: 'info',
-          className: styles.statusBadge + ' ' + styles.pending
-        };
-      case 'unavailable':
-        return { 
-          text: 'Unavailable', 
-          variant: 'danger',
-          className: styles.statusBadge + ' ' + styles.unavailable
-        };
-      default:
-        return { 
-          text: 'Unknown', 
-          variant: 'secondary',
-          className: styles.statusBadge
-        };
-    }
+    const badgeStyles = {
+      available: styles.available,
+      adopted: styles.adopted,
+      pending: styles.pending,
+      unavailable: styles.unavailable,
+    };
+    const textMap = {
+      available: 'Available',
+      adopted: 'Adopted',
+      pending: 'Pending',
+      unavailable: 'Unavailable',
+    };
+
+    return {
+      text: textMap[status] || 'Unknown',
+      className: `${styles.statusBadge} ${badgeStyles[status] || ''}`,
+    };
   };
 
-  // Get species icon
+  // 🐾 Species icon
   const getSpeciesIcon = () => {
     const species = pet.species?.toLowerCase() || '';
     const icons = {
-      'dog': 'fas fa-dog',
-      'cat': 'fas fa-cat',
-      'fish': 'fas fa-fish',
-      'bird': 'fas fa-dove',
-      'rabbit': 'fas fa-rabbit',
-      'hamster': 'fas fa-mouse',
+      dog: 'fas fa-dog',
+      cat: 'fas fa-cat',
+      fish: 'fas fa-fish',
+      bird: 'fas fa-dove',
+      rabbit: 'fas fa-rabbit',
+      hamster: 'fas fa-mouse',
       'guinea pig': 'fas fa-mouse',
-      'reptile': 'fas fa-dragon',
-      'other': 'fas fa-paw'
+      reptile: 'fas fa-dragon',
     };
-    
-    return icons[species] || icons['other'];
+    return icons[species] || 'fas fa-paw';
   };
 
   const statusInfo = getStatusInfo();
   const speciesIcon = getSpeciesIcon();
   const isAvailable = pet.status?.toLowerCase() === 'available';
 
+  const imageClass = classNames(styles.petImg, {
+    [styles['fit-contain']]: fitMode === 'contain',
+    [styles['fit-cover']]: fitMode === 'cover',
+    [styles['fit-fill']]: fitMode === 'fill',
+    [styles['fit-scale-down']]: fitMode === 'scale-down',
+  });
+
   return (
     <Card className={`${styles.card} ${className} h-100`}>
-      {/* Image Container with SafeImage */}
       <div className={styles.petImgContainer}>
         <SafeImage
           item={pet}
           category={pet.species?.toLowerCase() || 'pet'}
           alt={`${pet.name} - ${pet.breed || pet.species}`}
-          className={styles.petImg}
-          showSpinner={true}
+          className={imageClass}
+          showSpinner
           onLoad={() => console.log(`✅ Pet image loaded for: ${pet.name}`)}
-          onError={() => console.log(`❌ Pet image failed for: ${pet.name}`)}
+          onError={() => console.warn(`❌ Pet image failed for: ${pet.name}`)}
         />
-        
+
         {/* Status Badge */}
-        <div className={statusInfo.className}>
-          {statusInfo.text}
-        </div>
-        
+        <div className={statusInfo.className}>{statusInfo.text}</div>
+
         {/* Species Icon */}
         <div className="position-absolute bottom-0 start-0 p-2">
-          <div 
+          <div
             className="d-flex align-items-center justify-content-center"
             style={{
-              width: '32px',
-              height: '32px',
+              width: 32,
+              height: 32,
               backgroundColor: 'rgba(255, 255, 255, 0.95)',
               borderRadius: '50%',
               backdropFilter: 'blur(8px)',
               boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-              border: '1px solid rgba(255,255,255,0.8)'
+              border: '1px solid rgba(255,255,255,0.8)',
             }}
           >
-            <i className={`${speciesIcon} text-primary`} style={{ fontSize: '14px' }}></i>
+            <i className={`${speciesIcon} text-primary`} style={{ fontSize: 14 }} />
           </div>
         </div>
       </div>
 
-      {/* Card Body */}
       <Card.Body className={styles.cardBody}>
         <div className="d-flex flex-column h-100">
-          {/* Header */}
           <div className="mb-2">
-            <Card.Title className={styles.cardTitle}>
-              {pet.name}
-            </Card.Title>
+            <Card.Title className={styles.cardTitle}>{pet.name}</Card.Title>
             {pet.breed && (
               <Card.Subtitle className={`${styles.cardSubtitle} text-muted`}>
                 {pet.breed}
@@ -165,8 +148,10 @@ const PetCard = ({ pet, className = "" }) => {
                 <strong className="text-dark">
                   {pet.gender || 'Unknown'}
                   {pet.gender && (
-                    <i className={`ms-1 fas fa-${pet.gender.toLowerCase() === 'male' ? 'mars' : 'venus'}`} 
-                       style={{ color: pet.gender.toLowerCase() === 'male' ? '#4a90e2' : '#e24a90' }}></i>
+                    <i
+                      className={`ms-1 fas fa-${pet.gender.toLowerCase() === 'male' ? 'mars' : 'venus'}`}
+                      style={{ color: pet.gender.toLowerCase() === 'male' ? '#4a90e2' : '#e24a90' }}
+                    />
                   )}
                 </strong>
               </div>
@@ -192,7 +177,7 @@ const PetCard = ({ pet, className = "" }) => {
 
           {/* Action Button */}
           <div className="mt-auto">
-            <Link 
+            <Link
               to={`/pets/${pet._id}`}
               className={`btn ${isAvailable ? 'btn-primary' : 'btn-outline-secondary'} w-100`}
             >
