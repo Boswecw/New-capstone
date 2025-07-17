@@ -1,20 +1,58 @@
-// client/src/utils/imageUtils.js - UPDATED WITH PROXY SUPPORT
+// client/src/utils/imageUtils.js - FIXED VERSION - Corrects image path structure
+
 const BUCKET_NAME = 'furbabies-petstore';
 
-// Use the proxy route instead of direct GCS access
+// ✅ FIXED: Use correct backend URL consistently
 const getProxyBaseUrl = () => {
-  // In development, use localhost. In production, use relative path
-  if (process.env.NODE_ENV === 'development') {
-    return 'http://localhost:5000/api/images/gcs';
+  // Always use the backend URL for image requests
+  if (process.env.NODE_ENV === 'production') {
+    return 'https://furbabies-backend.onrender.com/api/images/gcs';
   }
-  return '/api/images/gcs';
+  return 'http://localhost:5000/api/images/gcs';
 };
 
 // Working fallback images that don't require CORS
 const DEFAULT_IMAGES = {
-  pet: 'https://images.unsplash.com/photo-1601758228041-f3b2795255f1?w=400&h=300&fit=crop&q=80',
-  product: 'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400&h=300&fit=crop&q=80',
-  fallback: 'https://images.unsplash.com/photo-1548767797-d8c844163c4c?w=400&h=300&fit=crop&q=80'
+  pet: 'https://images.unsplash.com/photo-1601758228041-f3b2795255f1?w=400&h=300&fit=crop&q=80&auto=format',
+  dog: 'https://images.unsplash.com/photo-1583337130417-3346a1be7dee?w=400&h=300&fit=crop&q=80&auto=format',
+  cat: 'https://images.unsplash.com/photo-1574144611937-0df059b5ef3e?w=400&h=300&fit=crop&q=80&auto=format',
+  fish: 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400&h=300&fit=crop&q=80&auto=format',
+  bird: 'https://images.unsplash.com/photo-1520637836862-4d197d17c448?w=400&h=300&fit=crop&q=80&auto=format',
+  rabbit: 'https://images.unsplash.com/photo-1585110396000-c9ffd4e4b308?w=400&h=300&fit=crop&q=80&auto=format',
+  product: 'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400&h=300&fit=crop&q=80&auto=format',
+  default: 'https://images.unsplash.com/photo-1548767797-d8c844163c4c?w=400&h=300&fit=crop&q=80&auto=format'
+};
+
+/**
+ * ✅ FIXED: Normalize image paths to use correct folder structure
+ * @param {string} imagePath - Original image path
+ * @returns {string} Normalized image path
+ */
+const normalizeImagePath = (imagePath) => {
+  if (!imagePath || typeof imagePath !== 'string') {
+    return '';
+  }
+  
+  let cleanPath = imagePath.trim();
+  
+  // Remove leading slashes
+  cleanPath = cleanPath.replace(/^\/+/, '');
+  
+  // Fix common path issues
+  cleanPath = cleanPath.replace(/\/+/g, '/');
+  
+  // ✅ FIXED: Convert singular "pet" to plural "pets" in path
+  if (cleanPath.startsWith('pet/')) {
+    cleanPath = cleanPath.replace('pet/', 'pets/');
+  }
+  
+  // ✅ FIXED: Ensure pets folder structure
+  if (!cleanPath.startsWith('pets/') && !cleanPath.startsWith('products/')) {
+    // If no folder specified, assume it's a pet image
+    cleanPath = `pets/${cleanPath}`;
+  }
+  
+  return cleanPath;
 };
 
 /**
@@ -33,9 +71,11 @@ export const getGoogleStorageUrl = (imagePath, category = 'pet') => {
     return imagePath;
   }
   
-  // Clean the path and use proxy route
-  const cleanPath = imagePath.trim().replace(/^\/+/, '').replace(/\/+/g, '/');
+  // ✅ FIXED: Normalize the path to correct folder structure
+  const cleanPath = normalizeImagePath(imagePath);
   const proxyBaseUrl = getProxyBaseUrl();
+  
+  console.log(`🖼️ Image URL: ${imagePath} → ${proxyBaseUrl}/${cleanPath}`);
   
   return `${proxyBaseUrl}/${cleanPath}`;
 };
@@ -46,9 +86,9 @@ export const getGoogleStorageUrl = (imagePath, category = 'pet') => {
  * @returns {string} Fallback image URL
  */
 export const getFallbackImageUrl = (category = 'default') => {
-  const baseUrl = process.env.NODE_ENV === 'development' 
-    ? 'http://localhost:5000/api/images/fallback'
-    : '/api/images/fallback';
+  const baseUrl = process.env.NODE_ENV === 'production' 
+    ? 'https://furbabies-backend.onrender.com/api/images/fallback'
+    : 'http://localhost:5000/api/images/fallback';
   
   return `${baseUrl}/${category}`;
 };
@@ -56,13 +96,13 @@ export const getFallbackImageUrl = (category = 'default') => {
 /**
  * Get optimized image props for React components
  * @param {object} item - Pet or product object
- * @param {string} size - Image size (not used currently, for future optimization)
+ * @param {string} size - Image size (for future optimization)
  * @returns {object} Image props including src, alt, and error handling
  */
 export const getCardImageProps = (item, size = 'medium') => {
   if (!item) {
     return {
-      src: DEFAULT_IMAGES.fallback,
+      src: DEFAULT_IMAGES.default,
       alt: 'Content unavailable',
       onError: () => {},
       onLoad: () => {}
@@ -78,117 +118,107 @@ export const getCardImageProps = (item, size = 'medium') => {
   
   const category = isProduct ? 'product' : 'pet';
   
-  // Priority: imageUrl > image field through proxy > fallback
-  let imageSrc;
-  if (item.imageUrl && (item.imageUrl.startsWith('http://') || item.imageUrl.startsWith('https://'))) {
-    imageSrc = item.imageUrl;
-  } else if (item.image) {
-    imageSrc = getGoogleStorageUrl(item.image, category);
-  } else {
-    imageSrc = DEFAULT_IMAGES[category];
+  // Get image path from various possible fields
+  const imagePath = item.image || item.imageUrl || item.imagePath || item.photo || '';
+  
+  return {
+    src: getGoogleStorageUrl(imagePath, category),
+    alt: item.name || item.title || 'Image',
+    onError: (e) => {
+      console.warn(`Image load error for ${item.name}:`, imagePath);
+      e.target.src = DEFAULT_IMAGES[category] || DEFAULT_IMAGES.default;
+    },
+    onLoad: () => {
+      console.log(`✅ Image loaded successfully for ${item.name}`);
+    }
+  };
+};
+
+/**
+ * Build optimized image URL with parameters
+ * @param {string} imagePath - Base image path
+ * @param {object} options - Optimization options
+ * @returns {string} Optimized image URL
+ */
+export const getOptimizedImageUrl = (imagePath, options = {}) => {
+  const baseUrl = getGoogleStorageUrl(imagePath);
+  
+  // If no optimization options, return base URL
+  if (!options.width && !options.height && !options.quality) {
+    return baseUrl;
   }
   
-  const altText = isProduct 
-    ? `${item.name || 'Product'} - ${item.category || 'Pet Store Item'}`
-    : `${item.name || 'Pet'} - ${item.breed || ''} ${item.type || ''}`.trim();
-
-  return {
-    src: imageSrc,
-    alt: altText,
-    onError: (e) => {
-      // Simple one-time fallback to prevent infinite loops
-      if (!e.target.dataset.fallbackAttempted) {
-        e.target.dataset.fallbackAttempted = 'true';
-        e.target.src = DEFAULT_IMAGES[category];
-        console.warn(`Image failed: ${imageSrc}, using fallback`);
-      }
-    },
-    onLoad: (e) => {
-      // Clear fallback flag on successful load
-      delete e.target?.dataset?.fallbackAttempted;
-    }
-  };
-};
-
-/**
- * Get optimized image props with lazy loading
- * @param {string} imagePath - Path to image
- * @param {string} alt - Alt text
- * @param {string} size - Size modifier (for future use)
- * @param {string} category - Image category
- * @param {boolean} lazy - Enable lazy loading
- * @returns {object} Complete image props
- */
-export const getOptimizedImageProps = (imagePath, alt, size = 'medium', category = 'pet', lazy = true) => {
-  const imageUrl = getGoogleStorageUrl(imagePath, category);
+  const params = new URLSearchParams();
   
-  return {
-    src: imageUrl,
-    alt: alt || 'Content',
-    loading: lazy ? 'lazy' : 'eager',
-    decoding: 'async',
-    onError: (e) => {
-      if (!e.target.dataset.fallbackAttempted) {
-        e.target.dataset.fallbackAttempted = 'true';
-        e.target.src = DEFAULT_IMAGES[category];
-      }
-    },
-    onLoad: (e) => {
-      delete e.target?.dataset?.fallbackAttempted;
-    }
-  };
+  if (options.width) params.set('w', options.width);
+  if (options.height) params.set('h', options.height);
+  if (options.quality) params.set('q', options.quality);
+  if (options.format) params.set('format', options.format);
+  if (options.fit) params.set('fit', options.fit);
+  
+  return `${baseUrl}?${params.toString()}`;
 };
 
 /**
- * Validate if an image URL is accessible
- * @param {string} url - Image URL to validate
- * @returns {Promise<boolean>} True if image loads successfully
+ * Get preset image URL for common sizes
+ * @param {string} imagePath - Base image path
+ * @param {string} preset - Preset name (thumbnail, small, medium, large, card, hero)
+ * @returns {string} Preset image URL
  */
-export const validateImageUrl = (url) => {
-  return new Promise((resolve) => {
-    if (!url) {
-      resolve(false);
-      return;
-    }
-
-    const img = new Image();
-    const timeout = setTimeout(() => {
-      resolve(false);
-    }, 5000); // 5 second timeout
-
-    img.onload = () => {
-      clearTimeout(timeout);
-      resolve(true);
-    };
-
-    img.onerror = () => {
-      clearTimeout(timeout);
-      resolve(false);
-    };
-
-    img.src = url;
-  });
+export const getPresetImageUrl = (imagePath, preset = 'medium') => {
+  if (!imagePath || typeof imagePath !== 'string' || imagePath.trim() === '') {
+    return DEFAULT_IMAGES.default;
+  }
+  
+  const cleanPath = normalizeImagePath(imagePath);
+  const baseUrl = process.env.NODE_ENV === 'production' 
+    ? 'https://furbabies-backend.onrender.com/api/images/preset'
+    : 'http://localhost:5000/api/images/preset';
+  
+  return `${baseUrl}/${preset}/gcs/${cleanPath}`;
 };
 
 /**
- * Configuration object for easy access
+ * Check if image path needs normalization
+ * @param {string} imagePath - Image path to check
+ * @returns {boolean} True if path needs fixing
  */
-export const imageConfig = {
-  bucketName: BUCKET_NAME,
-  proxyBaseUrl: getProxyBaseUrl(),
-  fallbackBaseUrl: process.env.NODE_ENV === 'development' 
-    ? 'http://localhost:5000/api/images/fallback'
-    : '/api/images/fallback',
-  defaults: DEFAULT_IMAGES,
-  useProxy: true
+export const needsPathNormalization = (imagePath) => {
+  if (!imagePath || typeof imagePath !== 'string') {
+    return false;
+  }
+  
+  // Check for common issues that need fixing
+  return imagePath.includes('pet/') || // Should be pets/
+         imagePath.startsWith('/') || // Shouldn't start with /
+         imagePath.includes('//'); // Double slashes
 };
 
-// Default export with all utilities
+/**
+ * Debug image loading issues
+ * @param {string} imagePath - Image path to debug
+ * @param {string} category - Image category
+ */
+export const debugImagePath = (imagePath, category = 'pet') => {
+  console.group(`🔍 Image Debug: ${imagePath}`);
+  console.log('Original path:', imagePath);
+  console.log('Category:', category);
+  console.log('Normalized path:', normalizeImagePath(imagePath));
+  console.log('Final URL:', getGoogleStorageUrl(imagePath, category));
+  console.log('Fallback URL:', getFallbackImageUrl(category));
+  console.log('Needs normalization:', needsPathNormalization(imagePath));
+  console.groupEnd();
+};
+
+// Export utility functions
 export default {
-  getCardImageProps,
   getGoogleStorageUrl,
-  getOptimizedImageProps,
   getFallbackImageUrl,
-  validateImageUrl,
-  imageConfig
+  getCardImageProps,
+  getOptimizedImageUrl,
+  getPresetImageUrl,
+  normalizeImagePath,
+  needsPathNormalization,
+  debugImagePath,
+  DEFAULT_IMAGES
 };

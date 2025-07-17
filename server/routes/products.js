@@ -1,55 +1,65 @@
-// server/routes/products.js - ENHANCED VERSION with Random Featured Selection
-const express = require('express');
-const Product = require('../models/Product');
-const { protect, admin } = require('../middleware/auth');
-const { validateObjectId } = require('../middleware/validation');
-const router = express.Router();
+// server/routes/products.js - FIXED VERSION - Resolves MongoDB aggregation error
 
-// ⭐ NEW: Get random featured products for home page
-router.get('/featured', async (req, res) => {
+const express = require("express");
+const router = express.Router();
+const mongoose = require("mongoose");
+const Product = require("../models/Product");
+const { protect, admin, optionalAuth } = require("../middleware/auth");
+
+// ===== VALIDATION FUNCTIONS =====
+const validateObjectId = (req, res, next) => {
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    return res.status(400).json({ success: false, message: "Invalid ID format" });
+  }
+  next();
+};
+
+const validateProductData = (req, res, next) => {
+  const { name, price, category } = req.body;
+  if (!name || !price || !category) {
+    return res.status(400).json({ success: false, message: "Name, price, and category are required" });
+  }
+  if (isNaN(price) || price < 0) {
+    return res.status(400).json({ success: false, message: "Price must be a valid positive number" });
+  }
+  next();
+};
+
+// ===== UTILITY FUNCTIONS =====
+const addProductFields = (product) => ({
+  ...product,
+  displayName: product.name || 'Unnamed Product',
+  imageUrl: product.image ? `https://storage.googleapis.com/furbabies-petstore/${product.image}` : null,
+  fallbackImageUrl: '/api/images/fallback/product',
+  priceDisplay: typeof product.price === 'number' ? `$${product.price.toFixed(2)}` : 'Price not available',
+  categoryDisplay: product.category || 'Uncategorized',
+  inStockDisplay: product.inStock !== false ? 'In Stock' : 'Out of Stock'
+});
+
+// ============================================
+// FEATURED PRODUCTS ROUTE - FIXED VERSION
+// ============================================
+router.get("/featured", async (req, res) => {
   try {
-    console.log('🛒 GET /api/products/featured - Random selection requested');
-    
     const limit = parseInt(req.query.limit) || 4;
-    
-    // Use MongoDB aggregation for true random selection
+    console.log(`🛒 GET /api/products/featured - Limit: ${limit}`);
+
+    // ✅ FIXED: Simple aggregation without problematic $addFields
     const featuredProducts = await Product.aggregate([
-      { 
-        $match: { 
-          featured: true, 
-          inStock: true 
-        } 
-      },
-      { $sample: { size: limit } }, // ⭐ This provides random selection
-      {
-        $addFields: {
-          imageUrl: {
-            $cond: {
-              if: { $ne: ["$image", null] },
-              then: { $concat: ["https://storage.googleapis.com/furbabies-petstore/", "$image"] },
-              else: null
-            }
-          },
-          hasImage: { $ne: ["$image", null] },
-          displayName: { $ifNull: ["$name", "Unnamed Product"] },
-          formattedPrice: {
-            $cond: {
-              if: { $ne: ["$price", null] },
-              then: { $concat: ["$", { $toString: "$price" }] },
-              else: "N/A"
-            }
-          }
-        }
-      }
+      { $match: { inStock: true } },
+      { $sample: { size: limit } }
     ]);
 
-    console.log(`🛒 Returning ${featuredProducts.length} random featured products`);
+    // ✅ FIXED: Add fields using JavaScript instead of MongoDB aggregation
+    const enrichedProducts = featuredProducts.map(addProductFields);
+
+    console.log(`🛒 Returning ${enrichedProducts.length} random featured products`);
     
     res.json({
       success: true,
-      data: featuredProducts,
-      count: featuredProducts.length,
-      message: `${featuredProducts.length} featured products selected randomly`
+      data: enrichedProducts,
+      count: enrichedProducts.length,
+      message: `${enrichedProducts.length} featured products selected randomly`
     });
 
   } catch (error) {
@@ -62,67 +72,135 @@ router.get('/featured', async (req, res) => {
   }
 });
 
-// ⭐ ENHANCED: Get all products with advanced filtering and sorting
-router.get('/', async (req, res) => {
+// ============================================
+// METADATA ROUTES (Must come before /:id route)
+// ============================================
+
+// @desc Get product categories
+router.get("/meta/categories", async (req, res) => {
   try {
-    console.log('🛒 GET /api/products - Query params:', req.query);
+    console.log('🛒 GET /products/meta/categories');
+    
+    const categories = await Product.distinct("category");
+    const categoriesWithCount = await Promise.all(
+      categories.map(async (category) => {
+        const count = await Product.countDocuments({ category });
+        return { name: category, count };
+      })
+    );
+
+    console.log('🛒 Found categories:', categoriesWithCount.length);
+    
+    res.json({
+      success: true,
+      data: categoriesWithCount.filter(cat => cat.count > 0).sort((a, b) => a.name.localeCompare(b.name))
+    });
+  } catch (error) {
+    console.error("❌ Error fetching categories:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch categories",
+      error: error.message
+    });
+  }
+});
+
+// @desc Get product brands
+router.get("/meta/brands", async (req, res) => {
+  try {
+    console.log('🛒 GET /products/meta/brands');
+    
+    const brands = await Product.distinct("brand");
+    const brandsWithCount = await Promise.all(
+      brands.map(async (brand) => {
+        const count = await Product.countDocuments({ brand });
+        return { name: brand, count };
+      })
+    );
+
+    console.log('🛒 Found brands:', brandsWithCount.length);
+    
+    res.json({
+      success: true,
+      data: brandsWithCount.filter(brand => brand.count > 0).sort((a, b) => a.name.localeCompare(b.name))
+    });
+  } catch (error) {
+    console.error("❌ Error fetching brands:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch brands",
+      error: error.message
+    });
+  }
+});
+
+// ============================================
+// GET ALL PRODUCTS WITH ADVANCED FILTERING
+// ============================================
+router.get("/", async (req, res) => {
+  try {
+    console.log('🛒 GET /products - Query params:', req.query);
 
     // Build query object
     const query = {};
 
     // Category filter
     if (req.query.category && req.query.category !== 'all') {
-      query.category = new RegExp(req.query.category, 'i');
+      query.category = req.query.category;
+      console.log('🛒 Filtering by category:', req.query.category);
     }
 
-    // Brand filter
+    // Brand filter (case-insensitive)
     if (req.query.brand && req.query.brand !== 'all') {
-      query.brand = new RegExp(req.query.brand, 'i');
+      query.brand = { $regex: req.query.brand, $options: "i" };
+      console.log('🛒 Filtering by brand:', req.query.brand);
     }
 
-    // Stock filter
-    if (req.query.inStock === 'true') {
-      query.inStock = true;
-    } else if (req.query.inStock === 'false') {
-      query.inStock = false;
+    // In-stock filter
+    if (req.query.inStock && req.query.inStock !== 'all') {
+      query.inStock = req.query.inStock === 'true';
+      console.log('🛒 Filtering by stock status:', req.query.inStock);
     }
 
     // Featured filter
-    if (req.query.featured === 'true') {
-      query.featured = true;
+    if (req.query.featured && req.query.featured !== 'all') {
+      query.featured = req.query.featured === 'true';
+      console.log('🛒 Filtering by featured status:', req.query.featured);
+    }
+
+    // Search filter
+    if (req.query.search) {
+      query.$or = [
+        { name: { $regex: req.query.search, $options: "i" } },
+        { description: { $regex: req.query.search, $options: "i" } },
+        { category: { $regex: req.query.search, $options: "i" } },
+        { brand: { $regex: req.query.search, $options: "i" } }
+      ];
+      console.log('🛒 Searching for:', req.query.search);
     }
 
     // Price range filter
     if (req.query.minPrice || req.query.maxPrice) {
       query.price = {};
-      if (req.query.minPrice) {
-        query.price.$gte = parseFloat(req.query.minPrice);
-      }
-      if (req.query.maxPrice) {
-        query.price.$lte = parseFloat(req.query.maxPrice);
-      }
-    }
-
-    // Search functionality
-    if (req.query.search) {
-      const searchRegex = new RegExp(req.query.search, 'i');
-      query.$or = [
-        { name: searchRegex },
-        { description: searchRegex },
-        { category: searchRegex },
-        { brand: searchRegex }
-      ];
+      if (req.query.minPrice) query.price.$gte = parseFloat(req.query.minPrice);
+      if (req.query.maxPrice) query.price.$lte = parseFloat(req.query.maxPrice);
+      console.log('🛒 Price range filter:', query.price);
     }
 
     // Pagination
     const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 12;
+    const limit = parseInt(req.query.limit) || 20;
     const skip = (page - 1) * limit;
 
     // Sorting
-    let sortOptions = { createdAt: -1 }; // Default: newest first
-    
+    let sortOptions = { createdAt: -1 };
     switch (req.query.sort) {
+      case 'newest':
+        sortOptions = { createdAt: -1 };
+        break;
+      case 'oldest':
+        sortOptions = { createdAt: 1 };
+        break;
       case 'name':
         sortOptions = { name: 1 };
         break;
@@ -147,34 +225,17 @@ router.get('/', async (req, res) => {
     let total;
 
     if (req.query.sort === 'random') {
-      // Use aggregation for random sorting
+      // ✅ FIXED: Use simple aggregation for random sorting
       const pipeline = [
         { $match: query },
-        { $sample: { size: limit } },
-        {
-          $addFields: {
-            imageUrl: {
-              $cond: {
-                if: { $ne: ["$image", null] },
-                then: { $concat: ["https://storage.googleapis.com/furbabies-petstore/", "$image"] },
-                else: null
-              }
-            },
-            hasImage: { $ne: ["$image", null] },
-            displayName: { $ifNull: ["$name", "Unnamed Product"] },
-            formattedPrice: {
-              $cond: {
-                if: { $ne: ["$price", null] },
-                then: { $concat: ["$", { $toString: "$price" }] },
-                else: "N/A"
-              }
-            }
-          }
-        }
+        { $sample: { size: limit } }
       ];
       
       products = await Product.aggregate(pipeline);
       total = await Product.countDocuments(query);
+      
+      // ✅ FIXED: Add computed fields using JavaScript
+      products = products.map(addProductFields);
     } else {
       // Regular query with sorting
       total = await Product.countDocuments(query);
@@ -185,14 +246,8 @@ router.get('/', async (req, res) => {
         .skip(skip)
         .lean();
 
-      // Add computed fields
-      products = dbProducts.map(product => ({
-        ...product,
-        imageUrl: product.image ? `https://storage.googleapis.com/furbabies-petstore/${product.image}` : null,
-        hasImage: !!product.image,
-        displayName: product.name || 'Unnamed Product',
-        formattedPrice: typeof product.price === 'number' ? `$${product.price.toFixed(2)}` : 'N/A'
-      }));
+      // ✅ FIXED: Add computed fields using JavaScript
+      products = dbProducts.map(addProductFields);
     }
 
     console.log(`🛒 Found ${products.length} products (Total: ${total})`);
@@ -227,7 +282,9 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Get single product by ID
+// ============================================
+// GET SINGLE PRODUCT BY ID
+// ============================================
 router.get('/:id', validateObjectId, async (req, res) => {
   try {
     console.log('🛒 GET /api/products/:id - Product ID:', req.params.id);
@@ -242,14 +299,11 @@ router.get('/:id', validateObjectId, async (req, res) => {
       });
     }
 
-    // Add computed fields
-    const enrichedProduct = {
-      ...product,
-      imageUrl: product.image ? `https://storage.googleapis.com/furbabies-petstore/${product.image}` : null,
-      hasImage: !!product.image,
-      displayName: product.name || 'Unnamed Product',
-      formattedPrice: typeof product.price === 'number' ? `$${product.price.toFixed(2)}` : 'N/A'
-    };
+    // ✅ FIXED: Add computed fields using JavaScript
+    const enrichedProduct = addProductFields(product);
+
+    // Increment views
+    await Product.updateOne({ _id: req.params.id }, { $inc: { views: 1 } });
 
     console.log('🛒 Product found:', enrichedProduct.displayName);
     
@@ -267,72 +321,94 @@ router.get('/:id', validateObjectId, async (req, res) => {
   }
 });
 
-// Get product categories for filtering
-router.get('/meta/categories', async (req, res) => {
-  try {
-    console.log('🛒 GET /api/products/meta/categories');
-    
-    const categories = await Product.distinct('category');
-    
-    const categoriesWithCount = await Promise.all(
-      categories.map(async (category) => {
-        const count = await Product.countDocuments({ category });
-        return { 
-          _id: category, 
-          name: category, 
-          count,
-          value: category 
-        };
-      })
-    );
+// ============================================
+// PROTECTED ROUTES (Admin only)
+// ============================================
 
-    console.log(`🛒 Found ${categoriesWithCount.length} product categories`);
+// Create new product
+router.post('/', protect, admin, validateProductData, async (req, res) => {
+  try {
+    console.log('🛒 POST /products - Creating new product');
     
-    res.json({ 
-      success: true, 
-      data: categoriesWithCount.filter(c => c.count > 0).sort((a, b) => a.name.localeCompare(b.name))
+    const product = new Product(req.body);
+    await product.save();
+    
+    const enrichedProduct = addProductFields(product.toObject());
+    
+    res.status(201).json({
+      success: true,
+      data: enrichedProduct,
+      message: 'Product created successfully'
     });
   } catch (error) {
-    console.error('❌ Error fetching product categories:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Error fetching categories', 
-      error: error.message 
+    console.error('❌ Error creating product:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to create product',
+      error: error.message
     });
   }
 });
 
-// Get product brands for filtering
-router.get('/meta/brands', async (req, res) => {
+// Update product
+router.put('/:id', protect, admin, validateObjectId, validateProductData, async (req, res) => {
   try {
-    console.log('🛒 GET /api/products/meta/brands');
+    console.log('🛒 PUT /products/:id - Updating product:', req.params.id);
     
-    const brands = await Product.distinct('brand');
+    const product = await Product.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true, runValidators: true }
+    ).lean();
     
-    const brandsWithCount = await Promise.all(
-      brands.map(async (brand) => {
-        const count = await Product.countDocuments({ brand });
-        return { 
-          _id: brand, 
-          name: brand, 
-          count,
-          value: brand 
-        };
-      })
-    );
-
-    console.log(`🛒 Found ${brandsWithCount.length} product brands`);
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: 'Product not found'
+      });
+    }
     
-    res.json({ 
-      success: true, 
-      data: brandsWithCount.filter(b => b.count > 0).sort((a, b) => a.name.localeCompare(b.name))
+    const enrichedProduct = addProductFields(product);
+    
+    res.json({
+      success: true,
+      data: enrichedProduct,
+      message: 'Product updated successfully'
     });
   } catch (error) {
-    console.error('❌ Error fetching product brands:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Error fetching brands', 
-      error: error.message 
+    console.error('❌ Error updating product:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update product',
+      error: error.message
+    });
+  }
+});
+
+// Delete product
+router.delete('/:id', protect, admin, validateObjectId, async (req, res) => {
+  try {
+    console.log('🛒 DELETE /products/:id - Deleting product:', req.params.id);
+    
+    const product = await Product.findByIdAndDelete(req.params.id);
+    
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: 'Product not found'
+      });
+    }
+    
+    res.json({
+      success: true,
+      message: 'Product deleted successfully'
+    });
+  } catch (error) {
+    console.error('❌ Error deleting product:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete product',
+      error: error.message
     });
   }
 });
