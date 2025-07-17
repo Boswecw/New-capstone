@@ -37,7 +37,7 @@
   align-items: center;
   justify-content: center;
   width: 100%;
-  height: 180px; /* ✅ FIXED: Much more reasonable size */
+  height: 220px; /* ✅ BETTER: Increased height to show more image content */
   overflow: hidden;
   background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
   border-bottom: 1px solid var(--color-border-light, #e0e0e0);
@@ -64,7 +64,7 @@
 }
 
 /* =============================================================================
-   IMAGE STYLES - OPTIMIZED FOR CARDS
+   IMAGE STYLES - OPTIMIZED FOR BETTER DISPLAY
    ============================================================================= */
 
 .cardImg,
@@ -88,14 +88,41 @@
 /* Different object-fit modes for different content types */
 .petImg {
   object-fit: cover;
-  object-position: center top; /* Better for pet photos */
+  object-position: center center; /* ✅ BETTER: Center both horizontally and vertically */
 }
 
 .productImg {
-  object-fit: contain; /* Better for product photos */
+  object-fit: contain; /* ✅ BETTER: Shows full product image without cropping */
   object-position: center;
-  padding: var(--space-sm, 8px);
+  padding: var(--space-xs, 4px); /* ✅ REDUCED: Less padding for more image space */
   background: #ffffff;
+}
+
+/* ✅ NEW: Alternative sizing for when images need more space */
+.cardImg.fill,
+.petImg.fill,
+.productImg.fill {
+  object-fit: fill; /* Stretches to fill container exactly */
+}
+
+.cardImg.contain,
+.petImg.contain,
+.productImg.contain {
+  object-fit: contain; /* Shows full image without cropping */
+  padding: var(--space-xs, 4px);
+}
+
+/* ✅ NEW: Better aspect ratio handling */
+.cardImgContainer.wide,
+.petImgContainer.wide,
+.productImgContainer.wide {
+  height: 200px; /* Wider aspect ratio for landscape images */
+}
+
+.cardImgContainer.square,
+.petImgContainer.square,
+.productImgContainer.square {
+  height: 240px; /* More square-like aspect ratio */
 }
 
 /* Enhanced hover effects */
@@ -226,7 +253,7 @@
   .cardImgContainer,
   .petImgContainer,
   .productImgContainer {
-    height: 200px; /* ✅ FIXED: Reasonable size even for large screens */
+    height: 240px; /* ✅ BETTER: More reasonable size for large screens */
   }
   
   .cardTitle {
@@ -243,7 +270,7 @@
   .cardImgContainer,
   .petImgContainer,
   .productImgContainer {
-    height: 180px; /* ✅ FIXED: Perfect for tablets */
+    height: 220px; /* ✅ BETTER: Same as default for consistency */
   }
   
   .cardBody {
@@ -262,7 +289,7 @@
   .cardImgContainer,
   .petImgContainer,
   .productImgContainer {
-    height: 160px; /* ✅ FIXED: Compact for small tablets */
+    height: 200px; /* ✅ BETTER: Increased for better mobile viewing */
   }
   
   .cardTitle {
@@ -291,7 +318,7 @@
   .cardImgContainer,
   .petImgContainer,
   .productImgContainer {
-    height: 140px; /* ✅ FIXED: Compact for mobile */
+    height: 180px; /* ✅ BETTER: Reasonable mobile size */
   }
   
   .cardTitle {
