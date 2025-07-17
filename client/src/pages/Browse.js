@@ -1,6 +1,6 @@
-// client/src/pages/Browse.js - SIMPLE VERSION WITHOUT useCallback
+// client/src/pages/Browse.js - COMPLETE FIXED VERSION
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   Container, 
   Row, 
@@ -35,7 +35,7 @@ const Browse = () => {
   const [selectedSize, setSelectedSize] = useState(searchParams.get('size') || '');
   const [showFilters, setShowFilters] = useState(false);
 
-  // Filter options - Updated to match your actual pets.json data
+  // Filter options
   const petTypes = useMemo(() => [
     { value: '', label: 'All Pets' },
     { value: 'dog', label: 'Dogs' },
@@ -68,148 +68,131 @@ const Browse = () => {
     { value: 'large', label: 'Large' }
   ], []);
 
-  // Fetch pets function - SIMPLIFIED VERSION
-  const fetchPets = async (attempt = 1) => {
+  // FIXED: Complete fetchPets function
+  const fetchPets = useCallback(async (attempt = 1) => {
     const MAX_RETRIES = 3;
     const RETRY_DELAY = 1000 * attempt;
 
     try {
-      console.log(`🔍 Fetching ALL pets (attempt ${attempt}/${MAX_RETRIES})`);
+      console.log(`🔍 Fetching pets (attempt ${attempt}/${MAX_RETRIES})`);
       setLoading(true);
       setError(null);
 
-      // Build query parameters - KEY FIX: Get ALL available pets (not just featured)
-      const params = {
-        limit: 100,  // ✅ High limit to get all 55+ pets from your database
-        status: 'available',  // Only show available pets
-        page: 1,
-        sort: 'featured'  // Show featured pets first, then others
+      // Build query parameters for ALL available pets
+      const queryParams = {
+        // Always get available pets first
+        available: true,
+        // Add limit for performance (can be adjusted)
+        limit: 50
       };
-      
-      // Add optional filters for user search/filtering
-      if (searchTerm.trim()) params.search = searchTerm.trim();
-      if (selectedType) params.type = selectedType;
-      if (selectedBreed.trim()) params.breed = selectedBreed.trim();
-      if (ageRange) params.age = ageRange;
-      if (selectedGender) params.gender = selectedGender;
-      if (selectedSize) params.size = selectedSize;
-      
-      console.log('🐕 Fetching ALL available pets with params:', params);
-      
-      const response = await petAPI.getAllPets(params);
-      console.log('🐾 Browse pets response:', response.data);
 
-      // Enhanced data extraction with safety checks
+      // Add filters if they exist
+      if (searchTerm.trim()) queryParams.search = searchTerm.trim();
+      if (selectedType) queryParams.type = selectedType;
+      if (selectedBreed.trim()) queryParams.breed = selectedBreed.trim();
+      if (ageRange) queryParams.age = ageRange;
+      if (selectedGender) queryParams.gender = selectedGender;
+      if (selectedSize) queryParams.size = selectedSize;
+
+      console.log('📋 Query params:', queryParams);
+
+      // Make API call
+      const response = await petAPI.getAllPets(queryParams);
+      
+      console.log('📡 API Response:', response);
+
+      // Handle different response structures
       let petsData = [];
-      if (response?.data?.success && Array.isArray(response.data.data)) {
+      if (response.data?.data) {
         petsData = response.data.data;
-      } else if (response?.data && Array.isArray(response.data)) {
+      } else if (response.data?.pets) {
+        petsData = response.data.pets;
+      } else if (Array.isArray(response.data)) {
         petsData = response.data;
-      } else if (response?.pets && Array.isArray(response.pets)) {
-        petsData = response.pets;
+      } else {
+        console.warn('⚠️ Unexpected response structure:', response);
+        petsData = [];
       }
 
-      // Process pets data to ensure proper image URLs
-      const processedPets = petsData.map(pet => ({
-        ...pet,
-        imageUrl: pet.imageUrl || (pet.image ? `https://storage.googleapis.com/furbabies-petstore/${pet.image}` : null),
-        hasValidImage: !!(pet.imageUrl || pet.image)
-      }));
-
-      setPets(processedPets);
+      setPets(petsData);
       setRetryAttempts(0);
       
-      console.log(`✅ Successfully loaded ${processedPets.length} pets`);
-      
+      console.log(`✅ Successfully loaded ${petsData.length} pets`);
+
     } catch (err) {
       console.error(`❌ Error fetching pets (attempt ${attempt}):`, err);
       
       if (attempt < MAX_RETRIES) {
         console.log(`🔄 Retrying in ${RETRY_DELAY}ms...`);
         setRetryAttempts(attempt);
-        
-        setTimeout(() => {
-          fetchPets(attempt + 1);
-        }, RETRY_DELAY);
-        
-        return;
+        setTimeout(() => fetchPets(attempt + 1), RETRY_DELAY);
+      } else {
+        const errorMessage = err.response?.data?.message || 
+                           err.message || 
+                           'Failed to load pets. Please try again later.';
+        setError(errorMessage);
+        setRetryAttempts(0);
       }
-      
-      // Final error after all retries
-      const errorMessage = err.response?.data?.message || 
-                          err.message || 
-                          'Failed to load pets. Please check your connection and try again.';
-      
-      setError(errorMessage);
-      setRetryAttempts(0);
-      console.error('🚨 All retry attempts failed:', errorMessage);
-      
     } finally {
       setLoading(false);
     }
-  };
-
-  // Update URL parameters when filters change
-  useEffect(() => {
-    const params = new URLSearchParams();
-    if (searchTerm.trim()) params.set('search', searchTerm.trim());
-    if (selectedType) params.set('type', selectedType);
-    if (selectedBreed.trim()) params.set('breed', selectedBreed.trim());
-    if (ageRange) params.set('age', ageRange);
-    if (selectedGender) params.set('gender', selectedGender);
-    if (selectedSize) params.set('size', selectedSize);
-
-    setSearchParams(params);
-  }, [searchTerm, selectedType, selectedBreed, ageRange, selectedGender, selectedSize, setSearchParams]);
-
-  // Initialize filters from URL parameters
-  useEffect(() => {
-    setSearchTerm(searchParams.get('search') || '');
-    setSelectedType(searchParams.get('type') || '');
-    setSelectedBreed(searchParams.get('breed') || '');
-    setAgeRange(searchParams.get('age') || '');
-    setSelectedGender(searchParams.get('gender') || '');
-    setSelectedSize(searchParams.get('size') || '');
-  }, [searchParams]);
-
-  // Fetch pets when component mounts or filters change
-  useEffect(() => {
-    fetchPets();
   }, [searchTerm, selectedType, selectedBreed, ageRange, selectedGender, selectedSize]);
 
+  // Handle search form submission
+  const handleSearch = useCallback((e) => {
+    e.preventDefault();
+    updateUrlParams();
+    fetchPets();
+  }, [fetchPets]);
+
+  // Update URL parameters
+  const updateUrlParams = useCallback(() => {
+    const newParams = new URLSearchParams();
+    
+    if (searchTerm.trim()) newParams.set('search', searchTerm.trim());
+    if (selectedType) newParams.set('type', selectedType);
+    if (selectedBreed.trim()) newParams.set('breed', selectedBreed.trim());
+    if (ageRange) newParams.set('age', ageRange);
+    if (selectedGender) newParams.set('gender', selectedGender);
+    if (selectedSize) newParams.set('size', selectedSize);
+    
+    setSearchParams(newParams);
+  }, [searchTerm, selectedType, selectedBreed, ageRange, selectedGender, selectedSize, setSearchParams]);
+
   // Clear all filters
-  const clearFilters = () => {
+  const clearFilters = useCallback(() => {
     setSearchTerm('');
     setSelectedType('');
     setSelectedBreed('');
     setAgeRange('');
     setSelectedGender('');
     setSelectedSize('');
-    setShowFilters(false);
-  };
-
-  // Handle search form submission
-  const handleSearch = (e) => {
-    e.preventDefault();
+    setSearchParams(new URLSearchParams());
     fetchPets();
-  };
-
-  // Manual retry function
-  const handleRetry = () => {
-    fetchPets();
-  };
+  }, [setSearchParams, fetchPets]);
 
   // Get active filters for display
   const activeFilters = useMemo(() => {
     const filters = [];
-    if (searchTerm.trim()) filters.push({ type: 'Search', value: searchTerm.trim() });
-    if (selectedType) filters.push({ type: 'Type', value: petTypes.find(p => p.value === selectedType)?.label || selectedType });
-    if (selectedBreed.trim()) filters.push({ type: 'Breed', value: selectedBreed.trim() });
-    if (ageRange) filters.push({ type: 'Age', value: ageRanges.find(a => a.value === ageRange)?.label || ageRange });
-    if (selectedGender) filters.push({ type: 'Gender', value: genderOptions.find(g => g.value === selectedGender)?.label || selectedGender });
-    if (selectedSize) filters.push({ type: 'Size', value: sizeOptions.find(s => s.value === selectedSize)?.label || selectedSize });
+    if (searchTerm.trim()) filters.push(`Search: "${searchTerm}"`);
+    if (selectedType) filters.push(`Type: ${petTypes.find(t => t.value === selectedType)?.label}`);
+    if (selectedBreed.trim()) filters.push(`Breed: ${selectedBreed}`);
+    if (ageRange) filters.push(`Age: ${ageRanges.find(a => a.value === ageRange)?.label}`);
+    if (selectedGender) filters.push(`Gender: ${genderOptions.find(g => g.value === selectedGender)?.label}`);
+    if (selectedSize) filters.push(`Size: ${sizeOptions.find(s => s.value === selectedSize)?.label}`);
     return filters;
   }, [searchTerm, selectedType, selectedBreed, ageRange, selectedGender, selectedSize, petTypes, ageRanges, genderOptions, sizeOptions]);
+
+  // Initial load and URL parameter changes
+  useEffect(() => {
+    fetchPets();
+  }, [fetchPets]);
+
+  // Manual retry function
+  const handleRetry = () => {
+    setRetryAttempts(0);
+    fetchPets();
+  };
 
   return (
     <Container fluid className="py-4">
@@ -274,7 +257,7 @@ const Browse = () => {
                       <Form.Label className="fw-semibold">Breed</Form.Label>
                       <Form.Control
                         type="text"
-                        placeholder="Enter breed (optional)"
+                        placeholder="Enter breed..."
                         value={selectedBreed}
                         onChange={(e) => setSelectedBreed(e.target.value)}
                         aria-label="Filter by breed"
@@ -288,11 +271,13 @@ const Browse = () => {
                         aria-label="Filter by age range"
                       >
                         {ageRanges.map(age => (
-                          <option key={age.value} value={age.value}>{age.label}</option>
+                          <option key={age.value} value={age.value}>
+                            {age.label}
+                          </option>
                         ))}
                       </Form.Select>
                     </Col>
-                    <Col md={4} className="mb-3">
+                    <Col md={6} className="mb-3">
                       <Form.Label className="fw-semibold">Gender</Form.Label>
                       <Form.Select
                         value={selectedGender}
@@ -300,11 +285,13 @@ const Browse = () => {
                         aria-label="Filter by gender"
                       >
                         {genderOptions.map(gender => (
-                          <option key={gender.value} value={gender.value}>{gender.label}</option>
+                          <option key={gender.value} value={gender.value}>
+                            {gender.label}
+                          </option>
                         ))}
                       </Form.Select>
                     </Col>
-                    <Col md={4} className="mb-3">
+                    <Col md={6} className="mb-3">
                       <Form.Label className="fw-semibold">Size</Form.Label>
                       <Form.Select
                         value={selectedSize}
@@ -312,99 +299,112 @@ const Browse = () => {
                         aria-label="Filter by size"
                       >
                         {sizeOptions.map(size => (
-                          <option key={size.value} value={size.value}>{size.label}</option>
+                          <option key={size.value} value={size.value}>
+                            {size.label}
+                          </option>
                         ))}
                       </Form.Select>
                     </Col>
                   </Row>
-                  <div className="d-flex justify-content-between align-items-center">
-                    <Button 
-                      variant="outline-danger" 
-                      size="sm" 
-                      onClick={clearFilters}
-                      className="d-inline-flex align-items-center"
-                    >
-                      <FaTimes className="me-1" /> Clear All Filters
-                    </Button>
-                    <small className="text-muted">
-                      {pets.length} {pets.length === 1 ? 'pet' : 'pets'} found
-                    </small>
+                  
+                  {/* Filter Actions */}
+                  <div className="d-flex justify-content-between align-items-center mt-3">
+                    <div>
+                      {activeFilters.length > 0 && (
+                        <div>
+                          <small className="text-muted me-2">Active filters:</small>
+                          {activeFilters.map((filter, index) => (
+                            <Badge key={index} bg="secondary" className="me-1 mb-1">
+                              {filter}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <Button variant="outline-danger" size="sm" onClick={clearFilters}>
+                        <FaTimes className="me-1" />
+                        Clear Filters
+                      </Button>
+                    </div>
                   </div>
                 </div>
               )}
             </Card.Body>
           </Card>
 
-          {/* Active Filters Display */}
-          {activeFilters.length > 0 && (
-            <div className="mb-3">
-              <div className="d-flex flex-wrap gap-2 align-items-center">
-                <small className="text-muted fw-semibold">Active filters:</small>
-                {activeFilters.map((filter, index) => (
-                  <Badge key={index} bg="primary" className="fs-6">
-                    {filter.type}: {filter.value}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Loading State */}
-          {loading && (
-            <div className="text-center py-5">
-              <Spinner animation="border" variant="primary" role="status" className="mb-3">
-                <span className="visually-hidden">Loading pets...</span>
-              </Spinner>
-              <p className="text-muted">
-                {retryAttempts > 0 ? `Retrying... (${retryAttempts}/3)` : 'Loading available pets...'}
-              </p>
-            </div>
-          )}
-
-          {/* Error State */}
-          {error && !loading && (
-            <Alert variant="danger" className="text-center">
-              <FaExclamationTriangle className="me-2" />
-              <strong>Oops! Something went wrong.</strong>
-              <div className="mt-2">{error}</div>
-              <Button variant="outline-danger" size="sm" className="mt-3" onClick={handleRetry}>
-                Try Again
-              </Button>
-            </Alert>
-          )}
-
-          {/* Pets Grid */}
-          {!loading && !error && (
-            <>
-              {Array.isArray(pets) && pets.length > 0 ? (
-                <Row className="g-4">
-                  {pets.map((pet) => (
-                    <Col key={pet._id} xs={12} sm={6} md={4} lg={3}>
-                      <PetCard pet={pet} />
-                    </Col>
-                  ))}
-                </Row>
-              ) : (
+          {/* Results Section */}
+          <Row>
+            <Col>
+              {/* Loading State */}
+              {loading && (
                 <div className="text-center py-5">
-                  <div className="mb-4">
-                    <FaSearch size={64} className="text-muted opacity-50" />
-                  </div>
-                  <h4 className="text-muted mb-3">No pets found</h4>
-                  <p className="text-muted mb-4">
-                    {activeFilters.length > 0 
-                      ? "Try adjusting your search criteria or clear some filters to see more results."
-                      : "There are no pets available at the moment. Please check back later!"
-                    }
+                  <Spinner animation="border" size="lg" className="text-primary mb-3" />
+                  <p className="text-muted">
+                    {retryAttempts > 0 ? `Retrying... (${retryAttempts}/3)` : 'Loading pets...'}
                   </p>
-                  {activeFilters.length > 0 && (
-                    <Button variant="outline-primary" onClick={clearFilters}>
-                      <FaTimes className="me-1" /> Clear All Filters
-                    </Button>
-                  )}
                 </div>
               )}
-            </>
-          )}
+
+              {/* Error State */}
+              {error && !loading && (
+                <Alert variant="danger" className="text-center">
+                  <FaExclamationTriangle className="me-2" />
+                  <strong>Error: </strong>{error}
+                  <div className="mt-3">
+                    <Button variant="outline-danger" onClick={handleRetry}>
+                      Try Again
+                    </Button>
+                  </div>
+                </Alert>
+              )}
+
+              {/* Results */}
+              {!loading && !error && (
+                <>
+                  {/* Results Summary */}
+                  <div className="d-flex justify-content-between align-items-center mb-3">
+                    <h3 className="h5 mb-0">
+                      {pets.length} {pets.length === 1 ? 'Pet' : 'Pets'} Found
+                    </h3>
+                    {activeFilters.length > 0 && (
+                      <Button variant="outline-primary" size="sm" onClick={clearFilters}>
+                        <FaTimes className="me-1" />
+                        Clear All Filters
+                      </Button>
+                    )}
+                  </div>
+
+                  {/* Pet Grid */}
+                  {pets.length > 0 ? (
+                    <Row>
+                      {pets.map((pet) => (
+                        <Col key={pet._id} xs={12} sm={6} md={4} lg={3} className="mb-4">
+                          <PetCard pet={pet} />
+                        </Col>
+                      ))}
+                    </Row>
+                  ) : (
+                    <div className="text-center py-5">
+                      <FaPaw className="display-1 text-muted mb-3" />
+                      <h4>No pets found</h4>
+                      <p className="text-muted mb-4">
+                        {activeFilters.length > 0
+                          ? "Try adjusting your search criteria or clear some filters to see more results."
+                          : "There are no pets available at the moment. Please check back later!"
+                        }
+                      </p>
+                      {activeFilters.length > 0 && (
+                        <Button variant="outline-primary" onClick={clearFilters}>
+                          <FaTimes className="me-1" /> Clear All Filters
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+            </Col>
+          </Row>
         </Col>
       </Row>
     </Container>
