@@ -1,9 +1,9 @@
-// client/src/components/ProductCard.js - Updated for perfect image sizing
+// client/src/components/ProductCard.js - UPDATED WITH SAFEIMAGE
 
 import React from 'react';
 import { Card, Button, Badge } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
-import ProxyImage from './ProxyImage';
+import SafeImage from './SafeImage'; // ← Changed from ProxyImage to SafeImage
 import styles from './Card.module.css';
 
 const ProductCard = ({ product, className = "" }) => {
@@ -99,49 +99,25 @@ const ProductCard = ({ product, className = "" }) => {
     };
   };
 
-  // Get rating stars
-  const renderRating = (rating = 0) => {
-    const stars = [];
-    const fullStars = Math.floor(rating);
-    const hasHalfStar = rating % 1 !== 0;
-    
-    for (let i = 0; i < 5; i++) {
-      if (i < fullStars) {
-        stars.push(<i key={i} className="fas fa-star text-warning"></i>);
-      } else if (i === fullStars && hasHalfStar) {
-        stars.push(<i key={i} className="fas fa-star-half-alt text-warning"></i>);
-      } else {
-        stars.push(<i key={i} className="far fa-star text-muted"></i>);
-      }
-    }
-    
-    return stars;
-  };
-
-  const stockStatus = getStockStatus();
   const categoryIcon = getCategoryIcon();
-  const isInStock = product.inStock !== false;
+  const stockStatus = getStockStatus();
+  const isAvailable = product.inStock !== false;
 
   return (
     <Card className={`${styles.card} ${className} h-100`}>
-      {/* Enhanced Image Container for Products */}
+      {/* Image Container with SafeImage */}
       <div className={styles.productImgContainer}>
-        <ProxyImage
+        <SafeImage
           item={product}
-          category={product.category?.toLowerCase() || 'product'}
-          alt={`${product.name} - ${product.category}`}
-          size="card-md"
-          className={`${styles.productImg} ${styles.contain}`} // Use contain for products
-          containerStyle={{ 
-            width: '100%', 
-            height: '100%'
-          }}
-          priority={false}
-          lazy={true}
-          fallbackType="unsplash"
+          category="product"
+          alt={product.name}
+          className={styles.productImg}
+          showSpinner={true}
+          onLoad={() => console.log(`✅ Product image loaded for: ${product.name}`)}
+          onError={() => console.log(`❌ Product image failed for: ${product.name}`)}
         />
         
-        {/* Stock Status Badge */}
+        {/* Stock Badge */}
         <div className={stockStatus.className}>
           {stockStatus.text}
         </div>
@@ -182,81 +158,46 @@ const ProductCard = ({ product, className = "" }) => {
 
           {/* Product Details */}
           <div className="mb-3 flex-grow-1">
-            {/* Price and Rating */}
-            <div className="d-flex justify-content-between align-items-center mb-2">
-              <div>
-                <div className="h5 mb-0 text-primary fw-bold">
-                  {formatPrice(product.price)}
-                </div>
-                {product.originalPrice && product.originalPrice > product.price && (
-                  <small className="text-muted text-decoration-line-through">
-                    {formatPrice(product.originalPrice)}
-                  </small>
-                )}
+            <div className="row g-2 mb-2">
+              <div className="col-6">
+                <small className="text-muted d-block">Price</small>
+                <strong className="text-primary h5 mb-0">{formatPrice(product.price)}</strong>
               </div>
-              
-              {product.rating && (
-                <div className="d-flex align-items-center">
-                  <div className="me-1">
-                    {renderRating(product.rating)}
-                  </div>
-                  <small className="text-muted">
-                    ({product.reviewCount || 0})
-                  </small>
-                </div>
-              )}
+              <div className="col-6">
+                <small className="text-muted d-block">Stock</small>
+                <strong className="text-dark">
+                  {product.stock || 'Available'}
+                </strong>
+              </div>
             </div>
-            
-            {/* Description */}
+
             {product.description && (
               <Card.Text className={styles.cardText}>
-                {product.description}
+                {product.description.length > 100 
+                  ? `${product.description.substring(0, 100)}...` 
+                  : product.description}
               </Card.Text>
-            )}
-
-            {/* Additional Info */}
-            {product.brand && (
-              <div className="mb-2">
-                <small className="text-muted">Brand: </small>
-                <strong className="text-dark">{product.brand}</strong>
-              </div>
             )}
           </div>
 
-          {/* Action Buttons */}
+          {/* Action Button */}
           <div className="mt-auto">
-            <div className="d-grid gap-2">
-              <Link 
-                to={`/products/${product._id}`} 
-                className="btn btn-outline-primary"
-                style={{
-                  borderRadius: '8px',
-                  fontWeight: '500',
-                  transition: 'all 0.2s ease'
-                }}
-              >
-                <i className="fas fa-eye me-2"></i>
-                View Details
-              </Link>
-              
-              {isInStock && (
-                <Button 
-                  variant="primary"
-                  size="sm"
-                  style={{
-                    borderRadius: '8px',
-                    fontWeight: '500'
-                  }}
-                  onClick={() => {
-                    // Add to cart functionality
-                    console.log('Add to cart:', product.name);
-                  }}
-                >
+            <Link 
+              to={`/products/${product._id}`}
+              className={`btn ${isAvailable ? 'btn-primary' : 'btn-outline-secondary'} w-100`}
+            >
+              {isAvailable ? (
+                <>
                   <i className="fas fa-shopping-cart me-2"></i>
-                  Add to Cart
-                </Button>
+                  View Product
+                </>
+              ) : (
+                <>
+                  <i className="fas fa-info-circle me-2"></i>
+                  Out of Stock
+                </>
               )}
-            </div>
+            </Link>
           </div>
         </div>
       </Card.Body>

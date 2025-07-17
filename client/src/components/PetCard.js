@@ -1,9 +1,9 @@
-// client/src/components/PetCard.js - Updated for perfect image sizing
+// client/src/components/PetCard.js - UPDATED WITH SAFEIMAGE
 
 import React from 'react';
 import { Card, Button, Badge } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
-import ProxyImage from './ProxyImage';
+import SafeImage from './SafeImage'; // ← Changed from ProxyImage to SafeImage
 import styles from './Card.module.css';
 
 const PetCard = ({ pet, className = "" }) => {
@@ -29,11 +29,7 @@ const PetCard = ({ pet, className = "" }) => {
   // Format age display
   const formatAge = (age) => {
     if (!age) return 'Age unknown';
-    
-    if (typeof age === 'string') {
-      return age;
-    }
-    
+    if (typeof age === 'string') return age;
     if (typeof age === 'number') {
       if (age < 1) {
         const months = Math.floor(age * 12);
@@ -41,7 +37,6 @@ const PetCard = ({ pet, className = "" }) => {
       }
       return `${age} year${age !== 1 ? 's' : ''}`;
     }
-    
     return 'Age unknown';
   };
 
@@ -107,21 +102,16 @@ const PetCard = ({ pet, className = "" }) => {
 
   return (
     <Card className={`${styles.card} ${className} h-100`}>
-      {/* Enhanced Image Container with Perfect Sizing */}
+      {/* Image Container with SafeImage */}
       <div className={styles.petImgContainer}>
-        <ProxyImage
+        <SafeImage
           item={pet}
           category={pet.species?.toLowerCase() || 'pet'}
           alt={`${pet.name} - ${pet.breed || pet.species}`}
-          size="card-md"
-          className={`${styles.petImg} ${styles.cover}`}
-          containerStyle={{ 
-            width: '100%', 
-            height: '100%'
-          }}
-          priority={false}
-          lazy={true}
-          fallbackType="unsplash"
+          className={styles.petImg}
+          showSpinner={true}
+          onLoad={() => console.log(`✅ Pet image loaded for: ${pet.name}`)}
+          onError={() => console.log(`❌ Pet image failed for: ${pet.name}`)}
         />
         
         {/* Status Badge */}
@@ -176,35 +166,40 @@ const PetCard = ({ pet, className = "" }) => {
                   {pet.gender || 'Unknown'}
                   {pet.gender && (
                     <i className={`ms-1 fas fa-${pet.gender.toLowerCase() === 'male' ? 'mars' : 'venus'}`} 
-                       style={{ color: pet.gender.toLowerCase() === 'male' ? '#007bff' : '#e83e8c' }}></i>
+                       style={{ color: pet.gender.toLowerCase() === 'male' ? '#4a90e2' : '#e24a90' }}></i>
                   )}
                 </strong>
               </div>
             </div>
-            
-            {/* Description */}
-            {pet.description && (
-              <Card.Text className={styles.cardText}>
-                {pet.description}
-              </Card.Text>
+
+            {pet.size && (
+              <div className="mb-2">
+                <small className="text-muted d-block">Size</small>
+                <strong className="text-dark text-capitalize">{pet.size}</strong>
+              </div>
+            )}
+
+            {pet.location && (
+              <div className="mb-2">
+                <small className="text-muted d-block">Location</small>
+                <strong className="text-dark">
+                  <i className="fas fa-map-marker-alt me-1 text-primary"></i>
+                  {pet.location}
+                </strong>
+              </div>
             )}
           </div>
 
           {/* Action Button */}
           <div className="mt-auto">
             <Link 
-              to={`/pets/${pet._id}`} 
-              className="btn btn-outline-primary w-100"
-              style={{
-                borderRadius: '8px',
-                fontWeight: '500',
-                transition: 'all 0.2s ease'
-              }}
+              to={`/pets/${pet._id}`}
+              className={`btn ${isAvailable ? 'btn-primary' : 'btn-outline-secondary'} w-100`}
             >
               {isAvailable ? (
                 <>
                   <i className="fas fa-heart me-2"></i>
-                  Learn More
+                  Meet {pet.name}
                 </>
               ) : (
                 <>
