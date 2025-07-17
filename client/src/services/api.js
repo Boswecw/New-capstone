@@ -1,4 +1,4 @@
-// client/src/services/api.js - FIXED VERSION (Remove duplicate exports)
+// client/src/services/api.js - CORRECTED VERSION with proper featured endpoints
 import axios from 'axios';
 
 // Create axios instance with base configuration
@@ -9,13 +9,13 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 10000, // 10 second timeout
+  timeout: 15000, // 15 second timeout for Render cold starts
 });
 
 // Request interceptor to add auth token
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('authToken');
+    const token = localStorage.getItem('authToken') || localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -30,8 +30,11 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    console.error('API Error:', error.response?.data || error.message);
+    
     if (error.response?.status === 401) {
       localStorage.removeItem('authToken');
+      localStorage.removeItem('token');
       localStorage.removeItem('user');
       window.location.href = '/login';
     }
@@ -52,6 +55,7 @@ const userAPI = {
 
 // ===== PET API =====
 const petAPI = {
+  // Get all pets with filtering
   getAllPets: (params = {}) => {
     const searchParams = new URLSearchParams();
     Object.keys(params).forEach(key => {
@@ -61,14 +65,16 @@ const petAPI = {
     });
     return api.get(`/pets?${searchParams}`);
   },
-  getPetById: (id) => api.get(`/pets/${id}`),
-  createPet: (petData) => api.post('/pets', petData),
-  updatePet: (id, petData) => api.put(`/pets/${id}`, petData),
-  deletePet: (id) => api.delete(`/pets/${id}`),
-  addToFavorites: (petId) => api.post(`/pets/${petId}/favorites`),
-  removeFromFavorites: (petId) => api.delete(`/pets/${petId}/favorites`),
   
-  // Add missing getRandomPets method
+  // Get single pet by ID
+  getPetById: (id) => api.get(`/pets/${id}`),
+  
+  // ✅ CORRECTED: Use proper featured endpoint
+  getFeaturedPets: (limit = 6) => {
+    return api.get(`/pets/featured?limit=${limit}`);
+  },
+  
+  // Get random pets (if your backend supports it)
   getRandomPets: (limit = 6) => {
     const searchParams = new URLSearchParams();
     searchParams.append('limit', limit);
@@ -76,17 +82,44 @@ const petAPI = {
     return api.get(`/pets?${searchParams}`);
   },
   
-  // Add missing getRandomProducts method (if needed)
-  getFeaturedPets: (limit = 6) => {
-    const searchParams = new URLSearchParams();
-    searchParams.append('featured', 'true');
-    searchParams.append('limit', limit);
-    return api.get(`/pets?${searchParams}`);
+  // Get pets by category
+  getPetsByCategory: (category, limit = null) => {
+    const params = { category };
+    if (limit) params.limit = limit;
+    return petAPI.getAllPets(params);
   },
+  
+  // Get pets by type
+  getPetsByType: (type, limit = null) => {
+    const params = { type };
+    if (limit) params.limit = limit;
+    return petAPI.getAllPets(params);
+  },
+  
+  // Search pets
+  searchPets: (searchTerm, filters = {}) => {
+    const params = { search: searchTerm, ...filters };
+    return petAPI.getAllPets(params);
+  },
+  
+  // Favorites
+  addToFavorites: (petId) => api.post(`/pets/${petId}/favorites`),
+  removeFromFavorites: (petId) => api.delete(`/pets/${petId}/favorites`),
+  
+  // Admin functions
+  createPet: (petData) => api.post('/pets', petData),
+  updatePet: (id, petData) => api.put(`/pets/${id}`, petData),
+  deletePet: (id) => api.delete(`/pets/${id}`),
+  
+  // Metadata
+  getPetTypes: () => api.get('/pets/meta/types'),
+  getPetCategories: () => api.get('/pets/meta/categories'),
+  getPetBreeds: (type) => api.get(`/pets/meta/breeds/${type}`),
 };
 
 // ===== PRODUCT API =====
 const productAPI = {
+  // Get all products with filtering
   getAllProducts: (params = {}) => {
     const searchParams = new URLSearchParams();
     Object.keys(params).forEach(key => {
@@ -96,12 +129,16 @@ const productAPI = {
     });
     return api.get(`/products?${searchParams}`);
   },
-  getProductById: (id) => api.get(`/products/${id}`),
-  createProduct: (productData) => api.post('/products', productData),
-  updateProduct: (id, productData) => api.put(`/products/${id}`, productData),
-  deleteProduct: (id) => api.delete(`/products/${id}`),
   
-  // Add missing getRandomProducts method
+  // Get single product by ID
+  getProductById: (id) => api.get(`/products/${id}`),
+  
+  // ✅ CORRECTED: Use proper featured endpoint
+  getFeaturedProducts: (limit = 6) => {
+    return api.get(`/products/featured?limit=${limit}`);
+  },
+  
+  // Get random products (if your backend supports it)
   getRandomProducts: (limit = 6) => {
     const searchParams = new URLSearchParams();
     searchParams.append('limit', limit);
@@ -109,17 +146,32 @@ const productAPI = {
     return api.get(`/products?${searchParams}`);
   },
   
-  // Add missing getFeaturedProducts method
-  getFeaturedProducts: (limit = 6) => {
-    const searchParams = new URLSearchParams();
-    searchParams.append('featured', 'true');
-    searchParams.append('limit', limit);
-    return api.get(`/products?${searchParams}`);
+  // Get products by category
+  getProductsByCategory: (category, limit = null) => {
+    const params = { category };
+    if (limit) params.limit = limit;
+    return productAPI.getAllProducts(params);
   },
+  
+  // Search products
+  searchProducts: (searchTerm, filters = {}) => {
+    const params = { search: searchTerm, ...filters };
+    return productAPI.getAllProducts(params);
+  },
+  
+  // Admin functions
+  createProduct: (productData) => api.post('/products', productData),
+  updateProduct: (id, productData) => api.put(`/products/${id}`, productData),
+  deleteProduct: (id) => api.delete(`/products/${id}`),
+  
+  // Metadata
+  getProductCategories: () => api.get('/products/meta/categories'),
+  getProductBrands: () => api.get('/products/meta/brands'),
 };
 
 // ===== NEWS API =====
 const newsAPI = {
+  // Get all news
   getAllNews: (params = {}) => {
     const searchParams = new URLSearchParams();
     Object.keys(params).forEach(key => {
@@ -129,179 +181,157 @@ const newsAPI = {
     });
     return api.get(`/news?${searchParams}`);
   },
-  getNewsById: (id) => api.get(`/news/${id}`),
-  getFeaturedNews: (limit = 5) => api.get(`/news/featured?limit=${limit}`),
-  getNewsCategories: () => api.get('/news/categories'),
-  getNewsByCategory: (category, params = {}) => {
-    const searchParams = new URLSearchParams({ category, ...params });
-    return api.get(`/news/category/${category}?${searchParams}`);
+
+  // ✅ CORRECTED: Use proper featured endpoint
+  getFeaturedNews: (limit = 6) => {
+    return api.get(`/news/featured?limit=${limit}`);
   },
+
+  // Get single news article
+  getNewsById: (id) => api.get(`/news/${id}`),
+
+  // Get news by category
+  getNewsByCategory: (category) => {
+    return api.get(`/news?category=${category}`);
+  },
+
+  // Search news
+  searchNews: (searchTerm) => {
+    return api.get(`/news?search=${searchTerm}`);
+  },
+
+  // Admin functions
+  createNews: (newsData) => api.post('/news', newsData),
+  updateNews: (id, newsData) => api.put(`/news/${id}`, newsData),
+  deleteNews: (id) => api.delete(`/news/${id}`),
 };
 
 // ===== CONTACT API =====
 const contactAPI = {
-  submitContact: (contactData) => api.post('/contact', contactData),
+  // Submit contact form
+  submitContactForm: (contactData) => api.post('/contact', contactData),
+  
+  // Admin functions
   getAllContacts: () => api.get('/contact'),
   getContactById: (id) => api.get(`/contact/${id}`),
-  updateContact: (id, contactData) => api.put(`/contact/${id}`, contactData),
+  updateContactStatus: (id, status) => api.put(`/contact/${id}`, { status }),
   deleteContact: (id) => api.delete(`/contact/${id}`),
 };
 
-// ===== ADMIN API ===== 
+// ===== IMAGE API =====
+const imageAPI = {
+  // Health check for image service
+  getImageHealth: () => api.get('/images/health'),
+  
+  // Get fallback image
+  getFallbackImage: (category = 'default') => api.get(`/images/fallback/${category}`),
+  
+  // Note: Image proxy URLs are constructed directly:
+  // For GCS images: /api/images/gcs/{imagePath}
+  getProxyImageUrl: (imagePath) => {
+    const baseURL = process.env.NODE_ENV === 'production' 
+      ? 'https://furbabies-backend.onrender.com'
+      : 'http://localhost:5000';
+    return `${baseURL}/api/images/gcs/${imagePath}`;
+  }
+};
+
+// ===== GOOGLE CLOUD STORAGE API =====
+const gcsAPI = {
+  // Get GCS configuration
+  getConfig: () => api.get('/gcs/config'),
+  
+  // Get GCS health
+  getHealth: () => api.get('/gcs/health'),
+  
+  // List images in bucket
+  listImages: (bucketName, params = {}) => {
+    const searchParams = new URLSearchParams(params);
+    return api.get(`/gcs/buckets/${bucketName}/images?${searchParams}`);
+  },
+};
+
+// ===== ADMIN API =====
 const adminAPI = {
   // Dashboard stats
-  getDashboardStats: () => api.get('/admin/dashboard/stats'),
+  getStats: () => api.get('/admin/stats'),
   
   // User management
-  getAllUsers: (params = {}) => {
-    const searchParams = new URLSearchParams();
-    Object.keys(params).forEach(key => {
-      if (params[key] !== undefined && params[key] !== '') {
-        searchParams.append(key, params[key]);
-      }
-    });
-    return api.get(`/admin/users?${searchParams}`);
-  },
-  
-  updateUserRole: (userId, role) => api.put(`/admin/users/${userId}/role`, { role }),
-  deleteUser: (userId) => api.delete(`/admin/users/${userId}`),
+  getAllUsers: () => api.get('/admin/users'),
+  getUserById: (id) => api.get(`/admin/users/${id}`),
+  updateUser: (id, userData) => api.put(`/admin/users/${id}`, userData),
+  deleteUser: (id) => api.delete(`/admin/users/${id}`),
   
   // Content management
-  getAllContent: (params = {}) => {
-    const searchParams = new URLSearchParams();
-    Object.keys(params).forEach(key => {
-      if (params[key] !== undefined && params[key] !== '') {
-        searchParams.append(key, params[key]);
-      }
-    });
-    return api.get(`/admin/content?${searchParams}`);
-  },
-  
-  // Mock settings for now
-  getSettings: () => {
-    return Promise.resolve({
-      data: {
-        success: true,
-        data: {
-          siteName: 'FurBabies Pet Store',
-          contactEmail: 'contact@furbabies.com',
-          maintenanceMode: false,
-          allowRegistration: true,
-          updatedAt: new Date().toISOString()
-        }
-      }
-    });
-  },
-  
-  updateSettings: (settingsData) => {
-    return Promise.resolve({
-      data: {
-        success: true,
-        message: 'Settings updated successfully',
-        data: {
-          ...settingsData,
-          updatedAt: new Date().toISOString()
-        }
-      }
-    });
-  },
+  getAllPetsAdmin: () => api.get('/admin/pets'),
+  getAllProductsAdmin: () => api.get('/admin/products'),
+  getAllContactsAdmin: () => api.get('/admin/contacts'),
+};
 
-  getAnalytics: (params = {}) => {
-    // Mock analytics data until backend endpoint is ready
-    const mockAnalytics = {
-      overview: {
-        totalVisits: 15420,
-        uniqueVisitors: 8930,
-        pageViews: 45230,
-        bounceRate: 32.5
-      },
-      pets: {
-        totalViews: 12350,
-        adoptionRate: 18.5,
-        popularBreeds: [
-          { name: 'Golden Retriever', views: 1250 },
-          { name: 'Persian Cat', views: 980 },
-          { name: 'Labrador', views: 875 }
-        ]
-      },
-      products: {
-        totalViews: 8960,
-        conversionRate: 12.3,
-        topCategories: [
-          { name: 'Dog Food', sales: 450 },
-          { name: 'Cat Toys', sales: 320 },
-          { name: 'Pet Care', sales: 280 }
-        ]
-      },
-      trends: {
-        dailyVisits: [120, 150, 180, 145, 200, 175, 160],
-        weeklySignups: [25, 30, 28, 35, 42, 38, 45]
-      },
-      timeRange: params.range || '30days'
-    };
-
-    return Promise.resolve({
-      data: {
-        success: true,
-        data: mockAnalytics,
-        message: 'Analytics data retrieved successfully'
-      }
-    });
-  }
+// ===== HEALTH CHECK =====
+const healthAPI = {
+  // Main health check
+  getHealth: () => api.get('/health'),
+  
+  // Service-specific health checks
+  getImageHealth: () => imageAPI.getImageHealth(),
+  getGCSHealth: () => gcsAPI.getHealth(),
 };
 
 // ===== UTILITY FUNCTIONS =====
-const handleApiError = (error) => {
-  console.error('API Error:', error);
+const apiUtils = {
+  // Helper to handle API responses
+  handleResponse: (response) => {
+    if (response.data?.success) {
+      return response.data;
+    } else {
+      throw new Error(response.data?.message || 'API request failed');
+    }
+  },
   
-  if (error.response) {
-    // Server responded with error status
-    const message = error.response.data?.message || 'An error occurred';
-    return {
-      message,
-      status: error.response.status,
-      data: error.response.data
-    };
-  } else if (error.request) {
-    // Request was made but no response
-    return {
-      message: 'Network error. Please check your connection.',
-      status: 0,
-      data: null
-    };
-  } else {
-    // Something else happened
-    return {
-      message: error.message || 'An unexpected error occurred',
-      status: 0,
-      data: null
-    };
+  // Helper to build query strings
+  buildQueryString: (params) => {
+    const searchParams = new URLSearchParams();
+    Object.keys(params).forEach(key => {
+      if (params[key] !== undefined && params[key] !== '') {
+        searchParams.append(key, params[key]);
+      }
+    });
+    return searchParams.toString();
+  },
+  
+  // Helper to get base URL
+  getBaseURL: () => {
+    return process.env.NODE_ENV === 'production' 
+      ? 'https://furbabies-backend.onrender.com/api'
+      : 'http://localhost:5000/api';
   }
 };
 
-// Test API connection
-const testConnection = async () => {
-  try {
-    const response = await api.get('/health');
-    console.log('✅ API Connection successful:', response.data);
-    return { success: true, data: response.data };
-  } catch (error) {
-    console.error('❌ API Connection failed:', error);
-    return { success: false, error: handleApiError(error) };
-  }
-};
-
-// SINGLE EXPORT STATEMENT - This fixes the duplicate export issue
+// Export all APIs
 export {
+  userAPI,
   petAPI,
   productAPI,
   newsAPI,
-  userAPI,
   contactAPI,
+  imageAPI,
+  gcsAPI,
   adminAPI,
-  handleApiError,
-  testConnection
+  healthAPI,
+  apiUtils
 };
 
-// Default export for backward compatibility
-export default api;
+// Default export (for backward compatibility)
+export default {
+  user: userAPI,
+  pet: petAPI,
+  product: productAPI,
+  news: newsAPI,
+  contact: contactAPI,
+  image: imageAPI,
+  gcs: gcsAPI,
+  admin: adminAPI,
+  health: healthAPI,
+  utils: apiUtils
+};

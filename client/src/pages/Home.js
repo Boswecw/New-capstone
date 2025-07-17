@@ -1,4 +1,4 @@
-// client/src/pages/Home.js - FIXED VERSION for Random Featured Display
+// client/src/pages/Home.js - FIXED VERSION using proper API services
 import React, { useState, useEffect, useCallback } from 'react';
 import { Container, Row, Col, Alert, Button } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
@@ -27,21 +27,20 @@ const Home = () => {
   // Toast notifications
   const { toasts, showSuccess, showError, showInfo, removeToast } = useToast();
 
-  // ⭐ FIXED: Fetch featured pets using the new featured endpoint
+  // ✅ FIXED: Use proper API service for featured pets
   const fetchFeaturedPets = useCallback(async () => {
     try {
       setPetsLoading(true);
       setPetsError(null);
       console.log('🏠 Home: Fetching 4 random featured pets...');
       
-      // ⭐ NEW: Use dedicated featured endpoint for random selection
-      const response = await fetch('/api/pets/featured?limit=4');
-      const data = await response.json();
+      // ✅ FIXED: Use petAPI service with full backend URL
+      const response = await petAPI.getFeaturedPets(4);
       
-      if (data.success && data.data?.length > 0) {
-        setFeaturedPets(data.data);
-        console.log(`✅ Loaded ${data.data.length} random featured pets:`, data.data.map(p => p.name));
-        showSuccess(`${data.data.length} featured pets loaded!`, 'Pets Updated');
+      if (response.data?.success && response.data.data?.length > 0) {
+        setFeaturedPets(response.data.data);
+        console.log(`✅ Loaded ${response.data.data.length} random featured pets:`, response.data.data.map(p => p.name));
+        showSuccess(`${response.data.data.length} featured pets loaded!`, 'Pets Updated');
       } else {
         setPetsError('No featured pets available at this time.');
         showInfo('No featured pets available right now. Check back soon!');
@@ -57,21 +56,20 @@ const Home = () => {
     }
   }, [showSuccess, showError, showInfo]);
 
-  // ⭐ FIXED: Fetch featured products using the new featured endpoint
+  // ✅ FIXED: Use proper API service for featured products
   const fetchFeaturedProducts = useCallback(async () => {
     try {
       setProductsLoading(true);
       setProductsError(null);
       console.log('🏠 Home: Fetching 4 random featured products...');
       
-      // ⭐ NEW: Use dedicated featured endpoint for random selection
-      const response = await fetch('/api/products/featured?limit=4');
-      const data = await response.json();
+      // ✅ FIXED: Use productAPI service with full backend URL
+      const response = await productAPI.getFeaturedProducts(4);
       
-      if (data.success && data.data?.length > 0) {
-        setFeaturedProducts(data.data);
-        console.log(`✅ Loaded ${data.data.length} random featured products:`, data.data.map(p => p.name));
-        showSuccess(`${data.data.length} featured products loaded!`, 'Products Updated');
+      if (response.data?.success && response.data.data?.length > 0) {
+        setFeaturedProducts(response.data.data);
+        console.log(`✅ Loaded ${response.data.data.length} random featured products:`, response.data.data.map(p => p.name));
+        showSuccess(`${response.data.data.length} featured products loaded!`, 'Products Updated');
       } else {
         setProductsError('No featured products available at this time.');
         showInfo('No featured products available right now.');
@@ -104,7 +102,7 @@ const Home = () => {
     loadInitialData();
   }, []); // Empty dependency array - only run on mount
 
-  // ⭐ NEW: Manual refresh handler to get new random selection
+  // Manual refresh handlers
   const handleRefreshPets = useCallback(async () => {
     showInfo('Getting new featured pets...');
     await fetchFeaturedPets();
@@ -123,7 +121,7 @@ const Home = () => {
     ]);
   }, [fetchFeaturedPets, fetchFeaturedProducts, showInfo]);
 
-  // Add to favorites handler (future feature)
+  // Add to favorites handler
   const handleAddToFavorites = useCallback((pet) => {
     showSuccess(`${pet.name} added to favorites!`, 'Added to Favorites');
     console.log('Adding to favorites:', pet.name);
@@ -160,7 +158,7 @@ const Home = () => {
               onClick={handleRefreshAll}
               disabled={petsLoading || productsLoading}
             >
-              <i className={`fas ${(petsLoading || productsLoading) ? 'fa-spinner fa-spin' : 'fa-refresh'} me-2`}></i>
+              <i className="fas fa-redo me-2"></i>
               Refresh All
             </Button>
           </div>
@@ -170,49 +168,65 @@ const Home = () => {
           <Alert variant="warning" className="text-center">
             <i className="fas fa-exclamation-triangle me-2"></i>
             {petsError}
-            <div className="mt-3">
-              <Button as={Link} to="/browse" variant="primary" className="me-2">
-                Browse All Pets
-              </Button>
-              <Button variant="outline-primary" onClick={fetchFeaturedPets} disabled={petsLoading}>
+            <div className="mt-2">
+              <Button variant="outline-warning" size="sm" onClick={handleRefreshPets}>
+                <i className="fas fa-retry me-1"></i>
                 Try Again
               </Button>
             </div>
           </Alert>
-        ) : petsLoading ? (
-          <Alert variant="info" className="text-center">
-            <i className="fas fa-spinner fa-spin me-2"></i>
-            Loading featured pets...
-          </Alert>
-        ) : featuredPets.length === 0 ? (
-          <Alert variant="warning" className="text-center">
-            <i className="fas fa-info-circle me-2"></i>
-            No featured pets available at this time.
-            <div className="mt-3">
-              <Button as={Link} to="/browse" variant="primary">
-                Browse All Available Pets
-              </Button>
-            </div>
-          </Alert>
         ) : (
-          <Row>
-            {featuredPets.map((pet, index) => (
-              <Col key={pet._id} lg={3} md={6} className="mb-4">
-                <PetCard 
-                  pet={pet} 
-                  priority={index < 2} // Optimize loading for first 2 images
-                  onAddToFavorites={() => handleAddToFavorites(pet)}
-                />
+          <Row className="g-4">
+            {petsLoading ? (
+              // Loading placeholders
+              [...Array(4)].map((_, index) => (
+                <Col key={index} lg={3} md={6} sm={6}>
+                  <div className="card h-100 placeholder-glow">
+                    <div className="placeholder bg-light" style={{ height: '250px' }}></div>
+                    <div className="card-body">
+                      <h5 className="placeholder-glow">
+                        <span className="placeholder col-8"></span>
+                      </h5>
+                      <p className="placeholder-glow">
+                        <span className="placeholder col-7"></span>
+                        <span className="placeholder col-4"></span>
+                        <span className="placeholder col-6"></span>
+                      </p>
+                    </div>
+                  </div>
+                </Col>
+              ))
+            ) : featuredPets.length > 0 ? (
+              featuredPets.map((pet) => (
+                <Col key={pet._id} lg={3} md={6} sm={6}>
+                  <PetCard 
+                    pet={pet} 
+                    onAddToFavorites={handleAddToFavorites}
+                    showQuickActions={true}
+                  />
+                </Col>
+              ))
+            ) : (
+              <Col xs={12}>
+                <Alert variant="info" className="text-center">
+                  <i className="fas fa-paw fa-3x mb-3 text-muted"></i>
+                  <h5>No Featured Pets Available</h5>
+                  <p>Check back soon for more adorable pets looking for homes!</p>
+                  <Button variant="primary" onClick={handleRefreshPets}>
+                    <i className="fas fa-sync-alt me-2"></i>
+                    Check Again
+                  </Button>
+                </Alert>
               </Col>
-            ))}
+            )}
           </Row>
         )}
 
         <div className="text-center mt-4">
-          <Button as={Link} to="/browse" variant="primary" size="lg">
-            <i className="fas fa-paw me-2"></i>
-            View All Pets ({featuredPets.length > 0 ? 'More Available' : 'Browse Now'})
-          </Button>
+          <Link to="/pets" className="btn btn-primary btn-lg">
+            <i className="fas fa-heart me-2"></i>
+            Browse All Pets
+          </Link>
         </div>
       </Container>
 
@@ -221,7 +235,7 @@ const Home = () => {
         <div className="d-flex justify-content-between align-items-center mb-4">
           <SectionHeader 
             title="Featured Products" 
-            subtitle="Quality supplies for your furry friends" 
+            subtitle="Everything your pet needs to stay happy and healthy" 
           />
           <Button 
             variant="outline-primary" 
@@ -238,45 +252,60 @@ const Home = () => {
           <Alert variant="warning" className="text-center">
             <i className="fas fa-exclamation-triangle me-2"></i>
             {productsError}
-            <div className="mt-3">
-              <Button as={Link} to="/products" variant="primary" className="me-2">
-                Browse All Products
-              </Button>
-              <Button variant="outline-primary" onClick={fetchFeaturedProducts} disabled={productsLoading}>
+            <div className="mt-2">
+              <Button variant="outline-warning" size="sm" onClick={handleRefreshProducts}>
+                <i className="fas fa-retry me-1"></i>
                 Try Again
               </Button>
             </div>
           </Alert>
-        ) : productsLoading ? (
-          <Alert variant="info" className="text-center">
-            <i className="fas fa-spinner fa-spin me-2"></i>
-            Loading featured products...
-          </Alert>
-        ) : featuredProducts.length === 0 ? (
-          <Alert variant="warning" className="text-center">
-            <i className="fas fa-info-circle me-2"></i>
-            No featured products available at this time.
-            <div className="mt-3">
-              <Button as={Link} to="/products" variant="primary">
-                Browse All Products
-              </Button>
-            </div>
-          </Alert>
         ) : (
-          <Row>
-            {featuredProducts.map((product) => (
-              <Col key={product._id} lg={3} md={6} className="mb-4">
-                <ProductCard product={product} />
+          <Row className="g-4">
+            {productsLoading ? (
+              // Loading placeholders
+              [...Array(4)].map((_, index) => (
+                <Col key={index} lg={3} md={6} sm={6}>
+                  <div className="card h-100 placeholder-glow">
+                    <div className="placeholder bg-light" style={{ height: '250px' }}></div>
+                    <div className="card-body">
+                      <h5 className="placeholder-glow">
+                        <span className="placeholder col-6"></span>
+                      </h5>
+                      <p className="placeholder-glow">
+                        <span className="placeholder col-8"></span>
+                        <span className="placeholder col-5"></span>
+                      </p>
+                    </div>
+                  </div>
+                </Col>
+              ))
+            ) : featuredProducts.length > 0 ? (
+              featuredProducts.map((product) => (
+                <Col key={product._id} lg={3} md={6} sm={6}>
+                  <ProductCard product={product} />
+                </Col>
+              ))
+            ) : (
+              <Col xs={12}>
+                <Alert variant="info" className="text-center">
+                  <i className="fas fa-shopping-cart fa-3x mb-3 text-muted"></i>
+                  <h5>No Featured Products Available</h5>
+                  <p>Check back soon for great pet products!</p>
+                  <Button variant="primary" onClick={handleRefreshProducts}>
+                    <i className="fas fa-sync-alt me-2"></i>
+                    Check Again
+                  </Button>
+                </Alert>
               </Col>
-            ))}
+            )}
           </Row>
         )}
 
         <div className="text-center mt-4">
-          <Button as={Link} to="/products" variant="primary" size="lg">
+          <Link to="/products" className="btn btn-success btn-lg">
             <i className="fas fa-shopping-bag me-2"></i>
-            Shop All Products ({featuredProducts.length > 0 ? 'More Available' : 'Browse Now'})
-          </Button>
+            Shop All Products
+          </Link>
         </div>
       </Container>
 
