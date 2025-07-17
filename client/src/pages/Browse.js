@@ -1,4 +1,4 @@
-// client/src/pages/Browse.js - COMPLETE FIXED VERSION
+// client/src/pages/Browse.js - VERSION WITHOUT react-icons
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
@@ -14,7 +14,6 @@ import {
   Card
 } from 'react-bootstrap';
 import { useSearchParams } from 'react-router-dom';
-import { FaSearch, FaFilter, FaTimes, FaPaw, FaExclamationTriangle } from 'react-icons/fa';
 import PetCard from '../components/PetCard';
 import { petAPI } from '../services/api';
 
@@ -201,7 +200,7 @@ const Browse = () => {
           {/* Header */}
           <div className="text-center mb-4">
             <h1 className="display-5 fw-bold text-primary mb-2">
-              <FaPaw className="me-2" />
+              <i className="fas fa-paw me-2"></i>
               Browse Our Pets
             </h1>
             <p className="lead text-muted">Find your perfect companion from our loving pets waiting for homes</p>
@@ -220,7 +219,7 @@ const Browse = () => {
                     aria-label="Search pets"
                   />
                   <Button variant="primary" type="submit" disabled={loading}>
-                    <FaSearch className="me-1" />
+                    <i className="fas fa-search me-1"></i>
                     Search
                   </Button>
                   <Button
@@ -229,7 +228,7 @@ const Browse = () => {
                     title={showFilters ? 'Hide filters' : 'Show filters'}
                     aria-expanded={showFilters}
                   >
-                    <FaFilter className="me-1" />
+                    <i className="fas fa-filter me-1"></i>
                     Filters
                   </Button>
                 </InputGroup>
@@ -323,7 +322,7 @@ const Browse = () => {
                     </div>
                     <div>
                       <Button variant="outline-danger" size="sm" onClick={clearFilters}>
-                        <FaTimes className="me-1" />
+                        <i className="fas fa-times me-1"></i>
                         Clear Filters
                       </Button>
                     </div>
@@ -349,7 +348,7 @@ const Browse = () => {
               {/* Error State */}
               {error && !loading && (
                 <Alert variant="danger" className="text-center">
-                  <FaExclamationTriangle className="me-2" />
+                  <i className="fas fa-exclamation-triangle me-2"></i>
                   <strong>Error: </strong>{error}
                   <div className="mt-3">
                     <Button variant="outline-danger" onClick={handleRetry}>
@@ -369,7 +368,7 @@ const Browse = () => {
                     </h3>
                     {activeFilters.length > 0 && (
                       <Button variant="outline-primary" size="sm" onClick={clearFilters}>
-                        <FaTimes className="me-1" />
+                        <i className="fas fa-times me-1"></i>
                         Clear All Filters
                       </Button>
                     )}
@@ -386,7 +385,7 @@ const Browse = () => {
                     </Row>
                   ) : (
                     <div className="text-center py-5">
-                      <FaPaw className="display-1 text-muted mb-3" />
+                      <i className="fas fa-paw display-1 text-muted mb-3"></i>
                       <h4>No pets found</h4>
                       <p className="text-muted mb-4">
                         {activeFilters.length > 0
@@ -396,7 +395,8 @@ const Browse = () => {
                       </p>
                       {activeFilters.length > 0 && (
                         <Button variant="outline-primary" onClick={clearFilters}>
-                          <FaTimes className="me-1" /> Clear All Filters
+                          <i className="fas fa-times me-1"></i>
+                          Clear All Filters
                         </Button>
                       )}
                     </div>
