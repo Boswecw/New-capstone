@@ -1,4 +1,4 @@
-// client/src/pages/Browse.js - UPDATED VERSION
+// client/src/pages/Browse.js - SIMPLE FIX
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
@@ -14,8 +14,6 @@ import {
   Card,
 } from "react-bootstrap";
 import { useSearchParams } from "react-router-dom";
-
-// ✅ EXPLICIT IMPORT - This ensures we get the updated PetCard with SafeImage
 import PetCard from "../components/PetCard";
 import { petAPI } from "../services/api";
 
@@ -24,9 +22,9 @@ const Browse = () => {
   
   // State management
   const [pets, setPets] = useState([]);
+  const [allPets, setAllPets] = useState([]); // Store all pets for filtering
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [retryAttempts, setRetryAttempts] = useState(0);
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Filter states
@@ -93,118 +91,98 @@ const Browse = () => {
     []
   );
 
-  // Fetch pets function
-  const fetchPets = useCallback(
-    async (attempt = 1) => {
-      const MAX_RETRIES = 3;
-      const RETRY_DELAY = 1000 * attempt;
+  // ✅ SIMPLE FIX: Use the same API call as Home.js
+  const fetchPets = useCallback(async () => {
+    try {
+      console.log('🔍 Browse: Fetching pets using working API...');
+      setLoading(true);
+      setError(null);
 
-      try {
-        console.log(`🔍 Browse: Fetching pets (attempt ${attempt}/${MAX_RETRIES})`);
-        setLoading(true);
-        setError(null);
-
-        // Build query parameters
-        const queryParams = {
-          available: true,
-          limit: 50,
-        };
-
-        // Add filters if they exist
-        if (searchTerm.trim()) {
-          queryParams.search = searchTerm.trim();
-        }
-        if (selectedType) {
-          queryParams.species = selectedType;
-        }
-        if (selectedBreed) {
-          queryParams.breed = selectedBreed;
-        }
-        if (ageRange) {
-          queryParams.age = ageRange;
-        }
-        if (selectedGender) {
-          queryParams.gender = selectedGender;
-        }
-        if (selectedSize) {
-          queryParams.size = selectedSize;
-        }
-
-        console.log('🔍 Browse: Query params:', queryParams);
-
-        // ✅ FIX: Use the same API call structure as Home.js
-        const response = await petAPI.getFeaturedPets(queryParams.limit || 50);
-        
-        // If we have filters, we need to filter the results client-side temporarily
-        let filteredPets = response.data?.data || [];
-        
-        // Apply filters client-side until backend supports them
-        if (queryParams.species) {
-          filteredPets = filteredPets.filter(pet => 
-            pet.species?.toLowerCase() === queryParams.species.toLowerCase()
-          );
-        }
-        if (queryParams.breed) {
-          filteredPets = filteredPets.filter(pet => 
-            pet.breed?.toLowerCase().includes(queryParams.breed.toLowerCase())
-          );
-        }
-        if (queryParams.gender) {
-          filteredPets = filteredPets.filter(pet => 
-            pet.gender?.toLowerCase() === queryParams.gender.toLowerCase()
-          );
-        }
-        if (queryParams.size) {
-          filteredPets = filteredPets.filter(pet => 
-            pet.size?.toLowerCase() === queryParams.size.toLowerCase()
-          );
-        }
-        if (queryParams.search) {
-          const searchTerm = queryParams.search.toLowerCase();
-          filteredPets = filteredPets.filter(pet => 
-            pet.name?.toLowerCase().includes(searchTerm) ||
-            pet.breed?.toLowerCase().includes(searchTerm) ||
-            pet.description?.toLowerCase().includes(searchTerm)
-          );
-        }
-        
-        // Update the response structure to match what the component expects
-        const modifiedResponse = {
-          success: true,
-          data: filteredPets
-        };
-        
-        
-        if (modifiedResponse.success && modifiedResponse.data) {
-          setPets(modifiedResponse.data);
-          console.log(`✅ Browse: Loaded ${modifiedResponse.data.length} pets (filtered from API)`);
-        } else {
-          console.warn('⚠️ Browse: No pets returned from API');
-          setPets([]);
-        }
-        
-        setRetryAttempts(0);
-      } catch (err) {
-        console.error('❌ Browse: Error fetching pets:', err);
-        setError(err.message || 'Failed to load pets');
-        
-        if (attempt < MAX_RETRIES) {
-          setTimeout(() => {
-            setRetryAttempts(attempt);
-            fetchPets(attempt + 1);
-          }, RETRY_DELAY);
-        }
-      } finally {
-        setLoading(false);
+      // Use the SAME API call that works in Home.js
+      const response = await petAPI.getFeaturedPets(50); // Get more pets
+      
+      if (response.data?.success && response.data.data?.length > 0) {
+        setAllPets(response.data.data);
+        console.log(`✅ Browse: Loaded ${response.data.data.length} pets successfully`);
+      } else {
+        console.warn('⚠️ Browse: No pets returned from API');
+        setAllPets([]);
       }
-    },
-    [searchTerm, selectedType, selectedBreed, ageRange, selectedGender, selectedSize]
-  );
+    } catch (err) {
+      console.error('❌ Browse: Error fetching pets:', err);
+      setError('Failed to load pets. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-  // Load pets on mount and when filters change
+  // Apply filters to the pets
+  const applyFilters = useCallback(() => {
+    let filteredPets = [...allPets];
+
+    // Apply search filter
+    if (searchTerm.trim()) {
+      const searchLower = searchTerm.toLowerCase();
+      filteredPets = filteredPets.filter(pet => 
+        pet.name?.toLowerCase().includes(searchLower) ||
+        pet.breed?.toLowerCase().includes(searchLower) ||
+        pet.species?.toLowerCase().includes(searchLower) ||
+        pet.description?.toLowerCase().includes(searchLower)
+      );
+    }
+
+    // Apply type filter
+    if (selectedType) {
+      filteredPets = filteredPets.filter(pet => 
+        pet.species?.toLowerCase() === selectedType.toLowerCase()
+      );
+    }
+
+    // Apply breed filter
+    if (selectedBreed) {
+      filteredPets = filteredPets.filter(pet => 
+        pet.breed?.toLowerCase().includes(selectedBreed.toLowerCase())
+      );
+    }
+
+    // Apply gender filter
+    if (selectedGender) {
+      filteredPets = filteredPets.filter(pet => 
+        pet.gender?.toLowerCase() === selectedGender.toLowerCase()
+      );
+    }
+
+    // Apply size filter
+    if (selectedSize) {
+      filteredPets = filteredPets.filter(pet => 
+        pet.size?.toLowerCase() === selectedSize.toLowerCase()
+      );
+    }
+
+    // Apply age filter (simplified)
+    if (ageRange) {
+      filteredPets = filteredPets.filter(pet => {
+        const petAge = pet.age;
+        if (typeof petAge === 'string') {
+          return petAge.toLowerCase().includes(ageRange.toLowerCase());
+        }
+        return true; // Include if age format is unclear
+      });
+    }
+
+    setPets(filteredPets);
+    console.log(`🔍 Browse: Applied filters, showing ${filteredPets.length} pets`);
+  }, [allPets, searchTerm, selectedType, selectedBreed, selectedGender, selectedSize, ageRange]);
+
+  // Load pets on mount
   useEffect(() => {
     fetchPets();
   }, [fetchPets]);
+
+  // Apply filters when data or filters change
+  useEffect(() => {
+    applyFilters();
+  }, [applyFilters]);
 
   // Update URL params when filters change
   useEffect(() => {
@@ -222,7 +200,7 @@ const Browse = () => {
   // Handle search
   const handleSearch = (e) => {
     e.preventDefault();
-    fetchPets();
+    applyFilters();
   };
 
   // Handle filter changes
@@ -261,7 +239,6 @@ const Browse = () => {
 
   // Handle retry
   const handleRetry = () => {
-    setRetryAttempts(0);
     fetchPets();
   };
 
@@ -415,11 +392,7 @@ const Browse = () => {
                     size="lg"
                     className="text-primary mb-3"
                   />
-                  <p className="text-muted">
-                    {retryAttempts > 0
-                      ? `Retrying... (${retryAttempts}/3)`
-                      : "Loading pets..."}
-                  </p>
+                  <p className="text-muted">Loading pets...</p>
                 </div>
               )}
 
@@ -444,6 +417,9 @@ const Browse = () => {
                   <div className="d-flex justify-content-between align-items-center mb-3">
                     <h3 className="h5 mb-0">
                       {pets.length} {pets.length === 1 ? "Pet" : "Pets"} Found
+                      {allPets.length > 0 && pets.length !== allPets.length && (
+                        <small className="text-muted"> (filtered from {allPets.length})</small>
+                      )}
                     </h3>
                     {activeFilters.length > 0 && (
                       <Button
@@ -461,7 +437,7 @@ const Browse = () => {
                   {pets.length > 0 ? (
                     <Row>
                       {pets.map((pet) => {
-                        console.log(`🐾 Rendering pet: ${pet.name} with SafeImage`);
+                        console.log(`🐾 Browse: Rendering pet: ${pet.name} with SafeImage`);
                         return (
                           <Col
                             key={pet._id}
@@ -483,7 +459,7 @@ const Browse = () => {
                       <p className="text-muted mb-4">
                         {activeFilters.length > 0
                           ? "Try adjusting your search criteria or clear some filters to see more results."
-                          : "There are no pets available at the moment. Please check back later!"}
+                          : "Loading pets from our database..."}
                       </p>
                       {activeFilters.length > 0 && (
                         <Button
