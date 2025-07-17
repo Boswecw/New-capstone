@@ -132,11 +132,52 @@ const Browse = () => {
 
         console.log('🔍 Browse: Query params:', queryParams);
 
-        const response = await petAPI.getAllPets(queryParams);
+        // ✅ FIX: Use the same API call structure as Home.js
+        const response = await petAPI.getFeaturedPets(queryParams.limit || 50);
         
-        if (response.success && response.data) {
-          setPets(response.data);
-          console.log(`✅ Browse: Loaded ${response.data.length} pets`);
+        // If we have filters, we need to filter the results client-side temporarily
+        let filteredPets = response.data?.data || [];
+        
+        // Apply filters client-side until backend supports them
+        if (queryParams.species) {
+          filteredPets = filteredPets.filter(pet => 
+            pet.species?.toLowerCase() === queryParams.species.toLowerCase()
+          );
+        }
+        if (queryParams.breed) {
+          filteredPets = filteredPets.filter(pet => 
+            pet.breed?.toLowerCase().includes(queryParams.breed.toLowerCase())
+          );
+        }
+        if (queryParams.gender) {
+          filteredPets = filteredPets.filter(pet => 
+            pet.gender?.toLowerCase() === queryParams.gender.toLowerCase()
+          );
+        }
+        if (queryParams.size) {
+          filteredPets = filteredPets.filter(pet => 
+            pet.size?.toLowerCase() === queryParams.size.toLowerCase()
+          );
+        }
+        if (queryParams.search) {
+          const searchTerm = queryParams.search.toLowerCase();
+          filteredPets = filteredPets.filter(pet => 
+            pet.name?.toLowerCase().includes(searchTerm) ||
+            pet.breed?.toLowerCase().includes(searchTerm) ||
+            pet.description?.toLowerCase().includes(searchTerm)
+          );
+        }
+        
+        // Update the response structure to match what the component expects
+        const modifiedResponse = {
+          success: true,
+          data: filteredPets
+        };
+        
+        
+        if (modifiedResponse.success && modifiedResponse.data) {
+          setPets(modifiedResponse.data);
+          console.log(`✅ Browse: Loaded ${modifiedResponse.data.length} pets (filtered from API)`);
         } else {
           console.warn('⚠️ Browse: No pets returned from API');
           setPets([]);
