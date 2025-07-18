@@ -23,6 +23,7 @@ const Browse = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchParams, setSearchParams] = useSearchParams();
+  const [searching, setSearching] = useState(false); // Add searching state
 
   // Filter states
   const [searchTerm, setSearchTerm] = useState(searchParams.get("search") || "");
@@ -66,10 +67,15 @@ const Browse = () => {
   ], []);
 
   // 🔧 FIXED: Fetch pets function with proper error handling
-  const fetchPets = async () => {
+  const fetchPets = async (isSearch = false) => {
     try {
       console.log('🔍 Browse: Fetching pets with filters...');
-      setLoading(true);
+      
+      if (isSearch) {
+        setSearching(true);
+      } else {
+        setLoading(true);
+      }
       setError(null);
 
       // Build query parameters - only include non-empty values
@@ -124,6 +130,7 @@ const Browse = () => {
       setPets([]);
     } finally {
       setLoading(false);
+      setSearching(false);
     }
   };
 
@@ -133,7 +140,7 @@ const Browse = () => {
     fetchPets();
   }, []); // Empty dependency array for initial load
 
-  // 🔧 FIXED: Separate useEffect for filter changes with debouncing
+  // 🔧 FIXED: Separate useEffect for filter changes (excluding search term)
   useEffect(() => {
     console.log('🔍 Browse: Filters changed, scheduling refetch...');
     
@@ -145,26 +152,45 @@ const Browse = () => {
 
     // Cleanup timeout if filters change again before timeout
     return () => clearTimeout(timeoutId);
-  }, [searchTerm, selectedType, selectedBreed, ageRange, selectedGender, selectedSize]);
+  }, [selectedType, selectedBreed, ageRange, selectedGender, selectedSize]); // Removed searchTerm
 
-  // Update URL params when filters change
+  // 🔧 FIXED: Separate useEffect for search term with longer debounce
   useEffect(() => {
-    const params = new URLSearchParams();
-    if (searchTerm) params.set("search", searchTerm);
-    if (selectedType) params.set("type", selectedType);
-    if (selectedBreed) params.set("breed", selectedBreed);
-    if (ageRange) params.set("age", ageRange);
-    if (selectedGender) params.set("gender", selectedGender);
-    if (selectedSize) params.set("size", selectedSize);
+    // Only search if there's a search term and it's not empty
+    if (searchTerm.trim()) {
+      console.log('🔍 Browse: Search term changed, scheduling search...');
+      
+      const timeoutId = setTimeout(() => {
+        console.log('🔍 Browse: Executing search for:', searchTerm);
+        fetchPets();
+      }, 800); // Longer delay for search to let user finish typing
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [searchTerm]);
+
+  // Update URL params when filters change (debounced)
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      const params = new URLSearchParams();
+      if (searchTerm) params.set("search", searchTerm);
+      if (selectedType) params.set("type", selectedType);
+      if (selectedBreed) params.set("breed", selectedBreed);
+      if (ageRange) params.set("age", ageRange);
+      if (selectedGender) params.set("gender", selectedGender);
+      if (selectedSize) params.set("size", selectedSize);
+      
+      setSearchParams(params);
+    }, 500); // Debounce URL updates
     
-    setSearchParams(params);
+    return () => clearTimeout(timeoutId);
   }, [searchTerm, selectedType, selectedBreed, ageRange, selectedGender, selectedSize, setSearchParams]);
 
   // Handle search form submission
   const handleSearch = (e) => {
     e.preventDefault();
-    console.log('🔍 Browse: Manual search triggered');
-    fetchPets();
+    console.log('🔍 Browse: Manual search triggered for:', searchTerm);
+    fetchPets(); // Immediate search on form submit
   };
 
   // 🔧 FIXED: Handle filter changes with immediate state update
@@ -197,7 +223,7 @@ const Browse = () => {
     }
   };
 
-  // Clear all filters
+  // 🔧 FIXED: Clear all filters and let useEffect handle refresh
   const clearFilters = () => {
     console.log('🔍 Browse: Clearing all filters');
     setSearchTerm("");
@@ -207,6 +233,13 @@ const Browse = () => {
     setSelectedGender("");
     setSelectedSize("");
     setSearchParams({});
+    // Let the useEffect handle the refresh
+  };
+
+  // Clear search term only
+  const clearSearch = () => {
+    console.log('🔍 Browse: Clearing search term');
+    setSearchTerm(""); // This will trigger the useEffect to refresh the list
   };
 
   // Handle retry
@@ -254,11 +287,34 @@ const Browse = () => {
                 placeholder="Search pets by name, breed, or description..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
+                disabled={searching}
               />
-              <Button variant="primary" type="submit">
-                <i className="fas fa-search"></i>
+              {searchTerm && (
+                <Button 
+                  variant="outline-secondary" 
+                  onClick={clearSearch}
+                  title="Clear search"
+                  disabled={searching}
+                >
+                  <i className="fas fa-times"></i>
+                </Button>
+              )}
+              <Button variant="primary" type="submit" disabled={searching}>
+                {searching ? (
+                  <>
+                    <Spinner animation="border" size="sm" className="me-2" />
+                    Searching...
+                  </>
+                ) : (
+                  <i className="fas fa-search"></i>
+                )}
               </Button>
             </InputGroup>
+            {searchTerm && (
+              <Form.Text className="text-muted">
+                {searching ? 'Searching...' : 'Press Enter to search or wait for auto-search'}
+              </Form.Text>
+            )}
           </Form>
 
           {/* Filters */}
