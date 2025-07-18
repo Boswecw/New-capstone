@@ -1,263 +1,408 @@
-// client/src/pages/Home.js - SIMPLIFIED FIX for product loading
-import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, Button, Alert, Spinner } from 'react-bootstrap';
+// client/src/pages/Home.js - ORIGINAL DESIGN RESTORED with ESLint fix
+import React, { useState, useEffect, useCallback } from 'react';
+import { Container, Row, Col, Alert, Button, Spinner } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
-import ProductCard from '../components/ProductCard';
+
+// Components
+import HeroBanner from '../components/HeroBanner';
+import SectionHeader from '../components/SectionHeader';
 import PetCard from '../components/PetCard';
-import { productAPI, petAPI } from '../services/api';
+import ProductCard from '../components/ProductCard';
+import NewsSection from '../components/NewsSection';
+import ToastContainer from '../components/ToastContainer';
+
+// Services & Hooks
+import { petAPI, productAPI } from '../services/api';
+import useToast from '../hooks/useToast';
 
 const Home = () => {
-  // State for featured products
-  const [featuredProducts, setFeaturedProducts] = useState([]);
-  const [productsLoading, setProductsLoading] = useState(true);
-  const [productsError, setProductsError] = useState(null);
-
-  // State for featured pets
+  // State management
   const [featuredPets, setFeaturedPets] = useState([]);
+  const [featuredProducts, setFeaturedProducts] = useState([]);
   const [petsLoading, setPetsLoading] = useState(true);
+  const [productsLoading, setProductsLoading] = useState(true);
   const [petsError, setPetsError] = useState(null);
+  const [productsError, setProductsError] = useState(null);
+  const [loadingPhase, setLoadingPhase] = useState('Starting...');
 
-  // 🔧 SIMPLIFIED: Direct API call without complex retry logic
-  const loadFeaturedProducts = async () => {
+  // Toast notifications
+  const { toasts, showSuccess, showError, showInfo, removeToast } = useToast();
+
+  // 🔧 ENHANCED: API call with retry logic
+  const apiCallWithRetry = useCallback(async (apiCall, retryCount = 0, maxRetries = 3) => {
     try {
-      setProductsLoading(true);
-      setProductsError(null);
-      console.log('🏠 Loading featured products...');
-      
-      const response = await productAPI.getFeaturedProducts(4);
-      
-      if (response?.data?.success && response.data.data?.length > 0) {
-        setFeaturedProducts(response.data.data);
-        console.log(`✅ Loaded ${response.data.data.length} featured products`);
-      } else if (response?.data && Array.isArray(response.data)) {
-        // Handle case where API returns array directly
-        setFeaturedProducts(response.data);
-        console.log(`✅ Loaded ${response.data.length} featured products (direct array)`);
-      } else {
-        console.log('⚠️ No featured products found');
-        setFeaturedProducts([]);
-      }
+      return await apiCall();
     } catch (error) {
-      console.error('❌ Error loading featured products:', error);
-      setProductsError(error.response?.data?.message || 'Failed to load featured products');
-      setFeaturedProducts([]);
-    } finally {
-      setProductsLoading(false);
+      if (error.response?.status === 429 && retryCount < maxRetries) {
+        const delay = Math.pow(2, retryCount) * 1000 + Math.random() * 1000; // Exponential backoff with jitter
+        console.log(`⏳ Rate limited, retrying in ${delay}ms (attempt ${retryCount + 1}/${maxRetries})...`);
+        
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return apiCallWithRetry(apiCall, retryCount + 1, maxRetries);
+      }
+      throw error;
     }
-  };
+  }, []);
 
-  // 🔧 SIMPLIFIED: Direct API call for pets
-  const loadFeaturedPets = async () => {
+  // 🔧 ENHANCED: Fetch featured pets with retry logic
+  const fetchFeaturedPets = useCallback(async () => {
     try {
       setPetsLoading(true);
       setPetsError(null);
-      console.log('🏠 Loading featured pets...');
+      console.log('🏠 Home: Fetching 4 random featured pets...');
       
-      const response = await petAPI.getFeaturedPets(6);
+      const response = await apiCallWithRetry(() => petAPI.getFeaturedPets(4));
       
-      if (response?.data?.success && response.data.data?.length > 0) {
+      if (response.data?.success && response.data.data?.length > 0) {
         setFeaturedPets(response.data.data);
-        console.log(`✅ Loaded ${response.data.data.length} featured pets`);
-      } else if (response?.data && Array.isArray(response.data)) {
-        setFeaturedPets(response.data);
-        console.log(`✅ Loaded ${response.data.length} featured pets (direct array)`);
+        console.log(`✅ Loaded ${response.data.data.length} random featured pets:`, response.data.data.map(p => p.name));
+        showSuccess(`${response.data.data.length} featured pets loaded!`, 'Pets Updated');
       } else {
-        console.log('⚠️ No featured pets found');
-        setFeaturedPets([]);
+        setPetsError('No featured pets available at this time.');
+        showInfo('No featured pets available right now. Check back soon!');
+        console.log('⚠️ No featured pets returned from API');
       }
-    } catch (error) {
-      console.error('❌ Error loading featured pets:', error);
-      setPetsError(error.response?.data?.message || 'Failed to load featured pets');
-      setFeaturedPets([]);
+    } catch (err) {
+      console.error('❌ Error loading featured pets:', err);
+      const errorMessage = err.response?.status === 429 
+        ? 'Server is busy. Please try again in a moment.'
+        : 'Unable to load featured pets at this time.';
+      setPetsError(errorMessage);
+      showError(errorMessage, 'Loading Error');
     } finally {
       setPetsLoading(false);
     }
-  };
+  }, [apiCallWithRetry, showSuccess, showError, showInfo]);
 
-  // 🔧 SIMPLIFIED: Load content on mount without complex sequencing
+  // 🔧 ENHANCED: Fetch featured products with retry logic
+  const fetchFeaturedProducts = useCallback(async () => {
+    try {
+      setProductsLoading(true);
+      setProductsError(null);
+      console.log('🏠 Home: Fetching 4 random featured products...');
+      
+      const response = await apiCallWithRetry(() => productAPI.getFeaturedProducts(4));
+      
+      if (response.data?.success && response.data.data?.length > 0) {
+        setFeaturedProducts(response.data.data);
+        console.log(`✅ Loaded ${response.data.data.length} random featured products:`, response.data.data.map(p => p.name));
+        showSuccess(`${response.data.data.length} featured products loaded!`, 'Products Updated');
+      } else {
+        setProductsError('No featured products available at this time.');
+        showInfo('No featured products available right now.');
+        console.log('⚠️ No featured products returned from API');
+      }
+    } catch (err) {
+      console.error('❌ Error loading featured products:', err);
+      const errorMessage = err.response?.status === 429 
+        ? 'Server is busy. Please try again in a moment.'
+        : 'Unable to load featured products at this time.';
+      setProductsError(errorMessage);
+      showError(errorMessage, 'Loading Error');
+    } finally {
+      setProductsLoading(false);
+    }
+  }, [apiCallWithRetry, showSuccess, showError, showInfo]);
+
+  // 🔧 OPTIMIZED: Staggered loading to prevent simultaneous API calls
   useEffect(() => {
-    const loadContent = async () => {
-      console.log('🏠 Home page loading content...');
+    const loadHomePageContent = async () => {
+      console.log('🏠 Home: Starting staggered content loading...');
       
-      // Load pets and products simultaneously (no staggering)
-      await Promise.allSettled([
-        loadFeaturedPets(),
-        loadFeaturedProducts()
-      ]);
-      
-      console.log('🏠 Home page content loading complete');
+      try {
+        // Phase 1: Load pets first
+        setLoadingPhase('Loading featured pets...');
+        await fetchFeaturedPets();
+        
+        // Phase 2: Wait 800ms, then load products
+        setLoadingPhase('Loading featured products...');
+        await new Promise(resolve => setTimeout(resolve, 800));
+        await fetchFeaturedProducts();
+        
+        // Phase 3: Complete
+        setLoadingPhase('Content loaded successfully!');
+        console.log('🏠 Home: All content loaded successfully');
+        
+        // Clear loading phase after 2 seconds
+        setTimeout(() => setLoadingPhase(''), 2000);
+        
+      } catch (error) {
+        console.error('❌ Home: Error during staggered loading:', error);
+        setLoadingPhase('Error loading content');
+        showError('Some content failed to load. Please try refreshing the page.', 'Loading Error');
+      }
     };
 
-    loadContent();
-  }, []); // Empty dependency array - only run on mount
+    loadHomePageContent();
+  }, [fetchFeaturedPets, fetchFeaturedProducts, showError]); // ✅ Added missing dependencies
+
+  // Manual refresh handlers
+  const handleRefreshPets = useCallback(async () => {
+    showInfo('Getting new featured pets...');
+    await fetchFeaturedPets();
+  }, [fetchFeaturedPets, showInfo]);
+
+  const handleRefreshProducts = useCallback(async () => {
+    showInfo('Getting new featured products...');
+    await fetchFeaturedProducts();
+  }, [fetchFeaturedProducts, showInfo]);
+
+  const handleRefreshAll = useCallback(async () => {
+    showInfo('Refreshing all featured content...');
+    setLoadingPhase('Refreshing all content...');
+    
+    try {
+      // Staggered refresh
+      await fetchFeaturedPets();
+      await new Promise(resolve => setTimeout(resolve, 500));
+      await fetchFeaturedProducts();
+      
+      setLoadingPhase('All content refreshed!');
+      setTimeout(() => setLoadingPhase(''), 2000);
+    } catch (error) {
+      setLoadingPhase('Error refreshing content');
+      setTimeout(() => setLoadingPhase(''), 2000);
+    }
+  }, [fetchFeaturedPets, fetchFeaturedProducts, showInfo]);
+
+  // Add to favorites handler
+  const handleAddToFavorites = useCallback((pet) => {
+    showSuccess(`${pet.name} added to favorites!`, 'Added to Favorites');
+    console.log('Adding to favorites:', pet.name);
+  }, [showSuccess]);
 
   return (
-    <Container fluid className="px-0">
-      {/* Hero Section */}
-      <section className="hero-section bg-primary text-white text-center py-5 mb-5">
-        <Container>
-          <Row>
-            <Col>
-              <h1 className="display-4 fw-bold mb-3">Welcome to FurBabies Pet Store</h1>
-              <p className="lead mb-4">Find your perfect companion and everything they need to thrive</p>
-              <div className="d-flex justify-content-center gap-3">
-                <Button as={Link} to="/pets" variant="light" size="lg">
-                  <i className="fas fa-paw me-2"></i>
-                  Browse Pets
-                </Button>
-                <Button as={Link} to="/products" variant="outline-light" size="lg">
-                  <i className="fas fa-shopping-cart me-2"></i>
-                  Shop Products
-                </Button>
-              </div>
-            </Col>
-          </Row>
+    <div className="home-page">
+      {/* Toast notifications */}
+      <ToastContainer toasts={toasts} removeToast={removeToast} />
+      
+      {/* Hero section */}
+      <HeroBanner />
+
+      {/* Loading Phase Indicator */}
+      {loadingPhase && (
+        <Container className="py-2">
+          <Alert variant="info" className="text-center mb-0">
+            <i className="fas fa-info-circle me-2"></i>
+            {loadingPhase}
+          </Alert>
         </Container>
-      </section>
+      )}
 
-      <Container>
-        {/* Featured Pets Section */}
-        <section className="mb-5">
-          <Card className="shadow-sm border-0">
-            <Card.Body className="p-4">
-              <Row className="mb-4">
-                <Col>
-                  <h2 className="text-center mb-3">
-                    <i className="fas fa-star text-warning me-2"></i>
-                    Featured Pets
-                  </h2>
-                  <p className="text-center text-muted">Meet some of our adorable pets looking for homes</p>
-                </Col>
-              </Row>
+      {/* Featured Pets Section */}
+      <Container className="py-5">
+        <div className="d-flex justify-content-between align-items-center mb-4">
+          <SectionHeader 
+            title="Featured Pets" 
+            subtitle="Meet our adorable pets looking for loving homes" 
+          />
+          <div className="d-flex gap-2">
+            <Button 
+              variant="outline-primary" 
+              size="sm" 
+              onClick={handleRefreshPets}
+              disabled={petsLoading}
+            >
+              <i className={`fas ${petsLoading ? 'fa-spinner fa-spin' : 'fa-sync-alt'} me-2`}></i>
+              {petsLoading ? 'Loading...' : 'Refresh'}
+            </Button>
+            <Button 
+              variant="primary" 
+              size="sm" 
+              as={Link} 
+              to="/browse"
+            >
+              <i className="fas fa-paw me-2"></i>
+              Browse All Pets
+            </Button>
+          </div>
+        </div>
 
-              {petsLoading ? (
-                <div className="text-center py-4">
-                  <Spinner animation="border" variant="primary" />
-                  <h5 className="mt-3">Loading featured pets...</h5>
-                </div>
-              ) : petsError ? (
-                <Alert variant="warning" className="text-center">
-                  <Alert.Heading>Unable to Load Pets</Alert.Heading>
-                  <p>{petsError}</p>
-                  <Button variant="outline-warning" onClick={loadFeaturedPets}>
-                    <i className="fas fa-redo me-2"></i>Try Again
-                  </Button>
-                </Alert>
-              ) : featuredPets.length > 0 ? (
-                <>
-                  <Row>
-                    {featuredPets.slice(0, 6).map((pet) => (
-                      <Col key={pet._id} xs={12} sm={6} md={4} lg={2} className="mb-4">
-                        <PetCard pet={pet} />
-                      </Col>
-                    ))}
-                  </Row>
-                  <div className="text-center">
-                    <Button as={Link} to="/pets" variant="primary" size="lg">
-                      <i className="fas fa-paw me-2"></i>
-                      View All Pets
-                    </Button>
-                  </div>
-                </>
-              ) : (
-                <Alert variant="info" className="text-center">
-                  <h5>No Featured Pets Available</h5>
-                  <p>Check back soon for new arrivals!</p>
-                  <Button as={Link} to="/pets" variant="primary">
-                    Browse All Pets
-                  </Button>
-                </Alert>
-              )}
-            </Card.Body>
-          </Card>
-        </section>
-
-        {/* Featured Products Section */}
-        <section className="mb-5">
-          <Card className="shadow-sm border-0">
-            <Card.Body className="p-4">
-              <Row className="mb-4">
-                <Col>
-                  <h2 className="text-center mb-3">
-                    <i className="fas fa-shopping-bag text-success me-2"></i>
-                    Featured Products
-                  </h2>
-                  <p className="text-center text-muted">Essential supplies for your furry friends</p>
-                </Col>
-              </Row>
-
-              {productsLoading ? (
-                <div className="text-center py-4">
-                  <Spinner animation="border" variant="success" />
-                  <h5 className="mt-3">Loading featured products...</h5>
-                </div>
-              ) : productsError ? (
-                <Alert variant="warning" className="text-center">
-                  <Alert.Heading>Unable to Load Products</Alert.Heading>
-                  <p>{productsError}</p>
-                  <Button variant="outline-warning" onClick={loadFeaturedProducts}>
-                    <i className="fas fa-redo me-2"></i>Try Again
-                  </Button>
-                </Alert>
-              ) : featuredProducts.length > 0 ? (
-                <>
-                  <Row>
-                    {featuredProducts.slice(0, 4).map((product) => (
-                      <Col key={product._id} xs={12} sm={6} md={4} lg={3} className="mb-4">
-                        <ProductCard product={product} />
-                      </Col>
-                    ))}
-                  </Row>
-                  <div className="text-center">
-                    <Button as={Link} to="/products" variant="success" size="lg">
-                      <i className="fas fa-shopping-cart me-2"></i>
-                      Shop All Products
-                    </Button>
-                  </div>
-                </>
-              ) : (
-                <Alert variant="info" className="text-center">
-                  <h5>No Featured Products Available</h5>
-                  <p>Check back soon for new arrivals!</p>
-                  <Button as={Link} to="/products" variant="success">
-                    Browse All Products
-                  </Button>
-                </Alert>
-              )}
-            </Card.Body>
-          </Card>
-        </section>
-
-        {/* Call to Action Section */}
-        <section className="mb-5">
-          <Card className="shadow-sm border-0 bg-light">
-            <Card.Body className="p-5">
-              <Row>
-                <Col md={6}>
-                  <h3>Why Choose FurBabies?</h3>
-                  <ul>
-                    <li>Verified healthy pets from trusted sources</li>
-                    <li>High-quality pet supplies and accessories</li>
-                    <li>Expert advice and customer support</li>
-                    <li>Secure adoption process</li>
-                  </ul>
-                </Col>
-                <Col md={6} className="text-center">
-                  <h3>Ready to Find Your Perfect Match?</h3>
-                  <p>Start your journey with us today!</p>
-                  <Button as={Link} to="/about" variant="outline-primary" className="me-2">
-                    Learn More
-                  </Button>
-                  <Button as={Link} to="/contact" variant="primary">
-                    Contact Us
-                  </Button>
-                </Col>
-              </Row>
-            </Card.Body>
-          </Card>
-        </section>
+        {/* Pets Content */}
+        {petsLoading ? (
+          <div className="text-center py-5">
+            <Spinner animation="border" variant="primary" />
+            <h5 className="mt-3">Loading featured pets...</h5>
+            <p className="text-muted">Finding adorable pets for adoption</p>
+          </div>
+        ) : petsError ? (
+          <Alert variant="warning" className="text-center">
+            <Alert.Heading>
+              <i className="fas fa-exclamation-triangle me-2"></i>
+              Unable to Load Featured Pets
+            </Alert.Heading>
+            <p>{petsError}</p>
+            <Button variant="outline-warning" onClick={handleRefreshPets} className="me-2">
+              <i className="fas fa-redo me-2"></i>
+              Try Again
+            </Button>
+            <Button variant="primary" as={Link} to="/browse">
+              <i className="fas fa-search me-2"></i>
+              Browse All Pets
+            </Button>
+          </Alert>
+        ) : featuredPets.length === 0 ? (
+          <Alert variant="info" className="text-center">
+            <Alert.Heading>
+              <i className="fas fa-info-circle me-2"></i>
+              No Featured Pets Available
+            </Alert.Heading>
+            <p>Check back soon for new featured pets!</p>
+            <Button variant="outline-info" onClick={handleRefreshPets} className="me-2">
+              <i className="fas fa-sync-alt me-2"></i>
+              Refresh
+            </Button>
+            <Button variant="primary" as={Link} to="/browse">
+              <i className="fas fa-search me-2"></i>
+              Browse All Pets
+            </Button>
+          </Alert>
+        ) : (
+          <Row>
+            {featuredPets.map((pet) => (
+              <Col key={pet._id} lg={3} md={6} className="mb-4">
+                <PetCard 
+                  pet={pet} 
+                  onAddToFavorites={handleAddToFavorites}
+                  showFavoriteButton={true}
+                />
+              </Col>
+            ))}
+          </Row>
+        )}
       </Container>
-    </Container>
+
+      {/* Featured Products Section */}
+      <Container className="py-5 bg-light">
+        <div className="d-flex justify-content-between align-items-center mb-4">
+          <SectionHeader 
+            title="Featured Products" 
+            subtitle="Everything your pet needs for a happy life" 
+          />
+          <div className="d-flex gap-2">
+            <Button 
+              variant="outline-primary" 
+              size="sm" 
+              onClick={handleRefreshProducts}
+              disabled={productsLoading}
+            >
+              <i className={`fas ${productsLoading ? 'fa-spinner fa-spin' : 'fa-sync-alt'} me-2`}></i>
+              {productsLoading ? 'Loading...' : 'Refresh'}
+            </Button>
+            <Button 
+              variant="primary" 
+              size="sm" 
+              as={Link} 
+              to="/products"
+            >
+              <i className="fas fa-shopping-bag me-2"></i>
+              Shop All Products
+            </Button>
+          </div>
+        </div>
+
+        {/* Products Content */}
+        {productsLoading ? (
+          <div className="text-center py-5">
+            <Spinner animation="border" variant="primary" />
+            <h5 className="mt-3">Loading featured products...</h5>
+            <p className="text-muted">Finding the best products for your pets</p>
+          </div>
+        ) : productsError ? (
+          <Alert variant="warning" className="text-center">
+            <Alert.Heading>
+              <i className="fas fa-exclamation-triangle me-2"></i>
+              Unable to Load Featured Products
+            </Alert.Heading>
+            <p>{productsError}</p>
+            <Button variant="outline-warning" onClick={handleRefreshProducts} className="me-2">
+              <i className="fas fa-redo me-2"></i>
+              Try Again
+            </Button>
+            <Button variant="primary" as={Link} to="/products">
+              <i className="fas fa-search me-2"></i>
+              Browse All Products
+            </Button>
+          </Alert>
+        ) : featuredProducts.length === 0 ? (
+          <Alert variant="info" className="text-center">
+            <Alert.Heading>
+              <i className="fas fa-info-circle me-2"></i>
+              No Featured Products Available
+            </Alert.Heading>
+            <p>Check back soon for new featured products!</p>
+            <Button variant="outline-info" onClick={handleRefreshProducts} className="me-2">
+              <i className="fas fa-sync-alt me-2"></i>
+              Refresh
+            </Button>
+            <Button variant="primary" as={Link} to="/products">
+              <i className="fas fa-search me-2"></i>
+              Browse All Products
+            </Button>
+          </Alert>
+        ) : (
+          <Row>
+            {featuredProducts.map((product) => (
+              <Col key={product._id} lg={3} md={6} className="mb-4">
+                <ProductCard 
+                  product={product} 
+                  showAddToCart={true}
+                />
+              </Col>
+            ))}
+          </Row>
+        )}
+      </Container>
+
+      {/* News Section */}
+      <Container className="py-5">
+        <NewsSection />
+      </Container>
+
+      {/* Call to Action Section */}
+      <Container className="py-5 bg-primary text-white">
+        <Row className="text-center">
+          <Col>
+            <h2 className="display-4 mb-3">Ready to Find Your Perfect Pet?</h2>
+            <p className="lead mb-4">
+              Join thousands of happy families who found their furry companions through FurBabies
+            </p>
+            <div className="d-flex gap-3 justify-content-center flex-wrap">
+              <Button 
+                variant="light" 
+                size="lg" 
+                as={Link} 
+                to="/browse"
+                className="px-4 py-2"
+              >
+                <i className="fas fa-search me-2"></i>
+                Browse Pets
+              </Button>
+              <Button 
+                variant="outline-light" 
+                size="lg" 
+                as={Link} 
+                to="/contact"
+                className="px-4 py-2"
+              >
+                <i className="fas fa-heart me-2"></i>
+                Learn More
+              </Button>
+              <Button 
+                variant="warning" 
+                size="lg" 
+                onClick={handleRefreshAll}
+                className="px-4 py-2"
+                disabled={petsLoading || productsLoading}
+              >
+                <i className={`fas ${petsLoading || productsLoading ? 'fa-spinner fa-spin' : 'fa-sync-alt'} me-2`}></i>
+                {petsLoading || productsLoading ? 'Loading...' : 'Refresh All'}
+              </Button>
+            </div>
+          </Col>
+        </Row>
+      </Container>
+    </div>
   );
 };
 
