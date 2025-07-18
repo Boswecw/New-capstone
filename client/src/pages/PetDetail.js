@@ -1,4 +1,4 @@
-// client/src/pages/PetDetail.js - UPDATED WITH HEART RATING
+// client/src/pages/PetDetail.js
 
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
@@ -13,18 +13,22 @@ const PetDetail = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const fetchPet = async () => {
-    try {
-      const res = await petAPI.getPetById(id);
-      setPet(res.data);
-      setLoading(false);
-    } catch (err) {
-      setError('Unable to fetch pet.');
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
+    const fetchPet = async () => {
+      try {
+        console.log('🔍 Fetching pet with ID:', id);
+        const res = await petAPI.getPetById(id);
+        setPet(res.data);
+      } catch (err) {
+        console.error('❌ Fetch error:', err);
+        setError(
+          err?.response?.data?.message || 'Unable to fetch pet. Check pet ID or network.'
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+
     fetchPet();
   }, [id]);
 
@@ -33,7 +37,7 @@ const PetDetail = () => {
       await petAPI.ratePet(pet._id, { rating: value });
       setPet((prev) => ({ ...prev, rating: value }));
     } catch (err) {
-      console.error('Rating failed:', err);
+      console.error('❌ Rating failed:', err);
     }
   };
 
