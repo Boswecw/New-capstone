@@ -1,8 +1,10 @@
+// server/routes/admin.js - UPDATED WITH PRODUCT ROUTES
 const express = require('express');
 const router = express.Router();
 const Pet = require('../models/Pet');
 const User = require('../models/User');
 const Contact = require('../models/Contact');
+const Product = require('../models/Product');  // ✅ ADDED: Product model import
 const { protect, admin } = require('../middleware/auth');
 const { validatePetCreation, validatePetUpdate, validateObjectId } = require('../middleware/validation');
 
@@ -81,6 +83,23 @@ router.get('/dashboard', async (req, res) => {
       }
     ]);
 
+    // ✅ ADDED: Get product statistics
+    const productStats = await Product.aggregate([
+      {
+        $group: {
+          _id: null,
+          totalProducts: { $sum: 1 },
+          inStockProducts: {
+            $sum: { $cond: [{ $eq: ['$inStock', true] }, 1, 0] }
+          },
+          outOfStockProducts: {
+            $sum: { $cond: [{ $eq: ['$inStock', false] }, 1, 0] }
+          },
+          averagePrice: { $avg: '$price' }
+        }
+      }
+    ]);
+
     // Get recent activities
     const recentPets = await Pet.find()
       .sort({ createdAt: -1 })
@@ -96,6 +115,12 @@ router.get('/dashboard', async (req, res) => {
       .sort({ createdAt: -1 })
       .limit(5)
       .select('name email subject status createdAt');
+
+    // ✅ ADDED: Get recent products
+    const recentProducts = await Product.find()
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .select('name category price inStock createdAt');
 
     // Get monthly adoption trends
     const adoptionTrends = await Pet.aggregate([
@@ -122,7 +147,9 @@ router.get('/dashboard', async (req, res) => {
     // Get pet category distribution
     const categoryDistribution = await Pet.aggregate([
       {
-        $match: { status: 'available' }
+        $match: {
+          status: 'available'
+        }
       },
       {
         $group: {
@@ -136,12 +163,14 @@ router.get('/dashboard', async (req, res) => {
       stats: {
         pets: petStats[0] || { totalPets: 0, availablePets: 0, adoptedPets: 0, pendingPets: 0 },
         users: userStats[0] || { totalUsers: 0, activeUsers: 0, newUsersThisMonth: 0 },
-        contacts: contactStats[0] || { totalContacts: 0, newContacts: 0, pendingContacts: 0 }
+        contacts: contactStats[0] || { totalContacts: 0, newContacts: 0, pendingContacts: 0 },
+        products: productStats[0] || { totalProducts: 0, inStockProducts: 0, outOfStockProducts: 0, averagePrice: 0 } // ✅ ADDED
       },
       recentActivities: {
         pets: recentPets,
         users: recentUsers,
-        contacts: recentContacts
+        contacts: recentContacts,
+        products: recentProducts // ✅ ADDED
       },
       charts: {
         adoptionTrends,
@@ -260,54 +289,13 @@ router.get('/pets', async (req, res) => {
     const {
       search,
       category,
-      type,        // ✅ ADDED - The missing filter!
+      type,
       status,
       available,
       limit = 20,
       page = 1,
       sort = 'createdAt'
     } = req.query;
-
-    // ✅ TEMPORARY DEBUG ROUTE - Remove after testing
-router.get('/pets/debug', async (req, res) => {
-  try {
-    console.log('🐛 Debug route hit - checking database...');
-    
-    // Test basic database connection
-    const totalPets = await Pet.countDocuments();
-    console.log('📊 Total pets in database:', totalPets);
-    
-    // Get some sample pets without filters
-    const samplePets = await Pet.find().limit(5);
-    console.log('🐾 Sample pets:', samplePets.map(p => ({ name: p.name, type: p.type })));
-    
-    // Test type breakdown
-    const typeStats = await Pet.aggregate([
-      { $group: { _id: '$type', count: { $sum: 1 } } }
-    ]);
-    console.log('📈 Pet types:', typeStats);
-    
-    res.json({
-      success: true,
-      debug: {
-        totalPets,
-        samplePets: samplePets.map(p => ({ 
-          name: p.name, 
-          type: p.type, 
-          _id: p._id 
-        })),
-        typeBreakdown: typeStats
-      }
-    });
-  } catch (error) {
-    console.error('❌ Debug route error:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-      stack: error.stack
-    });
-  }
-});
 
     // Build query
     const query = {};
@@ -324,7 +312,6 @@ router.get('/pets/debug', async (req, res) => {
       query.category = category;
     }
 
-    // ✅ TYPE FILTERING - This was the missing piece!
     if (type) {
       query.type = type;
     }
@@ -556,6 +543,302 @@ router.post('/pets/:id/adopt', validateObjectId, async (req, res) => {
   }
 });
 
+// ========================================
+// ✅ PRODUCT MANAGEMENT ROUTES - NEW SECTION
+// ========================================
+
+// GET /api/admin/products - Get all products for admin management
+router.get('/products', async (req, res) => {
+  try {
+    console.log('🛒 Admin products route hit with query:', req.query);
+    
+    const {
+      search,
+      category,
+      brand,
+      inStock,
+      priceRange,
+      limit = 20,
+      page = 1,
+      sort = 'createdAt'
+    } = req.query;
+
+    // Build query
+    const query = {};
+
+    if (search) {
+      query.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { brand: { $regex: search, $options: 'i' } },
+        { description: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    if (category) {
+      query.category = category;
+    }
+
+    if (brand) {
+      query.brand = brand;
+    }
+
+    if (inStock !== undefined && inStock !== '') {
+      query.inStock = inStock === 'true';
+    }
+
+    // Price range filtering
+    if (priceRange) {
+      switch (priceRange) {
+        case 'under25':
+          query.price = { $lt: 25 };
+          break;
+        case '25to50':
+          query.price = { $gte: 25, $lte: 50 };
+          break;
+        case '50to100':
+          query.price = { $gte: 50, $lte: 100 };
+          break;
+        case 'over100':
+          query.price = { $gt: 100 };
+          break;
+      }
+    }
+
+    // Pagination
+    const limitNum = parseInt(limit);
+    const skip = (parseInt(page) - 1) * limitNum;
+
+    // Sort options
+    const sortOptions = {};
+    switch (sort) {
+      case 'name':
+        sortOptions.name = 1;
+        break;
+      case 'price':
+        sortOptions.price = 1;
+        break;
+      case 'category':
+        sortOptions.category = 1;
+        break;
+      case 'brand':
+        sortOptions.brand = 1;
+        break;
+      case 'oldest':
+        sortOptions.createdAt = 1;
+        break;
+      default:
+        sortOptions.createdAt = -1;
+    }
+
+    console.log('🛒 MongoDB query:', query);
+
+    const products = await Product.find(query)
+      .sort(sortOptions)
+      .limit(limitNum)
+      .skip(skip)
+      .populate('createdBy', 'name email');
+
+    const totalProducts = await Product.countDocuments(query);
+    const totalPages = Math.ceil(totalProducts / limitNum);
+
+    console.log('✅ Found products:', totalProducts);
+
+    res.json({
+      success: true,
+      data: products,
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages,
+        totalProducts,
+        total: totalProducts, // Add for consistency with frontend
+        pages: totalPages,    // Add for consistency with frontend
+        hasNext: parseInt(page) < totalPages,
+        hasPrev: parseInt(page) > 1
+      },
+      message: 'Products retrieved successfully'
+    });
+  } catch (error) {
+    console.error('❌ Error fetching products for admin:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching products',
+      error: error.message
+    });
+  }
+});
+
+// POST /api/admin/products - Add new product
+router.post('/products', async (req, res) => {
+  try {
+    console.log('🛒 Creating new product:', req.body);
+
+    const productData = {
+      ...req.body,
+      createdBy: req.user._id
+    };
+
+    const product = new Product(productData);
+    await product.save();
+
+    console.log('✅ Product created successfully:', product._id);
+
+    res.status(201).json({
+      success: true,
+      data: product,
+      message: 'Product created successfully'
+    });
+  } catch (error) {
+    console.error('❌ Error creating product:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error creating product',
+      error: error.message
+    });
+  }
+});
+
+// PUT /api/admin/products/:id - Update product
+router.put('/products/:id', validateObjectId, async (req, res) => {
+  try {
+    console.log('🛒 Updating product:', req.params.id);
+
+    const product = await Product.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true, runValidators: true }
+    );
+
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: 'Product not found'
+      });
+    }
+
+    console.log('✅ Product updated successfully');
+
+    res.json({
+      success: true,
+      data: product,
+      message: 'Product updated successfully'
+    });
+  } catch (error) {
+    console.error('❌ Error updating product:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error updating product',
+      error: error.message
+    });
+  }
+});
+
+// DELETE /api/admin/products/:id - Delete product
+router.delete('/products/:id', validateObjectId, async (req, res) => {
+  try {
+    console.log('🛒 Deleting product:', req.params.id);
+
+    const product = await Product.findByIdAndDelete(req.params.id);
+
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: 'Product not found'
+      });
+    }
+
+    console.log('✅ Product deleted successfully');
+
+    res.json({
+      success: true,
+      message: 'Product deleted successfully'
+    });
+  } catch (error) {
+    console.error('❌ Error deleting product:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error deleting product',
+      error: error.message
+    });
+  }
+});
+
+// GET /api/admin/products/stats - Get product statistics
+router.get('/products/stats', async (req, res) => {
+  try {
+    console.log('📊 Fetching product statistics...');
+
+    const totalProducts = await Product.countDocuments();
+    const inStockProducts = await Product.countDocuments({ inStock: true });
+    const outOfStockProducts = await Product.countDocuments({ inStock: false });
+    
+    // Category breakdown
+    const categoryStats = await Product.aggregate([
+      {
+        $group: {
+          _id: '$category',
+          count: { $sum: 1 },
+          avgPrice: { $avg: '$price' }
+        }
+      },
+      { $sort: { count: -1 } }
+    ]);
+
+    // Brand breakdown
+    const brandStats = await Product.aggregate([
+      {
+        $group: {
+          _id: '$brand',
+          count: { $sum: 1 },
+          avgPrice: { $avg: '$price' }
+        }
+      },
+      { $sort: { count: -1 } }
+    ]);
+
+    // Price ranges
+    const priceRanges = await Product.aggregate([
+      {
+        $bucket: {
+          groupBy: '$price',
+          boundaries: [0, 25, 50, 100, 1000],
+          default: 'over1000',
+          output: {
+            count: { $sum: 1 },
+            avgPrice: { $avg: '$price' }
+          }
+        }
+      }
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        overview: {
+          totalProducts,
+          inStockProducts,
+          outOfStockProducts,
+          stockPercentage: totalProducts > 0 ? ((inStockProducts / totalProducts) * 100).toFixed(1) : 0
+        },
+        categories: categoryStats,
+        brands: brandStats,
+        priceRanges
+      },
+      message: 'Product statistics retrieved successfully'
+    });
+  } catch (error) {
+    console.error('❌ Error fetching product statistics:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching product statistics',
+      error: error.message
+    });
+  }
+});
+
+// ========================================
+// EXISTING ROUTES CONTINUE BELOW...
+// ========================================
+
 // GET /api/admin/reports - Generate various reports
 router.get('/reports', async (req, res) => {
   try {
@@ -568,17 +851,17 @@ router.get('/reports', async (req, res) => {
     let reportData = {};
 
     switch (type) {
-      case 'adoptions':
+      case 'adoption':
         reportData = await generateAdoptionReport(start, end);
         break;
-      case 'users':
+      case 'user':
         reportData = await generateUserReport(start, end);
         break;
-      case 'contacts':
+      case 'contact':
         reportData = await generateContactReport(start, end);
         break;
-      case 'pets':
-        reportData = await generatePetReport(start, end);
+      case 'product': // ✅ ADDED: Product report
+        reportData = await generateProductReport(start, end);
         break;
       default:
         reportData = await generateSummaryReport(start, end);
@@ -587,7 +870,7 @@ router.get('/reports', async (req, res) => {
     res.json({
       success: true,
       data: reportData,
-      message: 'Report generated successfully'
+      message: `${type} report generated successfully`
     });
   } catch (error) {
     console.error('Error generating report:', error);
@@ -599,188 +882,53 @@ router.get('/reports', async (req, res) => {
   }
 });
 
-// Helper functions for report generation
-async function generateSummaryReport(startDate, endDate) {
-  const [petStats, userStats, contactStats] = await Promise.all([
-    Pet.aggregate([
-      {
-        $match: { createdAt: { $gte: startDate, $lte: endDate } }
-      },
-      {
-        $group: {
-          _id: null,
-          totalPets: { $sum: 1 },
-          adoptedPets: {
-            $sum: { $cond: [{ $eq: ['$status', 'adopted'] }, 1, 0] }
-          }
-        }
-      }
-    ]),
-    User.aggregate([
-      {
-        $match: { createdAt: { $gte: startDate, $lte: endDate } }
-      },
-      {
-        $group: {
-          _id: null,
-          totalUsers: { $sum: 1 },
-          activeUsers: {
-            $sum: { $cond: [{ $eq: ['$isActive', true] }, 1, 0] }
-          }
-        }
-      }
-    ]),
-    Contact.aggregate([
-      {
-        $match: { createdAt: { $gte: startDate, $lte: endDate } }
-      },
-      {
-        $group: {
-          _id: null,
-          totalContacts: { $sum: 1 },
-          resolvedContacts: {
-            $sum: { $cond: [{ $eq: ['$status', 'resolved'] }, 1, 0] }
-          }
-        }
-      }
-    ])
-  ]);
+// Helper functions for reports
+const generateSummaryReport = async (start, end) => {
+  const pets = await Pet.countDocuments({ createdAt: { $gte: start, $lte: end } });
+  const users = await User.countDocuments({ createdAt: { $gte: start, $lte: end } });
+  const contacts = await Contact.countDocuments({ createdAt: { $gte: start, $lte: end } });
+  const products = await Product.countDocuments({ createdAt: { $gte: start, $lte: end } }); // ✅ ADDED
 
-  return {
-    dateRange: { startDate, endDate },
-    pets: petStats[0] || { totalPets: 0, adoptedPets: 0 },
-    users: userStats[0] || { totalUsers: 0, activeUsers: 0 },
-    contacts: contactStats[0] || { totalContacts: 0, resolvedContacts: 0 }
-  };
-}
+  return { pets, users, contacts, products, period: { start, end } };
+};
 
-async function generateAdoptionReport(startDate, endDate) {
+const generateAdoptionReport = async (start, end) => {
   const adoptions = await Pet.find({
-    adoptedAt: { $gte: startDate, $lte: endDate },
-    status: 'adopted'
-  })
-    .populate('adoptedBy', 'name email')
-    .populate('createdBy', 'name email')
-    .sort({ adoptedAt: -1 });
+    status: 'adopted',
+    adoptedAt: { $gte: start, $lte: end }
+  }).populate('adoptedBy', 'name email');
 
-  const monthlyAdoptions = await Pet.aggregate([
-    {
-      $match: {
-        adoptedAt: { $gte: startDate, $lte: endDate },
-        status: 'adopted'
-      }
-    },
-    {
-      $group: {
-        _id: {
-          year: { $year: '$adoptedAt' },
-          month: { $month: '$adoptedAt' }
-        },
-        count: { $sum: 1 }
-      }
-    },
-    {
-      $sort: { '_id.year': 1, '_id.month': 1 }
-    }
-  ]);
+  return { adoptions, count: adoptions.length };
+};
 
-  return {
-    dateRange: { startDate, endDate },
-    adoptions,
-    monthlyTrends: monthlyAdoptions,
-    totalAdoptions: adoptions.length
-  };
-}
-
-async function generateUserReport(startDate, endDate) {
+const generateUserReport = async (start, end) => {
   const users = await User.find({
-    createdAt: { $gte: startDate, $lte: endDate }
-  })
-    .select('-password')
-    .sort({ createdAt: -1 });
+    createdAt: { $gte: start, $lte: end }
+  }).select('-password');
 
-  const userGrowth = await User.aggregate([
-    {
-      $match: { createdAt: { $gte: startDate, $lte: endDate } }
-    },
-    {
-      $group: {
-        _id: {
-          year: { $year: '$createdAt' },
-          month: { $month: '$createdAt' }
-        },
-        count: { $sum: 1 }
-      }
-    },
-    {
-      $sort: { '_id.year': 1, '_id.month': 1 }
-    }
-  ]);
+  return { users, count: users.length };
+};
 
-  return {
-    dateRange: { startDate, endDate },
-    users,
-    growthTrends: userGrowth,
-    totalUsers: users.length
-  };
-}
-
-async function generateContactReport(startDate, endDate) {
+const generateContactReport = async (start, end) => {
   const contacts = await Contact.find({
-    createdAt: { $gte: startDate, $lte: endDate }
-  }).sort({ createdAt: -1 });
+    createdAt: { $gte: start, $lte: end }
+  });
 
-  const statusDistribution = await Contact.aggregate([
-    {
-      $match: { createdAt: { $gte: startDate, $lte: endDate } }
-    },
-    {
-      $group: {
-        _id: '$status',
-        count: { $sum: 1 }
-      }
-    }
+  return { contacts, count: contacts.length };
+};
+
+// ✅ ADDED: Product report helper
+const generateProductReport = async (start, end) => {
+  const products = await Product.find({
+    createdAt: { $gte: start, $lte: end }
+  });
+
+  const categoryBreakdown = await Product.aggregate([
+    { $match: { createdAt: { $gte: start, $lte: end } } },
+    { $group: { _id: '$category', count: { $sum: 1 }, avgPrice: { $avg: '$price' } } }
   ]);
 
-  return {
-    dateRange: { startDate, endDate },
-    contacts,
-    statusDistribution: statusDistribution.reduce((acc, item) => {
-      acc[item._id] = item.count;
-      return acc;
-    }, {}),
-    totalContacts: contacts.length
-  };
-}
-
-async function generatePetReport(startDate, endDate) {
-  const pets = await Pet.find({
-    createdAt: { $gte: startDate, $lte: endDate }
-  })
-    .populate('createdBy', 'name email')
-    .sort({ createdAt: -1 });
-
-  const categoryDistribution = await Pet.aggregate([
-    {
-      $match: { createdAt: { $gte: startDate, $lte: endDate } }
-    },
-    {
-      $group: {
-        _id: '$category',
-        count: { $sum: 1 }
-      }
-    }
-  ]);
-
-  return {
-    dateRange: { startDate, endDate },
-    pets,
-    categoryDistribution: categoryDistribution.reduce((acc, item) => {
-      acc[item._id] = item.count;
-      return acc;
-    }, {}),
-    totalPets: pets.length
-  };
-}
+  return { products, count: products.length, categoryBreakdown };
+};
 
 module.exports = router;

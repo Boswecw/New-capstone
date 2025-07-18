@@ -1,18 +1,18 @@
-// client/src/App.js - FIXED VERSION with Browse Route
+// client/src/App.js - ADD AdminProducts ROUTE
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
-import { ToastProvider } from './contexts/ToastContext'; // ✅ Custom toast system
+import { ToastProvider } from './contexts/ToastContext';
 import ErrorBoundary from './components/ErrorBoundary';
 
 // Layout Components
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
-import ToastContainer from './components/ToastContainer'; // ✅ Custom toast container
+import ToastContainer from './components/ToastContainer';
 
 // Pages
 import Home from './pages/Home';
 import Pets from './pages/Pets';
-import Browse from './pages/Browse';                     // ✅ ADD THIS IMPORT
+import Browse from './pages/Browse';
 import PetDetail from './pages/PetDetail';
 import Products from './pages/Products';
 import ProductDetail from './pages/ProductDetail';
@@ -24,10 +24,11 @@ import Register from './pages/Register';
 import Profile from './pages/Profile';
 import NotFound from './pages/NotFound';
 
-// ✅ ALL 7 ADMIN PAGES
+// ✅ ALL 8 ADMIN PAGES (Added AdminProducts)
 import AdminDashboard from './pages/admin/AdminDashboard';     
 import AdminUsers from './pages/admin/AdminUsers';             
 import AdminPets from './pages/admin/AdminPets';               
+import AdminProducts from './pages/admin/AdminProducts';       // ✅ NEW: Admin Products page
 import AdminContacts from './pages/admin/AdminContacts';       
 import AdminReports from './pages/admin/AdminReports';         
 import AdminAnalytics from './pages/admin/AdminAnalytics';     
@@ -46,7 +47,7 @@ const App = () => {
   return (
     <ErrorBoundary>
       <AuthProvider>
-        <ToastProvider> {/* ✅ Wrap with custom ToastProvider */}
+        <ToastProvider>
           <Router>
             <div className="App">
               <Navbar />
@@ -56,7 +57,7 @@ const App = () => {
                   {/* ========== PUBLIC ROUTES ========== */}
                   <Route path="/" element={<Home />} />
                   <Route path="/pets" element={<Pets />} />
-                  <Route path="/browse" element={<Browse />} />    {/* ✅ ADD THIS ROUTE */}
+                  <Route path="/browse" element={<Browse />} />
                   <Route path="/pets/:id" element={<PetDetail />} />
                   <Route path="/products" element={<Products />} />
                   <Route path="/products/:id" element={<ProductDetail />} />
@@ -72,7 +73,7 @@ const App = () => {
                     </ProtectedRoute>
                   } />
                   
-                  {/* ========== ADMIN ROUTES (ALL 7 CONFIRMED PAGES) ========== */}
+                  {/* ========== ADMIN ROUTES (ALL 8 PAGES) ========== */}
                   <Route path="/admin" element={
                     <ProtectedRoute adminOnly>
                       <AdminDashboard />
@@ -82,6 +83,13 @@ const App = () => {
                   <Route path="/admin/pets" element={
                     <ProtectedRoute adminOnly>
                       <AdminPets />
+                    </ProtectedRoute>
+                  } />
+                  
+                  {/* ✅ NEW: Admin Products Route */}
+                  <Route path="/admin/products" element={
+                    <ProtectedRoute adminOnly>
+                      <AdminProducts />
                     </ProtectedRoute>
                   } />
                   
@@ -122,11 +130,10 @@ const App = () => {
 
               <Footer />
               
-              {/* ✅ Custom Toast Container */}
               <ToastContainer />
             </div>
           </Router>
-        </ToastProvider> {/* ✅ Close custom ToastProvider */}
+        </ToastProvider>
       </AuthProvider>
     </ErrorBoundary>
   );

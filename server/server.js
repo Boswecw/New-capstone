@@ -347,10 +347,11 @@ if (process.env.NODE_ENV === 'production') {
         contact: 'POST /api/contact',
         images: '/api/images/gcs/{path}',
         storage: '/api/gcs/buckets/{bucket}/images',
-        // ← ADDED: Admin endpoints
+        // ✅ UPDATED: Admin endpoints including products
         admin: {
           dashboard: '/api/admin/dashboard',
           pets: '/api/admin/pets',
+          products: '/api/admin/products',        // ✅ ADDED: Products endpoint
           users: '/api/admin/users',
           contacts: '/api/admin/contacts',
           reports: '/api/admin/reports',
@@ -377,9 +378,10 @@ if (process.env.NODE_ENV === 'production') {
           '/api/pets',
           '/api/products/featured',
           '/api/news/featured',
-          // ← ADDED: Admin endpoints in 404 handler
+          // ✅ UPDATED: Admin endpoints including products
           '/api/admin/dashboard',
           '/api/admin/pets',
+          '/api/admin/products',                 // ✅ ADDED: Products endpoint
           '/api/admin/users'
         ],
         timestamp: new Date().toISOString()
@@ -413,12 +415,17 @@ app.use('/api/*', (req, res) => {
       'POST /api/contact',
       'GET /api/images/gcs/{path}',
       'GET /api/images/health',
-      // ← ADDED: Admin endpoints in main 404 handler
+      // ✅ UPDATED: Admin endpoints including products
       'GET /api/admin/dashboard',
       'GET /api/admin/pets',
       'POST /api/admin/pets',
       'PUT /api/admin/pets/:id',
       'DELETE /api/admin/pets/:id',
+      'GET /api/admin/products',               // ✅ ADDED: Products endpoints
+      'POST /api/admin/products',              // ✅ ADDED
+      'PUT /api/admin/products/:id',           // ✅ ADDED
+      'DELETE /api/admin/products/:id',        // ✅ ADDED
+      'GET /api/admin/products/stats',         // ✅ ADDED
       'GET /api/admin/users',
       'GET /api/admin/contacts',
       'GET /api/admin/reports',
@@ -451,7 +458,9 @@ app.listen(PORT, () => {
   console.log('   🛒 Products: /api/products');
   console.log('   📧 Contact: /api/contact');
   console.log('   🖼️ Images: /api/images/gcs/{path}');
-  console.log('   🔧 Admin: /api/admin/*');  // ← ADDED: Admin routes logging
+  console.log('   🔧 Admin: /api/admin/*');
+  console.log('   🐾 Admin Pets: /api/admin/pets');        // ✅ Existing
+  console.log('   🛍️ Admin Products: /api/admin/products');  // ✅ ADDED: Products logging
 });
 
 // ===== GRACEFUL SHUTDOWN =====
