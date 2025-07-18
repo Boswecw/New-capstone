@@ -1,6 +1,4 @@
-// client/src/pages/Browse.js - CORRECTED API RESPONSE HANDLING
-
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Container,
   Row,
@@ -18,7 +16,7 @@ import PetCard from "../components/PetCard";
 import { petAPI } from "../services/api";
 
 const Browse = () => {
-  console.log('🔍 Browse component loaded - PetCard should now use SafeImage');
+  console.log('🔍 Browse component loaded');
   
   // State management
   const [pets, setPets] = useState([]);
@@ -27,83 +25,60 @@ const Browse = () => {
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Filter states
-  const [searchTerm, setSearchTerm] = useState(
-    searchParams.get("search") || ""
-  );
-  const [selectedType, setSelectedType] = useState(
-    searchParams.get("type") || ""
-  );
-  const [selectedBreed, setSelectedBreed] = useState(
-    searchParams.get("breed") || ""
-  );
+  const [searchTerm, setSearchTerm] = useState(searchParams.get("search") || "");
+  const [selectedType, setSelectedType] = useState(searchParams.get("type") || "");
+  const [selectedBreed, setSelectedBreed] = useState(searchParams.get("breed") || "");
   const [ageRange, setAgeRange] = useState(searchParams.get("age") || "");
-  const [selectedGender, setSelectedGender] = useState(
-    searchParams.get("gender") || ""
-  );
-  const [selectedSize, setSelectedSize] = useState(
-    searchParams.get("size") || ""
-  );
+  const [selectedGender, setSelectedGender] = useState(searchParams.get("gender") || "");
+  const [selectedSize, setSelectedSize] = useState(searchParams.get("size") || "");
   const [showFilters, setShowFilters] = useState(false);
 
   // Filter options
-  const petTypes = useMemo(
-    () => [
-      { value: "", label: "All Pets" },
-      { value: "dog", label: "Dogs" },
-      { value: "cat", label: "Cats" },
-      { value: "fish", label: "Fish & Aquatic" },
-      { value: "small-pet", label: "Small Pets" },
-      { value: "bird", label: "Birds" },
-    ],
-    []
-  );
+  const petTypes = useMemo(() => [
+    { value: "", label: "All Pets" },
+    { value: "dog", label: "Dogs" },
+    { value: "cat", label: "Cats" },
+    { value: "fish", label: "Fish & Aquatic" },
+    { value: "small-pet", label: "Small Pets" },
+    { value: "bird", label: "Birds" },
+  ], []);
 
-  const ageRanges = useMemo(
-    () => [
-      { value: "", label: "Any Age" },
-      { value: "6 months", label: "6 Months" },
-      { value: "puppy", label: "Puppy/Kitten (0-1 year)" },
-      { value: "young", label: "Young (1-3 years)" },
-      { value: "adult", label: "Adult (3-7 years)" },
-      { value: "senior", label: "Senior (7+ years)" },
-    ],
-    []
-  );
+  const ageRanges = useMemo(() => [
+    { value: "", label: "Any Age" },
+    { value: "puppy", label: "Puppy/Kitten (0-1 year)" },
+    { value: "young", label: "Young (1-3 years)" },
+    { value: "adult", label: "Adult (3-7 years)" },
+    { value: "senior", label: "Senior (7+ years)" },
+  ], []);
 
-  const genderOptions = useMemo(
-    () => [
-      { value: "", label: "Any Gender" },
-      { value: "male", label: "Male" },
-      { value: "female", label: "Female" },
-      { value: "unknown", label: "Unknown" },
-    ],
-    []
-  );
+  const genderOptions = useMemo(() => [
+    { value: "", label: "Any Gender" },
+    { value: "male", label: "Male" },
+    { value: "female", label: "Female" },
+    { value: "unknown", label: "Unknown" },
+  ], []);
 
-  const sizeOptions = useMemo(
-    () => [
-      { value: "", label: "Any Size" },
-      { value: "small", label: "Small" },
-      { value: "medium", label: "Medium" },
-      { value: "large", label: "Large" },
-    ],
-    []
-  );
+  const sizeOptions = useMemo(() => [
+    { value: "", label: "Any Size" },
+    { value: "small", label: "Small" },
+    { value: "medium", label: "Medium" },
+    { value: "large", label: "Large" },
+  ], []);
 
-  // ✅ CORRECTED: Use getAllPets with proper response handling
-  const fetchPets = useCallback(async () => {
+  // 🔧 FIXED: Fetch pets function with proper error handling
+  const fetchPets = async () => {
     try {
-      console.log('🔍 Browse: Fetching pets...');
+      console.log('🔍 Browse: Fetching pets with filters...');
       setLoading(true);
       setError(null);
 
-      // Build query parameters
+      // Build query parameters - only include non-empty values
       const queryParams = {
-        available: true,
+        status: 'available', // Only get available pets
         limit: 50,
       };
 
-      // Add filters if they exist
+      // Add filters only if they have values (not empty strings)
       if (searchTerm.trim()) {
         queryParams.search = searchTerm.trim();
       }
@@ -123,22 +98,25 @@ const Browse = () => {
         queryParams.size = selectedSize;
       }
 
-      console.log('🔍 Browse: Query params:', queryParams);
+      console.log('🔍 Browse: Final query params:', queryParams);
 
-      // ✅ CORRECTED: Use getAllPets and handle the response properly
+      // Make API call
       const response = await petAPI.getAllPets(queryParams);
-      
       console.log('🔍 Browse: Raw API response:', response);
       
-      // ✅ CORRECTED: Handle the actual response structure from /api/pets
-      if (response.data?.success) {
+      // Handle response properly
+      if (response?.data?.success) {
         const petsData = response.data.data || [];
         setPets(petsData);
         console.log(`✅ Browse: Loaded ${petsData.length} pets successfully`);
+      } else if (response?.data?.data) {
+        // Some APIs might not have the success field but still return data
+        setPets(response.data.data);
+        console.log(`✅ Browse: Loaded ${response.data.data.length} pets (no success field)`);
       } else {
-        console.warn('⚠️ Browse: API returned success=false');
+        console.warn('⚠️ Browse: Unexpected API response structure:', response);
         setPets([]);
-        setError(response.data?.message || 'Failed to load pets');
+        setError('Unexpected response format from server');
       }
     } catch (err) {
       console.error('❌ Browse: Error fetching pets:', err);
@@ -147,12 +125,27 @@ const Browse = () => {
     } finally {
       setLoading(false);
     }
-  }, [searchTerm, selectedType, selectedBreed, ageRange, selectedGender, selectedSize]);
+  };
 
-  // Load pets when component mounts or filters change
+  // 🔧 FIXED: Load pets when component mounts
   useEffect(() => {
+    console.log('🔍 Browse: Initial load');
     fetchPets();
-  }, [fetchPets]);
+  }, []); // Empty dependency array for initial load
+
+  // 🔧 FIXED: Separate useEffect for filter changes with debouncing
+  useEffect(() => {
+    console.log('🔍 Browse: Filters changed, scheduling refetch...');
+    
+    // Debounce the filter changes to avoid too many API calls
+    const timeoutId = setTimeout(() => {
+      console.log('🔍 Browse: Executing filter-triggered refetch');
+      fetchPets();
+    }, 300); // 300ms delay
+
+    // Cleanup timeout if filters change again before timeout
+    return () => clearTimeout(timeoutId);
+  }, [searchTerm, selectedType, selectedBreed, ageRange, selectedGender, selectedSize]);
 
   // Update URL params when filters change
   useEffect(() => {
@@ -167,17 +160,24 @@ const Browse = () => {
     setSearchParams(params);
   }, [searchTerm, selectedType, selectedBreed, ageRange, selectedGender, selectedSize, setSearchParams]);
 
-  // Handle search
+  // Handle search form submission
   const handleSearch = (e) => {
     e.preventDefault();
+    console.log('🔍 Browse: Manual search triggered');
     fetchPets();
   };
 
-  // Handle filter changes
+  // 🔧 FIXED: Handle filter changes with immediate state update
   const handleFilterChange = (filterType, value) => {
+    console.log(`🔍 Browse: Filter changed - ${filterType}: ${value}`);
+    
     switch (filterType) {
       case "type":
         setSelectedType(value);
+        // Reset breed when type changes
+        if (value !== selectedType) {
+          setSelectedBreed("");
+        }
         break;
       case "breed":
         setSelectedBreed(value);
@@ -192,12 +192,14 @@ const Browse = () => {
         setSelectedSize(value);
         break;
       default:
+        console.warn(`Unknown filter type: ${filterType}`);
         break;
     }
   };
 
   // Clear all filters
   const clearFilters = () => {
+    console.log('🔍 Browse: Clearing all filters');
     setSearchTerm("");
     setSelectedType("");
     setSelectedBreed("");
@@ -209,6 +211,7 @@ const Browse = () => {
 
   // Handle retry
   const handleRetry = () => {
+    console.log('🔍 Browse: Retry button clicked');
     fetchPets();
   };
 
@@ -325,66 +328,64 @@ const Browse = () => {
                     </Form.Group>
                   </Col>
                 </Row>
-
-                {/* Active Filters Display */}
-                {activeFilters.length > 0 && (
-                  <div className="mt-3">
-                    <div className="d-flex flex-wrap align-items-center gap-2">
-                      <small className="text-muted">Active filters:</small>
-                      {activeFilters.map((filter, index) => (
-                        <Badge key={index} bg="secondary" className="me-1">
-                          {filter}
-                        </Badge>
-                      ))}
-                      <Button
-                        variant="outline-danger"
-                        size="sm"
-                        onClick={clearFilters}
-                      >
-                        <i className="fas fa-times me-1"></i>
-                        Clear All
-                      </Button>
-                    </div>
-                  </div>
-                )}
+                <div className="mt-3">
+                  <Button variant="outline-secondary" onClick={clearFilters}>
+                    <i className="fas fa-times me-2"></i>
+                    Clear All Filters
+                  </Button>
+                </div>
               </Card.Body>
             </Card>
           )}
 
-          {/* Results Section */}
+          {/* Active Filters Display */}
+          {activeFilters.length > 0 && (
+            <div className="mb-3">
+              <h6>Active Filters:</h6>
+              <div className="d-flex flex-wrap gap-2">
+                {activeFilters.map((filter, index) => (
+                  <Badge key={index} bg="primary" className="px-2 py-1">
+                    {filter}
+                  </Badge>
+                ))}
+                <Button
+                  variant="outline-secondary"
+                  size="sm"
+                  onClick={clearFilters}
+                >
+                  <i className="fas fa-times me-1"></i>
+                  Clear All
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Content */}
           <Row>
             <Col>
-              {/* Loading State */}
-              {loading && (
+              {loading ? (
                 <div className="text-center py-5">
-                  <Spinner
-                    animation="border"
-                    size="lg"
-                    className="text-primary mb-3"
-                  />
-                  <p className="text-muted">Loading pets...</p>
+                  <Spinner animation="border" role="status" className="mb-3">
+                    <span className="visually-hidden">Loading...</span>
+                  </Spinner>
+                  <h5>Loading pets...</h5>
                 </div>
-              )}
-
-              {/* Error State */}
-              {error && !loading && (
+              ) : error ? (
                 <Alert variant="danger" className="text-center">
-                  <i className="fas fa-exclamation-triangle me-2"></i>
-                  <strong>Error: </strong>
-                  {error}
-                  <div className="mt-3">
-                    <Button variant="outline-danger" onClick={handleRetry}>
-                      Try Again
-                    </Button>
-                  </div>
+                  <Alert.Heading>
+                    <i className="fas fa-exclamation-triangle me-2"></i>
+                    Error Loading Pets
+                  </Alert.Heading>
+                  <p>{error}</p>
+                  <Button variant="outline-danger" onClick={handleRetry}>
+                    <i className="fas fa-redo me-2"></i>
+                    Try Again
+                  </Button>
                 </Alert>
-              )}
-
-              {/* Results */}
-              {!loading && !error && (
+              ) : (
                 <>
-                  {/* Results Summary */}
-                  <div className="d-flex justify-content-between align-items-center mb-3">
+                  {/* Results Header */}
+                  <div className="d-flex justify-content-between align-items-center mb-4">
                     <h3 className="h5 mb-0">
                       {pets.length} {pets.length === 1 ? "Pet" : "Pets"} Found
                     </h3>
@@ -404,7 +405,7 @@ const Browse = () => {
                   {pets.length > 0 ? (
                     <Row>
                       {pets.map((pet) => {
-                        console.log(`🐾 Browse: Rendering pet: ${pet.name} with SafeImage`);
+                        console.log(`🐾 Browse: Rendering pet: ${pet.name}`);
                         return (
                           <Col
                             key={pet._id}
