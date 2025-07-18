@@ -1,4 +1,4 @@
-// client/src/pages/admin/AdminPets.js - USING SHARED ADMIN API
+// client/src/pages/admin/AdminPets.js - ENHANCED WITH WAKE-UP HANDLING
 import React, { useState, useEffect, useCallback } from "react";
 import {
   Row,
@@ -9,15 +9,17 @@ import {
   Modal,
   Alert,
   Badge,
-  Spinner
+  Spinner,
+  ProgressBar
 } from "react-bootstrap";
 import DataTable from "../../components/DataTable";
-// ✅ UPDATED: Use shared admin API service
+// ✅ UPDATED: Use enhanced admin API service
 import adminAPI, { adminHelpers } from "../../services/adminAPI";
 
 const AdminPets = () => {
   const [pets, setPets] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMessage, setLoadingMessage] = useState('Loading pets...');
   const [pagination, setPagination] = useState({});
   const [filters, setFilters] = useState({
     search: "",
@@ -31,10 +33,14 @@ const AdminPets = () => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deletingPet, setDeletingPet] = useState(null);
   const [alert, setAlert] = useState({ show: false, message: "", variant: "" });
+  const [retryCount, setRetryCount] = useState(0);
 
   const fetchPets = useCallback(
     async (page = 1) => {
       setLoading(true);
+      setLoadingMessage('Loading pets...');
+      setRetryCount(0);
+      
       try {
         console.log('🐾 Fetching admin pets...');
         
@@ -44,7 +50,19 @@ const AdminPets = () => {
           ...filters,
         });
 
-        // ✅ FIXED: Use shared admin API
+        // ✅ ENHANCED: Monitor retry attempts
+        const originalRetry = adminAPI.getAllPets;
+        let currentRetry = 0;
+        
+        adminAPI.getAllPets = async (params) => {
+          if (currentRetry > 0) {
+            setLoadingMessage(`Waking up backend... (attempt ${currentRetry + 1})`);
+            setRetryCount(currentRetry);
+          }
+          currentRetry++;
+          return originalRetry(params);
+        };
+
         const response = await adminAPI.getAllPets(params);
         const data = adminHelpers.handleResponse(response);
         
@@ -52,11 +70,25 @@ const AdminPets = () => {
         setPagination(adminHelpers.getPaginationInfo(response));
         console.log('✅ Admin pets loaded:', data.data?.length || 0, 'pets');
         
+        // Reset loading message
+        setLoadingMessage('Loading pets...');
+        setRetryCount(0);
+        
       } catch (error) {
         const errorMessage = adminHelpers.handleError(error, "Error fetching pets");
-        showAlert(errorMessage, "danger");
+        
+        if (adminHelpers.isTimeoutError(error)) {
+          showAlert(
+            "The server is taking longer than usual to respond. This is normal for free hosting - please wait a moment and try again.",
+            "warning"
+          );
+        } else {
+          showAlert(errorMessage, "danger");
+        }
       } finally {
         setLoading(false);
+        setLoadingMessage('Loading pets...');
+        setRetryCount(0);
       }
     },
     [filters]
@@ -66,7 +98,6 @@ const AdminPets = () => {
     try {
       console.log('📊 Fetching dashboard data...');
       
-      // ✅ FIXED: Use shared admin API
       const response = await adminAPI.getDashboard();
       const data = adminHelpers.handleResponse(response);
       
@@ -75,10 +106,31 @@ const AdminPets = () => {
       
     } catch (error) {
       const errorMessage = adminHelpers.handleError(error, "Error fetching dashboard data");
-      showAlert(errorMessage, "warning");
+      
+      if (!adminHelpers.isTimeoutError(error)) {
+        showAlert(errorMessage, "warning");
+      }
       return null;
     }
   }, []);
+
+  // ✅ NEW: Manual wake-up function
+  const handleWakeUp = async () => {
+    try {
+      setLoading(true);
+      setLoadingMessage('Waking up backend server...');
+      
+      await adminAPI.wakeUp();
+      
+      setLoadingMessage('Backend awake! Loading pets...');
+      await fetchPets();
+      
+    } catch (error) {
+      console.error('Wake-up failed:', error);
+      showAlert('Failed to wake up the server. Please try again.', 'danger');
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     // Load both pets and dashboard data
@@ -93,10 +145,11 @@ const AdminPets = () => {
       variant 
     });
     
-    // Auto-hide alert after 5 seconds
+    // Auto-hide alert after 10 seconds for warnings, 5 for others
+    const timeout = variant === 'warning' ? 10000 : 5000;
     setTimeout(() => {
       setAlert({ show: false, message: "", variant: "" });
-    }, 5000);
+    }, timeout);
   };
 
   const handleEditPet = (pet) => {
@@ -115,7 +168,6 @@ const AdminPets = () => {
     try {
       console.log('🗑️ Deleting pet:', deletingPet._id);
       
-      // ✅ FIXED: Use shared admin API
       const response = await adminAPI.deletePet(deletingPet._id);
       adminHelpers.handleResponse(response);
       
@@ -137,7 +189,6 @@ const AdminPets = () => {
     try {
       console.log('✏️ Updating pet:', editingPet._id);
       
-      // ✅ FIXED: Use shared admin API
       const response = await adminAPI.updatePet(editingPet._id, updatedPetData);
       adminHelpers.handleResponse(response);
       
@@ -157,28 +208,10 @@ const AdminPets = () => {
     setFilters(prev => ({ ...prev, ...newFilters }));
   };
 
-  const handleCreatePet = async (petData) => {
-    try {
-      console.log('➕ Creating new pet...');
-      
-      // ✅ FIXED: Use shared admin API
-      const response = await adminAPI.createPet(petData);
-      adminHelpers.handleResponse(response);
-      
-      showAlert("Pet created successfully", "success");
-      fetchPets(); // Refresh the list
-      
-    } catch (error) {
-      const errorMessage = adminHelpers.handleError(error, "Error creating pet");
-      showAlert(errorMessage, "danger");
-    }
-  };
-
-  const handleAdoptPet = async (petId, userId) => {
+  const handleAdoptPet = async (petId, userId = 'admin') => {
     try {
       console.log('❤️ Marking pet as adopted:', petId);
       
-      // ✅ FIXED: Use shared admin API
       const response = await adminAPI.adoptPet(petId, userId);
       adminHelpers.handleResponse(response);
       
@@ -252,7 +285,7 @@ const AdminPets = () => {
               variant="outline-success" 
               size="sm"
               className="ms-2"
-              onClick={() => handleAdoptPet(pet._id, 'admin')}
+              onClick={() => handleAdoptPet(pet._id)}
             >
               Mark Adopted
             </Button>
@@ -262,11 +295,37 @@ const AdminPets = () => {
     }
   ];
 
+  // ✅ ENHANCED: Better loading state with wake-up progress
   if (loading) {
     return (
-      <div className="d-flex justify-content-center align-items-center" style={{ height: '50vh' }}>
+      <div className="d-flex flex-column justify-content-center align-items-center" style={{ height: '50vh' }}>
         <Spinner animation="border" variant="primary" />
-        <span className="ms-2">Loading pets...</span>
+        <span className="ms-2 mt-3">{loadingMessage}</span>
+        
+        {retryCount > 0 && (
+          <div className="mt-3 text-center" style={{ width: '300px' }}>
+            <small className="text-muted">
+              Backend is sleeping on free hosting. Waking it up...
+            </small>
+            <ProgressBar 
+              animated 
+              now={Math.min((retryCount / 2) * 100, 100)} 
+              className="mt-2"
+              style={{ height: '8px' }}
+            />
+          </div>
+        )}
+        
+        {retryCount === 0 && (
+          <Button 
+            variant="outline-primary" 
+            size="sm" 
+            className="mt-3"
+            onClick={handleWakeUp}
+          >
+            Wake Up Server
+          </Button>
+        )}
       </div>
     );
   }
@@ -282,7 +341,6 @@ const AdminPets = () => {
           <Button 
             variant="primary"
             onClick={() => {
-              // You can implement a create pet modal here
               console.log('Create new pet clicked');
             }}
           >
@@ -294,6 +352,17 @@ const AdminPets = () => {
       {alert.show && (
         <Alert variant={alert.variant} dismissible onClose={() => setAlert({ show: false })}>
           {alert.message}
+          {alert.variant === 'warning' && adminHelpers.isTimeoutError({ message: alert.message }) && (
+            <div className="mt-2">
+              <Button 
+                variant="outline-warning" 
+                size="sm"
+                onClick={handleWakeUp}
+              >
+                Wake Up Server
+              </Button>
+            </div>
+          )}
         </Alert>
       )}
 
@@ -347,7 +416,7 @@ const AdminPets = () => {
               <p className="text-muted">No pets found matching your criteria.</p>
               <Button 
                 variant="primary"
-                onClick={() => handleCreatePet({})}
+                onClick={() => console.log('Add first pet')}
               >
                 Add First Pet
               </Button>
