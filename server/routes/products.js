@@ -1,69 +1,116 @@
-// server/routes/products.js - FIXED VERSION - Resolves MongoDB aggregation error
-
+// server/routes/products.js - FIXED to support custom product IDs
 const express = require("express");
 const router = express.Router();
 const mongoose = require("mongoose");
 const Product = require("../models/Product");
 const { protect, admin, optionalAuth } = require("../middleware/auth");
 
-// ===== VALIDATION FUNCTIONS =====
-const validateObjectId = (req, res, next) => {
-  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-    return res.status(400).json({ success: false, message: "Invalid ID format" });
+// ⭐ FIXED: Product ID validation for custom string IDs
+const validateProductId = (req, res, next) => {
+  const { id } = req.params;
+  
+  if (!id || id.trim() === '') {
+    return res.status(400).json({
+      success: false,
+      message: 'Product ID is required',
+      error: 'MISSING_ID'
+    });
   }
+
+  // Accept both MongoDB ObjectIds AND custom product IDs
+  const isValidObjectId = mongoose.Types.ObjectId.isValid(id);
+  const isCustomProductId = /^prod\d{3}$/.test(id) || /^p\d{3}$/.test(id); // Supports prod001 or p001 format
+  
+  if (!isValidObjectId && !isCustomProductId) {
+    return res.status(400).json({
+      success: false,
+      message: 'Invalid product ID format',
+      error: 'INVALID_ID_FORMAT',
+      received: id,
+      expected: 'Either a MongoDB ObjectId or custom product ID (prod001, p001, etc.)',
+      examples: ['prod001', 'p001', '507f1f77bcf86cd799439011']
+    });
+  }
+
+  console.log(`✅ Product ID validation passed: ${id} (${isCustomProductId ? 'custom' : 'ObjectId'})`);
   next();
 };
 
 const validateProductData = (req, res, next) => {
   const { name, price, category } = req.body;
   if (!name || !price || !category) {
-    return res.status(400).json({ success: false, message: "Name, price, and category are required" });
+    return res.status(400).json({ 
+      success: false, 
+      message: "Name, price, and category are required" 
+    });
   }
   if (isNaN(price) || price < 0) {
-    return res.status(400).json({ success: false, message: "Price must be a valid positive number" });
+    return res.status(400).json({ 
+      success: false, 
+      message: "Price must be a valid positive number" 
+    });
   }
   next();
 };
 
-// ===== UTILITY FUNCTIONS =====
+// ⭐ ENHANCED: Utility function to enrich product data
 const addProductFields = (product) => ({
   ...product,
   displayName: product.name || 'Unnamed Product',
-  imageUrl: product.image ? `https://storage.googleapis.com/furbabies-petstore/${product.image}` : null,
+  imageUrl: product.image ? 
+    `https://storage.googleapis.com/furbabies-petstore/${product.image}` : null,
   fallbackImageUrl: '/api/images/fallback/product',
-  priceDisplay: typeof product.price === 'number' ? `$${product.price.toFixed(2)}` : 'Price not available',
+  priceDisplay: typeof product.price === 'number' ? 
+    `$${product.price.toFixed(2)}` : 'Price not available',
   categoryDisplay: product.category || 'Uncategorized',
-  inStockDisplay: product.inStock !== false ? 'In Stock' : 'Out of Stock'
+  inStockDisplay: product.inStock !== false ? 'In Stock' : 'Out of Stock',
+  hasImage: !!product.image,
+  isAvailable: product.inStock !== false
 });
 
-// ============================================
-// FEATURED PRODUCTS ROUTE - FIXED VERSION
-// ============================================
-router.get("/featured", async (req, res) => {
+// ⭐ Get featured products
+router.get('/featured', async (req, res) => {
   try {
+    console.log('🛒 GET /api/products/featured - Fetching featured products');
+    
     const limit = parseInt(req.query.limit) || 4;
-    console.log(`🛒 GET /api/products/featured - Limit: ${limit}`);
-
-    // ✅ FIXED: Simple aggregation without problematic $addFields
+    
     const featuredProducts = await Product.aggregate([
-      { $match: { inStock: true } },
-      { $sample: { size: limit } }
+      { 
+        $match: { 
+          featured: true, 
+          inStock: { $ne: false }
+        } 
+      },
+      { $sample: { size: limit } },
+      {
+        $addFields: {
+          imageUrl: {
+            $cond: {
+              if: { $ne: ["$image", null] },
+              then: { $concat: ["https://storage.googleapis.com/furbabies-petstore/", "$image"] },
+              else: null
+            }
+          },
+          hasImage: { $ne: ["$image", null] },
+          displayName: { $ifNull: ["$name", "Unnamed Product"] },
+          priceDisplay: { 
+            $concat: ["$", { $toString: "$price" }]
+          }
+        }
+      }
     ]);
 
-    // ✅ FIXED: Add fields using JavaScript instead of MongoDB aggregation
-    const enrichedProducts = featuredProducts.map(addProductFields);
-
-    console.log(`🛒 Returning ${enrichedProducts.length} random featured products`);
+    console.log(`🛒 Returning ${featuredProducts.length} featured products`);
     
     res.json({
       success: true,
-      data: enrichedProducts,
-      count: enrichedProducts.length,
-      message: `${enrichedProducts.length} featured products selected randomly`
+      data: featuredProducts,
+      count: featuredProducts.length
     });
 
   } catch (error) {
-    console.error('❌ Error fetching random featured products:', error);
+    console.error('❌ Error fetching featured products:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching featured products',
@@ -72,203 +119,101 @@ router.get("/featured", async (req, res) => {
   }
 });
 
-// ============================================
-// METADATA ROUTES (Must come before /:id route)
-// ============================================
-
-// @desc Get product categories
-router.get("/meta/categories", async (req, res) => {
+// ⭐ Get all products with filtering
+router.get('/', async (req, res) => {
   try {
-    console.log('🛒 GET /products/meta/categories');
-    
-    const categories = await Product.distinct("category");
-    const categoriesWithCount = await Promise.all(
-      categories.map(async (category) => {
-        const count = await Product.countDocuments({ category });
-        return { name: category, count };
-      })
-    );
+    console.log('🛒 GET /api/products - Query params:', req.query);
 
-    console.log('🛒 Found categories:', categoriesWithCount.length);
-    
-    res.json({
-      success: true,
-      data: categoriesWithCount.filter(cat => cat.count > 0).sort((a, b) => a.name.localeCompare(b.name))
-    });
-  } catch (error) {
-    console.error("❌ Error fetching categories:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch categories",
-      error: error.message
-    });
-  }
-});
+    const query = { inStock: { $ne: false } }; // Only show in-stock products by default
 
-// @desc Get product brands
-router.get("/meta/brands", async (req, res) => {
-  try {
-    console.log('🛒 GET /products/meta/brands');
-    
-    const brands = await Product.distinct("brand");
-    const brandsWithCount = await Promise.all(
-      brands.map(async (brand) => {
-        const count = await Product.countDocuments({ brand });
-        return { name: brand, count };
-      })
-    );
-
-    console.log('🛒 Found brands:', brandsWithCount.length);
-    
-    res.json({
-      success: true,
-      data: brandsWithCount.filter(brand => brand.count > 0).sort((a, b) => a.name.localeCompare(b.name))
-    });
-  } catch (error) {
-    console.error("❌ Error fetching brands:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch brands",
-      error: error.message
-    });
-  }
-});
-
-// ============================================
-// GET ALL PRODUCTS WITH ADVANCED FILTERING
-// ============================================
-router.get("/", async (req, res) => {
-  try {
-    console.log('🛒 GET /products - Query params:', req.query);
-
-    // Build query object
-    const query = {};
-
-    // Category filter
+    // Apply filters
     if (req.query.category && req.query.category !== 'all') {
       query.category = req.query.category;
-      console.log('🛒 Filtering by category:', req.query.category);
     }
 
-    // Brand filter (case-insensitive)
     if (req.query.brand && req.query.brand !== 'all') {
-      query.brand = { $regex: req.query.brand, $options: "i" };
-      console.log('🛒 Filtering by brand:', req.query.brand);
+      query.brand = new RegExp(req.query.brand, 'i');
     }
 
-    // In-stock filter
-    if (req.query.inStock && req.query.inStock !== 'all') {
-      query.inStock = req.query.inStock === 'true';
-      console.log('🛒 Filtering by stock status:', req.query.inStock);
+    if (req.query.featured === 'true') {
+      query.featured = true;
     }
 
-    // Featured filter
-    if (req.query.featured && req.query.featured !== 'all') {
-      query.featured = req.query.featured === 'true';
-      console.log('🛒 Filtering by featured status:', req.query.featured);
-    }
-
-    // Search filter
     if (req.query.search) {
+      const searchRegex = new RegExp(req.query.search, 'i');
       query.$or = [
-        { name: { $regex: req.query.search, $options: "i" } },
-        { description: { $regex: req.query.search, $options: "i" } },
-        { category: { $regex: req.query.search, $options: "i" } },
-        { brand: { $regex: req.query.search, $options: "i" } }
+        { name: searchRegex },
+        { brand: searchRegex },
+        { description: searchRegex },
+        { category: searchRegex }
       ];
-      console.log('🛒 Searching for:', req.query.search);
     }
 
-    // Price range filter
-    if (req.query.minPrice || req.query.maxPrice) {
-      query.price = {};
-      if (req.query.minPrice) query.price.$gte = parseFloat(req.query.minPrice);
-      if (req.query.maxPrice) query.price.$lte = parseFloat(req.query.maxPrice);
-      console.log('🛒 Price range filter:', query.price);
+    if (req.query.minPrice) {
+      query.price = { ...query.price, $gte: parseFloat(req.query.minPrice) };
+    }
+
+    if (req.query.maxPrice) {
+      query.price = { ...query.price, $lte: parseFloat(req.query.maxPrice) };
+    }
+
+    if (req.query.inStock === 'false') {
+      query.inStock = false;
+    } else if (req.query.inStock === 'true') {
+      query.inStock = { $ne: false };
     }
 
     // Pagination
     const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 20;
+    const limit = Math.min(parseInt(req.query.limit) || 20, 100);
     const skip = (page - 1) * limit;
 
     // Sorting
-    let sortOptions = { createdAt: -1 };
-    switch (req.query.sort) {
+    let sortObj = {};
+    switch (req.query.sort || 'newest') {
       case 'newest':
-        sortOptions = { createdAt: -1 };
+        sortObj = { createdAt: -1 };
         break;
       case 'oldest':
-        sortOptions = { createdAt: 1 };
+        sortObj = { createdAt: 1 };
         break;
-      case 'name':
-        sortOptions = { name: 1 };
+      case 'price_asc':
+        sortObj = { price: 1 };
         break;
-      case 'price-low':
-        sortOptions = { price: 1 };
+      case 'price_desc':
+        sortObj = { price: -1 };
         break;
-      case 'price-high':
-        sortOptions = { price: -1 };
+      case 'name_asc':
+        sortObj = { name: 1 };
         break;
-      case 'featured':
-        sortOptions = { featured: -1, createdAt: -1 };
+      case 'name_desc':
+        sortObj = { name: -1 };
         break;
-      case 'category':
-        sortOptions = { category: 1, name: 1 };
-        break;
-      case 'random':
-        // For random sorting, we'll use aggregation pipeline
-        break;
+      default:
+        sortObj = { createdAt: -1 };
     }
 
-    let products;
-    let total;
+    const total = await Product.countDocuments(query);
+    const products = await Product.find(query)
+      .sort(sortObj)
+      .skip(skip)
+      .limit(limit)
+      .lean();
 
-    if (req.query.sort === 'random') {
-      // ✅ FIXED: Use simple aggregation for random sorting
-      const pipeline = [
-        { $match: query },
-        { $sample: { size: limit } }
-      ];
-      
-      products = await Product.aggregate(pipeline);
-      total = await Product.countDocuments(query);
-      
-      // ✅ FIXED: Add computed fields using JavaScript
-      products = products.map(addProductFields);
-    } else {
-      // Regular query with sorting
-      total = await Product.countDocuments(query);
-      
-      const dbProducts = await Product.find(query)
-        .sort(sortOptions)
-        .limit(limit)
-        .skip(skip)
-        .lean();
-
-      // ✅ FIXED: Add computed fields using JavaScript
-      products = dbProducts.map(addProductFields);
-    }
+    // Enrich product data
+    const enrichedProducts = products.map(addProductFields);
 
     console.log(`🛒 Found ${products.length} products (Total: ${total})`);
 
     res.json({
       success: true,
-      data: products,
+      data: enrichedProducts,
       pagination: {
         total,
         page,
         limit,
         pages: Math.ceil(total / limit),
         hasMore: skip + products.length < total
-      },
-      filters: {
-        category: req.query.category || 'all',
-        brand: req.query.brand || 'all',
-        inStock: req.query.inStock || 'all',
-        search: req.query.search || '',
-        sort: req.query.sort || 'newest',
-        featured: req.query.featured || 'all'
       }
     });
 
@@ -282,55 +227,134 @@ router.get("/", async (req, res) => {
   }
 });
 
-// ============================================
-// GET SINGLE PRODUCT BY ID
-// ============================================
-router.get('/:id', validateObjectId, async (req, res) => {
+// ⭐ MAIN FIX: Get single product by ID - handles custom IDs
+router.get('/:id', validateProductId, async (req, res) => {
   try {
     console.log('🛒 GET /api/products/:id - Product ID:', req.params.id);
     
-    const product = await Product.findById(req.params.id).lean();
+    let product;
     
+    try {
+      // Try findOne first for custom string IDs
+      product = await Product.findOne({ _id: req.params.id }).lean();
+    } catch (queryError) {
+      console.log('⚠️ findOne failed, trying findById:', queryError.message);
+      
+      // Fallback to findById for ObjectIds
+      if (mongoose.Types.ObjectId.isValid(req.params.id)) {
+        try {
+          product = await Product.findById(req.params.id).lean();
+        } catch (findByIdError) {
+          console.error('❌ findById also failed:', findByIdError.message);
+        }
+      }
+      
+      // Final fallback - direct collection query
+      if (!product) {
+        try {
+          product = await Product.collection.findOne({ _id: req.params.id });
+        } catch (collectionError) {
+          console.error('❌ Collection query failed:', collectionError.message);
+        }
+      }
+    }
+
     if (!product) {
-      console.log('🛒 Product not found');
+      console.log('🛒 Product not found for ID:', req.params.id);
       return res.status(404).json({
         success: false,
-        message: "Product not found"
+        message: "Product not found",
+        error: 'PRODUCT_NOT_FOUND',
+        productId: req.params.id,
+        suggestion: 'This product may no longer be available'
       });
     }
 
-    // ✅ FIXED: Add computed fields using JavaScript
-    const enrichedProduct = addProductFields(product);
+    // ✅ COMPREHENSIVE: Return ALL product data with enrichment
+    const enrichedProduct = {
+      // Core identification
+      _id: product._id,
+      name: product.name,
+      
+      // Categorization
+      category: product.category,
+      brand: product.brand,
+      
+      // Pricing and availability
+      price: product.price,
+      inStock: product.inStock,
+      featured: product.featured,
+      
+      // Description and details
+      description: product.description,
+      
+      // Images
+      image: product.image,
+      imageUrl: product.image ? 
+        `https://storage.googleapis.com/furbabies-petstore/${product.image}` : null,
+      imagePublicId: product.imagePublicId,
+      hasImage: !!product.image,
+      
+      // Engagement metrics
+      views: product.views || 0,
+      
+      // Creation info
+      createdBy: product.createdBy,
+      createdAt: product.createdAt,
+      updatedAt: product.updatedAt,
+      
+      // Computed fields
+      displayName: product.name || 'Unnamed Product',
+      priceDisplay: typeof product.price === 'number' ? 
+        `$${product.price.toFixed(2)}` : 'Price not available',
+      categoryDisplay: product.category || 'Uncategorized',
+      inStockDisplay: product.inStock !== false ? 'In Stock' : 'Out of Stock',
+      isAvailable: product.inStock !== false,
+      daysSincePosted: product.createdAt ? 
+        Math.floor((new Date() - new Date(product.createdAt)) / (1000 * 60 * 60 * 24)) : 0
+    };
 
     // Increment views
-    await Product.updateOne({ _id: req.params.id }, { $inc: { views: 1 } });
+    try {
+      if (mongoose.Types.ObjectId.isValid(req.params.id)) {
+        await Product.updateOne({ _id: req.params.id }, { $inc: { views: 1 } });
+      } else {
+        await Product.collection.updateOne({ _id: req.params.id }, { $inc: { views: 1 } });
+      }
+    } catch (viewError) {
+      console.log('⚠️ Could not increment views:', viewError.message);
+    }
 
-    console.log('🛒 Product found:', enrichedProduct.displayName);
+    console.log('✅ Product found and enriched:', product.name, '(ID:', req.params.id + ')');
     
     res.json({
       success: true,
-      data: enrichedProduct
+      data: enrichedProduct,
+      message: `Product details for ${product.name}`
     });
+
   } catch (error) {
     console.error("❌ Error fetching product:", error);
     res.status(500).json({
       success: false,
-      message: "Failed to fetch product",
-      error: error.message
+      message: "Failed to fetch product details",
+      error: error.message,
+      productId: req.params.id,
+      suggestion: 'This might be a temporary server issue. Please try again.',
+      timestamp: new Date().toISOString()
     });
   }
 });
 
-// ============================================
-// PROTECTED ROUTES (Admin only)
-// ============================================
-
-// Create new product
+// ⭐ PROTECTED ROUTES (Admin only)
 router.post('/', protect, admin, validateProductData, async (req, res) => {
   try {
     console.log('🛒 POST /products - Creating new product');
     
-    const product = new Product(req.body);
+    const product = new Product({
+      ...req.body,
+      createdBy: req.user._id
+    });
     await product.save();
     
     const enrichedProduct = addProductFields(product.toObject());
@@ -350,16 +374,27 @@ router.post('/', protect, admin, validateProductData, async (req, res) => {
   }
 });
 
-// Update product
-router.put('/:id', protect, admin, validateObjectId, validateProductData, async (req, res) => {
+router.put('/:id', protect, admin, validateProductId, validateProductData, async (req, res) => {
   try {
     console.log('🛒 PUT /products/:id - Updating product:', req.params.id);
     
-    const product = await Product.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      { new: true, runValidators: true }
-    ).lean();
+    let product;
+    
+    try {
+      product = await Product.findOneAndUpdate(
+        { _id: req.params.id },
+        { ...req.body, updatedBy: req.user._id },
+        { new: true, runValidators: true }
+      ).lean();
+    } catch (updateError) {
+      if (mongoose.Types.ObjectId.isValid(req.params.id)) {
+        product = await Product.findByIdAndUpdate(
+          req.params.id,
+          { ...req.body, updatedBy: req.user._id },
+          { new: true, runValidators: true }
+        ).lean();
+      }
+    }
     
     if (!product) {
       return res.status(404).json({
@@ -385,12 +420,19 @@ router.put('/:id', protect, admin, validateObjectId, validateProductData, async 
   }
 });
 
-// Delete product
-router.delete('/:id', protect, admin, validateObjectId, async (req, res) => {
+router.delete('/:id', protect, admin, validateProductId, async (req, res) => {
   try {
     console.log('🛒 DELETE /products/:id - Deleting product:', req.params.id);
     
-    const product = await Product.findByIdAndDelete(req.params.id);
+    let product;
+    
+    try {
+      product = await Product.findOneAndDelete({ _id: req.params.id });
+    } catch (deleteError) {
+      if (mongoose.Types.ObjectId.isValid(req.params.id)) {
+        product = await Product.findByIdAndDelete(req.params.id);
+      }
+    }
     
     if (!product) {
       return res.status(404).json({

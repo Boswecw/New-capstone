@@ -1,4 +1,4 @@
-// server/middleware/validation.js - UPDATED to support custom pet IDs
+// server/middleware/validation.js - UPDATED to support both pet and product custom IDs
 const { body, param, query, validationResult } = require("express-validator");
 const mongoose = require('mongoose');
 
@@ -188,6 +188,97 @@ const validatePetUpdate = [
   handleValidationErrors,
 ];
 
+// ✅ UPDATED: Product validation rules
+const validateProductCreation = [
+  body("name")
+    .trim()
+    .isLength({ min: 1, max: 100 })
+    .withMessage("Product name must be between 1 and 100 characters"),
+
+  body("category")
+    .isIn([
+      "food",
+      "toys", 
+      "accessories",
+      "health",
+      "grooming",
+      "bedding",
+      "other"
+    ])
+    .withMessage(
+      "Category must be one of: food, toys, accessories, health, grooming, bedding, other"
+    ),
+
+  body("brand")
+    .trim()
+    .isLength({ min: 1, max: 50 })
+    .withMessage("Brand must be between 1 and 50 characters"),
+
+  body("price")
+    .isFloat({ min: 0 })
+    .withMessage("Price must be a positive number"),
+
+  body("description")
+    .optional()
+    .trim()
+    .isLength({ max: 500 })
+    .withMessage("Description cannot exceed 500 characters"),
+
+  body("inStock")
+    .optional()
+    .isBoolean()
+    .withMessage("inStock must be a boolean"),
+
+  handleValidationErrors,
+];
+
+const validateProductUpdate = [
+  body("name")
+    .optional()
+    .trim()
+    .isLength({ min: 1, max: 100 })
+    .withMessage("Product name must be between 1 and 100 characters"),
+
+  body("category")
+    .optional()
+    .isIn([
+      "food",
+      "toys", 
+      "accessories",
+      "health",
+      "grooming",
+      "bedding",
+      "other"
+    ])
+    .withMessage(
+      "Category must be one of: food, toys, accessories, health, grooming, bedding, other"
+    ),
+
+  body("brand")
+    .optional()
+    .trim()
+    .isLength({ min: 1, max: 50 })
+    .withMessage("Brand must be between 1 and 50 characters"),
+
+  body("price")
+    .optional()
+    .isFloat({ min: 0 })
+    .withMessage("Price must be a positive number"),
+
+  body("description")
+    .optional()
+    .trim()
+    .isLength({ max: 500 })
+    .withMessage("Description cannot exceed 500 characters"),
+
+  body("inStock")
+    .optional()
+    .isBoolean()
+    .withMessage("inStock must be a boolean"),
+
+  handleValidationErrors,
+];
+
 // Contact validation rules
 const validateContactSubmission = [
   body("name")
@@ -235,7 +326,28 @@ const validatePetId = [
   handleValidationErrors,
 ];
 
-// Standard MongoDB ObjectId validation (for users, products, etc.)
+// ✅ NEW: Product ID validation that accepts both MongoDB ObjectIds AND custom product IDs
+const validateProductId = [
+  param("id")
+    .notEmpty()
+    .withMessage("Product ID is required")
+    .custom((value) => {
+      const isValidObjectId = mongoose.Types.ObjectId.isValid(value);
+      const isCustomProductId = /^(prod|p)\d{3}$/.test(value); // Matches prod001, p001, etc.
+      
+      if (!isValidObjectId && !isCustomProductId) {
+        throw new Error(
+          `Invalid product ID format. Expected MongoDB ObjectId or custom format like prod001, p001. Received: ${value}`
+        );
+      }
+      
+      return true;
+    }),
+
+  handleValidationErrors,
+];
+
+// Standard MongoDB ObjectId validation (for users, etc.)
 const validateObjectId = [
   param("id").isMongoId().withMessage("Invalid ID format - must be a valid MongoDB ObjectId"),
 
@@ -248,7 +360,7 @@ const validateUserId = [
   handleValidationErrors,
 ];
 
-// Query validation
+// Query validation for pets
 const validatePetQuery = [
   query("category")
     .optional()
@@ -280,6 +392,52 @@ const validatePetQuery = [
     .optional()
     .isIn(["small", "medium", "large", "extra-large"])
     .withMessage("Size must be small, medium, large, or extra-large"),
+
+  query("limit")
+    .optional()
+    .isInt({ min: 1, max: 100 })
+    .withMessage("Limit must be between 1 and 100"),
+
+  query("page")
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage("Page must be a positive number"),
+
+  handleValidationErrors,
+];
+
+// ✅ NEW: Query validation for products
+const validateProductQuery = [
+  query("category")
+    .optional()
+    .isIn(["food", "toys", "accessories", "health", "grooming", "bedding", "other", "all"])
+    .withMessage("Category must be food, toys, accessories, health, grooming, bedding, other, or all"),
+
+  query("brand")
+    .optional()
+    .trim()
+    .isLength({ min: 1, max: 50 })
+    .withMessage("Brand must be between 1 and 50 characters"),
+
+  query("minPrice")
+    .optional()
+    .isFloat({ min: 0 })
+    .withMessage("Minimum price must be a positive number"),
+
+  query("maxPrice")
+    .optional()
+    .isFloat({ min: 0 })
+    .withMessage("Maximum price must be a positive number"),
+
+  query("inStock")
+    .optional()
+    .isIn(["true", "false", "all"])
+    .withMessage("inStock must be true, false, or all"),
+
+  query("featured")
+    .optional()
+    .isIn(["true", "false", "all"])
+    .withMessage("featured must be true, false, or all"),
 
   query("limit")
     .optional()
@@ -338,12 +496,18 @@ module.exports = {
   validatePetUpdate,
   validatePetQuery,
 
+  // ✅ NEW: Product validations
+  validateProductCreation,
+  validateProductUpdate,
+  validateProductQuery,
+
   // Contact validations
   validateContactSubmission,
 
   // Parameter validations
-  validateObjectId,        // ✅ For MongoDB ObjectIds only (users, products, etc.)
-  validatePetId,          // ✅ UPDATED: For pet IDs (accepts both ObjectIds and custom p001, p003, etc.)
+  validateObjectId,        // For MongoDB ObjectIds only (users, etc.)
+  validatePetId,          // For pet IDs (accepts both ObjectIds and custom p001, p003, etc.)
+  validateProductId,      // ✅ NEW: For product IDs (accepts both ObjectIds and custom prod001, p001, etc.)
   validateUserId,
 
   // Utility
