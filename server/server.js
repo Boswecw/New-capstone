@@ -1,4 +1,4 @@
-// server/server.js - UPDATED VERSION with Router Mounting
+// server/server.js - UPDATED VERSION with News Router Mounting
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -24,7 +24,8 @@ const userRoutes = require('./routes/users');
 const contactRoutes = require('./routes/contact');
 const imageRoutes = require('./routes/images');
 const gcsRoutes = require('./routes/gcs');
-const adminRoutes = require('./routes/admin');  // ← ADDED: Admin routes import
+const adminRoutes = require('./routes/admin');
+const newsRoutes = require('./routes/news');  // ← ADDED: News routes import
 
 // ===== SECURITY & MIDDLEWARE =====
 app.use(helmet());
@@ -102,7 +103,7 @@ if (process.env.NODE_ENV !== 'production') {
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// ===== MOUNT ROUTE MODULES (NEW SECTION) =====
+// ===== MOUNT ROUTE MODULES =====
 // These handle the main routes that were causing 404s
 app.use('/api/pets', petRoutes);           // 🎯 THIS FIXES BROWSE PAGE 404!
 app.use('/api/products', productRoutes);   
@@ -110,7 +111,8 @@ app.use('/api/users', userRoutes);
 app.use('/api/contact', contactRoutes);
 app.use('/api/images', imageRoutes);
 app.use('/api/gcs', gcsRoutes);
-app.use('/api/admin', adminRoutes);        // ← ADDED: Mount admin routes
+app.use('/api/admin', adminRoutes);
+app.use('/api/news', newsRoutes);          // ← ADDED: Mount news routes
 
 // ===== DATABASE CONNECTION =====
 const connectDB = async () => {
@@ -187,7 +189,8 @@ app.get('/api/health', async (req, res) => {
       services: {
         imageProxy: 'enabled',
         cors: 'enabled',
-        rateLimit: 'enabled'
+        rateLimit: 'enabled',
+        news: 'enabled'  // ← ADDED: News service indicator
       }
     });
   } catch (error) {
@@ -264,69 +267,9 @@ app.get('/api/products/featured', async (req, res) => {
   }
 });
 
-// ===== FEATURED NEWS ENDPOINT (KEEP FOR HOME PAGE) =====
-app.get('/api/news/featured', async (req, res) => {
-  try {
-    const limit = parseInt(req.query.limit) || 3;
-    console.log('📰 GET /api/news/featured - Mock news data');
-    
-    const mockNews = [
-      {
-        id: '1',
-        title: 'New Pet Adoption Center Opens Downtown',
-        summary: 'A state-of-the-art facility opens downtown to help more pets find loving homes.',
-        category: 'adoption',
-        author: 'FurBabies Team',
-        featured: true,
-        published: true,
-        publishedAt: new Date('2024-12-01'),
-        views: 1250,
-        imageUrl: 'https://images.unsplash.com/photo-1601758228041-f3b2795255f1?w=600&h=400&fit=crop&q=80'
-      },
-      {
-        id: '2',
-        title: 'Holiday Pet Safety Tips',
-        summary: 'Keep your beloved pets safe during the holiday season with these essential safety tips.',
-        category: 'safety', 
-        author: 'Dr. Sarah Johnson',
-        featured: true,
-        published: true,
-        publishedAt: new Date('2024-12-15'),
-        views: 980,
-        imageUrl: 'https://images.unsplash.com/photo-1548767797-d8c844163c4c?w=600&h=400&fit=crop&q=80'
-      },
-      {
-        id: '3',
-        title: 'Success Story: Max Finds His Forever Home',
-        summary: 'Follow Max\'s heartwarming journey from shelter to his loving forever family.',
-        category: 'success-story',
-        author: 'Maria Rodriguez', 
-        featured: true,
-        published: true,
-        publishedAt: new Date('2024-12-10'),
-        views: 1567,
-        imageUrl: 'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=600&h=400&fit=crop&q=80'
-      }
-    ];
-    
-    const selectedNews = mockNews.slice(0, limit);
-    
-    res.json({
-      success: true,
-      data: selectedNews,
-      count: selectedNews.length,
-      message: `${selectedNews.length} featured news items retrieved`
-    });
-
-  } catch (error) {
-    console.error('❌ Error fetching featured news:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching featured news',
-      error: error.message
-    });
-  }
-});
+// ===== REMOVE THE FEATURED NEWS ENDPOINT =====
+// News endpoints are now handled by the news routes
+// The /api/news/featured endpoint will be handled by newsRoutes
 
 // ===== PRODUCTION STATIC FILE SERVING =====
 if (process.env.NODE_ENV === 'production') {
@@ -341,21 +284,29 @@ if (process.env.NODE_ENV === 'production') {
         health: '/api/health',
         featuredPets: '/api/pets/featured?limit=4',
         featuredProducts: '/api/products/featured?limit=4',
-        featuredNews: '/api/news/featured?limit=3',
+        featuredNews: '/api/news/featured?limit=3',  // ← Now handled by news routes
         allPets: '/api/pets',
         allProducts: '/api/products',
+        allNews: '/api/news',                        // ← ADDED: All news endpoint
         contact: 'POST /api/contact',
         images: '/api/images/gcs/{path}',
         storage: '/api/gcs/buckets/{bucket}/images',
-        // ✅ UPDATED: Admin endpoints including products
         admin: {
           dashboard: '/api/admin/dashboard',
           pets: '/api/admin/pets',
-          products: '/api/admin/products',        // ✅ ADDED: Products endpoint
+          products: '/api/admin/products',
           users: '/api/admin/users',
           contacts: '/api/admin/contacts',
           reports: '/api/admin/reports',
           analytics: '/api/admin/analytics'
+        },
+        news: {                                      // ← ADDED: News endpoints documentation
+          featured: '/api/news/featured',
+          all: '/api/news',
+          custom: '/api/news/custom',
+          external: '/api/news/external',
+          categories: '/api/news/categories',
+          health: '/api/news/health'
         }
       },
       documentation: 'https://github.com/Boswecw/furbabies-petstore',
@@ -377,11 +328,11 @@ if (process.env.NODE_ENV === 'production') {
           '/api/pets/featured',
           '/api/pets',
           '/api/products/featured',
-          '/api/news/featured',
-          // ✅ UPDATED: Admin endpoints including products
+          '/api/news/featured',            // ← Now properly routed
+          '/api/news',                     // ← ADDED
           '/api/admin/dashboard',
           '/api/admin/pets',
-          '/api/admin/products',                 // ✅ ADDED: Products endpoint
+          '/api/admin/products',
           '/api/admin/users'
         ],
         timestamp: new Date().toISOString()
@@ -411,21 +362,25 @@ app.use('/api/*', (req, res) => {
       'GET /api/products',
       'GET /api/products/featured?limit=4',
       'GET /api/products/:id',
-      'GET /api/news/featured?limit=3',
+      'GET /api/news',                     // ← ADDED: News endpoints
+      'GET /api/news/featured?limit=3',    // ← ADDED
+      'GET /api/news/custom',              // ← ADDED
+      'GET /api/news/external',            // ← ADDED
+      'GET /api/news/health',              // ← ADDED
+      'GET /api/news/categories',          // ← ADDED
       'POST /api/contact',
       'GET /api/images/gcs/{path}',
       'GET /api/images/health',
-      // ✅ UPDATED: Admin endpoints including products
       'GET /api/admin/dashboard',
       'GET /api/admin/pets',
       'POST /api/admin/pets',
       'PUT /api/admin/pets/:id',
       'DELETE /api/admin/pets/:id',
-      'GET /api/admin/products',               // ✅ ADDED: Products endpoints
-      'POST /api/admin/products',              // ✅ ADDED
-      'PUT /api/admin/products/:id',           // ✅ ADDED
-      'DELETE /api/admin/products/:id',        // ✅ ADDED
-      'GET /api/admin/products/stats',         // ✅ ADDED
+      'GET /api/admin/products',
+      'POST /api/admin/products',
+      'PUT /api/admin/products/:id',
+      'DELETE /api/admin/products/:id',
+      'GET /api/admin/products/stats',
       'GET /api/admin/users',
       'GET /api/admin/contacts',
       'GET /api/admin/reports',
@@ -456,11 +411,13 @@ app.listen(PORT, () => {
   console.log('   🏠 Health: /api/health');
   console.log('   🐕 Pets: /api/pets');
   console.log('   🛒 Products: /api/products');
+  console.log('   📰 News: /api/news');                    // ← ADDED: News logging
   console.log('   📧 Contact: /api/contact');
   console.log('   🖼️ Images: /api/images/gcs/{path}');
   console.log('   🔧 Admin: /api/admin/*');
-  console.log('   🐾 Admin Pets: /api/admin/pets');        // ✅ Existing
-  console.log('   🛍️ Admin Products: /api/admin/products');  // ✅ ADDED: Products logging
+  console.log('   🐾 Admin Pets: /api/admin/pets');
+  console.log('   🛍️ Admin Products: /api/admin/products');
+  console.log('   📰 News Health: /api/news/health');     // ← ADDED: News health check
 });
 
 // ===== GRACEFUL SHUTDOWN =====
