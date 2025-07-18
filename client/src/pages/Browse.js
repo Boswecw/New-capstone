@@ -22,12 +22,12 @@ const Browse = () => {
   const location = useLocation();
   const [searching, setSearching] = useState(false);
 
-  const [searchTerm, setSearchTerm] = useState(searchParams.get("search") || "");
-  const [selectedType, setSelectedType] = useState(searchParams.get("type") || "");
-  const [selectedBreed, setSelectedBreed] = useState(searchParams.get("breed") || "");
-  const [ageRange, setAgeRange] = useState(searchParams.get("age") || "");
-  const [selectedGender, setSelectedGender] = useState(searchParams.get("gender") || "");
-  const [selectedSize, setSelectedSize] = useState(searchParams.get("size") || "");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedType, setSelectedType] = useState("");
+  const [selectedBreed, setSelectedBreed] = useState("");
+  const [ageRange, setAgeRange] = useState("");
+  const [selectedGender, setSelectedGender] = useState("");
+  const [selectedSize, setSelectedSize] = useState("");
   const [hasSearched, setHasSearched] = useState(false);
 
   const petTypes = useMemo(() => [
@@ -111,6 +111,22 @@ const Browse = () => {
   };
 
   useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const type = params.get("type") || "";
+    const breed = params.get("breed") || "";
+    const age = params.get("age") || "";
+    const gender = params.get("gender") || "";
+    const size = params.get("size") || "";
+    const search = params.get("search") || "";
+
+    setSelectedType(type);
+    setSelectedBreed(breed);
+    setAgeRange(age);
+    setSelectedGender(gender);
+    setSelectedSize(size);
+    setSearchTerm(search);
+    setHasSearched(!!search);
+
     fetchPets();
   }, [location.search]);
 
