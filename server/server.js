@@ -1,4 +1,4 @@
-// server/server.js - MINIMAL FIX - Only change rate limiting section
+// server/server.js - FIXED FOR DUAL DEPLOYMENT
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -25,7 +25,7 @@ const contactRoutes = require('./routes/contact');
 const imageRoutes = require('./routes/images');
 const gcsRoutes = require('./routes/gcs');
 const adminRoutes = require('./routes/admin');
-const newsRoutes = require('./routes/news');  // ✅ EXISTING: News routes import
+const newsRoutes = require('./routes/news');
 
 // ===== SECURITY & MIDDLEWARE =====
 app.use(helmet());
@@ -77,7 +77,7 @@ app.use(cors({
 
 app.options('*', cors());
 
-// 🔧 FIXED: Rate limiting - ONLY CHANGE THIS SECTION
+// 🔧 FIXED: Rate limiting - Increased limits for better performance
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 500, // CHANGED: Increased from 100 to 500
@@ -87,95 +87,71 @@ const limiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  // Skip rate limiting for critical endpoints
   skip: (req) => {
-    return req.path === '/api/health' || 
-           req.path === '/health' || 
-           req.path.includes('/featured') || // Skip featured endpoints
-           req.path.startsWith('/api/images'); // Skip image proxy
+    // Skip rate limiting for featured content and health checks
+    return req.path.includes('/featured') || 
+           req.path.includes('/health') || 
+           req.path.includes('/images/');
   }
 });
 
-app.use('/api/', limiter);
+app.use(limiter);
+
+// Enhanced logging
+app.use(morgan('combined', {
+  skip: (req) => req.path.includes('/images/') || req.path.includes('/health')
+}));
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Logging
-if (process.env.NODE_ENV === 'development') {
-  app.use(morgan('dev'));
-} else {
-  app.use(morgan('combined'));
-}
-
 // ===== DATABASE CONNECTION =====
-const connectDB = async () => {
-  try {
-    await mongoose.connect(process.env.MONGODB_URI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    });
-    console.log('✅ MongoDB connected successfully');
-  } catch (error) {
-    console.error('❌ MongoDB connection failed:', error);
-    process.exit(1);
-  }
-};
+mongoose.connect(process.env.MONGODB_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+})
+.then(() => console.log('✅ MongoDB connected successfully'))
+.catch(err => console.error('❌ MongoDB connection error:', err));
 
-connectDB();
-
-// ===== MOUNT ROUTES =====
+// ===== API ROUTE HANDLERS =====
 app.use('/api/pets', petRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/contact', contactRoutes);
 app.use('/api/images', imageRoutes);
-app.use('/api/gcs', gcsRoutes);
 app.use('/api/admin', adminRoutes);
-app.use('/api/news', newsRoutes);  // ✅ EXISTING: News routes mounting
+app.use('/api/news', newsRoutes);
+
+// Load GCS routes if available
+try {
+  console.log('✅ GCS routes loaded - Public bucket access only');
+  app.use('/api/images/gcs', gcsRoutes);
+} catch (error) {
+  console.log('⚠️ GCS routes not available - Using fallback images only');
+}
 
 // ===== HEALTH CHECK ENDPOINT =====
 app.get('/api/health', async (req, res) => {
   try {
-    const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
+    const dbState = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
     
     res.json({
       success: true,
-      message: 'FurBabies Pet Store API - Health Check',
-      status: 'healthy',
+      message: 'FurBabies Pet Store API is running!',
+      environment: process.env.NODE_ENV,
+      deployment: 'Dual deployment - API only',
+      database: dbState,
       timestamp: new Date().toISOString(),
-      database: {
-        status: dbStatus,
-        collections: ['pets', 'products', 'users', 'contacts']
+      version: '1.0.0',
+      features: {
+        petAdoption: true,
+        userAuth: true,
+        heartRating: true,
+        imageProxy: true,
+        adminDashboard: true,
+        newsIntegration: true
       },
-      services: {
-        pets: 'operational',
-        products: 'operational',
-        news: 'operational',  // ✅ EXISTING: News service status
-        images: 'operational',
-        admin: 'operational'
-      },
-      endpoints: {
-        public: {
-          health: '/api/health',
-          pets: '/api/pets',
-          products: '/api/products',
-          news: '/api/news',  // ✅ EXISTING: News endpoints
-          contact: '/api/contact',
-          images: '/api/images/gcs'
-        },
-        admin: {
-          dashboard: '/api/admin/dashboard',
-          pets: '/api/admin/pets',
-          products: '/api/admin/products',
-          users: '/api/admin/users',
-          contacts: '/api/admin/contacts',
-          reports: '/api/admin/reports',
-          analytics: '/api/admin/analytics'
-        }
-      },
-      // 🔧 ADDED: Rate limiting info
       rateLimits: {
         general: '500 requests / 15 minutes',
         featuredEndpoints: 'unlimited',
@@ -207,7 +183,7 @@ app.use('/api/*', (req, res) => {
       'GET /api/products',
       'GET /api/products/featured?limit=4',
       'GET /api/products/:id',
-      'GET /api/news',               // ✅ EXISTING: News endpoints
+      'GET /api/news',
       'GET /api/news/featured?limit=3',
       'GET /api/news/custom',
       'GET /api/news/external',
@@ -234,27 +210,84 @@ app.use('/api/*', (req, res) => {
   });
 });
 
-// ===== PRODUCTION STATIC FILES =====
-if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, 'client/build')));
+// ===== SMART STATIC FILE SERVING =====
+// 🔧 FIXED: Conditional static file serving for dual deployment
+const clientBuildPath = path.join(__dirname, 'client/build');
+const buildIndexPath = path.join(clientBuildPath, 'index.html');
 
-  app.get('*', (req, res) => {
-    if (!req.path.startsWith('/api/')) {
-      res.sendFile(path.join(__dirname, 'client/build', 'index.html'));
-    }
-  });
-} else {
-  app.get('/', (req, res) => {
-    res.json({
-      message: 'FurBabies Pet Store API - Development Mode',
-      health: '/api/health',
-      frontend: 'Run `npm run client` to start the React app on port 3000'
+if (process.env.NODE_ENV === 'production') {
+  // Check if build files exist (monolithic deployment)
+  if (fs.existsSync(buildIndexPath)) {
+    console.log('📦 Serving React build files (monolithic deployment)');
+    app.use(express.static(clientBuildPath));
+
+    app.get('*', (req, res) => {
+      if (!req.path.startsWith('/api/')) {
+        res.sendFile(buildIndexPath);
+      }
     });
-  });
+  } else {
+    console.log('🔗 API-only mode (dual deployment detected)');
+    // API-only mode for dual deployment
+    app.get('/', (req, res) => {
+      res.json({
+        message: 'FurBabies Pet Store API - Production (Dual Deployment)',
+        status: 'API service running',
+        health: '/api/health',
+        frontend: 'Deployed separately at furbabies-frontend.onrender.com',
+        documentation: 'https://github.com/Boswecw/furbabies-petstore',
+        endpoints: '/api/health for full endpoint list'
+      });
+    });
+
+    // Handle all non-API routes with informative response
+    app.get('*', (req, res) => {
+      if (!req.path.startsWith('/api/')) {
+        res.status(404).json({
+          message: 'Frontend not served from this API',
+          frontend: 'Visit furbabies-frontend.onrender.com',
+          api: 'This service provides API endpoints only',
+          health: '/api/health'
+        });
+      }
+    });
+  }
+} else {
+  // Development mode
+  console.log('🛠️ Development mode detected');
+  if (fs.existsSync(buildIndexPath)) {
+    console.log('📦 Serving React build files');
+    app.use(express.static(clientBuildPath));
+    
+    app.get('*', (req, res) => {
+      if (!req.path.startsWith('/api/')) {
+        res.sendFile(buildIndexPath);
+      }
+    });
+  } else {
+    console.log('⚠️ No build files found - API only');
+    app.get('/', (req, res) => {
+      res.json({
+        message: 'FurBabies Pet Store API - Development Mode',
+        health: '/api/health',
+        frontend: 'Run `npm run client` to start the React app on port 3000',
+        note: 'Build files not found - run `npm run build` to create them'
+      });
+    });
+  }
 }
 
 // ===== GLOBAL ERROR HANDLER =====
 app.use((err, req, res, next) => {
+  // Don't log missing static file errors in dual deployment
+  if (err.code === 'ENOENT' && err.path && err.path.includes('client/build')) {
+    console.log('ℹ️ Static file not found (expected in dual deployment):', err.path);
+    return res.status(404).json({
+      message: 'Resource not found',
+      note: 'Frontend is deployed separately'
+    });
+  }
+  
   console.error('❌ Unhandled error:', err);
   
   res.status(err.status || 500).json({
@@ -265,37 +298,46 @@ app.use((err, req, res, next) => {
   });
 });
 
+// ===== GRACEFUL SHUTDOWN =====
+process.on('SIGTERM', () => {
+  console.log('🛑 SIGTERM received, shutting down gracefully');
+  mongoose.connection.close(() => {
+    console.log('📤 MongoDB connection closed');
+    process.exit(0);
+  });
+});
+
+process.on('SIGINT', () => {
+  console.log('🛑 SIGINT received, shutting down gracefully');
+  mongoose.connection.close(() => {
+    console.log('📤 MongoDB connection closed');
+    process.exit(0);
+  });
+});
+
 // ===== START SERVER =====
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`🌍 Environment: ${process.env.NODE_ENV}`);
-  console.log(`📡 API Base URL: ${process.env.NODE_ENV === 'production' ? 'https://furbabies-backend.onrender.com' : `http://localhost:${PORT}`}`);
+  console.log(`📡 API Base URL: ${process.env.NODE_ENV === 'production' ? 
+    'https://furbabies-backend.onrender.com' : 
+    `http://localhost:${PORT}`}`);
+  
   console.log('📋 Available endpoints:');
   console.log('   🏠 Health: /api/health');
   console.log('   🐕 Pets: /api/pets');
   console.log('   🛒 Products: /api/products');
-  console.log('   📰 News: /api/news');  // ✅ EXISTING: News logging
+  console.log('   📰 News: /api/news');
   console.log('   📧 Contact: /api/contact');
   console.log('   🖼️ Images: /api/images/gcs/{path}');
   console.log('   🔧 Admin: /api/admin/*');
   console.log('   🐾 Admin Pets: /api/admin/pets');
   console.log('   🛍️ Admin Products: /api/admin/products');
-  console.log('');
+  
   console.log('🔒 Rate Limiting:');
   console.log('   📊 General: 500 requests / 15 minutes');
   console.log('   ⭐ Featured: Unlimited');
   console.log('   🖼️ Images: Unlimited');
-});
-
-// ===== GRACEFUL SHUTDOWN =====
-process.on('SIGTERM', () => {
-  console.log('🛑 SIGTERM received, shutting down gracefully');
-  process.exit(0);
-});
-
-process.on('SIGINT', () => {
-  console.log('🛑 SIGINT received, shutting down gracefully');
-  process.exit(0);
 });
 
 module.exports = app;
