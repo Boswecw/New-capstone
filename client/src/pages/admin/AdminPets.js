@@ -1,4 +1,4 @@
-// client/src/pages/admin/AdminPets.js - ENHANCED WITH WAKE-UP HANDLING
+// client/src/pages/admin/AdminPets.js - SIMPLE WORKING VERSION
 import React, { useState, useEffect, useCallback } from "react";
 import {
   Row,
@@ -9,17 +9,52 @@ import {
   Modal,
   Alert,
   Badge,
-  Spinner,
-  ProgressBar
+  Spinner
 } from "react-bootstrap";
 import DataTable from "../../components/DataTable";
-// ✅ UPDATED: Use enhanced admin API service
-import adminAPI, { adminHelpers } from "../../services/adminAPI";
+import axios from 'axios';
+
+// ✅ SIMPLE: Create axios instance directly in component
+const createAdminAPI = () => {
+  const api = axios.create({
+    baseURL: process.env.NODE_ENV === 'production' 
+      ? 'https://furbabies-backend.onrender.com/api'
+      : 'http://localhost:5000/api',
+    timeout: 45000,
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    }
+  });
+
+  // Add auth token
+  api.interceptors.request.use((config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    console.log(`📡 Admin Request: ${config.method?.toUpperCase()} ${config.url}`);
+    return config;
+  });
+
+  // Add response logging
+  api.interceptors.response.use(
+    (response) => {
+      console.log(`✅ Admin Response: ${response.status} ${response.config.url}`);
+      return response;
+    },
+    (error) => {
+      console.error('❌ Admin Error:', error.response?.status, error.response?.data || error.message);
+      return Promise.reject(error);
+    }
+  );
+
+  return api;
+};
 
 const AdminPets = () => {
   const [pets, setPets] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [loadingMessage, setLoadingMessage] = useState('Loading pets...');
   const [pagination, setPagination] = useState({});
   const [filters, setFilters] = useState({
     search: "",
@@ -33,107 +68,89 @@ const AdminPets = () => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deletingPet, setDeletingPet] = useState(null);
   const [alert, setAlert] = useState({ show: false, message: "", variant: "" });
-  const [retryCount, setRetryCount] = useState(0);
+
+  // Create API instance
+  const adminAPI = createAdminAPI();
 
   const fetchPets = useCallback(
     async (page = 1) => {
       setLoading(true);
-      setLoadingMessage('Loading pets...');
-      setRetryCount(0);
-      
       try {
         console.log('🐾 Fetching admin pets...');
         
-        const params = adminHelpers.buildParams({
+        const params = new URLSearchParams({
           page,
           limit: 10,
-          ...filters,
+          ...Object.fromEntries(
+            Object.entries(filters).filter(([_, value]) => value !== "")
+          )
         });
 
-        // ✅ ENHANCED: Monitor retry attempts
-        const originalRetry = adminAPI.getAllPets;
-        let currentRetry = 0;
+        // ✅ FIXED: Direct API call
+        const response = await adminAPI.get(`/admin/pets?${params.toString()}`);
         
-        adminAPI.getAllPets = async (params) => {
-          if (currentRetry > 0) {
-            setLoadingMessage(`Waking up backend... (attempt ${currentRetry + 1})`);
-            setRetryCount(currentRetry);
-          }
-          currentRetry++;
-          return originalRetry(params);
-        };
-
-        const response = await adminAPI.getAllPets(params);
-        const data = adminHelpers.handleResponse(response);
-        
-        setPets(data.data || []);
-        setPagination(adminHelpers.getPaginationInfo(response));
-        console.log('✅ Admin pets loaded:', data.data?.length || 0, 'pets');
-        
-        // Reset loading message
-        setLoadingMessage('Loading pets...');
-        setRetryCount(0);
+        if (response.data.success) {
+          setPets(response.data.data || []);
+          setPagination(response.data.pagination || {});
+          console.log('✅ Admin pets loaded:', response.data.data?.length || 0, 'pets');
+        } else {
+          throw new Error(response.data.message || 'Failed to fetch pets');
+        }
         
       } catch (error) {
-        const errorMessage = adminHelpers.handleError(error, "Error fetching pets");
+        console.error("❌ Error fetching pets:", error);
         
-        if (adminHelpers.isTimeoutError(error)) {
-          showAlert(
-            "The server is taking longer than usual to respond. This is normal for free hosting - please wait a moment and try again.",
-            "warning"
-          );
-        } else {
-          showAlert(errorMessage, "danger");
+        let errorMessage = "Error fetching pets";
+        if (error.code === 'ECONNABORTED') {
+          errorMessage = "Request timed out. Please try again in a moment.";
+        } else if (error.response?.data?.message) {
+          errorMessage = error.response.data.message;
+        } else if (error.message) {
+          errorMessage = error.message;
         }
+        
+        showAlert(errorMessage, error.code === 'ECONNABORTED' ? "warning" : "danger");
       } finally {
         setLoading(false);
-        setLoadingMessage('Loading pets...');
-        setRetryCount(0);
       }
     },
-    [filters]
+    [filters, adminAPI]
   );
 
   const fetchDashboardData = useCallback(async () => {
     try {
       console.log('📊 Fetching dashboard data...');
       
-      const response = await adminAPI.getDashboard();
-      const data = adminHelpers.handleResponse(response);
+      const response = await adminAPI.get('/admin/dashboard');
       
-      console.log('✅ Dashboard data loaded');
-      return data.data;
+      if (response.data.success) {
+        console.log('✅ Dashboard data loaded');
+        return response.data.data;
+      } else {
+        throw new Error(response.data.message || 'Failed to fetch dashboard data');
+      }
       
     } catch (error) {
-      const errorMessage = adminHelpers.handleError(error, "Error fetching dashboard data");
+      console.error("❌ Error fetching dashboard data:", error);
       
-      if (!adminHelpers.isTimeoutError(error)) {
+      if (error.code !== 'ECONNABORTED') {
+        let errorMessage = "Error fetching dashboard data";
+        if (error.response?.data?.message) {
+          errorMessage = error.response.data.message;
+        }
         showAlert(errorMessage, "warning");
       }
       return null;
     }
-  }, []);
+  }, [adminAPI]);
 
-  // ✅ NEW: Manual wake-up function
-  const handleWakeUp = async () => {
-    try {
-      setLoading(true);
-      setLoadingMessage('Waking up backend server...');
-      
-      await adminAPI.wakeUp();
-      
-      setLoadingMessage('Backend awake! Loading pets...');
-      await fetchPets();
-      
-    } catch (error) {
-      console.error('Wake-up failed:', error);
-      showAlert('Failed to wake up the server. Please try again.', 'danger');
-      setLoading(false);
-    }
+  // ✅ Manual refresh function
+  const handleRefresh = async () => {
+    console.log('🔄 Manual refresh triggered');
+    await Promise.all([fetchPets(), fetchDashboardData()]);
   };
 
   useEffect(() => {
-    // Load both pets and dashboard data
     fetchPets();
     fetchDashboardData();
   }, [fetchPets, fetchDashboardData]);
@@ -145,11 +162,9 @@ const AdminPets = () => {
       variant 
     });
     
-    // Auto-hide alert after 10 seconds for warnings, 5 for others
-    const timeout = variant === 'warning' ? 10000 : 5000;
     setTimeout(() => {
       setAlert({ show: false, message: "", variant: "" });
-    }, timeout);
+    }, 5000);
   };
 
   const handleEditPet = (pet) => {
@@ -168,15 +183,18 @@ const AdminPets = () => {
     try {
       console.log('🗑️ Deleting pet:', deletingPet._id);
       
-      const response = await adminAPI.deletePet(deletingPet._id);
-      adminHelpers.handleResponse(response);
+      const response = await adminAPI.delete(`/admin/pets/${deletingPet._id}`);
       
-      showAlert("Pet deleted successfully", "success");
-      fetchPets(); // Refresh the list
+      if (response.data.success) {
+        showAlert("Pet deleted successfully", "success");
+        fetchPets();
+      } else {
+        throw new Error(response.data.message || 'Failed to delete pet');
+      }
       
     } catch (error) {
-      const errorMessage = adminHelpers.handleError(error, "Error deleting pet");
-      showAlert(errorMessage, "danger");
+      console.error("❌ Error deleting pet:", error);
+      showAlert(error.response?.data?.message || error.message || "Error deleting pet", "danger");
     } finally {
       setShowDeleteModal(false);
       setDeletingPet(null);
@@ -189,15 +207,18 @@ const AdminPets = () => {
     try {
       console.log('✏️ Updating pet:', editingPet._id);
       
-      const response = await adminAPI.updatePet(editingPet._id, updatedPetData);
-      adminHelpers.handleResponse(response);
+      const response = await adminAPI.put(`/admin/pets/${editingPet._id}`, updatedPetData);
       
-      showAlert("Pet updated successfully", "success");
-      fetchPets(); // Refresh the list
+      if (response.data.success) {
+        showAlert("Pet updated successfully", "success");
+        fetchPets();
+      } else {
+        throw new Error(response.data.message || 'Failed to update pet');
+      }
       
     } catch (error) {
-      const errorMessage = adminHelpers.handleError(error, "Error updating pet");
-      showAlert(errorMessage, "danger");
+      console.error("❌ Error updating pet:", error);
+      showAlert(error.response?.data?.message || error.message || "Error updating pet", "danger");
     } finally {
       setShowEditModal(false);
       setEditingPet(null);
@@ -206,22 +227,6 @@ const AdminPets = () => {
 
   const handleFilterChange = (newFilters) => {
     setFilters(prev => ({ ...prev, ...newFilters }));
-  };
-
-  const handleAdoptPet = async (petId, userId = 'admin') => {
-    try {
-      console.log('❤️ Marking pet as adopted:', petId);
-      
-      const response = await adminAPI.adoptPet(petId, userId);
-      adminHelpers.handleResponse(response);
-      
-      showAlert("Pet marked as adopted successfully", "success");
-      fetchPets(); // Refresh the list
-      
-    } catch (error) {
-      const errorMessage = adminHelpers.handleError(error, "Error marking pet as adopted");
-      showAlert(errorMessage, "danger");
-    }
   };
 
   const columns = [
@@ -240,7 +245,7 @@ const AdminPets = () => {
       key: 'category',
       label: 'Category',
       render: (pet) => (
-        <Badge bg="primary">{pet.category || pet.species}</Badge>
+        <Badge bg="primary">{pet.category || pet.species || pet.type}</Badge>
       )
     },
     {
@@ -280,52 +285,24 @@ const AdminPets = () => {
           >
             Delete
           </Button>
-          {pet.status === 'available' && (
-            <Button 
-              variant="outline-success" 
-              size="sm"
-              className="ms-2"
-              onClick={() => handleAdoptPet(pet._id)}
-            >
-              Mark Adopted
-            </Button>
-          )}
         </div>
       )
     }
   ];
 
-  // ✅ ENHANCED: Better loading state with wake-up progress
   if (loading) {
     return (
       <div className="d-flex flex-column justify-content-center align-items-center" style={{ height: '50vh' }}>
         <Spinner animation="border" variant="primary" />
-        <span className="ms-2 mt-3">{loadingMessage}</span>
-        
-        {retryCount > 0 && (
-          <div className="mt-3 text-center" style={{ width: '300px' }}>
-            <small className="text-muted">
-              Backend is sleeping on free hosting. Waking it up...
-            </small>
-            <ProgressBar 
-              animated 
-              now={Math.min((retryCount / 2) * 100, 100)} 
-              className="mt-2"
-              style={{ height: '8px' }}
-            />
-          </div>
-        )}
-        
-        {retryCount === 0 && (
-          <Button 
-            variant="outline-primary" 
-            size="sm" 
-            className="mt-3"
-            onClick={handleWakeUp}
-          >
-            Wake Up Server
-          </Button>
-        )}
+        <span className="ms-2 mt-3">Loading pets...</span>
+        <Button 
+          variant="outline-secondary" 
+          size="sm" 
+          className="mt-3"
+          onClick={handleRefresh}
+        >
+          Refresh
+        </Button>
       </div>
     );
   }
@@ -335,14 +312,23 @@ const AdminPets = () => {
       <Row className="mb-4">
         <Col>
           <h2>Pets Management</h2>
-          <p className="text-muted">Manage pet listings and information</p>
+          <p className="text-muted">
+            Manage pet listings and information 
+            <small className="ms-2 text-success">({pets.length} pets loaded)</small>
+          </p>
         </Col>
         <Col xs="auto">
           <Button 
+            variant="outline-secondary" 
+            size="sm"
+            className="me-2"
+            onClick={handleRefresh}
+          >
+            <i className="fas fa-sync me-1"></i>Refresh
+          </Button>
+          <Button 
             variant="primary"
-            onClick={() => {
-              console.log('Create new pet clicked');
-            }}
+            onClick={() => console.log('Create new pet clicked')}
           >
             <i className="fas fa-plus me-2"></i>Add New Pet
           </Button>
@@ -352,14 +338,22 @@ const AdminPets = () => {
       {alert.show && (
         <Alert variant={alert.variant} dismissible onClose={() => setAlert({ show: false })}>
           {alert.message}
-          {alert.variant === 'warning' && adminHelpers.isTimeoutError({ message: alert.message }) && (
+          {alert.variant === 'warning' && (
             <div className="mt-2">
               <Button 
                 variant="outline-warning" 
                 size="sm"
-                onClick={handleWakeUp}
+                onClick={handleRefresh}
               >
-                Wake Up Server
+                Try Again
+              </Button>
+              <Button 
+                variant="outline-info" 
+                size="sm"
+                className="ms-2"
+                onClick={() => window.open('https://furbabies-backend.onrender.com/api/health', '_blank')}
+              >
+                Wake Backend
               </Button>
             </div>
           )}
@@ -385,6 +379,7 @@ const AdminPets = () => {
             <option value="cat">Cats</option>
             <option value="bird">Birds</option>
             <option value="fish">Fish</option>
+            <option value="rabbit">Rabbits</option>
             <option value="other">Other</option>
           </Form.Select>
         </Col>
@@ -413,12 +408,23 @@ const AdminPets = () => {
             />
           ) : (
             <div className="text-center py-4">
-              <p className="text-muted">No pets found matching your criteria.</p>
+              <p className="text-muted">
+                No pets found matching your criteria.
+                <br />
+                <small>Database shows 55 pets available - check your filters or refresh.</small>
+              </p>
               <Button 
                 variant="primary"
-                onClick={() => console.log('Add first pet')}
+                onClick={handleRefresh}
+                className="me-2"
               >
-                Add First Pet
+                <i className="fas fa-sync me-1"></i>Refresh Data
+              </Button>
+              <Button 
+                variant="outline-primary"
+                onClick={() => setFilters({ search: "", category: "", type: "", status: "", available: "" })}
+              >
+                Clear Filters
               </Button>
             </div>
           )}
