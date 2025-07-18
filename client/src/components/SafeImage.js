@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Spinner } from 'react-bootstrap';
 import classNames from 'classnames';
-import styles from './Card.module.css'; // Assuming fit-mode classes live here
+import styles from './Card.module.css'; // Assumes .fit-contain, .fit-cover, etc.
 
 const fallbackImages = {
   dog: 'https://images.unsplash.com/photo-1583337130417-3346a1be7dee?w=400&h=300&fit=crop&q=80&auto=format',
@@ -17,13 +17,15 @@ const fallbackImages = {
 
 const getFallbackUrl = (category) => {
   const cat = category?.toLowerCase() || 'default';
-  if (fallbackImages[cat]) return fallbackImages[cat];
-  if (cat.includes('dog')) return fallbackImages.dog;
-  if (cat.includes('cat')) return fallbackImages.cat;
-  if (cat.includes('fish')) return fallbackImages.fish;
-  if (cat.includes('bird')) return fallbackImages.bird;
-  if (cat.includes('rabbit')) return fallbackImages.rabbit;
-  return fallbackImages.default;
+  return (
+    fallbackImages[cat] ||
+    (cat.includes('dog') && fallbackImages.dog) ||
+    (cat.includes('cat') && fallbackImages.cat) ||
+    (cat.includes('fish') && fallbackImages.fish) ||
+    (cat.includes('bird') && fallbackImages.bird) ||
+    (cat.includes('rabbit') && fallbackImages.rabbit) ||
+    fallbackImages.default
+  );
 };
 
 const buildPrimaryUrl = (item) => {
@@ -49,7 +51,7 @@ const SafeImage = ({
   category = 'default',
   alt = 'Image',
   className = '',
-  fitMode = 'contain', // NEW: accepts 'contain' | 'cover' | 'fill' | 'scale-down'
+  fitMode = 'contain',
   containerStyle = {},
   style = {},
   onLoad,
@@ -65,8 +67,8 @@ const SafeImage = ({
     setLoading(true);
     setError(false);
 
-    const primaryUrl = buildPrimaryUrl(item);
     const fallbackUrl = getFallbackUrl(category);
+    const primaryUrl = buildPrimaryUrl(item);
 
     setImageUrl(fallbackUrl);
 
@@ -75,20 +77,17 @@ const SafeImage = ({
       testImage.onload = () => {
         setImageUrl(primaryUrl);
         setLoading(false);
-        setError(false);
       };
       testImage.onerror = () => {
         setImageUrl(fallbackUrl);
         setLoading(false);
-        setError(false);
       };
       testImage.src = primaryUrl;
     } else {
       setImageUrl(fallbackUrl);
       setLoading(false);
-      setError(false);
     }
-  }, [item?.id, item?.image, item?.imageUrl, category]);
+  }, [item, category]);
 
   const handleImageLoad = (e) => {
     setLoading(false);
@@ -97,8 +96,8 @@ const SafeImage = ({
   };
 
   const handleImageError = (e) => {
+    const fallbackUrl = getFallbackUrl(category);
     if (!e.target.src.includes('unsplash.com')) {
-      const fallbackUrl = getFallbackUrl(category);
       setImageUrl(fallbackUrl);
     } else {
       setError(true);
@@ -112,19 +111,16 @@ const SafeImage = ({
     display: 'block',
     width: '100%',
     height: '100%',
-    ...containerStyle,
+    ...containerStyle
   };
 
-  const imageClasses = classNames(
-    className,
-    styles[`fit-${fitMode}`] // dynamically applies .fit-contain, etc.
-  );
+  const imageClasses = classNames(className, styles[`fit-${fitMode}`]);
 
   const imageStyles = {
     width: '100%',
     height: '100%',
     display: 'block',
-    ...style, // no objectFit here!
+    ...style
   };
 
   return (

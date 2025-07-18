@@ -9,19 +9,13 @@ import HeartRating from './HeartRating';
 const PetCard = ({ pet }) => {
   const [imageLoaded, setImageLoaded] = useState(false);
 
-  const handleImageLoad = () => {
-    setImageLoaded(true);
-  };
-
-  const handleImageError = () => {
-    setImageLoaded(true);
-  };
+  const handleImageLoad = () => setImageLoaded(true);
 
   return (
     <Card className="shadow-sm mb-4">
       <div style={{ position: 'relative', height: '250px', overflow: 'hidden' }}>
         {!imageLoaded && (
-          <div className="d-flex justify-content-center align-items-center h-100">
+          <div className="d-flex justify-content-center align-items-center h-100 bg-light">
             <Spinner animation="border" variant="primary" />
           </div>
         )}
@@ -31,8 +25,12 @@ const PetCard = ({ pet }) => {
           category={pet.type}
           alt={pet.name}
           onLoad={handleImageLoad}
-          onError={handleImageError}
-          style={{ display: imageLoaded ? 'block' : 'none', height: '100%', objectFit: 'cover', width: '100%' }}
+          className="w-100"
+          style={{
+            display: imageLoaded ? 'block' : 'none',
+            height: '100%',
+            objectFit: 'cover'
+          }}
         />
       </div>
 
@@ -43,12 +41,10 @@ const PetCard = ({ pet }) => {
           <strong>Age:</strong> {pet.age}
         </Card.Text>
 
-        <div className="mb-2">
-          <HeartRating initial={pet.rating || 0} max={5} size={16} />
-        </div>
+        <HeartRating initial={pet.rating || 0} max={5} size={18} />
 
         <Link to={`/pets/${pet._id}`}>
-          <Button variant="outline-primary" size="sm">View Details</Button>
+          <Button variant="primary" className="mt-2">View Details</Button>
         </Link>
       </Card.Body>
     </Card>
