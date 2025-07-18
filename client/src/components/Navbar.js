@@ -1,3 +1,4 @@
+// client/src/components/Navbar.js - COMPLETE UPDATED VERSION with Products Link
 import React from 'react';
 import {
   Navbar as BootstrapNavbar,
@@ -98,6 +99,11 @@ const Navbar = () => {
                     
                     <NavDropdown.Item as={Link} to="/admin/pets">
                       <i className="fas fa-paw me-2"></i>Pet Management
+                    </NavDropdown.Item>
+                    
+                    {/* ✅ NEW: Products Management Link */}
+                    <NavDropdown.Item as={Link} to="/admin/products">
+                      <i className="fas fa-shopping-bag me-2"></i>Product Management
                     </NavDropdown.Item>
                     
                     <NavDropdown.Item as={Link} to="/admin/contacts">

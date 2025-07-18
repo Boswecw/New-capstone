@@ -1,3 +1,4 @@
+// client/src/components/admin/AdminLayout.js - UPDATED with Products Link
 import React from 'react';
 import { Container, Nav, Navbar } from 'react-bootstrap';
 import { Link, useLocation } from 'react-router-dom';
@@ -59,6 +60,16 @@ const AdminLayout = () => {
               style={{ color: isActive('/admin/pets') ? '#ffc107' : '#fff' }}
             >
               <i className="fas fa-paw me-1"></i>Pets
+            </Nav.Link>
+            
+            {/* ✅ NEW: Products Navigation Link */}
+            <Nav.Link 
+              as={Link} 
+              to="/admin/products"
+              className={isActive('/admin/products') ? 'active' : ''}
+              style={{ color: isActive('/admin/products') ? '#ffc107' : '#fff' }}
+            >
+              <i className="fas fa-shopping-bag me-1"></i>Products
             </Nav.Link>
             
             <Nav.Link 
