@@ -1,4 +1,4 @@
-// client/src/pages/admin/AdminPets.js - FIXED INFINITE LOOP VERSION
+// client/src/pages/admin/AdminPets.js - SHOW ALL PETS VERSION
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Row,
@@ -9,7 +9,9 @@ import {
   Modal,
   Alert,
   Badge,
-  Spinner
+  Spinner,
+  ButtonGroup,
+  Pagination
 } from "react-bootstrap";
 import DataTable from "../../components/DataTable";
 import axios from 'axios';
@@ -18,6 +20,10 @@ const AdminPets = () => {
   const [pets, setPets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState({});
+  const [currentPage, setCurrentPage] = useState(1);
+  const [viewMode, setViewMode] = useState('paginated'); // 'paginated' or 'all'
+  const [itemsPerPage, setItemsPerPage] = useState(20); // Increased default
+  
   const [filters, setFilters] = useState({
     search: "",
     category: "",
@@ -31,7 +37,7 @@ const AdminPets = () => {
   const [deletingPet, setDeletingPet] = useState(null);
   const [alert, setAlert] = useState({ show: false, message: "", variant: "" });
 
-  // ✅ FIXED: Use useMemo to prevent adminAPI from changing on every render
+  // ✅ Stable API instance
   const adminAPI = useMemo(() => {
     const api = axios.create({
       baseURL: process.env.NODE_ENV === 'production' 
@@ -44,7 +50,6 @@ const AdminPets = () => {
       }
     });
 
-    // Add auth token
     api.interceptors.request.use((config) => {
       const token = localStorage.getItem('token');
       if (token) {
@@ -54,7 +59,6 @@ const AdminPets = () => {
       return config;
     });
 
-    // Add response logging
     api.interceptors.response.use(
       (response) => {
         console.log(`✅ Admin Response: ${response.status} ${response.config.url}`);
@@ -67,17 +71,18 @@ const AdminPets = () => {
     );
 
     return api;
-  }, []); // ✅ Empty dependency array - only create once
+  }, []);
 
   const fetchPets = useCallback(
     async (page = 1) => {
       setLoading(true);
       try {
-        console.log('🐾 Fetching admin pets...');
+        console.log(`🐾 Fetching admin pets - Page: ${page}, ViewMode: ${viewMode}`);
         
         const params = new URLSearchParams({
           page,
-          limit: 10,
+          // ✅ KEY CHANGE: Dynamic limit based on view mode
+          limit: viewMode === 'all' ? 10000 : itemsPerPage, // Use high number for "show all"
           ...Object.fromEntries(
             Object.entries(filters).filter(([_, value]) => value !== "")
           )
@@ -88,7 +93,7 @@ const AdminPets = () => {
         if (response.data.success) {
           setPets(response.data.data || []);
           setPagination(response.data.pagination || {});
-          console.log('✅ Admin pets loaded:', response.data.data?.length || 0, 'pets');
+          console.log(`✅ Admin pets loaded: ${response.data.data?.length || 0} pets (Total: ${response.data.pagination?.totalPets || 0})`);
         } else {
           throw new Error(response.data.message || 'Failed to fetch pets');
         }
@@ -110,62 +115,37 @@ const AdminPets = () => {
         setLoading(false);
       }
     },
-    [filters, adminAPI] // ✅ Now adminAPI is stable, won't cause infinite loops
+    [filters, adminAPI, viewMode, itemsPerPage]
   );
 
-  const fetchDashboardData = useCallback(async () => {
-    try {
-      console.log('📊 Fetching dashboard data...');
-      
-      const response = await adminAPI.get('/admin/dashboard');
-      
-      if (response.data.success) {
-        console.log('✅ Dashboard data loaded');
-        return response.data.data;
-      } else {
-        throw new Error(response.data.message || 'Failed to fetch dashboard data');
-      }
-      
-    } catch (error) {
-      console.error("❌ Error fetching dashboard data:", error);
-      
-      if (error.code !== 'ECONNABORTED') {
-        let errorMessage = "Error fetching dashboard data";
-        if (error.response?.data?.message) {
-          errorMessage = error.response.data.message;
-        }
-        showAlert(errorMessage, "warning");
-      }
-      return null;
-    }
-  }, [adminAPI]); // ✅ Now adminAPI is stable
+  // ✅ Load pets on mount
+  useEffect(() => {
+    console.log('🔄 AdminPets: Loading initial data');
+    fetchPets(currentPage);
+  }, []);
 
-  // ✅ Manual refresh function
-  const handleRefresh = async () => {
-    console.log('🔄 Manual refresh triggered');
-    await Promise.all([fetchPets(), fetchDashboardData()]);
+  // ✅ Refetch when filters, view mode, or items per page change
+  useEffect(() => {
+    console.log('🔍 AdminPets: Filters/ViewMode changed, refetching');
+    setCurrentPage(1); // Reset to first page when filters change
+    fetchPets(1);
+  }, [filters, viewMode, itemsPerPage]);
+
+  // ✅ Handle page changes
+  const handlePageChange = (page) => {
+    setCurrentPage(page);
+    fetchPets(page);
   };
 
-  // ✅ FIXED: Only run once on mount, not every time dependencies change
-  useEffect(() => {
-    console.log('🔄 AdminPets useEffect triggered - loading initial data');
-    fetchPets();
-    fetchDashboardData();
-  }, []); // ✅ Empty dependency array - only run on mount
-
-  // ✅ Separate useEffect for when filters change
-  useEffect(() => {
-    console.log('🔍 Filters changed, refetching pets:', filters);
-    fetchPets();
-  }, [filters]); // ✅ Only when filters change, not fetchPets function
+  // ✅ Handle view mode toggle
+  const handleViewModeChange = (mode) => {
+    console.log(`🔄 Switching view mode to: ${mode}`);
+    setViewMode(mode);
+    setCurrentPage(1);
+  };
 
   const showAlert = (message, variant) => {
-    setAlert({ 
-      show: true, 
-      message, 
-      variant 
-    });
-    
+    setAlert({ show: true, message, variant });
     setTimeout(() => {
       setAlert({ show: false, message: "", variant: "" });
     }, 5000);
@@ -191,7 +171,7 @@ const AdminPets = () => {
       
       if (response.data.success) {
         showAlert("Pet deleted successfully", "success");
-        fetchPets();
+        fetchPets(currentPage);
       } else {
         throw new Error(response.data.message || 'Failed to delete pet');
       }
@@ -215,7 +195,7 @@ const AdminPets = () => {
       
       if (response.data.success) {
         showAlert("Pet updated successfully", "success");
-        fetchPets();
+        fetchPets(currentPage);
       } else {
         throw new Error(response.data.message || 'Failed to update pet');
       }
@@ -233,6 +213,11 @@ const AdminPets = () => {
     setFilters(prev => ({ ...prev, ...newFilters }));
   };
 
+  const handleRefresh = () => {
+    console.log('🔄 Manual refresh');
+    fetchPets(currentPage);
+  };
+
   const columns = [
     {
       key: 'name',
@@ -247,7 +232,7 @@ const AdminPets = () => {
     },
     {
       key: 'category',
-      label: 'Category',
+      label: 'Type',
       render: (pet) => (
         <Badge bg="primary">{pet.category || pet.species || pet.type}</Badge>
       )
@@ -299,14 +284,6 @@ const AdminPets = () => {
       <div className="d-flex flex-column justify-content-center align-items-center" style={{ height: '50vh' }}>
         <Spinner animation="border" variant="primary" />
         <span className="ms-2 mt-3">Loading pets...</span>
-        <Button 
-          variant="outline-secondary" 
-          size="sm" 
-          className="mt-3"
-          onClick={handleRefresh}
-        >
-          Refresh
-        </Button>
       </div>
     );
   }
@@ -315,11 +292,63 @@ const AdminPets = () => {
     <div className="admin-pets">
       <Row className="mb-4">
         <Col>
-          <h2>Pets Management</h2>
-          <p className="text-muted">
-            Manage pet listings and information 
-            <small className="ms-2 text-success">({pets.length} pets loaded)</small>
-          </p>
+          <div className="d-flex justify-content-between align-items-center">
+            <div>
+              <h2>Pets Management</h2>
+              <p className="text-muted mb-0">
+                Manage pet listings and information
+                <Badge bg="success" className="ms-2">
+                  {viewMode === 'all' 
+                    ? `${pets.length} pets total` 
+                    : `${pets.length} of ${pagination.totalPets || 0} pets`
+                  }
+                </Badge>
+              </p>
+            </div>
+            
+            {/* ✅ VIEW MODE CONTROLS */}
+            <div className="d-flex gap-3 align-items-center">
+              <div>
+                <Form.Label className="me-2 mb-0">View:</Form.Label>
+                <ButtonGroup size="sm">
+                  <Button 
+                    variant={viewMode === 'paginated' ? 'primary' : 'outline-primary'}
+                    onClick={() => handleViewModeChange('paginated')}
+                  >
+                    Paginated
+                  </Button>
+                  <Button 
+                    variant={viewMode === 'all' ? 'primary' : 'outline-primary'}
+                    onClick={() => handleViewModeChange('all')}
+                  >
+                    Show All
+                  </Button>
+                </ButtonGroup>
+              </div>
+              
+              {viewMode === 'paginated' && (
+                <div>
+                  <Form.Label className="me-2 mb-0">Per Page:</Form.Label>
+                  <Form.Select 
+                    size="sm" 
+                    value={itemsPerPage} 
+                    onChange={(e) => setItemsPerPage(parseInt(e.target.value))}
+                    style={{width: 'auto'}}
+                  >
+                    <option value={10}>10</option>
+                    <option value={20}>20</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </Form.Select>
+                </div>
+              )}
+              
+              <Button variant="outline-secondary" size="sm" onClick={handleRefresh}>
+                <i className="fas fa-sync-alt me-2"></i>
+                Refresh
+              </Button>
+            </div>
+          </div>
         </Col>
       </Row>
 
@@ -332,26 +361,123 @@ const AdminPets = () => {
       <Card>
         <Card.Header>
           <div className="d-flex justify-content-between align-items-center">
-            <h5 className="mb-0">All Pets</h5>
-            <Button variant="primary" size="sm" onClick={handleRefresh}>
-              <i className="fas fa-sync-alt me-2"></i>
-              Refresh
-            </Button>
+            <h5 className="mb-0">
+              All Pets 
+              {viewMode === 'all' && (
+                <Badge bg="info" className="ms-2">Showing All</Badge>
+              )}
+            </h5>
+            <div className="d-flex gap-2">
+              <Button variant="success" size="sm">
+                <i className="fas fa-plus me-2"></i>
+                Add Pet
+              </Button>
+              <Button variant="outline-primary" size="sm">
+                <i className="fas fa-download me-2"></i>
+                Export
+              </Button>
+            </div>
           </div>
         </Card.Header>
+        
         <Card.Body>
+          {/* ✅ FILTERS ROW */}
+          <Row className="mb-3">
+            <Col md={3}>
+              <Form.Control
+                placeholder="Search pets..."
+                value={filters.search}
+                onChange={(e) => handleFilterChange({ search: e.target.value })}
+              />
+            </Col>
+            <Col md={2}>
+              <Form.Select
+                value={filters.type}
+                onChange={(e) => handleFilterChange({ type: e.target.value })}
+              >
+                <option value="">All Types</option>
+                <option value="dog">Dogs</option>
+                <option value="cat">Cats</option>
+                <option value="bird">Birds</option>
+                <option value="fish">Fish</option>
+                <option value="small-pet">Small Pets</option>
+              </Form.Select>
+            </Col>
+            <Col md={2}>
+              <Form.Select
+                value={filters.status}
+                onChange={(e) => handleFilterChange({ status: e.target.value })}
+              >
+                <option value="">All Status</option>
+                <option value="available">Available</option>
+                <option value="adopted">Adopted</option>
+                <option value="pending">Pending</option>
+              </Form.Select>
+            </Col>
+            <Col md={2}>
+              <Button 
+                variant="outline-secondary" 
+                size="sm" 
+                onClick={() => setFilters({ search: "", category: "", type: "", status: "", available: "" })}
+              >
+                Clear Filters
+              </Button>
+            </Col>
+          </Row>
+
+          {/* ✅ DATA TABLE */}
           <DataTable
             data={pets}
             columns={columns}
             loading={loading}
-            pagination={pagination}
-            onPageChange={(page) => fetchPets(page)}
+            pagination={viewMode === 'paginated' ? pagination : null}
+            onPageChange={viewMode === 'paginated' ? handlePageChange : null}
           />
+
+          {/* ✅ PAGINATION CONTROLS (only show in paginated mode) */}
+          {viewMode === 'paginated' && pagination.totalPages > 1 && (
+            <div className="d-flex justify-content-center mt-4">
+              <Pagination>
+                <Pagination.First 
+                  disabled={currentPage === 1}
+                  onClick={() => handlePageChange(1)}
+                />
+                <Pagination.Prev 
+                  disabled={currentPage === 1}
+                  onClick={() => handlePageChange(currentPage - 1)}
+                />
+                
+                {/* Show page numbers */}
+                {[...Array(Math.min(pagination.totalPages, 5))].map((_, index) => {
+                  const pageNum = currentPage <= 3 ? index + 1 : currentPage - 2 + index;
+                  if (pageNum > pagination.totalPages) return null;
+                  
+                  return (
+                    <Pagination.Item
+                      key={pageNum}
+                      active={pageNum === currentPage}
+                      onClick={() => handlePageChange(pageNum)}
+                    >
+                      {pageNum}
+                    </Pagination.Item>
+                  );
+                })}
+                
+                <Pagination.Next 
+                  disabled={currentPage === pagination.totalPages}
+                  onClick={() => handlePageChange(currentPage + 1)}
+                />
+                <Pagination.Last 
+                  disabled={currentPage === pagination.totalPages}
+                  onClick={() => handlePageChange(pagination.totalPages)}
+                />
+              </Pagination>
+            </div>
+          )}
         </Card.Body>
       </Card>
 
-      {/* Edit Modal - Add your edit modal JSX here */}
-      {/* Delete Modal - Add your delete modal JSX here */}
+      {/* Edit and Delete Modals would go here */}
     </div>
   );
 };
