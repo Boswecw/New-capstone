@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Spinner, Card, Button, Alert, Badge } from 'react-bootstrap';
+import { Spinner, Card, Button, Alert, Badge, Row, Col } from 'react-bootstrap';
 import { petAPI } from '../services/api';
 import SafeImage from '../components/SafeImage';
 import HeartRating from '../components/HeartRating';
@@ -15,7 +15,6 @@ const PetDetail = () => {
   useEffect(() => {
     const fetchPet = async () => {
       try {
-        // ✅ FIXED: Validate for your custom pet ID format (p001, p003, etc.)
         if (!id) {
           setError({
             type: 'missing_id',
@@ -26,27 +25,32 @@ const PetDetail = () => {
           return;
         }
 
-        // ✅ UPDATED: Validate both MongoDB ObjectIds AND your custom pet IDs
+        // Validate both MongoDB ObjectIds AND custom pet IDs
         const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(id);
-        const isCustomPetId = /^p\d{3}$/.test(id); // Matches p001, p003, p025, etc.
+        const isCustomPetId = /^p\d{3}$/.test(id);
         
         if (!isValidObjectId && !isCustomPetId) {
           setError({
             type: 'invalid_id',
             message: `Invalid pet ID format: "${id}"`,
             suggestion: 'Pet IDs should be either MongoDB ObjectIds or custom format like p001, p003',
-            examples: 'Valid examples: p001, p003, p025'
+            examples: 'Valid examples: p001, p003, p025, p054'
           });
           setLoading(false);
           return;
         }
 
-        console.log('🐕 Fetching pet details for ID:', id, `(${isCustomPetId ? 'custom' : 'ObjectId'})`);
+        console.log('🐕 Fetching pet details for ID:', id);
         const res = await petAPI.getPetById(id);
         
-        if (res?.data) {
+        if (res?.data?.success && res.data.data) {
+          const petData = res.data.data;
+          console.log('✅ Pet data received:', petData);
+          setPet(petData);
+        } else if (res?.data) {
+          // Handle case where API returns data directly (not wrapped in success/data)
+          console.log('✅ Pet data received (direct):', res.data);
           setPet(res.data);
-          console.log('✅ Pet loaded successfully:', res.data.name);
         } else {
           setError({
             type: 'not_found',
@@ -58,7 +62,6 @@ const PetDetail = () => {
       } catch (err) {
         console.error('❌ Fetch Pet Error:', err);
         
-        // ✅ ENHANCED: Better error handling based on status codes
         let errorInfo = { type: 'unknown', message: 'Unable to fetch pet details' };
         
         if (err.response) {
@@ -70,9 +73,9 @@ const PetDetail = () => {
               errorInfo = {
                 type: 'bad_request',
                 message: data?.message || 'Invalid pet ID format',
-                suggestion: 'Make sure you\'re using a valid pet ID (like p001, p003, p025)',
+                suggestion: 'Make sure you\'re using a valid pet ID (like p001, p003, p054)',
                 technical: data?.error || 'Bad request',
-                examples: data?.examples || ['p001', 'p003', 'p025']
+                examples: data?.examples || ['p001', 'p003', 'p054']
               };
               break;
             case 404:
@@ -86,7 +89,8 @@ const PetDetail = () => {
               errorInfo = {
                 type: 'server_error',
                 message: 'Server error occurred',
-                suggestion: 'Please try again in a few moments'
+                suggestion: 'Please try again in a few moments',
+                technical: data?.error || 'Internal server error'
               };
               break;
             default:
@@ -115,11 +119,14 @@ const PetDetail = () => {
   const handleHeartRating = async (value) => {
     try {
       await petAPI.ratePet(pet._id, { rating: value });
-      setPet((prev) => ({ ...prev, rating: value }));
+      setPet((prev) => ({ 
+        ...prev, 
+        rating: value,
+        ratingCount: (prev.ratingCount || 0) + 1
+      }));
       console.log('✅ Pet rated successfully:', value);
     } catch (err) {
       console.error('❌ Rating failed:', err);
-      // Could add toast notification here
     }
   };
 
@@ -128,11 +135,40 @@ const PetDetail = () => {
   };
 
   const handleAdoptionInterest = () => {
-    // Navigate to adoption form or contact page
     navigate(`/adopt/${pet._id}`);
   };
 
-  // ✅ Loading state
+  const getImageUrl = (pet) => {
+    if (!pet) return null;
+    
+    // If pet has imageUrl already computed
+    if (pet.imageUrl) return pet.imageUrl;
+    
+    // If pet has image path, construct URL
+    if (pet.image) {
+      return `https://storage.googleapis.com/furbabies-petstore/${pet.image}`;
+    }
+    
+    // Fallback
+    return null;
+  };
+
+  const formatPetType = (type) => {
+    if (!type) return 'Unknown';
+    return type.charAt(0).toUpperCase() + type.slice(1).replace('-', ' ');
+  };
+
+  const formatGender = (gender) => {
+    if (!gender || gender === 'unknown') return 'Not specified';
+    return gender.charAt(0).toUpperCase() + gender.slice(1);
+  };
+
+  const formatSize = (size) => {
+    if (!size) return 'Not specified';
+    return size.charAt(0).toUpperCase() + size.slice(1).replace('-', ' ');
+  };
+
+  // Loading state
   if (loading) {
     return (
       <div className="container mt-4 text-center">
@@ -142,7 +178,7 @@ const PetDetail = () => {
     );
   }
 
-  // ✅ Error state with helpful actions
+  // Error state
   if (error) {
     return (
       <div className="container mt-4">
@@ -190,16 +226,25 @@ const PetDetail = () => {
     );
   }
 
-  // ✅ Main pet details view
+  // Main pet details view
   return (
     <div className="container mt-4">
       {/* Breadcrumb Navigation */}
-      <nav aria-label="breadcrumb" className="mb-3">
+      <nav aria-label="breadcrumb" className="mb-4">
         <ol className="breadcrumb">
           <li className="breadcrumb-item">
-            <Button variant="link" className="p-0" onClick={handleBackToPets}>
+            <Button variant="link" className="p-0 text-decoration-none" onClick={handleBackToPets}>
               <i className="fas fa-paw me-1"></i>
               All Pets
+            </Button>
+          </li>
+          <li className="breadcrumb-item">
+            <Button 
+              variant="link" 
+              className="p-0 text-decoration-none" 
+              onClick={() => navigate(`/pets?type=${pet.type}`)}
+            >
+              {formatPetType(pet.type)}s
             </Button>
           </li>
           <li className="breadcrumb-item active" aria-current="page">
@@ -208,74 +253,105 @@ const PetDetail = () => {
         </ol>
       </nav>
 
-      {/* Pet Details Card */}
-      <Card className="shadow">
-        <div className="row g-0">
+      {/* Main Pet Details Card */}
+      <Card className="shadow-lg mb-4">
+        <Row className="g-0">
           {/* Pet Image */}
-          <div className="col-md-5">
-            <SafeImage 
-              item={pet} 
-              category={pet?.type} 
-              alt={pet?.name} 
-              fitMode="cover" 
-              className="h-100"
-            />
-          </div>
+          <Col md={6}>
+            <div style={{ height: '400px', overflow: 'hidden' }}>
+              <SafeImage 
+                item={pet} 
+                category={pet?.type} 
+                alt={pet?.name}
+                fitMode="cover"
+                className="w-100 h-100"
+                style={{ objectFit: 'cover' }}
+                src={getImageUrl(pet)}
+              />
+            </div>
+          </Col>
           
           {/* Pet Information */}
-          <div className="col-md-7 p-4">
+          <Col md={6} className="p-4">
             {/* Header with name and status */}
             <div className="d-flex justify-content-between align-items-start mb-3">
-              <h2 className="mb-0">{pet.name}</h2>
-              <Badge bg={pet.status === 'available' ? 'success' : 'secondary'} className="fs-6">
-                <i className={`fas ${pet.status === 'available' ? 'fa-heart' : 'fa-check'} me-1`}></i>
-                {pet.status === 'available' ? 'Available for Adoption' : pet.status}
+              <div>
+                <h1 className="mb-2">{pet.name}</h1>
+                <p className="text-muted mb-0">
+                  {pet.breed} • {formatPetType(pet.type)}
+                </p>
+              </div>
+              <Badge 
+                bg={pet.status === 'available' ? 'success' : pet.status === 'pending' ? 'warning' : 'secondary'} 
+                className="fs-6 px-3 py-2"
+              >
+                <i className={`fas ${
+                  pet.status === 'available' ? 'fa-heart' : 
+                  pet.status === 'pending' ? 'fa-clock' : 
+                  'fa-check'
+                } me-1`}></i>
+                {pet.status === 'available' ? 'Available for Adoption' : 
+                 pet.status === 'pending' ? 'Adoption Pending' :
+                 pet.status?.charAt(0).toUpperCase() + pet.status?.slice(1)}
               </Badge>
             </div>
             
-            {/* Basic Info Grid */}
-            <div className="row mb-3">
-              <div className="col-6">
-                <p className="mb-1">
-                  <strong><i className="fas fa-tag me-1"></i>Type:</strong> 
-                  <span className="text-capitalize ms-1">{pet.type}</span>
-                </p>
-                <p className="mb-1">
-                  <strong><i className="fas fa-dna me-1"></i>Breed:</strong> 
-                  <span className="ms-1">{pet.breed}</span>
-                </p>
-              </div>
-              <div className="col-6">
-                <p className="mb-1">
-                  <strong><i className="fas fa-birthday-cake me-1"></i>Age:</strong> 
-                  <span className="ms-1">{pet.age}</span>
-                </p>
-                {pet.gender && (
-                  <p className="mb-1">
-                    <strong><i className="fas fa-venus-mars me-1"></i>Gender:</strong> 
-                    <span className="text-capitalize ms-1">{pet.gender}</span>
-                  </p>
-                )}
-                {pet.size && (
-                  <p className="mb-1">
-                    <strong><i className="fas fa-ruler me-1"></i>Size:</strong> 
-                    <span className="text-capitalize ms-1">{pet.size}</span>
-                  </p>
-                )}
-              </div>
-            </div>
+            {/* Key Details Grid */}
+            <Row className="mb-4">
+              <Col xs={6} className="mb-3">
+                <div className="d-flex align-items-center">
+                  <i className="fas fa-birthday-cake text-primary me-2"></i>
+                  <div>
+                    <small className="text-muted d-block">Age</small>
+                    <strong>{pet.age}</strong>
+                  </div>
+                </div>
+              </Col>
+              <Col xs={6} className="mb-3">
+                <div className="d-flex align-items-center">
+                  <i className="fas fa-venus-mars text-primary me-2"></i>
+                  <div>
+                    <small className="text-muted d-block">Gender</small>
+                    <strong>{formatGender(pet.gender)}</strong>
+                  </div>
+                </div>
+              </Col>
+              <Col xs={6} className="mb-3">
+                <div className="d-flex align-items-center">
+                  <i className="fas fa-ruler text-primary me-2"></i>
+                  <div>
+                    <small className="text-muted d-block">Size</small>
+                    <strong>{formatSize(pet.size)}</strong>
+                  </div>
+                </div>
+              </Col>
+              <Col xs={6} className="mb-3">
+                <div className="d-flex align-items-center">
+                  <i className="fas fa-paw text-primary me-2"></i>
+                  <div>
+                    <small className="text-muted d-block">ID</small>
+                    <strong>{pet._id}</strong>
+                  </div>
+                </div>
+              </Col>
+            </Row>
 
-            {/* Description */}
-            {pet.description && (
-              <div className="mb-4">
-                <h5><i className="fas fa-info-circle me-2"></i>About {pet.name}</h5>
-                <p className="text-muted">{pet.description}</p>
+            {/* Featured Badge */}
+            {pet.featured && (
+              <div className="mb-3">
+                <Badge bg="warning" text="dark" className="px-3 py-2">
+                  <i className="fas fa-star me-1"></i>
+                  Featured Pet
+                </Badge>
               </div>
             )}
 
             {/* Heart Rating */}
             <div className="mb-4">
-              <h6><i className="fas fa-star me-2"></i>Rate This Pet:</h6>
+              <h6 className="mb-2">
+                <i className="fas fa-star text-warning me-2"></i>
+                Rate This Pet:
+              </h6>
               <HeartRating
                 initial={pet?.rating || 0}
                 onRate={handleHeartRating}
@@ -289,46 +365,128 @@ const PetDetail = () => {
             </div>
 
             {/* Action Buttons */}
-            <div className="d-flex gap-2 flex-wrap">
+            <div className="d-grid gap-2 d-md-flex">
               <Button 
                 variant="primary" 
                 size="lg" 
                 onClick={handleAdoptionInterest}
                 disabled={pet.status !== 'available'}
+                className="flex-fill"
               >
                 <i className="fas fa-heart me-2"></i>
-                {pet.status === 'available' ? 'Start Adoption Process' : 'Not Available'}
+                {pet.status === 'available' ? 'Start Adoption' : 'Not Available'}
               </Button>
               <Button variant="outline-secondary" size="lg">
                 <i className="fas fa-bookmark me-2"></i>
-                Save for Later
+                Save
               </Button>
               <Button variant="outline-info" size="lg" onClick={() => navigate('/contact')}>
                 <i className="fas fa-question-circle me-2"></i>
                 Ask Questions
               </Button>
             </div>
-
-            {/* Pet ID for debugging (only in development) */}
-            {process.env.NODE_ENV === 'development' && (
-              <div className="mt-3 p-2 bg-light rounded small text-muted">
-                <strong>Debug Info:</strong> Pet ID: {pet._id} | Type: {typeof pet._id}
-              </div>
-            )}
-          </div>
-        </div>
+          </Col>
+        </Row>
       </Card>
 
-      {/* Related/Similar Pets Section */}
-      <div className="mt-4">
-        <h4>Other {pet.type}s looking for homes</h4>
-        <p className="text-muted">
-          <Button variant="outline-primary" onClick={() => navigate(`/pets?type=${pet.type}`)}>
-            <i className="fas fa-search me-1"></i>
-            View All {pet.type}s
-          </Button>
-        </p>
-      </div>
+      {/* Description Section */}
+      {pet.description && (
+        <Card className="shadow mb-4">
+          <Card.Body>
+            <h4 className="mb-3">
+              <i className="fas fa-info-circle text-primary me-2"></i>
+              About {pet.name}
+            </h4>
+            <p className="lead text-muted mb-0">{pet.description}</p>
+          </Card.Body>
+        </Card>
+      )}
+
+      {/* Additional Information */}
+      <Card className="shadow mb-4">
+        <Card.Body>
+          <h4 className="mb-3">
+            <i className="fas fa-clipboard-list text-primary me-2"></i>
+            Pet Details
+          </h4>
+          <Row>
+            <Col md={6}>
+              <ul className="list-unstyled">
+                <li className="mb-2">
+                  <strong>Type:</strong> {formatPetType(pet.type)}
+                </li>
+                <li className="mb-2">
+                  <strong>Breed:</strong> {pet.breed}
+                </li>
+                <li className="mb-2">
+                  <strong>Category:</strong> {formatPetType(pet.category)}
+                </li>
+              </ul>
+            </Col>
+            <Col md={6}>
+              <ul className="list-unstyled">
+                <li className="mb-2">
+                  <strong>Status:</strong> {pet.status?.charAt(0).toUpperCase() + pet.status?.slice(1)}
+                </li>
+                {pet.adoptionFee > 0 && (
+                  <li className="mb-2">
+                    <strong>Adoption Fee:</strong> ${pet.adoptionFee}
+                  </li>
+                )}
+                {pet.color && (
+                  <li className="mb-2">
+                    <strong>Color:</strong> {pet.color}
+                  </li>
+                )}
+              </ul>
+            </Col>
+          </Row>
+        </Card.Body>
+      </Card>
+
+      {/* Similar Pets */}
+      <Card className="shadow">
+        <Card.Body>
+          <h4 className="mb-3">
+            <i className="fas fa-search text-primary me-2"></i>
+            Find Similar Pets
+          </h4>
+          <div className="d-flex gap-2 flex-wrap">
+            <Button 
+              variant="outline-primary" 
+              onClick={() => navigate(`/pets?type=${pet.type}`)}
+            >
+              More {formatPetType(pet.type)}s
+            </Button>
+            <Button 
+              variant="outline-secondary" 
+              onClick={() => navigate(`/pets?breed=${encodeURIComponent(pet.breed)}`)}
+            >
+              More {pet.breed}s
+            </Button>
+            <Button 
+              variant="outline-info" 
+              onClick={() => navigate(`/pets?size=${pet.size}`)}
+            >
+              {formatSize(pet.size)} Pets
+            </Button>
+          </div>
+        </Card.Body>
+      </Card>
+
+      {/* Debug Info (Development Only) */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="mt-4">
+          <Card bg="light">
+            <Card.Body>
+              <h6>Debug Information (Development Only)</h6>
+              <pre className="small mb-0">
+                {JSON.stringify(pet, null, 2)}
+              </pre>
+            </Card.Body>
+          </Card>
+        </div>
+      )}
     </div>
   );
 };

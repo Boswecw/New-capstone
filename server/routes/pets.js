@@ -1,11 +1,11 @@
-// server/routes/pets.js - ROBUST FIX with better error handling
+// server/routes/pets.js - COMPLETE FIX - Returns all pet data properly
 const express = require('express');
 const mongoose = require('mongoose');
 const Pet = require('../models/Pet');
 const { protect, admin } = require('../middleware/auth');
 const router = express.Router();
 
-// ⭐ ROBUST: Pet ID validation with better error handling
+// ⭐ Pet ID validation for custom string IDs
 const validatePetId = (req, res, next) => {
   const { id } = req.params;
   
@@ -17,7 +17,7 @@ const validatePetId = (req, res, next) => {
     });
   }
 
-  // Accept both MongoDB ObjectIds AND custom pet IDs
+  // Accept both MongoDB ObjectIds AND custom pet IDs (p001, p003, etc.)
   const isValidObjectId = mongoose.Types.ObjectId.isValid(id);
   const isCustomPetId = /^p\d{3}$/.test(id);
   
@@ -28,7 +28,7 @@ const validatePetId = (req, res, next) => {
       error: 'INVALID_ID_FORMAT',
       received: id,
       expected: 'Either a MongoDB ObjectId (24 chars) or custom pet ID (p001, p003, etc.)',
-      examples: ['p001', 'p003', 'p025', '507f1f77bcf86cd799439011']
+      examples: ['p001', 'p003', 'p025', 'p054']
     });
   }
 
@@ -72,12 +72,11 @@ router.get('/featured', async (req, res) => {
     res.json({
       success: true,
       data: featuredPets,
-      count: featuredPets.length,
-      message: `${featuredPets.length} featured pets selected randomly`
+      count: featuredPets.length
     });
 
   } catch (error) {
-    console.error('❌ Error fetching random featured pets:', error);
+    console.error('❌ Error fetching featured pets:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching featured pets',
@@ -86,13 +85,14 @@ router.get('/featured', async (req, res) => {
   }
 });
 
-// ⭐ Get all pets with advanced filtering and sorting
+// ⭐ Get all pets with filtering
 router.get('/', async (req, res) => {
   try {
     console.log('🐕 GET /api/pets - Query params:', req.query);
 
     const query = { status: 'available' };
 
+    // Apply filters
     if (req.query.type && req.query.type !== 'all') {
       query.type = req.query.type;
     }
@@ -119,11 +119,6 @@ router.get('/', async (req, res) => {
       ];
     }
 
-    if (req.query.age && req.query.age !== 'all') {
-      const ageRegex = new RegExp(req.query.age, 'i');
-      query.age = ageRegex;
-    }
-
     if (req.query.size && req.query.size !== 'all') {
       query.size = req.query.size;
     }
@@ -132,14 +127,14 @@ router.get('/', async (req, res) => {
       query.gender = req.query.gender;
     }
 
+    // Pagination
     const page = parseInt(req.query.page) || 1;
     const limit = Math.min(parseInt(req.query.limit) || 20, 100);
     const skip = (page - 1) * limit;
 
+    // Sorting
     let sortObj = {};
-    const sortOption = req.query.sort || 'newest';
-    
-    switch (sortOption) {
+    switch (req.query.sort || 'newest') {
       case 'newest':
         sortObj = { createdAt: -1 };
         break;
@@ -163,14 +158,14 @@ router.get('/', async (req, res) => {
       .limit(limit)
       .lean();
 
+    // ✅ Enrich pet data with computed fields
     const enrichedPets = pets.map(pet => ({
       ...pet,
       imageUrl: pet.image ? 
         `https://storage.googleapis.com/furbabies-petstore/${pet.image}` : null,
       hasImage: !!pet.image,
       displayName: pet.name || 'Unnamed Pet',
-      isAvailable: pet.status === 'available',
-      daysSincePosted: Math.floor((new Date() - new Date(pet.createdAt)) / (1000 * 60 * 60 * 24))
+      isAvailable: pet.status === 'available'
     }));
 
     console.log(`🐕 Found ${pets.length} pets (Total: ${total})`);
@@ -184,14 +179,6 @@ router.get('/', async (req, res) => {
         limit,
         pages: Math.ceil(total / limit),
         hasMore: skip + pets.length < total
-      },
-      filters: {
-        type: req.query.type || 'all',
-        breed: req.query.breed || 'all',
-        category: req.query.category || 'all',
-        search: req.query.search || '',
-        sort: req.query.sort || 'newest',
-        featured: req.query.featured || 'all'
       }
     });
 
@@ -205,7 +192,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// ⭐ ROBUST: Get single pet by ID with comprehensive error handling
+// ⭐ MAIN FIX: Get single pet by ID - returns ALL pet data
 router.get('/:id', validatePetId, async (req, res) => {
   try {
     console.log('🐕 GET /api/pets/:id - Pet ID:', req.params.id);
@@ -213,23 +200,27 @@ router.get('/:id', validatePetId, async (req, res) => {
     let pet;
     
     try {
-      // ✅ ROBUST: Try direct query first - this should work with your custom string IDs
+      // ✅ Try findOne first for custom string IDs
       pet = await Pet.findOne({ _id: req.params.id }).lean();
     } catch (queryError) {
-      console.log('⚠️ Direct query failed, trying alternative approach:', queryError.message);
+      console.log('⚠️ findOne failed, trying findById:', queryError.message);
       
-      // ✅ FALLBACK: If direct query fails, try different approaches
-      try {
-        // Try treating as ObjectId if it's valid
-        if (mongoose.Types.ObjectId.isValid(req.params.id)) {
+      // ✅ Fallback to findById for ObjectIds
+      if (mongoose.Types.ObjectId.isValid(req.params.id)) {
+        try {
           pet = await Pet.findById(req.params.id).lean();
-        } else {
-          // For custom IDs, try a more explicit query
-          pet = await Pet.collection.findOne({ _id: req.params.id });
+        } catch (findByIdError) {
+          console.error('❌ findById also failed:', findByIdError.message);
         }
-      } catch (fallbackError) {
-        console.error('❌ All query methods failed:', fallbackError.message);
-        throw new Error(`Unable to query pet with ID: ${req.params.id}`);
+      }
+      
+      // ✅ Final fallback - direct collection query
+      if (!pet) {
+        try {
+          pet = await Pet.collection.findOne({ _id: req.params.id });
+        } catch (collectionError) {
+          console.error('❌ Collection query failed:', collectionError.message);
+        }
       }
     }
 
@@ -240,24 +231,82 @@ router.get('/:id', validatePetId, async (req, res) => {
         message: 'Pet not found',
         error: 'PET_NOT_FOUND',
         petId: req.params.id,
-        suggestion: 'This pet may have been adopted or is no longer available',
-        helpUrl: '/api/pets'
+        suggestion: 'This pet may have been adopted or is no longer available'
       });
     }
 
-    // ✅ Add computed fields
+    // ✅ COMPREHENSIVE: Return ALL pet data with proper enrichment
     const enrichedPet = {
-      ...pet,
+      // Core identification
+      _id: pet._id,
+      name: pet.name,
+      
+      // Type and categorization
+      type: pet.type,
+      category: pet.category,
+      breed: pet.breed,
+      
+      // Physical characteristics
+      age: pet.age,
+      gender: pet.gender,
+      size: pet.size,
+      color: pet.color,
+      
+      // Description and personality
+      description: pet.description,
+      personalityTraits: pet.personalityTraits || [],
+      
+      // Images
+      image: pet.image,
       imageUrl: pet.image ? 
         `https://storage.googleapis.com/furbabies-petstore/${pet.image}` : null,
+      imagePublicId: pet.imagePublicId,
+      additionalImages: pet.additionalImages || [],
       hasImage: !!pet.image,
-      displayName: pet.name || 'Unnamed Pet',
+      
+      // Status and availability
+      status: pet.status,
+      featured: pet.featured,
       isAvailable: pet.status === 'available',
+      
+      // Health and care info
+      healthInfo: pet.healthInfo || {},
+      
+      // Adoption details
+      adoptionFee: pet.adoptionFee || 0,
+      
+      // Location info
+      location: pet.location || {},
+      
+      // Contact information
+      contactInfo: pet.contactInfo || {},
+      
+      // Engagement metrics
+      views: pet.views || 0,
+      favorites: pet.favorites || 0,
+      rating: pet.rating || 0,
+      ratingCount: pet.ratingCount || 0,
+      
+      // Adoption tracking
+      adoptedBy: pet.adoptedBy,
+      adoptedAt: pet.adoptedAt,
+      
+      // Creation info
+      createdBy: pet.createdBy,
+      createdAt: pet.createdAt,
+      updatedAt: pet.updatedAt,
+      
+      // Computed fields
+      displayName: pet.name || 'Unnamed Pet',
       daysSincePosted: pet.createdAt ? 
-        Math.floor((new Date() - new Date(pet.createdAt)) / (1000 * 60 * 60 * 24)) : 0
+        Math.floor((new Date() - new Date(pet.createdAt)) / (1000 * 60 * 60 * 24)) : 0,
+      
+      // Age formatting
+      ageInWords: pet.age || 'Age unknown'
     };
 
-    console.log('✅ Pet found:', pet.name, '(ID:', req.params.id + ')');
+    console.log('✅ Pet found and enriched:', pet.name, '(ID:', req.params.id + ')');
+    console.log('📊 Pet data fields:', Object.keys(enrichedPet).length);
 
     res.json({
       success: true,
@@ -268,21 +317,18 @@ router.get('/:id', validatePetId, async (req, res) => {
   } catch (error) {
     console.error('❌ Error fetching pet by ID:', error);
     
-    // ✅ DETAILED: Provide detailed error information
     res.status(500).json({
       success: false,
       message: 'Failed to fetch pet details',
       error: error.message,
       petId: req.params.id,
       suggestion: 'This might be a temporary server issue. Please try again.',
-      timestamp: new Date().toISOString(),
-      // Include stack trace in development
-      ...(process.env.NODE_ENV === 'development' && { stack: error.stack })
+      timestamp: new Date().toISOString()
     });
   }
 });
 
-// ⭐ ROBUST: Rate a pet with comprehensive error handling
+// ⭐ Rate a pet
 router.post('/:id/rate', validatePetId, async (req, res) => {
   try {
     const { rating } = req.body;
@@ -298,37 +344,10 @@ router.post('/:id/rate', validatePetId, async (req, res) => {
     let pet;
     
     try {
-      // ✅ ROBUST: Try the same approach as the get route
       pet = await Pet.findOne({ _id: req.params.id });
     } catch (queryError) {
-      console.log('⚠️ Rating query failed, trying alternative:', queryError.message);
-      
       if (mongoose.Types.ObjectId.isValid(req.params.id)) {
         pet = await Pet.findById(req.params.id);
-      } else {
-        // For custom IDs, we need to update directly
-        const result = await Pet.collection.findOneAndUpdate(
-          { _id: req.params.id },
-          { 
-            $set: { 
-              rating: rating,
-              ratingCount: 1 // Simplified for now
-            }
-          },
-          { returnDocument: 'after' }
-        );
-        
-        if (result.value) {
-          return res.json({
-            success: true,
-            message: `Thank you for rating this pet!`,
-            data: {
-              petId: req.params.id,
-              newRating: rating,
-              ratingCount: 1
-            }
-          });
-        }
       }
     }
 
@@ -340,7 +359,7 @@ router.post('/:id/rate', validatePetId, async (req, res) => {
       });
     }
 
-    // Update rating for mongoose documents
+    // Update rating
     const currentRating = pet.rating || 0;
     const ratingCount = pet.ratingCount || 0;
     const newRatingCount = ratingCount + 1;
@@ -368,8 +387,7 @@ router.post('/:id/rate', validatePetId, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to rate pet',
-      error: error.message,
-      petId: req.params.id
+      error: error.message
     });
   }
 });
