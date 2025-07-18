@@ -1,6 +1,4 @@
-// server/models/Pet.js - Complete corrected section
-// Replace your current Pet model with this corrected version:
-
+// server/models/Pet.js - SIMPLE FIX to allow custom string IDs
 const mongoose = require('mongoose');
 
 const petSchema = new mongoose.Schema({
@@ -35,10 +33,9 @@ const petSchema = new mongoose.Schema({
     maxlength: [50, 'Breed cannot exceed 50 characters']
   },
   age: {
-    type: Number,
+    type: String, // ✅ Changed to String to match your data ("6 months")
     required: [true, 'Pet age is required'],
-    min: [0, 'Age cannot be negative'],
-    max: [30, 'Age cannot exceed 30 years']
+    trim: true
   },
   gender: {
     type: String,
@@ -92,24 +89,24 @@ const petSchema = new mongoose.Schema({
       type: Date
     }
   },
+  // ✅ Using 'image' to match your database structure
+  image: {
+    type: String,
+    trim: true,
+    default: null
+  },
   imageUrl: {
     type: String,
     trim: true,
-    default: 'https://via.placeholder.com/300x200?text=Pet+Photo'
+    default: null
   },
-  imagePublicId: {
-    type: String,
-    trim: true
+  imagePublicId: { 
+    type: String, 
+    trim: true 
   },
   additionalImages: [{
-    url: {
-      type: String,
-      trim: true
-    },
-    publicId: {
-      type: String,
-      trim: true
-    }
+    url: { type: String, trim: true },
+    publicId: { type: String, trim: true }
   }],
   status: {
     type: String,
@@ -119,30 +116,30 @@ const petSchema = new mongoose.Schema({
     },
     default: 'available'
   },
-  featured: {
-    type: Boolean,
-    default: false
+  featured: { 
+    type: Boolean, 
+    default: false 
   },
-  adoptionFee: {
-    type: Number,
-    min: [0, 'Adoption fee cannot be negative'],
-    default: 0
+  adoptionFee: { 
+    type: Number, 
+    min: 0, 
+    default: 0 
   },
   location: {
-    shelter: {
-      type: String,
-      trim: true,
-      maxlength: [100, 'Shelter name cannot exceed 100 characters']
+    shelter: { 
+      type: String, 
+      trim: true, 
+      maxlength: 100 
     },
-    city: {
-      type: String,
-      trim: true,
-      maxlength: [50, 'City cannot exceed 50 characters']
+    city: { 
+      type: String, 
+      trim: true, 
+      maxlength: 50 
     },
-    state: {
-      type: String,
-      trim: true,
-      maxlength: [50, 'State cannot exceed 50 characters']
+    state: { 
+      type: String, 
+      trim: true, 
+      maxlength: 50 
     }
   },
   contactInfo: {
@@ -166,6 +163,17 @@ const petSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  rating: {
+    type: Number,
+    min: 0,
+    max: 5,
+    default: 0
+  },
+  ratingCount: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
   adoptedBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
@@ -183,32 +191,34 @@ const petSchema = new mongoose.Schema({
 }, {
   timestamps: true,
   toJSON: { virtuals: true },
-  toObject: { virtuals: true }
+  toObject: { virtuals: true },
+  // ✅ KEY FIX: Disable strict mode for _id to allow custom string IDs
+  strict: false
 });
 
-// Indexes for better query performance
+// ✅ Indexes for better query performance
 petSchema.index({ type: 1, status: 1 });
 petSchema.index({ category: 1, status: 1 });
 petSchema.index({ status: 1, featured: 1 });
 petSchema.index({ createdAt: -1 });
 petSchema.index({ adoptedAt: -1 });
 
-// Virtual for age in words
+// Virtual for age in words (handles string ages like "6 months")
 petSchema.virtual('ageInWords').get(function() {
-  if (this.age === 0) return 'Less than 1 year';
-  if (this.age === 1) return '1 year';
-  return `${this.age} years`;
+  if (!this.age) return 'Age unknown';
+  return this.age; // Return as-is since it's already descriptive
 });
 
 // Virtual for days since posted
 petSchema.virtual('daysSincePosted').get(function() {
+  if (!this.createdAt) return 0;
   const now = new Date();
   const diffTime = Math.abs(now - this.createdAt);
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   return diffDays;
 });
 
-// Pre-save middleware to set category based on type
+// Pre-save middleware to handle category assignment
 petSchema.pre('save', function(next) {
   if (this.isModified('type')) {
     switch (this.type) {
@@ -221,10 +231,11 @@ petSchema.pre('save', function(next) {
       case 'fish':
         this.category = 'aquatic';
         break;
-      case 'small-pet':  // ✅ Handle small-pet type
+      case 'small-pet':
       case 'bird':
       case 'rabbit':
       case 'hamster':
+      case 'other':
         this.category = 'other';
         break;
       default:
@@ -234,23 +245,21 @@ petSchema.pre('save', function(next) {
   next();
 });
 
-// Static method to get available pets
+// Static methods
 petSchema.statics.getAvailable = function() {
   return this.find({ status: 'available' }).sort({ createdAt: -1 });
 };
 
-// Static method to get featured pets
 petSchema.statics.getFeatured = function() {
   return this.find({ status: 'available', featured: true }).sort({ createdAt: -1 });
 };
 
-// Method to increment views
+// Instance methods
 petSchema.methods.incrementViews = function() {
   this.views += 1;
   return this.save();
 };
 
-// Method to mark as adopte
 petSchema.methods.markAsAdopted = function(userId) {
   this.status = 'adopted';
   this.adoptedBy = userId;
