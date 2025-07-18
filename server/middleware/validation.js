@@ -1,5 +1,6 @@
-// server/middleware/validation.js - MINIMAL FIX VERSION
+// server/middleware/validation.js - UPDATED to support custom pet IDs
 const { body, param, query, validationResult } = require("express-validator");
+const mongoose = require('mongoose');
 
 // Middleware to handle validation errors
 const handleValidationErrors = (req, res, next) => {
@@ -213,24 +214,30 @@ const validateContactSubmission = [
   handleValidationErrors,
 ];
 
-// 🎯 SIMPLE CUSTOM PET ID VALIDATION - No fancy logic, just basic check
+// ✅ UPDATED: Pet ID validation that accepts both MongoDB ObjectIds AND custom pet IDs
 const validatePetId = [
   param("id")
     .notEmpty()
     .withMessage("Pet ID is required")
-    .isLength({ min: 1, max: 50 })
-    .withMessage("Pet ID must be between 1 and 50 characters")
-    .matches(/^[a-zA-Z0-9_-]+$/)
-    .withMessage(
-      "Pet ID can only contain letters, numbers, hyphens, and underscores"
-    ),
+    .custom((value) => {
+      const isValidObjectId = mongoose.Types.ObjectId.isValid(value);
+      const isCustomPetId = /^p\d{3}$/.test(value); // Matches p001, p003, p025, etc.
+      
+      if (!isValidObjectId && !isCustomPetId) {
+        throw new Error(
+          `Invalid pet ID format. Expected MongoDB ObjectId or custom format like p001, p003. Received: ${value}`
+        );
+      }
+      
+      return true;
+    }),
 
   handleValidationErrors,
 ];
 
-// Standard MongoDB ObjectId validation (for users, etc.)
+// Standard MongoDB ObjectId validation (for users, products, etc.)
 const validateObjectId = [
-  param("id").isMongoId().withMessage("Invalid ID format"),
+  param("id").isMongoId().withMessage("Invalid ID format - must be a valid MongoDB ObjectId"),
 
   handleValidationErrors,
 ];
@@ -335,8 +342,8 @@ module.exports = {
   validateContactSubmission,
 
   // Parameter validations
-  validateObjectId,
-  validatePetId, // 🎯 Simple validation that accepts your pet IDs
+  validateObjectId,        // ✅ For MongoDB ObjectIds only (users, products, etc.)
+  validatePetId,          // ✅ UPDATED: For pet IDs (accepts both ObjectIds and custom p001, p003, etc.)
   validateUserId,
 
   // Utility

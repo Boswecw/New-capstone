@@ -1,11 +1,44 @@
-// server/routes/pets.js - ENHANCED VERSION with Random Featured Selection
+// server/routes/pets.js - FIXED to support custom pet IDs like p001, p003, etc.
 const express = require('express');
+const mongoose = require('mongoose');
 const Pet = require('../models/Pet');
 const { protect, admin } = require('../middleware/auth');
-const { validateObjectId } = require('../middleware/validation');
 const router = express.Router();
 
-// ⭐ NEW: Get random featured pets for home page
+// ⭐ FIXED: Custom validation for your pet ID format
+const validatePetId = (req, res, next) => {
+  const { id } = req.params;
+  
+  // Check if ID is provided
+  if (!id || id.trim() === '') {
+    return res.status(400).json({
+      success: false,
+      message: 'Pet ID is required',
+      error: 'MISSING_ID'
+    });
+  }
+
+  // ✅ ACCEPT both MongoDB ObjectIds AND custom pet IDs (p001, p003, etc.)
+  const isValidObjectId = mongoose.Types.ObjectId.isValid(id);
+  const isCustomPetId = /^p\d{3}$/.test(id); // Matches p001, p003, p025, etc.
+  
+  if (!isValidObjectId && !isCustomPetId) {
+    return res.status(400).json({
+      success: false,
+      message: 'Invalid pet ID format',
+      error: 'INVALID_ID_FORMAT',
+      received: id,
+      expected: 'Either a MongoDB ObjectId (24 chars) or custom pet ID (p001, p003, etc.)',
+      examples: ['p001', 'p003', 'p025', '507f1f77bcf86cd799439011'],
+      suggestion: 'Please use a valid pet ID from our browse page'
+    });
+  }
+
+  console.log(`✅ Pet ID validation passed: ${id} (${isCustomPetId ? 'custom' : 'ObjectId'})`);
+  next();
+};
+
+// ⭐ Get random featured pets for home page
 router.get('/featured', async (req, res) => {
   try {
     console.log('🏠 GET /api/pets/featured - Random selection requested');
@@ -20,7 +53,7 @@ router.get('/featured', async (req, res) => {
           status: 'available' 
         } 
       },
-      { $sample: { size: limit } }, // ⭐ This provides random selection
+      { $sample: { size: limit } },
       {
         $addFields: {
           imageUrl: {
@@ -56,13 +89,13 @@ router.get('/featured', async (req, res) => {
   }
 });
 
-// ⭐ ENHANCED: Get all pets with advanced filtering and sorting
+// ⭐ Get all pets with advanced filtering and sorting
 router.get('/', async (req, res) => {
   try {
     console.log('🐕 GET /api/pets - Query params:', req.query);
 
     // Build query object
-    const query = { status: 'available' }; // Only show available pets by default
+    const query = { status: 'available' };
 
     // Type filter (dog, cat, fish, bird, small-pet)
     if (req.query.type && req.query.type !== 'all') {
@@ -113,79 +146,60 @@ router.get('/', async (req, res) => {
 
     // Pagination
     const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 12;
+    const limit = Math.min(parseInt(req.query.limit) || 20, 100);
     const skip = (page - 1) * limit;
 
     // Sorting
-    let sortOptions = { createdAt: -1 }; // Default: newest first
+    let sortObj = {};
+    const sortOption = req.query.sort || 'newest';
     
-    switch (req.query.sort) {
-      case 'name':
-        sortOptions = { name: 1 };
+    switch (sortOption) {
+      case 'newest':
+        sortObj = { createdAt: -1 };
         break;
-      case 'age':
-        sortOptions = { age: 1 };
+      case 'oldest':
+        sortObj = { createdAt: 1 };
         break;
-      case 'featured':
-        sortOptions = { featured: -1, createdAt: -1 };
+      case 'name_asc':
+        sortObj = { name: 1 };
         break;
-      case 'random':
-        // For random sorting, we'll use aggregation pipeline
+      case 'name_desc':
+        sortObj = { name: -1 };
         break;
+      case 'age_asc':
+        sortObj = { age: 1 };
+        break;
+      case 'age_desc':
+        sortObj = { age: -1 };
+        break;
+      default:
+        sortObj = { createdAt: -1 };
     }
 
-    let pets;
-    let total;
+    // Execute query with pagination
+    const total = await Pet.countDocuments(query);
+    const pets = await Pet.find(query)
+      .sort(sortObj)
+      .skip(skip)
+      .limit(limit)
+      .lean();
 
-    if (req.query.sort === 'random') {
-      // Use aggregation for random sorting
-      const pipeline = [
-        { $match: query },
-        { $sample: { size: limit } },
-        {
-          $addFields: {
-            imageUrl: {
-              $cond: {
-                if: { $ne: ["$image", null] },
-                then: { $concat: ["https://storage.googleapis.com/furbabies-petstore/", "$image"] },
-                else: null
-              }
-            },
-            hasImage: { $ne: ["$image", null] },
-            displayName: { $ifNull: ["$name", "Unnamed Pet"] },
-            isAvailable: { $eq: ["$status", "available"] }
-          }
-        }
-      ];
-      
-      pets = await Pet.aggregate(pipeline);
-      total = await Pet.countDocuments(query);
-    } else {
-      // Regular query with sorting
-      total = await Pet.countDocuments(query);
-      
-      const dbPets = await Pet.find(query)
-        .sort(sortOptions)
-        .limit(limit)
-        .skip(skip)
-        .lean();
-
-      // Add computed fields
-      pets = dbPets.map(pet => ({
-        ...pet,
-        imageUrl: pet.image ? `https://storage.googleapis.com/furbabies-petstore/${pet.image}` : null,
-        hasImage: !!pet.image,
-        displayName: pet.name || 'Unnamed Pet',
-        isAvailable: pet.status === 'available',
-        daysSincePosted: Math.floor((new Date() - new Date(pet.createdAt)) / (1000 * 60 * 60 * 24))
-      }));
-    }
+    // Add computed fields to each pet
+    const enrichedPets = pets.map(pet => ({
+      ...pet,
+      imageUrl: pet.image ? 
+        `https://storage.googleapis.com/furbabies-petstore/${pet.image}` : null,
+      hasImage: !!pet.image,
+      displayName: pet.name || 'Unnamed Pet',
+      isAvailable: pet.status === 'available',
+      daysSincePosted: Math.floor((new Date() - new Date(pet.createdAt)) / (1000 * 60 * 60 * 24))
+    }));
 
     console.log(`🐕 Found ${pets.length} pets (Total: ${total})`);
 
     res.json({
       success: true,
-      data: pets,
+      data: enrichedPets,
       pagination: {
         total,
         page,
@@ -213,119 +227,111 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Get single pet by ID
-router.get('/:id', validateObjectId, async (req, res) => {
+// ⭐ FIXED: Get single pet by ID - supports both ObjectIds and custom IDs
+router.get('/:id', validatePetId, async (req, res) => {
   try {
     console.log('🐕 GET /api/pets/:id - Pet ID:', req.params.id);
     
-    const pet = await Pet.findById(req.params.id).lean();
+    // ✅ FIXED: Use findOne instead of findById to support custom string IDs
+    const pet = await Pet.findOne({ _id: req.params.id }).lean();
 
     if (!pet) {
-      console.log('🐕 Pet not found');
+      console.log('🐕 Pet not found for ID:', req.params.id);
       return res.status(404).json({ 
         success: false, 
-        message: 'Pet not found' 
+        message: 'Pet not found',
+        error: 'PET_NOT_FOUND',
+        petId: req.params.id,
+        suggestion: 'This pet may have been adopted or is no longer available',
+        helpUrl: '/api/pets'
       });
     }
 
     // Add computed fields
     const enrichedPet = {
       ...pet,
-      imageUrl: pet.image ? `https://storage.googleapis.com/furbabies-petstore/${pet.image}` : null,
+      imageUrl: pet.image ? 
+        `https://storage.googleapis.com/furbabies-petstore/${pet.image}` : null,
       hasImage: !!pet.image,
       displayName: pet.name || 'Unnamed Pet',
-      isAvailable: pet.status === 'available'
+      isAvailable: pet.status === 'available',
+      daysSincePosted: Math.floor((new Date() - new Date(pet.createdAt)) / (1000 * 60 * 60 * 24))
     };
 
-    console.log('🐕 Pet found:', enrichedPet.displayName);
-    
+    console.log('✅ Pet found:', pet.name, '(ID:', req.params.id + ')');
+
     res.json({
       success: true,
-      data: enrichedPet
+      data: enrichedPet,
+      message: `Pet details for ${pet.name}`
     });
-    
+
   } catch (error) {
-    console.error('❌ Error fetching pet:', error);
+    console.error('❌ Error fetching pet by ID:', error);
+    
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch pet',
+      message: 'Failed to fetch pet details',
+      error: error.message,
+      petId: req.params.id
+    });
+  }
+});
+
+// ⭐ FIXED: Rate a pet with custom ID support
+router.post('/:id/rate', validatePetId, async (req, res) => {
+  try {
+    const { rating } = req.body;
+    
+    // Validate rating value
+    if (!rating || rating < 1 || rating > 5) {
+      return res.status(400).json({
+        success: false,
+        message: 'Rating must be between 1 and 5',
+        received: rating
+      });
+    }
+
+    // ✅ FIXED: Use findOne instead of findById for custom IDs
+    const pet = await Pet.findOne({ _id: req.params.id });
+
+    if (!pet) {
+      return res.status(404).json({
+        success: false,
+        message: 'Pet not found',
+        error: 'PET_NOT_FOUND'
+      });
+    }
+
+    // Update rating (simple average for now)
+    const currentRating = pet.rating || 0;
+    const ratingCount = pet.ratingCount || 0;
+    const newRatingCount = ratingCount + 1;
+    const newRating = ((currentRating * ratingCount) + rating) / newRatingCount;
+
+    pet.rating = Math.round(newRating * 10) / 10; // Round to 1 decimal
+    pet.ratingCount = newRatingCount;
+    
+    await pet.save();
+
+    console.log(`✅ Pet ${pet.name} (${pet._id}) rated: ${rating} (new average: ${pet.rating})`);
+
+    res.json({
+      success: true,
+      message: `Thank you for rating ${pet.name}!`,
+      data: {
+        petId: pet._id,
+        newRating: pet.rating,
+        ratingCount: pet.ratingCount
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error rating pet:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to rate pet',
       error: error.message
-    });
-  }
-});
-
-// Get pet types for filtering
-router.get('/meta/types', async (req, res) => {
-  try {
-    console.log('🐕 GET /api/pets/meta/types');
-    
-    const types = await Pet.distinct('type', { status: 'available' });
-    
-    const typesWithCount = await Promise.all(
-      types.map(async (type) => {
-        const count = await Pet.countDocuments({ 
-          type: type, 
-          status: 'available' 
-        });
-        return { 
-          _id: type, 
-          name: type.charAt(0).toUpperCase() + type.slice(1), 
-          count,
-          value: type 
-        };
-      })
-    );
-
-    console.log(`🐕 Found ${typesWithCount.length} pet types`);
-    
-    res.json({ 
-      success: true, 
-      data: typesWithCount.filter(t => t.count > 0)
-    });
-  } catch (error) {
-    console.error('❌ Error fetching pet types:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Error fetching pet types', 
-      error: error.message 
-    });
-  }
-});
-
-// Get pet breeds by type
-router.get('/meta/breeds/:type', async (req, res) => {
-  try {
-    const { type } = req.params;
-    console.log(`🐕 GET /api/pets/meta/breeds/${type}`);
-    
-    const breeds = await Pet.distinct('breed', { 
-      type: type,
-      status: 'available' 
-    });
-    
-    const breedsWithCount = await Promise.all(
-      breeds.map(async (breed) => {
-        const count = await Pet.countDocuments({ 
-          type: type,
-          breed: breed,
-          status: 'available'
-        });
-        return { name: breed, count, value: breed };
-      })
-    );
-
-    console.log(`🐕 Found ${breedsWithCount.length} breeds for ${type}`);
-    
-    res.json({ 
-      success: true, 
-      data: breedsWithCount.filter(b => b.count > 0).sort((a, b) => a.name.localeCompare(b.name))
-    });
-  } catch (error) {
-    console.error('❌ Error fetching breeds:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Error fetching breeds', 
-      error: error.message 
     });
   }
 });
