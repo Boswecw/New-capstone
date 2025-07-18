@@ -1,7 +1,7 @@
-// client/src/pages/admin/AdminAnalytics.js - UPDATED with Real API
-import React, { useState, useEffect } from 'react';
-import { Row, Col, Card, Form, Button, Alert, Spinner } from 'react-bootstrap';
-import api from '../../services/api';
+// client/src/pages/admin/AdminAnalytics.js - FIXED VERSION
+import React, { useState, useEffect, useMemo } from 'react';
+import { Row, Col, Card, Form, Button, Alert, Spinner, Badge } from 'react-bootstrap';
+import axios from 'axios'; // ✅ Import axios directly
 
 const AdminAnalytics = () => {
   const [analytics, setAnalytics] = useState({
@@ -15,6 +15,44 @@ const AdminAnalytics = () => {
   const [error, setError] = useState(null);
   const [dateRange, setDateRange] = useState('30days');
   const [refreshing, setRefreshing] = useState(false);
+
+  // ✅ FIXED: Create stable admin API instance (same pattern as AdminPets)
+  const adminAPI = useMemo(() => {
+    const api = axios.create({
+      baseURL: process.env.NODE_ENV === 'production' 
+        ? 'https://furbabies-backend.onrender.com/api'
+        : 'http://localhost:5000/api',
+      timeout: 45000,
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      }
+    });
+
+    // Add auth token
+    api.interceptors.request.use((config) => {
+      const token = localStorage.getItem('token');
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+      console.log(`📡 Admin Analytics Request: ${config.method?.toUpperCase()} ${config.url}`);
+      return config;
+    });
+
+    // Add response logging
+    api.interceptors.response.use(
+      (response) => {
+        console.log(`✅ Admin Analytics Response: ${response.status} ${response.config.url}`);
+        return response;
+      },
+      (error) => {
+        console.error('❌ Admin Analytics Error:', error.response?.status, error.response?.data || error.message);
+        return Promise.reject(error);
+      }
+    );
+
+    return api;
+  }, []); // ✅ Empty dependency array - create once
 
   const dateRanges = [
     { value: '7days', label: 'Last 7 days' },
@@ -30,8 +68,8 @@ const AdminAnalytics = () => {
       
       console.log('📊 Fetching analytics data for range:', range);
       
-      // Try to fetch from your analytics endpoint
-      const response = await api.get(`/admin/analytics?range=${range}`);
+      // ✅ FIXED: Use adminAPI instance
+      const response = await adminAPI.get(`/admin/analytics?range=${range}`);
       
       if (response.data.success) {
         setAnalytics(response.data.data);
@@ -57,39 +95,44 @@ const AdminAnalytics = () => {
   // Generate analytics from existing dashboard data if dedicated endpoint doesn't exist
   const generateAnalyticsFromDashboard = async (range) => {
     try {
-      const dashboardResponse = await api.get('/admin/dashboard');
-      const contactResponse = await api.get('/contact');
+      console.log('📊 Generating analytics from dashboard data...');
+      
+      // ✅ FIXED: Use adminAPI instance for dashboard call
+      const dashboardResponse = await adminAPI.get('/admin/dashboard');
       
       if (dashboardResponse.data.success) {
         const dashboardData = dashboardResponse.data.data;
+        const stats = dashboardData.stats || {};
         
-        // Generate analytics from dashboard stats
+        // Generate realistic analytics from dashboard stats
         const generatedAnalytics = {
           overview: {
-            totalVisits: (dashboardData.stats.users?.totalUsers || 0) * 15, // Estimate
-            uniqueVisitors: dashboardData.stats.users?.totalUsers || 0,
-            adoptionInquiries: dashboardData.stats.contacts?.totalContacts || 0,
-            successfulAdoptions: dashboardData.stats.pets?.adoptedPets || 0,
-            conversionRate: dashboardData.stats.pets?.adoptedPets && dashboardData.stats.contacts?.totalContacts 
-              ? ((dashboardData.stats.pets.adoptedPets / dashboardData.stats.contacts.totalContacts) * 100).toFixed(1)
+            totalVisits: (stats.users?.totalUsers || 0) * 25, // Estimate visits
+            uniqueVisitors: stats.users?.totalUsers || 0,
+            adoptionInquiries: stats.contacts?.totalContacts || 0,
+            successfulAdoptions: stats.pets?.adoptedPets || 0,
+            conversionRate: stats.pets?.adoptedPets && stats.contacts?.totalContacts 
+              ? ((stats.pets.adoptedPets / stats.contacts.totalContacts) * 100).toFixed(1)
               : '0.0'
           },
           chartData: {
             visits: generateVisitData(range),
-            adoptions: generateAdoptionData(dashboardData.stats.pets?.adoptedPets || 0, range)
+            adoptions: generateAdoptionData(stats.pets?.adoptedPets || 0, range),
+            petViews: generatePetViewData(range)
           },
           topPages: [
             { page: '/pets', visits: Math.floor(Math.random() * 1000) + 500, bounceRate: '25%' },
+            { page: '/browse', visits: Math.floor(Math.random() * 800) + 400, bounceRate: '20%' },
             { page: '/about', visits: Math.floor(Math.random() * 500) + 200, bounceRate: '30%' },
             { page: '/contact', visits: Math.floor(Math.random() * 300) + 100, bounceRate: '15%' },
-            { page: '/adopt', visits: Math.floor(Math.random() * 400) + 150, bounceRate: '20%' }
+            { page: '/admin', visits: Math.floor(Math.random() * 200) + 50, bounceRate: '10%' }
           ],
           userFlow: [
-            { step: 'Homepage Visit', users: dashboardData.stats.users?.totalUsers || 0, percentage: '100%' },
-            { step: 'Browse Pets', users: Math.floor((dashboardData.stats.users?.totalUsers || 0) * 0.7), percentage: '70%' },
-            { step: 'View Pet Details', users: Math.floor((dashboardData.stats.users?.totalUsers || 0) * 0.4), percentage: '40%' },
-            { step: 'Contact/Apply', users: dashboardData.stats.contacts?.totalContacts || 0, percentage: '25%' },
-            { step: 'Successful Adoption', users: dashboardData.stats.pets?.adoptedPets || 0, percentage: '10%' }
+            { step: 'Homepage Visit', users: stats.users?.totalUsers || 0, percentage: '100%' },
+            { step: 'Browse Pets', users: Math.floor((stats.users?.totalUsers || 0) * 0.75), percentage: '75%' },
+            { step: 'View Pet Details', users: Math.floor((stats.users?.totalUsers || 0) * 0.45), percentage: '45%' },
+            { step: 'Contact/Apply', users: stats.contacts?.totalContacts || 0, percentage: '25%' },
+            { step: 'Successful Adoption', users: stats.pets?.adoptedPets || 0, percentage: '12%' }
           ],
           recentActivity: dashboardData.recentActivities || {}
         };
@@ -99,7 +142,7 @@ const AdminAnalytics = () => {
       }
     } catch (error) {
       console.error('❌ Error generating analytics:', error);
-      setError('Failed to generate analytics data');
+      setError('Failed to generate analytics data. Dashboard may not be available.');
     }
   };
 
@@ -122,19 +165,40 @@ const AdminAnalytics = () => {
 
   const generateAdoptionData = (totalAdoptions, range) => {
     const days = range === '7days' ? 7 : range === '30days' ? 30 : range === '90days' ? 90 : 365;
+    const adoptionsPerDay = Math.max(1, Math.floor(totalAdoptions / days));
     const data = [];
-    const avgPerDay = totalAdoptions / days;
     
     for (let i = days - 1; i >= 0; i--) {
       const date = new Date();
       date.setDate(date.getDate() - i);
       data.push({
         date: date.toISOString().split('T')[0],
-        adoptions: Math.floor(Math.random() * (avgPerDay * 2)) + Math.floor(avgPerDay * 0.5)
+        adoptions: Math.floor(Math.random() * adoptionsPerDay * 2)
       });
     }
     
     return data;
+  };
+
+  const generatePetViewData = (range) => {
+    const days = range === '7days' ? 7 : range === '30days' ? 30 : range === '90days' ? 90 : 365;
+    const data = [];
+    
+    for (let i = days - 1; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      data.push({
+        date: date.toISOString().split('T')[0],
+        views: Math.floor(Math.random() * 200) + 100
+      });
+    }
+    
+    return data;
+  };
+
+  const handleDateRangeChange = (newRange) => {
+    setDateRange(newRange);
+    fetchAnalytics(newRange);
   };
 
   const handleRefresh = async () => {
@@ -143,114 +207,111 @@ const AdminAnalytics = () => {
     setRefreshing(false);
   };
 
-  const handleDateRangeChange = (newRange) => {
-    setDateRange(newRange);
-    fetchAnalytics(newRange);
-  };
-
+  // ✅ Load data on mount
   useEffect(() => {
+    console.log('📊 AdminAnalytics: Loading initial analytics data');
     fetchAnalytics();
-  }, []);
+  }, []); // Empty dependency array - only run on mount
 
   if (loading) {
     return (
-      <div className="text-center py-5">
-        <Spinner animation="border" role="status">
-          <span className="visually-hidden">Loading...</span>
-        </Spinner>
-        <p className="mt-2">Loading analytics...</p>
+      <div className="d-flex flex-column justify-content-center align-items-center" style={{ height: '50vh' }}>
+        <Spinner animation="border" variant="primary" />
+        <span className="ms-2 mt-3">Loading analytics...</span>
       </div>
     );
   }
 
+  if (error) {
+    return (
+      <Alert variant="danger">
+        <Alert.Heading>Analytics Error</Alert.Heading>
+        <p>{error}</p>
+        <Button variant="outline-danger" onClick={() => fetchAnalytics()}>
+          Try Again
+        </Button>
+      </Alert>
+    );
+  }
+
+  const { overview, chartData, topPages, userFlow } = analytics;
+
   return (
-    <>
-      <div className="d-flex justify-content-between align-items-center mb-4">
-        <h1><i className="fas fa-chart-bar me-2"></i>Analytics</h1>
-        <div className="d-flex gap-2">
-          <Button 
-            variant="outline-secondary" 
-            onClick={handleRefresh}
-            disabled={refreshing}
-          >
-            {refreshing ? (
-              <><Spinner size="sm" className="me-2" />Refreshing...</>
-            ) : (
-              <><i className="fas fa-refresh me-2"></i>Refresh</>
-            )}
-          </Button>
-        </div>
-      </div>
-
-      {error && (
-        <Alert variant="warning" className="mb-4">
-          <Alert.Heading>Analytics Note</Alert.Heading>
-          <p>{error}</p>
-          <small>Showing generated analytics based on available data.</small>
-        </Alert>
-      )}
-
-      {/* Date Range Selector */}
-      <Card className="mb-4">
-        <Card.Body>
-          <div className="d-flex align-items-center gap-3">
-            <span className="fw-bold">Time Period:</span>
-            {dateRanges.map((range) => (
-              <Button
-                key={range.value}
-                variant={dateRange === range.value ? "primary" : "outline-secondary"}
-                size="sm"
-                onClick={() => handleDateRangeChange(range.value)}
+    <div className="admin-analytics">
+      <Row className="mb-4">
+        <Col>
+          <div className="d-flex justify-content-between align-items-center">
+            <div>
+              <h2>Analytics Dashboard</h2>
+              <p className="text-muted mb-0">
+                Website performance and adoption insights
+                <Badge bg="info" className="ms-2">Generated from Dashboard Data</Badge>
+              </p>
+            </div>
+            
+            <div className="d-flex gap-3 align-items-center">
+              <Form.Select 
+                value={dateRange} 
+                onChange={(e) => handleDateRangeChange(e.target.value)}
+                style={{width: 'auto'}}
               >
-                {range.label}
+                {dateRanges.map(range => (
+                  <option key={range.value} value={range.value}>
+                    {range.label}
+                  </option>
+                ))}
+              </Form.Select>
+              
+              <Button 
+                variant="outline-primary" 
+                size="sm" 
+                onClick={handleRefresh}
+                disabled={refreshing}
+              >
+                <i className={`fas ${refreshing ? 'fa-spinner fa-spin' : 'fa-sync-alt'} me-2`}></i>
+                Refresh
               </Button>
-            ))}
+            </div>
           </div>
-        </Card.Body>
-      </Card>
+        </Col>
+      </Row>
 
-      {/* Key Metrics */}
+      {/* Overview Stats */}
       <Row className="g-4 mb-4">
         <Col md={3}>
           <Card className="h-100">
             <Card.Body className="text-center">
-              <i className="fas fa-eye fa-3x text-primary mb-3"></i>
-              <h3 className="mb-1">{analytics.overview.totalVisits?.toLocaleString() || '0'}</h3>
+              <i className="fas fa-eye fa-2x text-primary mb-3"></i>
+              <h3 className="mb-1">{overview.totalVisits?.toLocaleString() || '0'}</h3>
               <p className="text-muted mb-0">Total Visits</p>
-              <small className="text-success">↑ Active monitoring</small>
             </Card.Body>
           </Card>
         </Col>
-        
         <Col md={3}>
           <Card className="h-100">
             <Card.Body className="text-center">
-              <i className="fas fa-users fa-3x text-success mb-3"></i>
-              <h3 className="mb-1">{analytics.overview.uniqueVisitors?.toLocaleString() || '0'}</h3>
+              <i className="fas fa-users fa-2x text-success mb-3"></i>
+              <h3 className="mb-1">{overview.uniqueVisitors?.toLocaleString() || '0'}</h3>
               <p className="text-muted mb-0">Unique Visitors</p>
-              <small className="text-success">↑ Growing audience</small>
             </Card.Body>
           </Card>
         </Col>
-        
         <Col md={3}>
           <Card className="h-100">
             <Card.Body className="text-center">
-              <i className="fas fa-envelope fa-3x text-info mb-3"></i>
-              <h3 className="mb-1">{analytics.overview.adoptionInquiries || '0'}</h3>
+              <i className="fas fa-envelope fa-2x text-info mb-3"></i>
+              <h3 className="mb-1">{overview.adoptionInquiries || '0'}</h3>
               <p className="text-muted mb-0">Adoption Inquiries</p>
-              <small className="text-info">📧 Contact forms</small>
             </Card.Body>
           </Card>
         </Col>
-        
         <Col md={3}>
           <Card className="h-100">
             <Card.Body className="text-center">
-              <i className="fas fa-heart fa-3x text-danger mb-3"></i>
-              <h3 className="mb-1">{analytics.overview.successfulAdoptions || '0'}</h3>
+              <i className="fas fa-heart fa-2x text-danger mb-3"></i>
+              <h3 className="mb-1">{overview.successfulAdoptions || '0'}</h3>
               <p className="text-muted mb-0">Successful Adoptions</p>
-              <small className="text-success">🎉 Happy families</small>
+              <small className="text-success">{overview.conversionRate}% conversion</small>
             </Card.Body>
           </Card>
         </Col>
@@ -262,26 +323,38 @@ const AdminAnalytics = () => {
           <Card>
             <Card.Header>
               <h5 className="mb-0">
-                <i className="fas fa-chart-line me-2"></i>Top Pages
+                <i className="fas fa-chart-bar me-2"></i>
+                Top Pages
               </h5>
             </Card.Header>
             <Card.Body>
-              {analytics.topPages?.length > 0 ? (
-                analytics.topPages.map((page, index) => (
-                  <div key={index} className="d-flex justify-content-between align-items-center mb-3">
-                    <div>
-                      <div className="fw-bold">{page.page}</div>
-                      <small className="text-muted">Bounce rate: {page.bounceRate}</small>
-                    </div>
-                    <div className="text-end">
-                      <div className="fw-bold">{page.visits.toLocaleString()}</div>
-                      <small className="text-muted">visits</small>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <p className="text-muted text-center">No page data available</p>
-              )}
+              <div className="table-responsive">
+                <table className="table table-sm">
+                  <thead>
+                    <tr>
+                      <th>Page</th>
+                      <th>Visits</th>
+                      <th>Bounce Rate</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {topPages.map((page, index) => (
+                      <tr key={index}>
+                        <td>{page.page}</td>
+                        <td>{page.visits.toLocaleString()}</td>
+                        <td>
+                          <Badge bg={
+                            parseFloat(page.bounceRate) < 20 ? 'success' :
+                            parseFloat(page.bounceRate) < 30 ? 'warning' : 'danger'
+                          }>
+                            {page.bounceRate}
+                          </Badge>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </Card.Body>
           </Card>
         </Col>
@@ -291,50 +364,64 @@ const AdminAnalytics = () => {
           <Card>
             <Card.Header>
               <h5 className="mb-0">
-                <i className="fas fa-funnel-dollar me-2"></i>User Flow
+                <i className="fas fa-stream me-2"></i>
+                Adoption Funnel
               </h5>
             </Card.Header>
             <Card.Body>
-              {analytics.userFlow?.length > 0 ? (
-                analytics.userFlow.map((step, index) => (
-                  <div key={index} className="mb-3">
-                    <div className="d-flex justify-content-between align-items-center">
-                      <span>{step.step}</span>
-                      <span className="fw-bold">{step.users} ({step.percentage})</span>
+              {userFlow.map((step, index) => (
+                <div key={index} className="mb-3">
+                  <div className="d-flex justify-content-between align-items-center mb-1">
+                    <span>{step.step}</span>
+                    <div>
+                      <strong>{step.users.toLocaleString()}</strong>
+                      <small className="text-muted ms-2">({step.percentage})</small>
                     </div>
-                    {index < analytics.userFlow.length - 1 && (
-                      <div className="text-center my-2">
-                        <i className="fas fa-arrow-down text-muted"></i>
-                      </div>
-                    )}
                   </div>
-                ))
-              ) : (
-                <p className="text-muted text-center">No user flow data available</p>
-              )}
+                  <div className="progress" style={{height: '8px'}}>
+                    <div 
+                      className="progress-bar" 
+                      style={{width: step.percentage}}
+                      role="progressbar"
+                    ></div>
+                  </div>
+                </div>
+              ))}
             </Card.Body>
           </Card>
         </Col>
       </Row>
 
-      {/* Conversion Rate */}
-      {analytics.overview.conversionRate && (
-        <Row className="mt-4">
-          <Col>
-            <Card>
-              <Card.Body className="text-center">
-                <h4 className="text-success">
-                  {analytics.overview.conversionRate}% Adoption Success Rate
-                </h4>
-                <p className="text-muted">
-                  Percentage of inquiries that result in successful adoptions
-                </p>
-              </Card.Body>
-            </Card>
-          </Col>
-        </Row>
-      )}
-    </>
+      {/* Chart Data Summary */}
+      <Row className="mt-4">
+        <Col>
+          <Card>
+            <Card.Header>
+              <h5 className="mb-0">
+                <i className="fas fa-chart-line me-2"></i>
+                Performance Summary
+              </h5>
+            </Card.Header>
+            <Card.Body>
+              <Row className="text-center">
+                <Col md={4}>
+                  <h4 className="text-primary">{chartData.visits?.length || 0}</h4>
+                  <p className="text-muted">Days of Visit Data</p>
+                </Col>
+                <Col md={4}>
+                  <h4 className="text-success">{chartData.adoptions?.length || 0}</h4>
+                  <p className="text-muted">Days of Adoption Data</p>
+                </Col>
+                <Col md={4}>
+                  <h4 className="text-info">{chartData.petViews?.length || 0}</h4>
+                  <p className="text-muted">Days of Pet View Data</p>
+                </Col>
+              </Row>
+            </Card.Body>
+          </Card>
+        </Col>
+      </Row>
+    </div>
   );
 };
 
