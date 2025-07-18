@@ -1,4 +1,4 @@
-// client/src/components/Navbar.js - COMPLETE UPDATED VERSION with Products Link
+// client/src/components/Navbar.js - FIXED VERSION with Active State Management
 import React from 'react';
 import {
   Navbar as BootstrapNavbar,
@@ -6,12 +6,35 @@ import {
   NavDropdown,
   Container
 } from 'react-bootstrap';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import './Navbar.css';
 
 const Navbar = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // 🔧 FIXED: Function to check if current route is active
+  const isActive = (path) => {
+    if (path === '/') {
+      return location.pathname === '/';
+    }
+    return location.pathname.startsWith(path);
+  };
+
+  // 🔧 FIXED: Function to get active nav link class
+  const getNavLinkClass = (path) => {
+    return isActive(path) ? 'active' : '';
+  };
+
+  // 🔧 FIXED: Function to get active nav link style
+  const getNavLinkStyle = (path) => {
+    return {
+      color: isActive(path) ? '#0d6efd' : undefined,
+      fontWeight: isActive(path) ? '600' : undefined
+    };
+  };
 
   const handleLogout = () => {
     logout();
@@ -29,12 +52,22 @@ const Navbar = () => {
 
         <BootstrapNavbar.Collapse id="navbar-nav">
           <Nav className="ms-auto">
-            <Nav.Link as={Link} to="/">
+            {/* 🔧 FIXED: Home link with active state */}
+            <Nav.Link 
+              as={Link} 
+              to="/"
+              className={getNavLinkClass('/')}
+              style={getNavLinkStyle('/')}
+            >
               <i className="fas fa-home me-1"></i>Home
             </Nav.Link>
 
-            {/* 🐾 Shop by Pet Dropdown */}
-            <NavDropdown title="Shop by Pet" id="nav-dropdown-pets">
+            {/* 🔧 FIXED: Shop by Pet Dropdown with active state */}
+            <NavDropdown 
+              title="Shop by Pet" 
+              id="nav-dropdown-pets"
+              className={isActive('/browse') ? 'active' : ''}
+            >
               <NavDropdown.Item as={Link} to="/browse?type=dog">
                 <i className="fas fa-dog me-2"></i>Dogs
               </NavDropdown.Item>
@@ -56,11 +89,43 @@ const Navbar = () => {
               </NavDropdown.Item>
             </NavDropdown>
 
-            <Nav.Link as={Link} to="/about">
+            {/* 🔧 FIXED: Products link with active state */}
+            <Nav.Link 
+              as={Link} 
+              to="/products"
+              className={getNavLinkClass('/products')}
+              style={getNavLinkStyle('/products')}
+            >
+              <i className="fas fa-shopping-bag me-1"></i>Products
+            </Nav.Link>
+
+            {/* 🔧 FIXED: News link with active state */}
+            <Nav.Link 
+              as={Link} 
+              to="/news"
+              className={getNavLinkClass('/news')}
+              style={getNavLinkStyle('/news')}
+            >
+              <i className="fas fa-newspaper me-1"></i>News
+            </Nav.Link>
+
+            {/* 🔧 FIXED: About link with active state */}
+            <Nav.Link 
+              as={Link} 
+              to="/about"
+              className={getNavLinkClass('/about')}
+              style={getNavLinkStyle('/about')}
+            >
               <i className="fas fa-info-circle me-1"></i>About
             </Nav.Link>
 
-            <Nav.Link as={Link} to="/contact">
+            {/* 🔧 FIXED: Contact link with active state */}
+            <Nav.Link 
+              as={Link} 
+              to="/contact"
+              className={getNavLinkClass('/contact')}
+              style={getNavLinkStyle('/contact')}
+            >
               <i className="fas fa-envelope me-1"></i>Contact
             </Nav.Link>
 
@@ -68,46 +133,47 @@ const Navbar = () => {
               <NavDropdown 
                 title={
                   <span>
-                    <i className="fas fa-user me-1"></i>
-                    {user.name || user.email || 'Account'}
-                    {user.role === 'admin' && (
-                      <span className="badge bg-danger ms-1" style={{ fontSize: '10px' }}>ADMIN</span>
-                    )}
+                    <i className="fas fa-user-circle me-1"></i>
+                    {user.firstName || user.username || 'User'}
                   </span>
                 } 
-                id="nav-dropdown-account"
+                id="nav-dropdown-user"
+                className={isActive('/profile') || isActive('/admin') ? 'active' : ''}
               >
                 <NavDropdown.Item as={Link} to="/profile">
                   <i className="fas fa-user me-2"></i>Profile
                 </NavDropdown.Item>
                 
-                {/* Admin Section - Only show for admin users */}
+                <NavDropdown.Item as={Link} to="/favorites">
+                  <i className="fas fa-heart me-2"></i>Favorites
+                </NavDropdown.Item>
+                
+                <NavDropdown.Item as={Link} to="/applications">
+                  <i className="fas fa-file-alt me-2"></i>My Applications
+                </NavDropdown.Item>
+                
+                {/* Admin links for admin users */}
                 {user.role === 'admin' && (
                   <>
                     <NavDropdown.Divider />
-                    <NavDropdown.Header>
-                      <i className="fas fa-cog me-2"></i>Admin Panel
-                    </NavDropdown.Header>
-                    
                     <NavDropdown.Item as={Link} to="/admin">
-                      <i className="fas fa-chart-line me-2"></i>Dashboard
-                    </NavDropdown.Item>
-                    
-                    <NavDropdown.Item as={Link} to="/admin/users">
-                      <i className="fas fa-users me-2"></i>User Management
+                      <i className="fas fa-tachometer-alt me-2"></i>Admin Dashboard
                     </NavDropdown.Item>
                     
                     <NavDropdown.Item as={Link} to="/admin/pets">
-                      <i className="fas fa-paw me-2"></i>Pet Management
+                      <i className="fas fa-paw me-2"></i>Manage Pets
                     </NavDropdown.Item>
                     
-                    {/* ✅ NEW: Products Management Link */}
                     <NavDropdown.Item as={Link} to="/admin/products">
-                      <i className="fas fa-shopping-bag me-2"></i>Product Management
+                      <i className="fas fa-shopping-bag me-2"></i>Manage Products
+                    </NavDropdown.Item>
+                    
+                    <NavDropdown.Item as={Link} to="/admin/users">
+                      <i className="fas fa-users me-2"></i>Manage Users
                     </NavDropdown.Item>
                     
                     <NavDropdown.Item as={Link} to="/admin/contacts">
-                      <i className="fas fa-envelope me-2"></i>Contact Management
+                      <i className="fas fa-envelope me-2"></i>Messages
                     </NavDropdown.Item>
                     
                     <NavDropdown.Item as={Link} to="/admin/analytics">
@@ -130,7 +196,12 @@ const Navbar = () => {
                 </NavDropdown.Item>
               </NavDropdown>
             ) : (
-              <Nav.Link as={Link} to="/login">
+              <Nav.Link 
+                as={Link} 
+                to="/login"
+                className={getNavLinkClass('/login')}
+                style={getNavLinkStyle('/login')}
+              >
                 <i className="fas fa-sign-in-alt me-1"></i>Login
               </Nav.Link>
             )}

@@ -23,7 +23,7 @@ const Browse = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchParams, setSearchParams] = useSearchParams();
-  const [searching, setSearching] = useState(false); // Add searching state
+  const [searching, setSearching] = useState(false);
 
   // Filter states
   const [searchTerm, setSearchTerm] = useState(searchParams.get("search") || "");
@@ -33,6 +33,7 @@ const Browse = () => {
   const [selectedGender, setSelectedGender] = useState(searchParams.get("gender") || "");
   const [selectedSize, setSelectedSize] = useState(searchParams.get("size") || "");
   const [showFilters, setShowFilters] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false); // Track if user has searched
 
   // Filter options
   const petTypes = useMemo(() => [
@@ -80,12 +81,12 @@ const Browse = () => {
 
       // Build query parameters - only include non-empty values
       const queryParams = {
-        status: 'available', // Only get available pets
+        status: 'available',
         limit: 50,
       };
 
       // Add filters only if they have values (not empty strings)
-      if (searchTerm.trim()) {
+      if (hasSearched && searchTerm.trim()) {
         queryParams.search = searchTerm.trim();
       }
       if (selectedType) {
@@ -116,7 +117,6 @@ const Browse = () => {
         setPets(petsData);
         console.log(`✅ Browse: Loaded ${petsData.length} pets successfully`);
       } else if (response?.data?.data) {
-        // Some APIs might not have the success field but still return data
         setPets(response.data.data);
         console.log(`✅ Browse: Loaded ${response.data.data.length} pets (no success field)`);
       } else {
@@ -140,40 +140,23 @@ const Browse = () => {
     fetchPets();
   }, []); // Empty dependency array for initial load
 
-  // 🔧 FIXED: Separate useEffect for filter changes (excluding search term)
+  // 🔧 FIXED: Only trigger fetch when filters change (NOT search term)
   useEffect(() => {
     console.log('🔍 Browse: Filters changed, scheduling refetch...');
     
-    // Debounce the filter changes to avoid too many API calls
     const timeoutId = setTimeout(() => {
       console.log('🔍 Browse: Executing filter-triggered refetch');
       fetchPets();
-    }, 300); // 300ms delay
+    }, 300);
 
-    // Cleanup timeout if filters change again before timeout
     return () => clearTimeout(timeoutId);
-  }, [selectedType, selectedBreed, ageRange, selectedGender, selectedSize]); // Removed searchTerm
+  }, [selectedType, selectedBreed, ageRange, selectedGender, selectedSize]); // REMOVED searchTerm
 
-  // 🔧 FIXED: Separate useEffect for search term with longer debounce
-  useEffect(() => {
-    // Only search if there's a search term and it's not empty
-    if (searchTerm.trim()) {
-      console.log('🔍 Browse: Search term changed, scheduling search...');
-      
-      const timeoutId = setTimeout(() => {
-        console.log('🔍 Browse: Executing search for:', searchTerm);
-        fetchPets();
-      }, 800); // Longer delay for search to let user finish typing
-
-      return () => clearTimeout(timeoutId);
-    }
-  }, [searchTerm]);
-
-  // Update URL params when filters change (debounced)
+  // 🔧 FIXED: Update URL params when filters change (debounced)
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       const params = new URLSearchParams();
-      if (searchTerm) params.set("search", searchTerm);
+      if (hasSearched && searchTerm) params.set("search", searchTerm);
       if (selectedType) params.set("type", selectedType);
       if (selectedBreed) params.set("breed", selectedBreed);
       if (ageRange) params.set("age", ageRange);
@@ -181,16 +164,17 @@ const Browse = () => {
       if (selectedSize) params.set("size", selectedSize);
       
       setSearchParams(params);
-    }, 500); // Debounce URL updates
+    }, 500);
     
     return () => clearTimeout(timeoutId);
-  }, [searchTerm, selectedType, selectedBreed, ageRange, selectedGender, selectedSize, setSearchParams]);
+  }, [searchTerm, selectedType, selectedBreed, ageRange, selectedGender, selectedSize, setSearchParams, hasSearched]);
 
-  // Handle search form submission
+  // 🔧 FIXED: Handle search form submission ONLY
   const handleSearch = (e) => {
     e.preventDefault();
     console.log('🔍 Browse: Manual search triggered for:', searchTerm);
-    fetchPets(); // Immediate search on form submit
+    setHasSearched(true); // Mark that user has searched
+    fetchPets(true); // Immediate search on form submit with search flag
   };
 
   // 🔧 FIXED: Handle filter changes with immediate state update
@@ -200,7 +184,6 @@ const Browse = () => {
     switch (filterType) {
       case "type":
         setSelectedType(value);
-        // Reset breed when type changes
         if (value !== selectedType) {
           setSelectedBreed("");
         }
@@ -223,7 +206,7 @@ const Browse = () => {
     }
   };
 
-  // 🔧 FIXED: Clear all filters and let useEffect handle refresh
+  // 🔧 FIXED: Clear all filters and reset search
   const clearFilters = () => {
     console.log('🔍 Browse: Clearing all filters');
     setSearchTerm("");
@@ -232,14 +215,15 @@ const Browse = () => {
     setAgeRange("");
     setSelectedGender("");
     setSelectedSize("");
+    setHasSearched(false); // Reset search state
     setSearchParams({});
-    // Let the useEffect handle the refresh
   };
 
   // Clear search term only
   const clearSearch = () => {
     console.log('🔍 Browse: Clearing search term');
-    setSearchTerm(""); // This will trigger the useEffect to refresh the list
+    setSearchTerm("");
+    setHasSearched(false); // Reset search state
   };
 
   // Handle retry
@@ -250,7 +234,7 @@ const Browse = () => {
 
   // Active filters for display
   const activeFilters = [
-    searchTerm && `Search: "${searchTerm}"`,
+    hasSearched && searchTerm && `Search: "${searchTerm}"`,
     selectedType && `Type: ${petTypes.find(t => t.value === selectedType)?.label}`,
     selectedBreed && `Breed: ${selectedBreed}`,
     ageRange && `Age: ${ageRanges.find(a => a.value === ageRange)?.label}`,
@@ -279,7 +263,7 @@ const Browse = () => {
             </Button>
           </div>
 
-          {/* Search Bar */}
+          {/* 🔧 FIXED: Search Bar - Only searches on form submit */}
           <Form onSubmit={handleSearch} className="mb-4">
             <InputGroup>
               <Form.Control
@@ -306,15 +290,16 @@ const Browse = () => {
                     Searching...
                   </>
                 ) : (
-                  <i className="fas fa-search"></i>
+                  <>
+                    <i className="fas fa-search me-1"></i>
+                    Search
+                  </>
                 )}
               </Button>
             </InputGroup>
-            {searchTerm && (
-              <Form.Text className="text-muted">
-                {searching ? 'Searching...' : 'Press Enter to search or wait for auto-search'}
-              </Form.Text>
-            )}
+            <Form.Text className="text-muted">
+              {searchTerm ? 'Press Enter or click Search to find pets' : 'Type a search term and press Enter'}
+            </Form.Text>
           </Form>
 
           {/* Filters */}
