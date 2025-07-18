@@ -1,4 +1,4 @@
-// server/routes/products.js - COMPLETELY UPDATED with featured products fix
+// server/routes/products.js - COMPLETE UPDATED VERSION - Emergency Fix for Featured Products
 const express = require("express");
 const router = express.Router();
 const mongoose = require("mongoose");
@@ -7,7 +7,7 @@ const { protect, admin, optionalAuth } = require("../middleware/auth");
 
 // ===== VALIDATION MIDDLEWARE =====
 
-// Product ID validation for custom string IDs
+// Product ID validation for custom string IDs  
 const validateProductId = (req, res, next) => {
   const { id } = req.params;
   
@@ -21,7 +21,7 @@ const validateProductId = (req, res, next) => {
 
   // Accept both MongoDB ObjectIds AND custom product IDs
   const isValidObjectId = mongoose.Types.ObjectId.isValid(id);
-  const isCustomProductId = /^prod_\d{3}$/.test(id) || /^p\d{3}$/.test(id); // Supports prod_004 or p001 format
+  const isCustomProductId = /^prod_\d{3}$/.test(id); // Matches prod_002, prod_004, etc.
   
   if (!isValidObjectId && !isCustomProductId) {
     return res.status(400).json({
@@ -29,8 +29,8 @@ const validateProductId = (req, res, next) => {
       message: 'Invalid product ID format',
       error: 'INVALID_ID_FORMAT',
       received: id,
-      expected: 'Either a MongoDB ObjectId or custom product ID (prod_001, p001, etc.)',
-      examples: ['prod_004', 'p001', '507f1f77bcf86cd799439011']
+      expected: 'Either a MongoDB ObjectId or custom product ID (prod_001, prod_002, etc.)',
+      examples: ['prod_004', 'prod_002', '507f1f77bcf86cd799439011']
     });
   }
 
@@ -57,7 +57,15 @@ const validateProductData = (req, res, next) => {
 
 // ===== UTILITY FUNCTIONS =====
 
-// Utility function to enrich product data (same pattern as pets)
+// Helper function to determine if value is "truthy" (handles strings and booleans)
+const isTruthy = (value) => {
+  if (typeof value === 'string') {
+    return value.toLowerCase() === 'true' || value === '1';
+  }
+  return !!value;
+};
+
+// Utility function to enrich product data (matches pets pattern)
 const addProductFields = (product) => ({
   ...product,
   displayName: product.name || 'Unnamed Product',
@@ -67,123 +75,144 @@ const addProductFields = (product) => ({
   priceDisplay: typeof product.price === 'number' ? 
     `$${product.price.toFixed(2)}` : 'Price not available',
   categoryDisplay: product.category || 'Uncategorized',
-  inStockDisplay: product.inStock !== false ? 'In Stock' : 'Out of Stock',
+  inStockDisplay: (product.inStock !== false && product.inStock !== "false") ? 'In Stock' : 'Out of Stock',
   hasImage: !!product.image,
-  isAvailable: product.inStock !== false,
+  isAvailable: (product.inStock !== false && product.inStock !== "false"),
   // Convert featured to boolean if it's a string
-  featured: typeof product.featured === 'string' ? 
-    product.featured.toLowerCase() === 'true' : !!product.featured,
+  featured: isTruthy(product.featured),
   // Convert inStock to boolean if it's a string  
-  inStock: typeof product.inStock === 'string' ? 
-    product.inStock.toLowerCase() === 'true' : product.inStock !== false
+  inStock: isTruthy(product.inStock)
 });
 
-// Helper function to determine if value is "truthy" (handles strings and booleans)
-const isTruthy = (value) => {
-  if (typeof value === 'string') {
-    return value.toLowerCase() === 'true' || value === '1';
-  }
-  return !!value;
-};
+// ===== DEBUG ENDPOINT =====
 
-// ===== PUBLIC ROUTES =====
-
-// ⭐ FIXED: Get featured products - handles string and boolean featured values
-router.get('/featured', async (req, res) => {
+// 🔍 DEBUG: Test endpoint to check product data structure
+router.get('/debug', async (req, res) => {
   try {
-    console.log('🛒 GET /api/products/featured - Fetching featured products');
+    console.log('🔍 DEBUG: Checking product data structure...');
     
-    const limit = parseInt(req.query.limit) || 4;
+    // Get first few products to examine
+    const products = await Product.find({}).limit(3).lean();
     
-    // Enhanced query to handle both string "true" and boolean true
-    const featuredProducts = await Product.aggregate([
-      { 
-        $match: { 
-          $and: [
-            {
-              // Handle featured field as string or boolean
-              $or: [
-                { featured: true },        // Boolean true
-                { featured: "true" },      // String "true"
-                { featured: 1 }            // Number 1
-              ]
-            },
-            {
-              // Handle inStock field as string or boolean
-              $or: [
-                { inStock: true },         // Boolean true
-                { inStock: "true" },       // String "true"
-                { inStock: { $ne: false } },
-                { inStock: { $ne: "false" } },
-                { inStock: { $exists: false } } // Default to true if missing
-              ]
-            }
-          ]
-        } 
-      },
-      { $sample: { size: limit } },
-      {
-        $addFields: {
-          // Consistent image URL generation
-          imageUrl: {
-            $cond: {
-              if: { $ne: ["$image", null] },
-              then: { $concat: ["https://storage.googleapis.com/furbabies-petstore/", "$image"] },
-              else: null
-            }
-          },
-          hasImage: { $ne: ["$image", null] },
-          displayName: { $ifNull: ["$name", "Unnamed Product"] },
-          priceDisplay: { 
-            $concat: ["$", { $toString: "$price" }]
-          },
-          categoryDisplay: { $ifNull: ["$category", "Uncategorized"] },
-          // Normalize boolean fields for frontend
-          featuredBoolean: {
-            $cond: {
-              if: { 
-                $or: [
-                  { $eq: ["$featured", true] },
-                  { $eq: ["$featured", "true"] },
-                  { $eq: ["$featured", 1] }
-                ]
-              },
-              then: true,
-              else: false
-            }
-          },
-          inStockBoolean: {
-            $cond: {
-              if: { 
-                $or: [
-                  { $eq: ["$inStock", true] },
-                  { $eq: ["$inStock", "true"] },
-                  { $eq: ["$inStock", 1] },
-                  { $eq: ["$inStock", null] }  // Default to true if null
-                ]
-              },
-              then: true,
-              else: false
-            }
-          }
+    const debugInfo = {
+      totalProducts: await Product.countDocuments(),
+      sampleProducts: products,
+      featuredProducts: await Product.find({
+        $or: [
+          { featured: true },
+          { featured: "true" },
+          { featured: 1 }
+        ]
+      }).limit(2).lean(),
+      dataTypes: products.map(p => ({
+        _id: p._id,
+        name: p.name,
+        featured: {
+          value: p.featured,
+          type: typeof p.featured
+        },
+        inStock: {
+          value: p.inStock,
+          type: typeof p.inStock
         }
-      }
-    ]);
-
-    console.log(`🛒 Returning ${featuredProducts.length} featured products`);
+      }))
+    };
+    
+    console.log('🔍 Debug info generated');
     
     res.json({
       success: true,
-      data: featuredProducts,
-      count: featuredProducts.length
+      debug: debugInfo,
+      environment: process.env.NODE_ENV,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('❌ Debug endpoint error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
+
+// ===== PUBLIC ROUTES =====
+
+// ⭐ EMERGENCY FIX: Get featured products - simplified approach
+router.get('/featured', async (req, res) => {
+  try {
+    console.log('🛒 GET /api/products/featured - Fetching featured products (Emergency Fix)');
+    
+    const limit = parseInt(req.query.limit) || 4;
+    
+    // Simple query without aggregation - works with string "true"
+    const products = await Product.find({
+      $or: [
+        { featured: true },
+        { featured: "true" },
+        { featured: 1 }
+      ]
+    }).limit(limit).lean();
+
+    console.log(`🛒 Raw products found: ${products.length}`);
+    if (products.length > 0) {
+      console.log(`🛒 First product featured value: ${products[0].featured} (type: ${typeof products[0].featured})`);
+    }
+
+    // Manual data enrichment to match pets format
+    const enrichedProducts = products.map(product => ({
+      _id: product._id,
+      name: product.name || 'Unnamed Product',
+      category: product.category || 'Uncategorized',
+      brand: product.brand || 'Generic',
+      price: product.price || 0,
+      description: product.description || '',
+      image: product.image || null,
+      
+      // Generate consistent image URL (same as pets)
+      imageUrl: product.image ? 
+        `https://storage.googleapis.com/furbabies-petstore/${product.image}` : null,
+      
+      // Convert string booleans to actual booleans
+      featured: isTruthy(product.featured),
+      inStock: isTruthy(product.inStock),
+      
+      // Display helpers (same as pets)
+      hasImage: !!product.image,
+      displayName: product.name || 'Unnamed Product',
+      priceDisplay: typeof product.price === 'number' ? `$${product.price.toFixed(2)}` : 'Price not available',
+      categoryDisplay: product.category || 'Uncategorized',
+      inStockDisplay: isTruthy(product.inStock) ? 'In Stock' : 'Out of Stock',
+      isAvailable: isTruthy(product.inStock),
+      
+      // Timestamps
+      createdAt: product.createdAt,
+      updatedAt: product.updatedAt,
+      
+      // Optional fields
+      views: product.views || 0,
+      createdBy: product.createdBy
+    }));
+
+    console.log(`🛒 Returning ${enrichedProducts.length} featured products`);
+    
+    res.json({
+      success: true,
+      data: enrichedProducts,
+      count: enrichedProducts.length,
+      message: `Found ${enrichedProducts.length} featured products`
     });
 
   } catch (error) {
     console.error('❌ Error fetching featured products:', error);
+    console.error('❌ Full error stack:', error.stack);
+    
     res.status(500).json({
       success: false,
       message: 'Error fetching featured products',
-      error: error.message
+      error: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 });
@@ -231,7 +260,7 @@ router.get('/', async (req, res) => {
       query.price = { ...query.price, $lte: parseFloat(req.query.maxPrice) };
     }
 
-    // Stock filtering
+    // Stock filtering - handle both string and boolean values
     if (req.query.inStock === 'false') {
       query.$or = [
         { inStock: false },
