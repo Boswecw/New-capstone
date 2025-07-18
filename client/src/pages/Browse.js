@@ -78,15 +78,33 @@ const Browse = () => {
       if (selectedSize) queryParams.size = selectedSize;
 
       const response = await petAPI.getAllPets(queryParams);
+
       if (response?.data?.success || response?.data?.data) {
-        setPets(response.data.data || []);
+        const enrichedPets = (response.data.data || []).map(pet => {
+          const cleanImage = pet.image?.replace(/^\/+/, '');
+          const imageUrl = pet.imageUrl?.startsWith('http')
+            ? pet.imageUrl
+            : cleanImage
+              ? `${process.env.NODE_ENV === 'production'
+                  ? 'https://furbabies-backend.onrender.com'
+                  : 'http://localhost:5000'
+                }/api/images/gcs/${cleanImage}`
+              : null;
+
+          return {
+            ...pet,
+            imageUrl: imageUrl || pet.imageUrl || pet.image || '',
+          };
+        });
+
+        setPets(enrichedPets);
       } else {
         setPets([]);
-        setError("Unexpected response format from server");
+        setError('Unexpected response format from server');
       }
     } catch (err) {
       console.error(err);
-      setError("Failed to load pets. Please try again.");
+      setError('Failed to load pets. Please try again.');
       setPets([]);
     } finally {
       setLoading(false);
@@ -94,7 +112,6 @@ const Browse = () => {
     }
   };
 
-  // React to query string changes
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const type = params.get("type") || "";
@@ -115,7 +132,6 @@ const Browse = () => {
     fetchPets();
   }, [location.search]);
 
-  // Update URL when filters change
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       const params = new URLSearchParams();
