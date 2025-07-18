@@ -24,6 +24,7 @@ const userRoutes = require('./routes/users');
 const contactRoutes = require('./routes/contact');
 const imageRoutes = require('./routes/images');
 const gcsRoutes = require('./routes/gcs');
+const adminRoutes = require('./routes/admin');  // ← ADDED: Admin routes import
 
 // ===== SECURITY & MIDDLEWARE =====
 app.use(helmet());
@@ -109,6 +110,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/contact', contactRoutes);
 app.use('/api/images', imageRoutes);
 app.use('/api/gcs', gcsRoutes);
+app.use('/api/admin', adminRoutes);        // ← ADDED: Mount admin routes
 
 // ===== DATABASE CONNECTION =====
 const connectDB = async () => {
@@ -344,7 +346,16 @@ if (process.env.NODE_ENV === 'production') {
         allProducts: '/api/products',
         contact: 'POST /api/contact',
         images: '/api/images/gcs/{path}',
-        storage: '/api/gcs/buckets/{bucket}/images'
+        storage: '/api/gcs/buckets/{bucket}/images',
+        // ← ADDED: Admin endpoints
+        admin: {
+          dashboard: '/api/admin/dashboard',
+          pets: '/api/admin/pets',
+          users: '/api/admin/users',
+          contacts: '/api/admin/contacts',
+          reports: '/api/admin/reports',
+          analytics: '/api/admin/analytics'
+        }
       },
       documentation: 'https://github.com/Boswecw/furbabies-petstore',
       frontend: 'Deployed separately',
@@ -365,7 +376,11 @@ if (process.env.NODE_ENV === 'production') {
           '/api/pets/featured',
           '/api/pets',
           '/api/products/featured',
-          '/api/news/featured'
+          '/api/news/featured',
+          // ← ADDED: Admin endpoints in 404 handler
+          '/api/admin/dashboard',
+          '/api/admin/pets',
+          '/api/admin/users'
         ],
         timestamp: new Date().toISOString()
       });
@@ -397,7 +412,17 @@ app.use('/api/*', (req, res) => {
       'GET /api/news/featured?limit=3',
       'POST /api/contact',
       'GET /api/images/gcs/{path}',
-      'GET /api/images/health'
+      'GET /api/images/health',
+      // ← ADDED: Admin endpoints in main 404 handler
+      'GET /api/admin/dashboard',
+      'GET /api/admin/pets',
+      'POST /api/admin/pets',
+      'PUT /api/admin/pets/:id',
+      'DELETE /api/admin/pets/:id',
+      'GET /api/admin/users',
+      'GET /api/admin/contacts',
+      'GET /api/admin/reports',
+      'GET /api/admin/analytics'
     ],
     timestamp: new Date().toISOString()
   });
@@ -426,6 +451,7 @@ app.listen(PORT, () => {
   console.log('   🛒 Products: /api/products');
   console.log('   📧 Contact: /api/contact');
   console.log('   🖼️ Images: /api/images/gcs/{path}');
+  console.log('   🔧 Admin: /api/admin/*');  // ← ADDED: Admin routes logging
 });
 
 // ===== GRACEFUL SHUTDOWN =====
