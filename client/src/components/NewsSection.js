@@ -1,6 +1,6 @@
-// client/src/components/NewsSection.js - FIXED to use consolidated API
+// client/src/components/NewsSection.js - FIXED VERSION
 import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, Button, Alert, Spinner } from 'react-bootstrap';
+import { Container, Row, Col, Card, Button, Alert, Spinner, Badge } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 import { newsAPI } from '../services/api'; // ✅ Use consolidated API service
 
@@ -15,29 +15,38 @@ const NewsSection = () => {
         setLoading(true);
         setError(null);
         
-        console.log('📰 NewsSection: Fetching mixed featured news...');
+        console.log('📰 NewsSection: Fetching featured news for home page...');
         
-        // ✅ Use consolidated newsAPI from services/api.js
+        // ✅ Use consolidated newsAPI with proper error handling
         const response = await newsAPI.getFeaturedNews(3);
         
-        if (response?.data?.success && response.data.data?.length > 0) {
-          setNews(response.data.data);
-          console.log(`✅ NewsSection: Loaded ${response.data.data.length} news articles`);
+        // ✅ Handle multiple response formats
+        let articles = [];
+        
+        if (response?.data?.success && response.data.data) {
+          articles = response.data.data;
+          console.log(`✅ NewsSection: Loaded ${articles.length} articles (success format)`);
         } else if (response?.data && Array.isArray(response.data)) {
-          // Handle direct array response
-          setNews(response.data);
-          console.log(`✅ NewsSection: Loaded ${response.data.length} news articles (direct array)`);
+          articles = response.data;
+          console.log(`✅ NewsSection: Loaded ${articles.length} articles (array format)`);
+        } else if (response?.data?.isFallback) {
+          articles = response.data.data || [];
+          console.log(`⚠️ NewsSection: Using fallback content (${articles.length} articles)`);
+          setError('Using sample content - check your internet connection');
+        }
+        
+        if (articles.length > 0) {
+          setNews(articles.slice(0, 3)); // Ensure only 3 articles for home page
         } else {
-          console.log('⚠️ NewsSection: No news articles found, using fallback');
-          setNews(getFallbackNews());
+          throw new Error('No articles received from API');
         }
         
       } catch (err) {
         console.error('❌ NewsSection: Error fetching news:', err);
         
-        // Use fallback content on error
-        console.log('⚠️ NewsSection: API failed, using fallback content:', err.message);
-        setNews(getFallbackNews());
+        // Use built-in fallback
+        const fallbackNews = getFallbackNews();
+        setNews(fallbackNews);
         setError('Unable to load latest news. Showing sample content.');
         
       } finally {
@@ -48,44 +57,51 @@ const NewsSection = () => {
     fetchFeaturedNews();
   }, []);
 
-  // Fallback news content
+  // Local fallback for complete API failure
   const getFallbackNews = () => [
     {
-      id: 'fallback-1',
+      id: 'local-fallback-1',
       title: 'Welcome to FurBabies Pet Store',
       excerpt: 'Find your perfect furry companion and everything they need for a happy life.',
       publishedAt: new Date().toISOString(),
       category: 'company-news',
       imageUrl: 'https://images.unsplash.com/photo-1601758228041-f3b2795255f1?w=400&h=200&fit=crop',
       type: 'custom',
-      isFallback: true
+      source: 'internal',
+      isLocalFallback: true
     },
     {
-      id: 'fallback-2', 
+      id: 'local-fallback-2',
       title: 'Pet Adoption Success Stories',
-      excerpt: 'Read heartwarming stories of pets finding their forever homes through our platform.',
+      excerpt: 'Read heartwarming stories of pets finding their forever homes.',
       publishedAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
       category: 'success-story',
       imageUrl: 'https://images.unsplash.com/photo-1583337130417-3346a1be7dee?w=400&h=200&fit=crop',
       type: 'custom',
-      isFallback: true
+      source: 'internal',
+      isLocalFallback: true
     },
     {
-      id: 'fallback-3',
+      id: 'local-fallback-3',
       title: 'Pet Care Tips & Guides',
-      excerpt: 'Expert advice on keeping your pets healthy, happy, and well-cared for.',
+      excerpt: 'Expert advice on keeping your pets healthy and happy.',
       publishedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
       category: 'care',
       imageUrl: 'https://images.unsplash.com/photo-1574144611937-0df059b5ef3e?w=400&h=200&fit=crop',
       type: 'custom',
-      isFallback: true
+      source: 'internal',
+      isLocalFallback: true
     }
   ];
 
-  // Format date for display
+  // ✅ Robust date formatting
   const formatDate = (dateString) => {
     try {
-      return new Date(dateString).toLocaleDateString('en-US', {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) {
+        return 'Recent';
+      }
+      return date.toLocaleDateString('en-US', {
         month: 'long',
         day: 'numeric',
         year: 'numeric'
@@ -95,7 +111,7 @@ const NewsSection = () => {
     }
   };
 
-  // Get category info for styling
+  // ✅ Category styling with fallback
   const getCategoryInfo = (category) => {
     const categoryMap = {
       'success-story': { icon: 'fas fa-trophy', color: 'success', label: 'Success Story' },
@@ -103,11 +119,13 @@ const NewsSection = () => {
       'company-news': { icon: 'fas fa-building', color: 'primary', label: 'Company News' },
       'adoption': { icon: 'fas fa-heart', color: 'danger', label: 'Adoption' },
       'care': { icon: 'fas fa-hand-holding-heart', color: 'info', label: 'Pet Care' },
-      'health': { icon: 'fas fa-stethoscope', color: 'info', label: 'Health' }
+      'health': { icon: 'fas fa-stethoscope', color: 'info', label: 'Health' },
+      'external-news': { icon: 'fas fa-globe', color: 'secondary', label: 'External News' }
     };
     return categoryMap[category] || { icon: 'fas fa-newspaper', color: 'secondary', label: 'News' };
   };
 
+  // ✅ Loading state
   if (loading) {
     return (
       <Container className="py-4">
@@ -141,7 +159,7 @@ const NewsSection = () => {
       </Row>
 
       <Row>
-        {news.slice(0, 3).map((article, index) => {
+        {news.map((article, index) => {
           const categoryInfo = getCategoryInfo(article.category);
           
           return (
@@ -152,7 +170,7 @@ const NewsSection = () => {
                   <Card.Img
                     variant="top"
                     src={article.imageUrl || article.urlToImage || 'https://images.unsplash.com/photo-1548767797-d8c844163c4c?w=400&h=200&fit=crop'}
-                    alt={article.title}
+                    alt={article.title || 'News article'}
                     className="h-100 w-100"
                     style={{ objectFit: 'cover' }}
                     onError={(e) => {
@@ -162,55 +180,57 @@ const NewsSection = () => {
                   
                   {/* Category Badge */}
                   <div className="position-absolute top-0 start-0 m-2">
-                    <span className={`badge bg-${categoryInfo.color} rounded-pill px-3 py-2`}>
+                    <Badge bg={categoryInfo.color} className="px-2 py-1">
                       <i className={`${categoryInfo.icon} me-1`}></i>
                       {categoryInfo.label}
-                    </span>
+                    </Badge>
                   </div>
 
                   {/* Fallback Indicator */}
-                  {article.isFallback && (
+                  {(article.isFallback || article.isLocalFallback) && (
                     <div className="position-absolute top-0 end-0 m-2">
-                      <span className="badge bg-secondary rounded-pill px-2 py-1">
-                        <i className="fas fa-info-circle me-1"></i>
+                      <Badge bg="warning" className="px-2 py-1">
+                        <i className="fas fa-exclamation-triangle me-1"></i>
                         Sample
-                      </span>
+                      </Badge>
                     </div>
                   )}
                 </div>
 
                 <Card.Body className="d-flex flex-column">
-                  {/* Article Title */}
-                  <Card.Title className="h5 mb-3 line-clamp-2">
-                    {article.title}
-                  </Card.Title>
+                  <div className="flex-grow-1">
+                    {/* Article Title */}
+                    <Card.Title className="h5 mb-2 line-clamp-2">
+                      {article.title || 'Untitled Article'}
+                    </Card.Title>
 
-                  {/* Article Excerpt */}
-                  <Card.Text className="text-muted mb-3 line-clamp-3 flex-grow-1">
-                    {article.excerpt || article.description || 'Click to read more about this article.'}
-                  </Card.Text>
+                    {/* Article Excerpt */}
+                    <Card.Text className="text-muted line-clamp-3 mb-3">
+                      {article.excerpt || article.summary || article.description || 'No preview available.'}
+                    </Card.Text>
 
-                  {/* Article Footer */}
-                  <div className="mt-auto">
-                    <div className="d-flex justify-content-between align-items-center mb-3">
-                      <small className="text-muted">
-                        <i className="fas fa-calendar me-1"></i>
-                        {formatDate(article.publishedAt)}
-                      </small>
+                    {/* Article Meta */}
+                    <div className="small text-muted mb-3">
+                      <i className="fas fa-calendar me-1"></i>
+                      {formatDate(article.publishedAt)}
+                      
+                      {/* Source Indicator */}
                       {article.type && (
-                        <small className="text-muted">
+                        <small className="ms-3">
                           <i className={article.type === 'external' ? 'fas fa-external-link-alt' : 'fas fa-home'} me-1></i>
                           {article.type === 'external' ? 'External' : 'FurBabies'}
                         </small>
                       )}
                     </div>
+                  </div>
 
-                    {/* Read More Button */}
-                    {article.url ? (
+                  {/* Action Button */}
+                  <div className="mt-auto">
+                    {article.originalUrl || article.url ? (
                       <Button 
                         variant="outline-primary" 
                         size="sm" 
-                        href={article.url}
+                        href={article.originalUrl || article.url}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="w-100"
@@ -225,9 +245,10 @@ const NewsSection = () => {
                         as={Link}
                         to={`/news/${article.id}`}
                         className="w-100"
+                        disabled={article.isLocalFallback}
                       >
                         <i className="fas fa-arrow-right me-2"></i>
-                        Read More
+                        {article.isLocalFallback ? 'Sample Content' : 'Read More'}
                       </Button>
                     )}
                   </div>
@@ -248,13 +269,14 @@ const NewsSection = () => {
         </Col>
       </Row>
 
-      {/* Custom CSS for line clamping */}
+      {/* Custom CSS for better visual appeal */}
       <style jsx>{`
         .line-clamp-2 {
           display: -webkit-box;
           -webkit-line-clamp: 2;
           -webkit-box-orient: vertical;
           overflow: hidden;
+          text-overflow: ellipsis;
         }
         
         .line-clamp-3 {
@@ -262,15 +284,21 @@ const NewsSection = () => {
           -webkit-line-clamp: 3;
           -webkit-box-orient: vertical;
           overflow: hidden;
+          text-overflow: ellipsis;
         }
         
         .news-card {
           transition: transform 0.3s ease, box-shadow 0.3s ease;
+          border: none;
         }
         
         .news-card:hover {
           transform: translateY(-5px);
-          box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+          box-shadow: 0 8px 25px rgba(0,0,0,0.15) !important;
+        }
+        
+        .news-card .card-body {
+          min-height: 200px;
         }
       `}</style>
     </Container>
