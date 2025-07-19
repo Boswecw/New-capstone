@@ -9,7 +9,7 @@ import {
   Button,
   InputGroup,
 } from "react-bootstrap";
-import { useSearchParams, useLocation } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import PetCard from "../components/PetCard";
 import { petAPI } from "../services/api";
 
@@ -17,9 +17,7 @@ const Browse = () => {
   const [pets, setPets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
-  const [searching, setSearching] = useState(false);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedType, setSelectedType] = useState("");
@@ -129,7 +127,7 @@ const Browse = () => {
     if (ageRange) params.set("age", ageRange);
     if (selectedGender) params.set("gender", selectedGender);
     if (selectedSize) params.set("size", selectedSize);
-    setSearchParams(params);
+    window.history.replaceState({}, '', `${location.pathname}?${params.toString()}`);
   };
 
   const clearFilters = () => {
@@ -140,7 +138,7 @@ const Browse = () => {
     setSelectedGender("");
     setSelectedSize("");
     setHasSearched(false);
-    setSearchParams({});
+    window.history.replaceState({}, '', location.pathname);
   };
 
   return (
