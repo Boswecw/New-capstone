@@ -1,7 +1,11 @@
-// client/src/contexts/AuthContext.js
+// client/src/contexts/AuthContext.js - FIXED WITH PROPER EXPORTS
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
+// ✅ Create and export AuthContext
 const AuthContext = createContext();
+
+// ✅ Export the context itself for components that need direct access
+export { AuthContext };
 
 // Custom hook to use auth context
 export const useAuth = () => {
@@ -17,10 +21,12 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // ✅ FIXED: Consistent API base URL configuration
-  const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+  // ✅ FIXED: Consistent API base URL configuration for production
+  const API_BASE_URL = process.env.NODE_ENV === 'production'
+    ? 'https://furbabies-backend.onrender.com/api'  // Your working backend
+    : 'http://localhost:5000/api';
   
-  console.log('🔧 API_BASE_URL:', API_BASE_URL); // Debug logging
+  console.log('🔧 AuthContext API_BASE_URL:', API_BASE_URL);
 
   // Memoized function to validate token
   const validateToken = useCallback(async (token) => {
@@ -35,7 +41,7 @@ export const AuthProvider = ({ children }) => {
 
       if (response.ok) {
         const data = await response.json();
-        return data.data;
+        return data.data || data.user;
       } else {
         return null;
       }
@@ -84,44 +90,30 @@ export const AuthProvider = ({ children }) => {
     }
   }, [user]);
 
+  // Login function
   const login = async (credentials) => {
     try {
-      // Make sure we're using email/password format expected by backend
-      const loginData = {
-        email: credentials.email || credentials.username, // Support both formats
-        password: credentials.password
-      };
-
-      console.log('🔐 Attempting login to:', `${API_BASE_URL}/users/login`);
-      console.log('Login data being sent:', loginData);
-
+      console.log('🔐 Attempting login...');
+      
       const response = await fetch(`${API_BASE_URL}/users/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(loginData),
+        body: JSON.stringify(credentials),
       });
 
-      // ✅ IMPROVED: Better error handling for non-JSON responses
       let data;
       try {
         data = await response.json();
       } catch (jsonError) {
-        console.error('Failed to parse JSON response:', jsonError);
-        console.error('Response status:', response.status);
-        console.error('Response statusText:', response.statusText);
-        throw new Error(`Server returned invalid response (${response.status}). Please check your connection and try again.`);
+        console.error('Failed to parse login response:', jsonError);
+        throw new Error('Server error. Please try again later.');
       }
 
       if (response.ok && data.success) {
-        // Store token and user data
         localStorage.setItem('token', data.data.token);
         setUser(data.data.user);
-        
-        // Debug logging
-        console.log('🎯 LOGIN SUCCESS - User data:', data.data.user);
-        console.log('🎯 LOGIN SUCCESS - User role:', data.data.user.role);
         
         console.log('✅ Login successful:', data.message);
         return {
@@ -131,33 +123,23 @@ export const AuthProvider = ({ children }) => {
           message: data.message
         };
       } else {
-        // Login failed
         const errorMessage = data.message || 'Login failed';
         console.error('❌ Login failed:', errorMessage);
-        
-        // ✅ IMPROVED: Show detailed validation errors if available
-        if (data.errors && Array.isArray(data.errors)) {
-          const detailedErrors = data.errors.map(err => `${err.field}: ${err.message}`).join(', ');
-          console.error('📋 Login validation details:', detailedErrors);
-          throw new Error(`Login failed: ${detailedErrors}`);
-        }
-        
         throw new Error(errorMessage);
       }
     } catch (error) {
       console.error('Login error:', error);
-      // Re-throw with more specific message
       throw new Error(error.message || 'Network error during login');
     }
   };
 
+  // Register function
   const register = async (userData) => {
     try {
-      console.log('📝 Attempting registration to:', `${API_BASE_URL}/users/register`);
+      console.log('📝 Attempting registration...');
 
-      // ✅ FIX: Transform frontend data to match backend expectations
+      // Prepare registration data
       const requestData = {
-        // Combine firstName and lastName into name, or use existing name field
         name: userData.firstName && userData.lastName 
           ? `${userData.firstName} ${userData.lastName}`.trim()
           : userData.name || userData.username || userData.firstName || userData.lastName || '',
@@ -170,7 +152,10 @@ export const AuthProvider = ({ children }) => {
         throw new Error('Name, email, and password are required');
       }
 
-      console.log('📝 Sending registration data:', requestData);
+      console.log('📝 Sending registration data:', {
+        ...requestData,
+        password: '[HIDDEN]'
+      });
 
       const response = await fetch(`${API_BASE_URL}/users/register`, {
         method: 'POST',
@@ -180,17 +165,11 @@ export const AuthProvider = ({ children }) => {
         body: JSON.stringify(requestData),
       });
 
-      // ✅ IMPROVED: Better error handling for non-JSON responses
       let data;
       try {
         data = await response.json();
       } catch (jsonError) {
-        console.error('Failed to parse JSON response:', jsonError);
-        console.error('Response status:', response.status);
-        console.error('Response statusText:', response.statusText);
-        console.error('Response headers:', response.headers);
-        
-        // If we get HTML instead of JSON, it's likely a 404 or server error
+        console.error('Failed to parse registration response:', jsonError);
         if (response.status === 404) {
           throw new Error('Registration endpoint not found. Please check server configuration.');
         } else {
@@ -214,7 +193,6 @@ export const AuthProvider = ({ children }) => {
         const errorMessage = data.message || 'Registration failed';
         console.error('❌ Registration failed:', errorMessage);
         
-        // ✅ IMPROVED: Show detailed validation errors if available
         if (data.errors && Array.isArray(data.errors)) {
           const detailedErrors = data.errors.map(err => `${err.field}: ${err.message}`).join(', ');
           console.error('📋 Validation details:', detailedErrors);
@@ -229,6 +207,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Logout function
   const logout = () => {
     localStorage.removeItem('token');
     setUser(null);
@@ -247,7 +226,7 @@ export const AuthProvider = ({ children }) => {
 
   // Check if user is admin
   const isAdmin = () => {
-    return user?.role === 'admin';
+    return user && user.role === 'admin';
   };
 
   // Update user profile
@@ -278,12 +257,6 @@ export const AuthProvider = ({ children }) => {
           message: data.message
         };
       } else {
-        // ✅ IMPROVED: Show detailed validation errors if available
-        if (data.errors && Array.isArray(data.errors)) {
-          const detailedErrors = data.errors.map(err => `${err.field}: ${err.message}`).join(', ');
-          throw new Error(`Profile update failed: ${detailedErrors}`);
-        }
-        
         throw new Error(data.message || 'Profile update failed');
       }
     } catch (error) {
@@ -312,12 +285,6 @@ export const AuthProvider = ({ children }) => {
           message: data.message
         };
       } else {
-        // ✅ IMPROVED: Show detailed validation errors if available
-        if (data.errors && Array.isArray(data.errors)) {
-          const detailedErrors = data.errors.map(err => `${err.field}: ${err.message}`).join(', ');
-          throw new Error(`Password reset failed: ${detailedErrors}`);
-        }
-        
         throw new Error(data.message || 'Password reset request failed');
       }
     } catch (error) {
@@ -326,12 +293,12 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // ✅ NEW: Client-side password validation helper
+  // Client-side validation helpers
   const validatePassword = (password) => {
     const errors = [];
     
-    if (!password || password.length < 6) {
-      errors.push('Password must be at least 6 characters long');
+    if (!password || password.length < 8) {
+      errors.push('Password must be at least 8 characters long');
     }
     
     if (!/(?=.*[a-z])/.test(password)) {
@@ -352,7 +319,6 @@ export const AuthProvider = ({ children }) => {
     };
   };
 
-  // ✅ NEW: Client-side name validation helper
   const validateName = (name) => {
     const errors = [];
     
@@ -374,7 +340,6 @@ export const AuthProvider = ({ children }) => {
     };
   };
 
-  // ✅ NEW: Client-side email validation helper
   const validateEmail = (email) => {
     const errors = [];
     
@@ -402,7 +367,6 @@ export const AuthProvider = ({ children }) => {
     updateProfile,
     requestPasswordReset,
     validateToken,
-    // ✅ NEW: Expose validation helpers
     validatePassword,
     validateName,
     validateEmail
@@ -415,5 +379,5 @@ export const AuthProvider = ({ children }) => {
   );
 };
 
-// Default export for the provider (optional - if you prefer default import)
+// ✅ Export AuthProvider as default for convenience
 export default AuthProvider;
