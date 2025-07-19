@@ -1,8 +1,8 @@
-// client/src/pages/News.js - UPDATED TO SHOW ONLY PET NEWS
+// client/src/pages/News.js - UPDATED to show only pet news and use standalone newsAPI
 import React, { useState, useEffect, useCallback } from 'react';
 import { Container, Row, Col, Card, Button, Alert, Form, Badge } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
-import { newsAPI } from '../services/api';
+import { newsAPI } from '../services/newsAPI';
 
 const News = () => {
   const [news, setNews] = useState([]);
@@ -20,7 +20,6 @@ const News = () => {
     const fetchPetNews = async () => {
       try {
         setError(null);
-
         const res = await newsAPI.getAllNews({ category: 'pet', limit: 50 });
         const articles = res?.data?.data || [];
 
