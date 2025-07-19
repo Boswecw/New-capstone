@@ -12,10 +12,6 @@ import {
 } from 'react-bootstrap';
 import axios from 'axios';
 
-const NEWS_API_KEY = import.meta.env.VITE_NEWS_API_KEY;
-const NEWS_API_URL = 'https://newsapi.org/v2/everything';
-const SEARCH_QUERY = 'pets OR dogs OR cats OR animal adoption OR pet care';
-
 const News = () => {
   const [articles, setArticles] = useState([]);
   const [search, setSearch] = useState('');
@@ -25,30 +21,30 @@ const News = () => {
   const fetchNews = async () => {
     try {
       setError(null);
-      const res = await axios.get(NEWS_API_URL, {
+      const res = await axios.get('/api/news', {
         params: {
-          q: SEARCH_QUERY,
-          language: 'en',
-          sortBy: 'publishedAt',
-          pageSize: 20,
-          apiKey: NEWS_API_KEY,
+          category: 'pet',
+          limit: 10,
         },
       });
 
-      const formatted = res.data.articles.map((article, idx) => ({
-        id: encodeURIComponent(article.url || `external-${idx}`),
+      const data = res.data?.data || [];
+
+      const formatted = data.map((article, idx) => ({
+        id: article.id || `article-${idx}`,
         title: article.title,
-        description: article.description,
-        url: article.url,
-        imageUrl: article.urlToImage,
+        description: article.summary || article.description,
+        url: article.originalUrl || `/news/${article.id}`,
+        imageUrl: article.imageUrl,
         publishedAt: article.publishedAt,
-        sourceName: article.source?.name,
+        sourceName: article.source || article.author || 'FurBabies',
+        type: article.type || 'custom',
       }));
 
       setArticles(formatted);
       setFiltered(formatted);
     } catch (err) {
-      console.error('❌ Error fetching NewsAPI articles:', err.message);
+      console.error('❌ Error fetching internal pet news:', err.message);
       setError('Unable to load pet news. Please try again later.');
     }
   };
@@ -137,8 +133,9 @@ const News = () => {
                       {formatDate(article.publishedAt)}
                     </small>
                     <Button
+                      as="a"
                       href={article.url}
-                      target="_blank"
+                      target={article.type === 'external' ? '_blank' : '_self'}
                       rel="noopener noreferrer"
                       size="sm"
                       variant="primary"
