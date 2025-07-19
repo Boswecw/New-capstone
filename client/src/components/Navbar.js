@@ -1,8 +1,8 @@
-// client/src/components/Navbar.js - ADD NEWS LINK
+// client/src/components/Navbar.js - FIXED AUTHCONTEXT IMPORT + NEWS LINK
 import React, { useState, useContext } from 'react';
 import { Navbar, Nav, Container, Button, NavDropdown } from 'react-bootstrap';
 import { Link, useNavigate } from 'react-router-dom';
-import { AuthContext } from '../contexts/AuthContext';
+import AuthContext from '../contexts/AuthContext'; // ✅ FIXED: Default import
 
 const AppNavbar = () => {
   const [expanded, setExpanded] = useState(false);
@@ -86,7 +86,7 @@ const AppNavbar = () => {
               Products
             </Nav.Link>
 
-            {/* ✅ NEWS LINK - ADDED */}
+            {/* ✅ News Link */}
             <Nav.Link as={Link} to="/news" onClick={closeNavbar}>
               <i className="fas fa-newspaper me-1"></i>
               News
