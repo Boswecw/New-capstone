@@ -1,9 +1,9 @@
-// client/src/services/api.js - CONSISTENT API URLS
+// client/src/services/api.js - UPDATED FOR CORS FIX ✅
 import axios from 'axios';
 
-// ✅ CONSISTENT: Use the same backend URL everywhere
+// ✅ FIXED: Use correct backend URL for production
 const API_BASE_URL = process.env.NODE_ENV === 'production' 
-  ? 'https://new-capstone.onrender.com/api'  // ✅ Use this one consistently
+  ? 'https://furbabies-backend.onrender.com/api'  // ✅ Corrected backend
   : 'http://localhost:5000/api';
 
 console.log(`🔗 API Base URL: ${API_BASE_URL}`);
@@ -17,7 +17,7 @@ const api = axios.create({
     'Content-Type': 'application/json',
     'Accept': 'application/json'
   },
-  withCredentials: false  // ✅ Set to false initially to test
+  withCredentials: false
 });
 
 // ===== REQUEST INTERCEPTOR =====
@@ -27,7 +27,6 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-    
     console.log(`📡 API Request: ${config.method?.toUpperCase()} ${config.url}`);
     console.log(`🎯 Full URL: ${config.baseURL}${config.url}`);
     return config;
@@ -52,7 +51,7 @@ api.interceptors.response.use(
       method: error.config?.method,
       corsError: error.message.includes('CORS') || error.message.includes('Network Error')
     });
-    
+
     if (error.message.includes('CORS') || error.message.includes('Network Error')) {
       console.error('🚫 CORS Error detected:', {
         frontend: window.location.origin,
@@ -60,12 +59,12 @@ api.interceptors.response.use(
         suggestion: 'Backend CORS not configured for this frontend domain'
       });
     }
-    
+
     return Promise.reject(error);
   }
 );
 
-// ===== EXPORT CONSISTENT API =====
+// ===== PET API =====
 export const petAPI = {
   getAllPets: (params = {}) => {
     const searchParams = new URLSearchParams();
@@ -74,7 +73,7 @@ export const petAPI = {
         searchParams.append(key, params[key]);
       }
     });
-    
+
     const queryString = searchParams.toString();
     const url = queryString ? `/pets?${queryString}` : '/pets';
     return api.get(url);
@@ -89,6 +88,7 @@ export const petAPI = {
   ratePet: (petId, rating) => api.post(`/pets/${petId}/rate`, { rating })
 };
 
+// ===== PRODUCT API =====
 export const productAPI = {
   getAllProducts: (params = {}) => {
     const searchParams = new URLSearchParams();
@@ -97,7 +97,7 @@ export const productAPI = {
         searchParams.append(key, params[key]);
       }
     });
-    
+
     const queryString = searchParams.toString();
     const url = queryString ? `/products?${queryString}` : '/products';
     return api.get(url);
@@ -113,6 +113,7 @@ export const productAPI = {
   getProductBrands: () => api.get('/products/brands')
 };
 
+// ===== NEWS API =====
 export const newsAPI = {
   getAllNews: (params = {}) => {
     const searchParams = new URLSearchParams();
@@ -121,7 +122,7 @@ export const newsAPI = {
         searchParams.append(key, params[key]);
       }
     });
-    
+
     const queryString = searchParams.toString();
     const url = queryString ? `/news?${queryString}` : '/news';
     return api.get(url);
@@ -139,7 +140,7 @@ export const newsAPI = {
         searchParams.append(key, params[key]);
       }
     });
-    
+
     const queryString = searchParams.toString();
     const url = queryString ? `/news/external?${queryString}` : '/news/external';
     return api.get(url);
@@ -152,7 +153,7 @@ export const newsAPI = {
         searchParams.append(key, params[key]);
       }
     });
-    
+
     const queryString = searchParams.toString();
     const url = queryString ? `/news/custom?${queryString}` : '/news/custom';
     return api.get(url);
@@ -161,16 +162,19 @@ export const newsAPI = {
   checkNewsHealth: () => api.get('/news/health')
 };
 
+// ===== USER API =====
 export const userAPI = {
   login: (credentials) => api.post('/users/login', credentials),
   register: (userData) => api.post('/users/register', userData),
   getProfile: () => api.get('/users/profile')
 };
 
+// ===== CONTACT API =====
 export const contactAPI = {
   submitMessage: (messageData) => api.post('/contact', messageData)
 };
 
+// ===== HEALTH CHECK =====
 export const healthAPI = {
   checkApiHealth: () => api.get('/health')
 };
