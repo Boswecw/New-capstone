@@ -1,17 +1,17 @@
-// client/src/components/SafeImage.js - UPDATED FOR GOOGLE BUCKETS
+// client/src/components/SafeImage.js
 import React, { useState, useEffect } from 'react';
 import { Spinner } from 'react-bootstrap';
 import classNames from 'classnames';
-import styles from './Card.module.css';
+import styles from './Card.module.css'; // .fit-contain, .fit-cover, etc.
 
+// Static fallback images
 const fallbackImages = {
   dog: 'https://images.unsplash.com/photo-1583337130417-3346a1be7dee?w=400&h=300&fit=crop&q=80&auto=format',
   cat: 'https://images.unsplash.com/photo-1574144611937-0df059b5ef3e?w=400&h=300&fit=crop&q=80&auto=format',
   fish: 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400&h=300&fit=crop&q=80&auto=format',
-  bird: 'https://images.unsplash.com/photo-1520637836862-4d197d17c448?w=400&h=300&fit=crop&q=80&auto=format',
   rabbit: 'https://images.unsplash.com/photo-1585110396000-c9ffd4e4b308?w=400&h=300&fit=crop&q=80&auto=format',
   product: 'https://images.unsplash.com/photo-1601758228041-f3b2795255f1?w=400&h=300&fit=crop&q=80&auto=format',
-  default: 'https://images.unsplash.com/photo-1548767797-d8c844163c4c?w=400&h=300&fit=crop&q=80&auto=format'
+  default: 'https://images.unsplash.com/photo-1548767797-d8c844163c4c?w=400&h=300&fit=crop&q=80&auto=format',
 };
 
 const getFallbackUrl = (category) => {
@@ -21,7 +21,6 @@ const getFallbackUrl = (category) => {
     (cat.includes('dog') && fallbackImages.dog) ||
     (cat.includes('cat') && fallbackImages.cat) ||
     (cat.includes('fish') && fallbackImages.fish) ||
-    (cat.includes('bird') && fallbackImages.bird) ||
     (cat.includes('rabbit') && fallbackImages.rabbit) ||
     fallbackImages.default
   );
@@ -29,11 +28,19 @@ const getFallbackUrl = (category) => {
 
 const buildPrimaryUrl = (item) => {
   if (!item) return null;
-  if (item.image && item.image.startsWith('http')) return item.image;
+
+  // If absolute URL already present
+  if (item.imageUrl && item.imageUrl.startsWith('http')) {
+    return item.imageUrl;
+  }
+
+  // Build GCS proxy path
   if (item.image) {
     const cleanPath = item.image.replace(/^\/+/, '');
-    return `https://storage.googleapis.com/furbabies-assets/${cleanPath}`;
+    const baseUrl = 'https://furbabies-backend.onrender.com'; // 🔧 Force production backend
+    return `${baseUrl}/api/images/gcs/${cleanPath}`;
   }
+
   return null;
 };
 
@@ -75,6 +82,7 @@ const SafeImage = ({
       };
       testImage.src = primaryUrl;
     } else {
+      setImageUrl(fallbackUrl);
       setLoading(false);
     }
   }, [item, category]);
@@ -96,25 +104,18 @@ const SafeImage = ({
     onError?.(e);
   };
 
-  const containerStyles = {
-    position: 'relative',
-    display: 'block',
-    width: '100%',
-    height: '100%',
-    ...containerStyle
-  };
-
   const imageClasses = classNames(className, styles[`fit-${fitMode}`]);
 
-  const imageStyles = {
-    width: '100%',
-    height: '100%',
-    display: 'block',
-    ...style
-  };
-
   return (
-    <div style={containerStyles}>
+    <div
+      style={{
+        position: 'relative',
+        display: 'block',
+        width: '100%',
+        height: '100%',
+        ...containerStyle
+      }}
+    >
       {loading && showSpinner && (
         <div
           className="position-absolute top-50 start-50 translate-middle d-flex align-items-center justify-content-center"
@@ -138,7 +139,7 @@ const SafeImage = ({
         src={imageUrl}
         alt={alt}
         className={imageClasses}
-        style={imageStyles}
+        style={{ width: '100%', height: '100%', display: 'block', ...style }}
         onLoad={handleImageLoad}
         onError={handleImageError}
         loading="lazy"
