@@ -1,8 +1,8 @@
-// client/src/components/Navbar.js - FIXED AUTHCONTEXT IMPORT + NEWS LINK
+// client/src/components/Navbar.js - UPDATED with Admin News Link
 import React, { useState, useContext } from 'react';
 import { Navbar, Nav, Container, Button, NavDropdown } from 'react-bootstrap';
 import { Link, useNavigate } from 'react-router-dom';
-import AuthContext from '../contexts/AuthContext'; // ✅ FIXED: Default import
+import AuthContext from '../contexts/AuthContext'; // ✅ Default import
 
 const AppNavbar = () => {
   const [expanded, setExpanded] = useState(false);
@@ -26,7 +26,7 @@ const AppNavbar = () => {
       onToggle={setExpanded}
     >
       <Container>
-        {/* Brand Logo */}
+        {/* Brand */}
         <Navbar.Brand as={Link} to="/" onClick={closeNavbar}>
           <div className="d-flex align-items-center">
             <i className="fas fa-paw text-primary fs-3 me-2"></i>
@@ -34,114 +34,85 @@ const AppNavbar = () => {
           </div>
         </Navbar.Brand>
 
-        {/* Mobile Toggle */}
         <Navbar.Toggle aria-controls="basic-navbar-nav" />
-
-        {/* Navigation Links */}
         <Navbar.Collapse id="basic-navbar-nav">
           <Nav className="me-auto">
-            {/* Home */}
             <Nav.Link as={Link} to="/" onClick={closeNavbar}>
-              <i className="fas fa-home me-1"></i>
-              Home
+              <i className="fas fa-home me-1"></i> Home
             </Nav.Link>
 
-            {/* Pets Dropdown */}
-            <NavDropdown title={
-              <span>
-                <i className="fas fa-paw me-1"></i>
-                Pets
-              </span>
-            } id="pets-dropdown">
+            <NavDropdown 
+              title={<span><i className="fas fa-paw me-1"></i> Pets</span>} 
+              id="pets-dropdown"
+            >
               <NavDropdown.Item as={Link} to="/pets" onClick={closeNavbar}>
-                <i className="fas fa-list me-2"></i>
-                All Pets
+                <i className="fas fa-list me-2"></i> All Pets
               </NavDropdown.Item>
               <NavDropdown.Item as={Link} to="/browse" onClick={closeNavbar}>
-                <i className="fas fa-search me-2"></i>
-                Browse Pets
+                <i className="fas fa-search me-2"></i> Browse Pets
               </NavDropdown.Item>
               <NavDropdown.Divider />
               <NavDropdown.Item as={Link} to="/pets?type=dog" onClick={closeNavbar}>
-                <i className="fas fa-dog me-2"></i>
-                Dogs
+                <i className="fas fa-dog me-2"></i> Dogs
               </NavDropdown.Item>
               <NavDropdown.Item as={Link} to="/pets?type=cat" onClick={closeNavbar}>
-                <i className="fas fa-cat me-2"></i>
-                Cats
+                <i className="fas fa-cat me-2"></i> Cats
               </NavDropdown.Item>
               <NavDropdown.Item as={Link} to="/pets?type=fish" onClick={closeNavbar}>
-                <i className="fas fa-fish me-2"></i>
-                Fish & Aquatic
+                <i className="fas fa-fish me-2"></i> Fish & Aquatic
               </NavDropdown.Item>
               <NavDropdown.Item as={Link} to="/pets?type=other" onClick={closeNavbar}>
-                <i className="fas fa-dove me-2"></i>
-                Other Pets
+                <i className="fas fa-dove me-2"></i> Other Pets
               </NavDropdown.Item>
             </NavDropdown>
 
-            {/* Products */}
             <Nav.Link as={Link} to="/products" onClick={closeNavbar}>
-              <i className="fas fa-shopping-bag me-1"></i>
-              Products
+              <i className="fas fa-shopping-bag me-1"></i> Products
             </Nav.Link>
 
-            {/* ✅ News Link */}
             <Nav.Link as={Link} to="/news" onClick={closeNavbar}>
-              <i className="fas fa-newspaper me-1"></i>
-              News
+              <i className="fas fa-newspaper me-1"></i> News
             </Nav.Link>
 
-            {/* About */}
             <Nav.Link as={Link} to="/about" onClick={closeNavbar}>
-              <i className="fas fa-info-circle me-1"></i>
-              About
+              <i className="fas fa-info-circle me-1"></i> About
             </Nav.Link>
 
-            {/* Contact */}
             <Nav.Link as={Link} to="/contact" onClick={closeNavbar}>
-              <i className="fas fa-envelope me-1"></i>
-              Contact
+              <i className="fas fa-envelope me-1"></i> Contact
             </Nav.Link>
           </Nav>
 
-          {/* Right Side Navigation */}
+          {/* Auth/User Controls */}
           <Nav>
             {user ? (
-              // Logged in user menu
-              <NavDropdown 
-                title={
-                  <span>
-                    <i className="fas fa-user-circle me-1"></i>
-                    {user.name || user.email}
-                  </span>
-                } 
+              <NavDropdown
+                title={<span><i className="fas fa-user-circle me-1"></i> {user.name || user.email}</span>}
                 id="user-dropdown"
                 align="end"
               >
                 <NavDropdown.Item as={Link} to="/profile" onClick={closeNavbar}>
-                  <i className="fas fa-user me-2"></i>
-                  My Profile
+                  <i className="fas fa-user me-2"></i> My Profile
                 </NavDropdown.Item>
-                
+
                 {user.role === 'admin' && (
                   <>
                     <NavDropdown.Divider />
                     <NavDropdown.Item as={Link} to="/admin" onClick={closeNavbar}>
-                      <i className="fas fa-cog me-2"></i>
-                      Admin Dashboard
+                      <i className="fas fa-cog me-2"></i> Admin Dashboard
+                    </NavDropdown.Item>
+                    <NavDropdown.Item as={Link} to="/admin/news" onClick={closeNavbar}>
+                      <i className="fas fa-newspaper me-2"></i> Manage News
                     </NavDropdown.Item>
                   </>
                 )}
-                
+
                 <NavDropdown.Divider />
                 <NavDropdown.Item onClick={handleLogout}>
-                  <i className="fas fa-sign-out-alt me-2"></i>
-                  Logout
+                  <i className="fas fa-sign-out-alt me-2"></i> Logout
                 </NavDropdown.Item>
               </NavDropdown>
             ) : (
-              // Guest user buttons
               <div className="d-flex gap-2">
                 <Button 
                   variant="outline-primary" 
@@ -150,8 +121,7 @@ const AppNavbar = () => {
                   to="/login" 
                   onClick={closeNavbar}
                 >
-                  <i className="fas fa-sign-in-alt me-1"></i>
-                  Login
+                  <i className="fas fa-sign-in-alt me-1"></i> Login
                 </Button>
                 <Button 
                   variant="primary" 
@@ -160,8 +130,7 @@ const AppNavbar = () => {
                   to="/register" 
                   onClick={closeNavbar}
                 >
-                  <i className="fas fa-user-plus me-1"></i>
-                  Register
+                  <i className="fas fa-user-plus me-1"></i> Register
                 </Button>
               </div>
             )}

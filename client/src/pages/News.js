@@ -1,87 +1,78 @@
-// client/src/pages/News.js - UPDATED to show only pet news and use standalone newsAPI
-import React, { useState, useEffect, useCallback } from 'react';
-import { Container, Row, Col, Card, Button, Alert, Form, Badge } from 'react-bootstrap';
-import { Link } from 'react-router-dom';
-import { newsAPI } from '../services/newsAPI';
+// client/src/pages/News.js
+import React, { useState, useEffect } from 'react';
+import {
+  Container,
+  Row,
+  Col,
+  Card,
+  Button,
+  Alert,
+  Form,
+  Badge,
+} from 'react-bootstrap';
+import axios from 'axios';
+
+const NEWS_API_KEY = import.meta.env.VITE_NEWS_API_KEY;
+const NEWS_API_URL = 'https://newsapi.org/v2/everything';
+const SEARCH_QUERY = 'pets OR dogs OR cats OR animal adoption OR pet care';
 
 const News = () => {
-  const [news, setNews] = useState([]);
-  const [filteredNews, setFilteredNews] = useState([]);
-  const [error, setError] = useState(null);
+  const [articles, setArticles] = useState([]);
   const [search, setSearch] = useState('');
+  const [filtered, setFiltered] = useState([]);
+  const [error, setError] = useState(null);
 
-  const fallbackToSample = useCallback(() => {
-    const fallback = getFallbackNews();
-    setNews(fallback);
-    setFilteredNews(fallback);
+  const fetchNews = async () => {
+    try {
+      setError(null);
+      const res = await axios.get(NEWS_API_URL, {
+        params: {
+          q: SEARCH_QUERY,
+          language: 'en',
+          sortBy: 'publishedAt',
+          pageSize: 20,
+          apiKey: NEWS_API_KEY,
+        },
+      });
+
+      const formatted = res.data.articles.map((article, idx) => ({
+        id: encodeURIComponent(article.url || `external-${idx}`),
+        title: article.title,
+        description: article.description,
+        url: article.url,
+        imageUrl: article.urlToImage,
+        publishedAt: article.publishedAt,
+        sourceName: article.source?.name,
+      }));
+
+      setArticles(formatted);
+      setFiltered(formatted);
+    } catch (err) {
+      console.error('❌ Error fetching NewsAPI articles:', err.message);
+      setError('Unable to load pet news. Please try again later.');
+    }
+  };
+
+  useEffect(() => {
+    fetchNews();
   }, []);
 
   useEffect(() => {
-    const fetchPetNews = async () => {
-      try {
-        setError(null);
-        const res = await newsAPI.getAllNews({ category: 'pet', limit: 50 });
-        const articles = res?.data?.data || [];
-
-        const petArticles = articles.filter(article =>
-          article.category === 'pet' ||
-          article.title?.toLowerCase().includes('pet') ||
-          article.excerpt?.toLowerCase().includes('pet') ||
-          article.description?.toLowerCase().includes('pet')
-        );
-
-        if (petArticles.length > 0) {
-          setNews(petArticles);
-          setFilteredNews(petArticles);
-        } else {
-          fallbackToSample();
-        }
-      } catch (err) {
-        console.error('❌ Error fetching pet news:', err);
-        setError('Unable to load pet news articles. Showing fallback content.');
-        fallbackToSample();
-      }
-    };
-
-    fetchPetNews();
-  }, [fallbackToSample]);
-
-  useEffect(() => {
-    const filtered = news.filter(article =>
-      article.title?.toLowerCase().includes(search.toLowerCase()) ||
-      article.excerpt?.toLowerCase().includes(search.toLowerCase()) ||
-      article.description?.toLowerCase().includes(search.toLowerCase())
+    const lower = search.toLowerCase();
+    const filteredArticles = articles.filter(
+      (a) =>
+        a.title.toLowerCase().includes(lower) ||
+        a.description?.toLowerCase().includes(lower)
     );
-    setFilteredNews(filtered);
-  }, [search, news]);
-
-  const getFallbackNews = () => [
-    {
-      id: 'fallback-1',
-      title: 'How to Care for Senior Pets',
-      excerpt: 'Improve comfort and health for aging pets.',
-      publishedAt: new Date().toISOString(),
-      category: 'pet',
-      imageUrl: 'https://images.unsplash.com/photo-1558788353-f76d92427f16?w=600&h=300&fit=crop',
-      isFallback: true
-    },
-    {
-      id: 'fallback-2',
-      title: 'Tips for Adopting Your First Pet',
-      excerpt: 'Everything to know before bringing home a furry friend.',
-      publishedAt: new Date(Date.now() - 86400000).toISOString(),
-      category: 'pet',
-      imageUrl: 'https://images.unsplash.com/photo-1568572933382-74d440642117?w=600&h=300&fit=crop',
-      isFallback: true
-    }
-  ];
+    setFiltered(filteredArticles);
+  }, [search, articles]);
 
   const formatDate = (dateStr) => {
     try {
       return new Date(dateStr).toLocaleDateString('en-US', {
+        year: 'numeric',
         month: 'long',
         day: 'numeric',
-        year: 'numeric'
       });
     } catch {
       return 'Recent';
@@ -93,30 +84,31 @@ const News = () => {
       <Row className="mb-4 text-center">
         <Col>
           <h1 className="display-5 fw-bold">
-            <i className="fas fa-dog text-primary me-2"></i> Pet News
+            <i className="fas fa-dog me-2 text-primary" />
+            Pet News
           </h1>
-          <p className="text-muted">Helpful articles, updates, and tips for happy pets</p>
-          {error && <Alert variant="info">{error}</Alert>}
+          <p className="text-muted">Latest headlines on pets, adoption, and animal care</p>
+          {error && <Alert variant="danger">{error}</Alert>}
         </Col>
       </Row>
 
-      <Row className="mb-4">
+      <Row className="mb-3">
         <Col md={6} className="mx-auto">
           <Form.Control
             type="text"
-            placeholder="Search pet articles..."
+            placeholder="Search articles..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </Col>
       </Row>
 
-      {filteredNews.length > 0 ? (
+      {filtered.length > 0 ? (
         <Row>
-          {filteredNews.map((article, idx) => (
-            <Col key={article.id || `news-${idx}`} md={6} lg={4} className="mb-4">
+          {filtered.map((article) => (
+            <Col key={article.id} md={6} lg={4} className="mb-4">
               <Card className="h-100 shadow-sm news-card position-relative">
-                <div style={{ height: '220px', overflow: 'hidden' }} className="position-relative">
+                <div className="position-relative" style={{ height: '220px', overflow: 'hidden' }}>
                   <Card.Img
                     src={article.imageUrl || 'https://via.placeholder.com/600x300?text=Pet+News'}
                     alt={article.title}
@@ -127,22 +119,30 @@ const News = () => {
                     }}
                   />
                   <Badge bg="info" className="position-absolute top-0 start-0 m-2">
-                    <i className="fas fa-paw me-1"></i> Pet News
+                    <i className="fas fa-paw me-1" />
+                    Pet News
                   </Badge>
-                  {article.isFallback && (
-                    <Badge bg="secondary" className="position-absolute top-0 end-0 m-2">
-                      Sample
-                    </Badge>
-                  )}
+                  <Badge bg="light" text="dark" className="position-absolute top-0 end-0 m-2">
+                    {article.sourceName}
+                  </Badge>
                 </div>
                 <Card.Body className="d-flex flex-column">
                   <Card.Title>{article.title}</Card.Title>
-                  <Card.Text className="text-muted flex-grow-1">{article.excerpt}</Card.Text>
+                  <Card.Text className="text-muted flex-grow-1">
+                    {article.description}
+                  </Card.Text>
                   <div className="d-flex justify-content-between align-items-center mt-3">
                     <small className="text-muted">
-                      <i className="fas fa-calendar me-1"></i>{formatDate(article.publishedAt)}
+                      <i className="fas fa-calendar me-1" />
+                      {formatDate(article.publishedAt)}
                     </small>
-                    <Button as={Link} to={`/news/${article.id}`} size="sm" variant="primary">
+                    <Button
+                      href={article.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      size="sm"
+                      variant="primary"
+                    >
                       Read More
                     </Button>
                   </div>
@@ -152,21 +152,22 @@ const News = () => {
           ))}
         </Row>
       ) : (
-        <Alert variant="info" className="text-center">
-          <h5>No pet news found</h5>
-          <p>Try a different search term or check back later.</p>
-          <Button variant="outline-primary" onClick={() => setSearch('')}>
-            <i className="fas fa-undo me-2"></i> Clear Search
-          </Button>
-        </Alert>
+        !error && (
+          <Alert variant="info" className="text-center">
+            <h5>No pet news articles found</h5>
+            <p>Try adjusting your search or check back later.</p>
+            <Button variant="outline-primary" onClick={() => setSearch('')}>
+              <i className="fas fa-undo me-2" />
+              Clear Search
+            </Button>
+          </Alert>
+        )
       )}
 
-      <style jsx>{`
-        .news-card {
-          transition: transform 0.3s ease;
-        }
+      <style>{`
         .news-card:hover {
-          transform: translateY(-5px);
+          transform: translateY(-4px);
+          transition: transform 0.2s ease-in-out;
         }
       `}</style>
     </Container>
