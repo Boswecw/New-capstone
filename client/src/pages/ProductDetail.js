@@ -16,7 +16,7 @@ const ProductDetail = () => {
   const [quantity, setQuantity] = useState(1);
   const [addingToCart, setAddingToCart] = useState(false);
 
-  // ✅ FIXED: Fetch PRODUCT data using productAPI (not petAPI!)
+  // ✅ FIXED: Enhanced fetch with multiple ID format attempts
   useEffect(() => {
     const fetchProduct = async () => {
       if (!id) {
@@ -30,7 +30,59 @@ const ProductDetail = () => {
         setError(null);
         
         console.log(`🛍️ Fetching product details for ID: ${id}`);
-        const response = await productAPI.getProductById(id); // ✅ FIXED: Use productAPI!
+        
+        let response = null;
+        let lastError = null;
+        
+        // ✅ FIXED: Try multiple approaches for product fetching
+        const fetchAttempts = [
+          // 1. Try direct ID as-is
+          () => productAPI.getProductById(id),
+          // 2. If it starts with 'prod_', try without prefix  
+          () => id.startsWith('prod_') ? productAPI.getProductById(id.replace('prod_', '')) : null,
+          // 3. If it's a number, try with 'prod_' prefix
+          () => /^\d+$/.test(id) ? productAPI.getProductById(`prod_${id}`) : null,
+          // 4. Try searching for the product by name or custom field
+          () => productAPI.getAllProducts({ search: id, limit: 1 })
+        ];
+        
+        for (let i = 0; i < fetchAttempts.length; i++) {
+          const attempt = fetchAttempts[i];
+          if (!attempt) continue;
+          
+          try {
+            console.log(`🔄 Product fetch attempt ${i + 1}/${fetchAttempts.length}`);
+            const attemptResponse = await attempt();
+            
+            if (attemptResponse?.data?.success) {
+              if (i === 3) {
+                // Handle search response format
+                if (attemptResponse.data.data && attemptResponse.data.data.length > 0) {
+                  response = {
+                    data: {
+                      success: true,
+                      data: attemptResponse.data.data[0]
+                    }
+                  };
+                  console.log(`✅ Found product via search attempt`);
+                  break;
+                }
+              } else {
+                response = attemptResponse;
+                console.log(`✅ Found product via attempt ${i + 1}`);
+                break;
+              }
+            }
+          } catch (attemptError) {
+            console.log(`❌ Attempt ${i + 1} failed:`, attemptError.response?.status || attemptError.message);
+            lastError = attemptError;
+            continue;
+          }
+        }
+        
+        if (!response) {
+          throw lastError || new Error('All fetch attempts failed');
+        }
         
         console.log('📊 Product API Response:', response.data);
         
@@ -50,12 +102,12 @@ const ProductDetail = () => {
           throw new Error('Invalid response format from server');
         }
         
-        if (productData && productData._id) {
+        if (productData && (productData._id || productData.id)) {
           // ✅ FIXED: Normalize product data to handle backend field variations safely
           const normalizedProduct = {
             ...productData,
             // Ensure basic fields are strings, not objects
-            _id: String(productData._id || ''),
+            _id: String(productData._id || productData.id || ''),
             name: String(productData.name || 'Unnamed Product'),
             category: String(productData.category || 'General'),
             brand: String(productData.brand || 'Generic'),
@@ -89,7 +141,7 @@ const ProductDetail = () => {
             // Handle additional fields
             weight: productData.weight ? String(productData.weight) : null,
             dimensions: productData.dimensions ? String(productData.dimensions) : null,
-            sku: productData.sku ? String(productData.sku) : null
+            sku: productData.sku ? String(productData.sku) : productData._id || null
           };
           
           setProduct(normalizedProduct);
@@ -102,16 +154,17 @@ const ProductDetail = () => {
       } catch (err) {
         console.error('❌ Error fetching product:', err);
         
+        // ✅ ENHANCED: Better error messages based on error type
         if (err.response?.status === 404) {
-          setError('Product not found. This product may no longer be available.');
+          setError(`Product "${id}" not found. This product may no longer be available.`);
         } else if (err.response?.status === 400) {
-          setError('Invalid product ID format. Please check the URL and try again.');
-        } else if (err.response?.status >= 500) {
-          setError('Server error. Please try again later.');
+          setError(`Invalid product ID format "${id}". Please check the URL and try again.`);
+        } else if (err.response?.status === 500) {
+          setError(`Server error when loading product "${id}". The product database may be experiencing issues. Please try again later.`);
         } else if (err.code === 'NETWORK_ERROR') {
-          setError('Network error. Please check your internet connection.');
+          setError('Network error. Please check your internet connection and try again.');
         } else {
-          setError(err.message || 'Unable to load product details. Please try again.');
+          setError(`Unable to load product "${id}". ${err.message || 'Please try again later.'}`);
         }
       } finally {
         setLoading(false);
