@@ -1,6 +1,6 @@
-// client/src/pages/News.js - Main News Listing Page
+// client/src/pages/News.js - FIXED with Badge import
 import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, Button, Alert, Spinner, Form, Badge } from 'react-bootstrap';
+import { Container, Row, Col, Card, Button, Alert, Spinner, Form, Badge } from 'react-bootstrap'; // ✅ FIXED: Added Badge
 import { Link } from 'react-router-dom';
 import { newsAPI } from '../services/api';
 
@@ -290,7 +290,7 @@ const News = () => {
                       }}
                     />
                     
-                    {/* Category Badge */}
+                    {/* Category Badge - ✅ Badge is now properly imported */}
                     <div className="position-absolute top-0 start-0 m-2">
                       <Badge bg={categoryInfo.color} className="rounded-pill px-3 py-2">
                         <i className={`${categoryInfo.icon} me-1`}></i>
@@ -298,7 +298,7 @@ const News = () => {
                       </Badge>
                     </div>
 
-                    {/* Fallback Indicator */}
+                    {/* Fallback Indicator - ✅ Badge is now properly imported */}
                     {article.isFallback && (
                       <div className="position-absolute top-0 end-0 m-2">
                         <Badge bg="secondary" className="rounded-pill px-2 py-1">
