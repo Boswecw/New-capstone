@@ -1,4 +1,4 @@
-// server/server.js - FIXED CORS Configuration
+// server/server.js - NUCLEAR CORS FIX (Temporary)
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -33,72 +33,12 @@ app.use(helmet({
 }));
 app.use(compression());
 
-// ✅ FIXED CORS CONFIGURATION
+// 🚨 NUCLEAR CORS FIX - ALLOW ALL ORIGINS (TEMPORARY)
+console.log('⚠️ NUCLEAR CORS FIX: Allowing ALL origins temporarily');
 console.log('🌍 Environment:', process.env.NODE_ENV);
-console.log('🔗 Frontend URL from env:', process.env.FRONTEND_URL);
-console.log('🔗 Client URL from env:', process.env.CLIENT_URL);
 
-const allowedOrigins = [
-  // ✅ FIXED: Your actual frontend domain
-  'https://furbabies-frontend.onrender.com',
-  
-  // ✅ Other Render.com domains
-  'https://furbabies-petstore.onrender.com',
-  'https://new-capstone.onrender.com',
-  
-  // ✅ Environment variable fallbacks
-  process.env.FRONTEND_URL,
-  process.env.CLIENT_URL,
-  
-  // ✅ Development origins
-  'http://localhost:3000',
-  'http://localhost:3001',
-  'http://127.0.0.1:3000'
-].filter(Boolean); // Remove undefined values
-
-console.log('✅ Allowed CORS origins:', allowedOrigins);
-
-// ✅ ENHANCED CORS CONFIGURATION
 app.use(cors({
-  origin: function (origin, callback) {
-    console.log(`🔍 CORS check for origin: "${origin}"`);
-    
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) {
-      console.log('✅ No origin - allowing request');
-      return callback(null, true);
-    }
-    
-    // Check if origin is in allowed list
-    if (allowedOrigins.includes(origin)) {
-      console.log(`✅ Origin "${origin}" is in allowed list`);
-      return callback(null, true);
-    }
-    
-    // Allow all *.onrender.com subdomains
-    if (origin && origin.match(/https:\/\/.*\.onrender\.com$/)) {
-      console.log(`✅ Origin "${origin}" matches *.onrender.com pattern`);
-      return callback(null, true);
-    }
-    
-    // Allow localhost in development
-    if (process.env.NODE_ENV !== 'production' && origin && origin.includes('localhost')) {
-      console.log(`✅ Development mode - allowing localhost origin: "${origin}"`);
-      return callback(null, true);
-    }
-    
-    // Log blocked requests for debugging
-    console.log(`🚫 CORS BLOCKED origin: "${origin}"`);
-    console.log('📝 Allowed origins:', allowedOrigins);
-    
-    // ✅ TEMPORARY FIX: Allow all origins (remove this after testing)
-    // TODO: Remove this line and use proper origin checking
-    console.log('⚠️ TEMPORARY: Allowing all origins for debugging');
-    return callback(null, true);
-    
-    // Uncomment this line after fixing environment variables:
-    // return callback(new Error('Not allowed by CORS'));
-  },
+  origin: true,  // ⚠️ TEMPORARY: Allow ALL origins
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'HEAD', 'PATCH'],
   allowedHeaders: [
@@ -122,29 +62,21 @@ app.use(cors({
 
 // ✅ EXPLICIT OPTIONS HANDLER
 app.options('*', (req, res) => {
-  console.log(`🔧 OPTIONS request for: ${req.path}`);
-  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  console.log(`🔧 OPTIONS request for: ${req.path} from origin: ${req.headers.origin}`);
+  res.header('Access-Control-Allow-Origin', '*');  // Allow all for testing
   res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS,HEAD,PATCH');
   res.header('Access-Control-Allow-Headers', 'Origin,X-Requested-With,Content-Type,Accept,Authorization');
   res.header('Access-Control-Allow-Credentials', 'true');
   res.status(200).end();
 });
 
-// ✅ CORS DEBUG MIDDLEWARE
+// ✅ MANUAL CORS HEADERS (Backup)
 app.use((req, res, next) => {
-  console.log(`📡 ${req.method} ${req.path} from origin: ${req.headers.origin || 'no-origin'}`);
-  
-  // Set CORS headers manually as backup
   const origin = req.headers.origin;
-  if (origin && allowedOrigins.includes(origin)) {
-    res.header('Access-Control-Allow-Origin', origin);
-  } else if (origin && origin.match(/https:\/\/.*\.onrender\.com$/)) {
-    res.header('Access-Control-Allow-Origin', origin);
-  } else {
-    // Temporary: allow all origins for debugging
-    res.header('Access-Control-Allow-Origin', origin || '*');
-  }
+  console.log(`📡 ${req.method} ${req.path} from origin: ${origin || 'no-origin'}`);
   
+  // Set permissive CORS headers
+  res.header('Access-Control-Allow-Origin', '*');  // ⚠️ TEMPORARY: Allow all
   res.header('Access-Control-Allow-Credentials', 'true');
   res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS,HEAD,PATCH');
   res.header('Access-Control-Allow-Headers', 'Origin,X-Requested-With,Content-Type,Accept,Authorization');
@@ -166,7 +98,7 @@ if (process.env.NODE_ENV === 'development') {
 // ===== RATE LIMITING =====
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 500, // Increased from 100 to 500
+  max: 1000, // Increased for testing
   message: {
     error: 'Too many requests from this IP, please try again later.',
     retryAfter: '15 minutes'
@@ -174,7 +106,6 @@ const limiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   skip: (req) => {
-    // Skip rate limiting for OPTIONS requests
     return req.method === 'OPTIONS';
   }
 });
@@ -218,9 +149,10 @@ app.get('/api/health', async (req, res) => {
       timestamp: new Date().toISOString(),
       version: '1.0.0',
       cors: {
-        allowedOrigins: allowedOrigins,
+        status: 'NUCLEAR MODE - ALL ORIGINS ALLOWED',
         requestOrigin: req.headers.origin,
-        userAgent: req.headers['user-agent']
+        userAgent: req.headers['user-agent'],
+        warning: 'This is temporary for testing'
       }
     });
   } catch (error) {
@@ -258,8 +190,8 @@ app.get('/', (req, res) => {
     frontend: 'Deployed separately at furbabies-frontend.onrender.com',
     documentation: 'https://github.com/Boswecw/furbabies-petstore',
     cors: {
-      enabled: true,
-      allowedOrigins: allowedOrigins
+      status: 'NUCLEAR MODE - ALL ORIGINS ALLOWED',
+      warning: 'This is temporary for testing'
     }
   });
 });
@@ -281,7 +213,7 @@ app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`🌍 Environment: ${process.env.NODE_ENV}`);
   console.log(`📡 API Base URL: ${process.env.NODE_ENV === 'production' ? 'https://new-capstone.onrender.com' : `http://localhost:${PORT}`}`);
-  console.log(`🔗 CORS configured for origins:`, allowedOrigins);
+  console.log('⚠️ NUCLEAR CORS MODE: ALL ORIGINS ALLOWED (TEMPORARY)');
 });
 
 module.exports = app;

@@ -1,29 +1,28 @@
-// client/src/services/api.js - FIXED for CORS
+// client/src/services/api.js - CONSISTENT API URLS
 import axios from 'axios';
 
-// ✅ FIXED: Ensure correct backend URL
+// ✅ CONSISTENT: Use the same backend URL everywhere
 const API_BASE_URL = process.env.NODE_ENV === 'production' 
-  ? 'https://new-capstone.onrender.com/api'  // ✅ Your actual backend URL
+  ? 'https://new-capstone.onrender.com/api'  // ✅ Use this one consistently
   : 'http://localhost:5000/api';
 
 console.log(`🔗 API Base URL: ${API_BASE_URL}`);
 console.log(`🌍 Environment: ${process.env.NODE_ENV}`);
 
-// ✅ ENHANCED: Create axios instance with CORS-friendly configuration
+// ===== CREATE AXIOS INSTANCE =====
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 30000, // 30 seconds
+  timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json'
   },
-  withCredentials: true  // ✅ ADDED: Enable credentials for CORS
+  withCredentials: false  // ✅ Set to false initially to test
 });
 
-// ✅ ENHANCED: Request interceptor with better logging
+// ===== REQUEST INTERCEPTOR =====
 api.interceptors.request.use(
   (config) => {
-    // Add auth token if available
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
@@ -39,7 +38,7 @@ api.interceptors.request.use(
   }
 );
 
-// ✅ ENHANCED: Response interceptor with CORS error handling
+// ===== RESPONSE INTERCEPTOR =====
 api.interceptors.response.use(
   (response) => {
     console.log(`✅ API Response: ${response.status} ${response.config.url}`);
@@ -54,35 +53,19 @@ api.interceptors.response.use(
       corsError: error.message.includes('CORS') || error.message.includes('Network Error')
     });
     
-    // ✅ CORS Error Handling
     if (error.message.includes('CORS') || error.message.includes('Network Error')) {
       console.error('🚫 CORS Error detected:', {
         frontend: window.location.origin,
         backend: API_BASE_URL,
-        suggestion: 'Check backend CORS configuration'
+        suggestion: 'Backend CORS not configured for this frontend domain'
       });
-    }
-    
-    // Handle specific error cases
-    if (error.response?.status === 401) {
-      localStorage.removeItem('token');
-      console.log('🔐 Token removed due to 401 error');
     }
     
     return Promise.reject(error);
   }
 );
 
-// ===== TEST ENDPOINT =====
-export const testAPI = {
-  // ✅ CORS Test endpoint
-  testCORS: () => {
-    console.log('🧪 Testing CORS connection...');
-    return api.get('/health');
-  }
-};
-
-// ===== PET API =====
+// ===== EXPORT CONSISTENT API =====
 export const petAPI = {
   getAllPets: (params = {}) => {
     const searchParams = new URLSearchParams();
@@ -94,8 +77,6 @@ export const petAPI = {
     
     const queryString = searchParams.toString();
     const url = queryString ? `/pets?${queryString}` : '/pets';
-    
-    console.log(`🐾 Fetching pets: ${url}`);
     return api.get(url);
   },
 
@@ -104,18 +85,10 @@ export const petAPI = {
     return api.get(`/pets/featured?limit=${limit}`);
   },
 
-  getPetById: (id) => {
-    console.log(`🐾 Fetching pet: ${id}`);
-    return api.get(`/pets/${id}`);
-  },
-
-  ratePet: (petId, rating) => {
-    console.log(`❤️ Rating pet ${petId}: ${rating}`);
-    return api.post(`/pets/${petId}/rate`, { rating });
-  }
+  getPetById: (id) => api.get(`/pets/${id}`),
+  ratePet: (petId, rating) => api.post(`/pets/${petId}/rate`, { rating })
 };
 
-// ===== PRODUCT API =====
 export const productAPI = {
   getAllProducts: (params = {}) => {
     const searchParams = new URLSearchParams();
@@ -127,8 +100,6 @@ export const productAPI = {
     
     const queryString = searchParams.toString();
     const url = queryString ? `/products?${queryString}` : '/products';
-    
-    console.log(`🛍️ Fetching products: ${url}`);
     return api.get(url);
   },
 
@@ -137,23 +108,11 @@ export const productAPI = {
     return api.get(`/products/featured?limit=${limit}`);
   },
 
-  getProductById: (id) => {
-    console.log(`🛍️ Fetching product: ${id}`);
-    return api.get(`/products/${id}`);
-  },
-
-  getProductCategories: () => {
-    console.log(`📂 Fetching product categories...`);
-    return api.get('/products/categories');
-  },
-
-  getProductBrands: () => {
-    console.log(`🏷️ Fetching product brands...`);
-    return api.get('/products/brands');
-  }
+  getProductById: (id) => api.get(`/products/${id}`),
+  getProductCategories: () => api.get('/products/categories'),
+  getProductBrands: () => api.get('/products/brands')
 };
 
-// ===== NEWS API =====
 export const newsAPI = {
   getAllNews: (params = {}) => {
     const searchParams = new URLSearchParams();
@@ -165,8 +124,6 @@ export const newsAPI = {
     
     const queryString = searchParams.toString();
     const url = queryString ? `/news?${queryString}` : '/news';
-    
-    console.log(`📰 Fetching all news: ${url}`);
     return api.get(url);
   },
 
@@ -185,8 +142,6 @@ export const newsAPI = {
     
     const queryString = searchParams.toString();
     const url = queryString ? `/news/external?${queryString}` : '/news/external';
-    
-    console.log(`🌐 Fetching external news: ${url}`);
     return api.get(url);
   },
 
@@ -200,48 +155,36 @@ export const newsAPI = {
     
     const queryString = searchParams.toString();
     const url = queryString ? `/news/custom?${queryString}` : '/news/custom';
-    
-    console.log(`📝 Fetching custom news: ${url}`);
     return api.get(url);
   },
 
-  checkNewsHealth: () => {
-    console.log(`🏥 Checking news service health...`);
-    return api.get('/news/health');
-  }
+  checkNewsHealth: () => api.get('/news/health')
 };
 
-// ===== USER API =====
 export const userAPI = {
-  login: (credentials) => {
-    console.log(`🔐 User login attempt...`);
-    return api.post('/users/login', credentials);
-  },
-
-  register: (userData) => {
-    console.log(`📝 User registration attempt...`);
-    return api.post('/users/register', userData);
-  },
-
-  getProfile: () => {
-    console.log(`👤 Fetching user profile...`);
-    return api.get('/users/profile');
-  }
+  login: (credentials) => api.post('/users/login', credentials),
+  register: (userData) => api.post('/users/register', userData),
+  getProfile: () => api.get('/users/profile')
 };
 
-// ===== CONTACT API =====
 export const contactAPI = {
-  submitMessage: (messageData) => {
-    console.log(`📧 Submitting contact message...`);
-    return api.post('/contact', messageData);
-  }
+  submitMessage: (messageData) => api.post('/contact', messageData)
 };
 
-// ===== HEALTH CHECK =====
 export const healthAPI = {
-  checkApiHealth: () => {
-    console.log(`🏥 Checking API health...`);
-    return api.get('/health');
+  checkApiHealth: () => api.get('/health')
+};
+
+// ===== TEST CORS FUNCTION =====
+export const testCORS = async () => {
+  try {
+    console.log('🧪 Testing CORS connection...');
+    const response = await api.get('/health');
+    console.log('✅ CORS Test Success:', response.data);
+    return { success: true, data: response.data };
+  } catch (error) {
+    console.error('❌ CORS Test Failed:', error);
+    return { success: false, error: error.message };
   }
 };
 
