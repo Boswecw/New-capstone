@@ -1,25 +1,27 @@
-// client/src/pages/ProductDetail.js - SIMPLIFIED AND FIXED
+// client/src/pages/PetDetail.js - FIXED Pet detail page
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Container, Row, Col, Button, Spinner, Alert, Badge, Card } from 'react-bootstrap';
-import { productAPI } from '../services/api';
-import ProductImage from '../components/ProductImage';
+import { Container, Row, Col, Button, Spinner, Alert, Badge, Card, ProgressBar } from 'react-bootstrap';
+import { petAPI } from '../services/api';
+import SafeImage from '../components/SafeImage';
 
-const ProductDetail = () => {
+const PetDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   
   // State management
-  const [product, setProduct] = useState(null);
+  const [pet, setPet] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [quantity, setQuantity] = useState(1);
+  const [rating, setRating] = useState(0);
+  const [hasRated, setHasRated] = useState(false);
+  const [isRating, setIsRating] = useState(false);
 
-  // Fetch product data
+  // Fetch pet data
   useEffect(() => {
-    const fetchProduct = async () => {
+    const fetchPet = async () => {
       if (!id) {
-        setError('No product ID provided');
+        setError('No pet ID provided');
         setLoading(false);
         return;
       }
@@ -28,50 +30,150 @@ const ProductDetail = () => {
         setLoading(true);
         setError(null);
         
-        console.log(`🛒 Fetching product details for ID: ${id}`);
-        const response = await productAPI.getProductById(id);
+        console.log(`🐾 Fetching pet details for ID: ${id}`);
+        const response = await petAPI.getPetById(id);
+        
+        console.log('📊 API Response:', response.data);
+        
+        // Handle different response formats from your backend
+        let petData = null;
         
         if (response?.data?.success && response.data.data) {
-          setProduct(response.data.data);
-          console.log('✅ Product loaded successfully:', response.data.data.name);
+          // Standard format: { success: true, data: petObject }
+          petData = response.data.data;
+          console.log('✅ Using standard API response format');
         } else if (response?.data && response.data._id) {
-          // Handle direct product object response
-          setProduct(response.data);
-          console.log('✅ Product loaded successfully:', response.data.name);
+          // Direct pet object format
+          petData = response.data;
+          console.log('✅ Using direct pet object format');
         } else {
-          throw new Error('Product not found');
+          console.error('❌ Unexpected API response format:', response.data);
+          throw new Error('Invalid response format from server');
+        }
+        
+        if (petData && petData._id) {
+          // Normalize pet data to handle backend field variations
+          const normalizedPet = {
+            ...petData,
+            // Ensure traits field exists (backend uses personalityTraits)
+            traits: petData.traits || petData.personalityTraits || [],
+            // Ensure proper image field
+            image: petData.image || petData.imageUrl,
+            // Ensure status fields
+            adopted: petData.adopted || petData.status === 'adopted',
+            available: petData.available !== false && petData.status !== 'adopted',
+            // Ensure display name
+            displayName: petData.displayName || petData.name || 'Unnamed Pet'
+          };
+          
+          setPet(normalizedPet);
+          console.log('✅ Pet loaded successfully:', normalizedPet.name || normalizedPet.displayName);
+          console.log('📋 Pet data fields:', Object.keys(normalizedPet));
+        } else {
+          throw new Error('Pet data is incomplete or missing');
         }
         
       } catch (err) {
-        console.error('❌ Error fetching product:', err);
+        console.error('❌ Error fetching pet:', err);
         
         if (err.response?.status === 404) {
-          setError('Product not found');
+          setError('Pet not found. This pet may have been adopted or is no longer available.');
+        } else if (err.response?.status === 400) {
+          setError('Invalid pet ID format. Please check the URL and try again.');
         } else if (err.response?.status >= 500) {
           setError('Server error. Please try again later.');
+        } else if (err.code === 'NETWORK_ERROR') {
+          setError('Network error. Please check your internet connection.');
         } else {
-          setError('Unable to load product details. Please try again.');
+          setError(err.message || 'Unable to load pet details. Please try again.');
         }
       } finally {
         setLoading(false);
       }
     };
 
-    fetchProduct();
+    fetchPet();
   }, [id]);
 
+  // Handle pet rating
+  const handleRating = async (newRating) => {
+    if (hasRated || isRating || !pet) return;
+    
+    try {
+      setIsRating(true);
+      console.log(`⭐ Rating pet ${pet.name} with ${newRating} stars`);
+      
+      const response = await petAPI.ratePet(pet._id, newRating);
+      
+      if (response?.data?.success) {
+        setRating(newRating);
+        setHasRated(true);
+        
+        // Update pet rating display
+        setPet(prev => ({
+          ...prev,
+          rating: response.data.newRating || newRating,
+          ratingCount: (prev.ratingCount || 0) + 1
+        }));
+        
+        console.log('✅ Pet rated successfully');
+      } else {
+        throw new Error('Failed to submit rating');
+      }
+    } catch (err) {
+      console.error('❌ Error rating pet:', err);
+      // Don't show error to user for rating, just log it
+    } finally {
+      setIsRating(false);
+    }
+  };
+
   // Utility functions
-  const formatPrice = (price) => {
-    return typeof price === 'number' ? `$${price.toFixed(2)}` : 'Price N/A';
+  const formatAge = (age) => {
+    if (!age) return 'Unknown';
+    if (typeof age === 'string') {
+      return age.charAt(0).toUpperCase() + age.slice(1);
+    }
+    return String(age);
   };
 
-  const formatCategory = (category) => {
-    if (!category) return 'Products';
-    return category.charAt(0).toUpperCase() + category.slice(1);
+  const formatDate = (dateString) => {
+    if (!dateString) return 'Recently';
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+    } catch {
+      return 'Recently';
+    }
   };
 
-  const handleQuantityChange = (change) => {
-    setQuantity(prev => Math.max(1, prev + change));
+  const getPersonalityScore = (trait) => {
+    // Mock personality scores based on trait
+    const scores = {
+      'friendly': 90, 'energetic': 75, 'calm': 80, 'playful': 85,
+      'loyal': 95, 'independent': 60, 'social': 70, 'protective': 85,
+      'gentle': 90, 'intelligent': 80, 'affectionate': 85, 'active': 70,
+      'quiet': 65, 'curious': 75, 'brave': 80, 'sweet': 90
+    };
+    return scores[trait?.toLowerCase()] || Math.floor(Math.random() * 40) + 60;
+  };
+
+  const getPetStatusInfo = () => {
+    if (!pet) return { text: 'Unknown', variant: 'secondary', icon: 'question' };
+    
+    if (pet.adopted || pet.status === 'adopted') {
+      return { text: 'Adopted', variant: 'success', icon: 'heart' };
+    } else if (pet.featured) {
+      return { text: 'Featured', variant: 'warning', icon: 'star' };
+    } else if (pet.available === false || pet.status === 'unavailable') {
+      return { text: 'Not Available', variant: 'secondary', icon: 'pause' };
+    } else {
+      return { text: 'Available', variant: 'primary', icon: 'home' };
+    }
   };
 
   // Loading state
@@ -79,10 +181,11 @@ const ProductDetail = () => {
     return (
       <Container className="py-5">
         <div className="text-center">
-          <Spinner animation="border" role="status" className="mb-3">
+          <Spinner animation="border" role="status" className="mb-3" variant="primary">
             <span className="visually-hidden">Loading...</span>
           </Spinner>
-          <h4>Loading product details...</h4>
+          <h4>Loading pet details...</h4>
+          <p className="text-muted">Please wait while we fetch information about this adorable pet.</p>
         </div>
       </Container>
     );
@@ -95,17 +198,21 @@ const ProductDetail = () => {
         <Alert variant="danger" className="text-center">
           <Alert.Heading>
             <i className="fas fa-exclamation-triangle me-2"></i>
-            Unable to Load Product
+            Unable to Load Pet
           </Alert.Heading>
           <p>{error}</p>
-          <div className="d-flex gap-2 justify-content-center">
+          <div className="d-flex gap-2 justify-content-center flex-wrap">
             <Button variant="outline-danger" onClick={() => window.location.reload()}>
               <i className="fas fa-redo me-2"></i>
               Try Again
             </Button>
-            <Button variant="primary" onClick={() => navigate('/products')}>
+            <Button variant="primary" onClick={() => navigate('/browse')}>
               <i className="fas fa-arrow-left me-2"></i>
-              Back to Products
+              Back to Browse
+            </Button>
+            <Button variant="outline-primary" onClick={() => navigate('/pets')}>
+              <i className="fas fa-paw me-2"></i>
+              View All Pets
             </Button>
           </div>
         </Alert>
@@ -113,23 +220,34 @@ const ProductDetail = () => {
     );
   }
 
-  // Product not found
-  if (!product) {
+  // Pet not found
+  if (!pet) {
     return (
       <Container className="py-5">
         <Alert variant="warning" className="text-center">
-          <Alert.Heading>Product Not Found</Alert.Heading>
-          <p>The product you're looking for doesn't exist or may have been removed.</p>
-          <Button variant="primary" onClick={() => navigate('/products')}>
-            <i className="fas fa-arrow-left me-2"></i>
-            Browse All Products
-          </Button>
+          <Alert.Heading>
+            <i className="fas fa-search me-2"></i>
+            Pet Not Found
+          </Alert.Heading>
+          <p>The pet you're looking for doesn't exist or may have been adopted.</p>
+          <div className="d-flex gap-2 justify-content-center">
+            <Button variant="primary" onClick={() => navigate('/browse')}>
+              <i className="fas fa-search me-2"></i>
+              Browse Available Pets
+            </Button>
+            <Button variant="outline-primary" onClick={() => navigate('/pets')}>
+              <i className="fas fa-home me-2"></i>
+              Go to Pets Home
+            </Button>
+          </div>
         </Alert>
       </Container>
     );
   }
 
-  // Main product display
+  const statusInfo = getPetStatusInfo();
+
+  // Main pet display
   return (
     <Container className="py-4">
       {/* Breadcrumb */}
@@ -137,148 +255,298 @@ const ProductDetail = () => {
         <ol className="breadcrumb">
           <li className="breadcrumb-item">
             <Button variant="link" className="p-0" onClick={() => navigate('/')}>
+              <i className="fas fa-home me-1"></i>
               Home
             </Button>
           </li>
           <li className="breadcrumb-item">
-            <Button variant="link" className="p-0" onClick={() => navigate('/products')}>
-              Products
+            <Button variant="link" className="p-0" onClick={() => navigate('/pets')}>
+              <i className="fas fa-paw me-1"></i>
+              Pets
+            </Button>
+          </li>
+          <li className="breadcrumb-item">
+            <Button variant="link" className="p-0" onClick={() => navigate('/browse')}>
+              <i className="fas fa-search me-1"></i>
+              Browse
             </Button>
           </li>
           <li className="breadcrumb-item active" aria-current="page">
-            {product.name || 'Product Details'}
+            {pet.displayName || pet.name}
           </li>
         </ol>
       </nav>
 
-      {/* Main Product Section */}
+      {/* Main Pet Section */}
       <Row className="mb-4">
-        {/* Product Image */}
+        {/* Pet Image */}
         <Col lg={6} className="mb-4">
           <Card className="shadow-sm">
-            <Card.Body className="text-center">
-              <ProductImage
-                product={product}
+            <Card.Body className="text-center p-0">
+              <SafeImage
+                item={pet}
+                category={pet.type || 'pet'}
                 size="large"
-                className="img-fluid rounded"
-                style={{ maxWidth: '100%', height: 'auto' }}
+                className="img-fluid"
+                style={{ 
+                  width: '100%', 
+                  height: '400px', 
+                  objectFit: 'cover',
+                  borderRadius: '8px'
+                }}
+                showLoader={true}
+                alt={`Photo of ${pet.displayName || pet.name}`}
               />
             </Card.Body>
           </Card>
+
+          {/* Additional Images */}
+          {pet.additionalImages && pet.additionalImages.length > 0 && (
+            <Card className="shadow-sm mt-3">
+              <Card.Header>
+                <h6 className="mb-0">
+                  <i className="fas fa-images me-2"></i>
+                  More Photos
+                </h6>
+              </Card.Header>
+              <Card.Body>
+                <Row>
+                  {pet.additionalImages.slice(0, 4).map((image, index) => (
+                    <Col xs={6} md={3} key={index} className="mb-2">
+                      <SafeImage
+                        src={image}
+                        category={pet.type || 'pet'}
+                        size="small"
+                        className="img-fluid rounded"
+                        style={{ height: '80px', objectFit: 'cover' }}
+                      />
+                    </Col>
+                  ))}
+                </Row>
+              </Card.Body>
+            </Card>
+          )}
         </Col>
 
-        {/* Product Information */}
+        {/* Pet Information */}
         <Col lg={6}>
           <Card className="shadow-sm h-100">
             <Card.Body>
-              {/* Product Name */}
-              <h1 className="mb-3">{product.name}</h1>
-
-              {/* Price */}
-              <div className="mb-3">
-                <h2 className="text-primary mb-0">
-                  {formatPrice(product.price)}
-                </h2>
+              {/* Pet Name and Status */}
+              <div className="d-flex justify-content-between align-items-start mb-3">
+                <div>
+                  <h1 className="mb-1">{pet.displayName || pet.name}</h1>
+                  {pet.breed && (
+                    <p className="text-muted mb-0">
+                      <i className="fas fa-certificate me-1"></i>
+                      {pet.breed}
+                    </p>
+                  )}
+                </div>
+                <Badge bg={statusInfo.variant} className="fs-6">
+                  <i className={`fas fa-${statusInfo.icon} me-1`}></i>
+                  {statusInfo.text}
+                </Badge>
               </div>
 
-              {/* Categories and Tags */}
-              <div className="mb-3">
-                {product.category && (
-                  <Badge bg="primary" className="me-2 mb-1">
-                    <i className="fas fa-tag me-1"></i>
-                    {formatCategory(product.category)}
-                  </Badge>
-                )}
-                {product.brand && (
-                  <Badge bg="info" className="me-2 mb-1">
-                    <i className="fas fa-building me-1"></i>
-                    {product.brand}
-                  </Badge>
-                )}
-                {product.inStock !== false ? (
-                  <Badge bg="success" className="mb-1">
-                    <i className="fas fa-check-circle me-1"></i>
-                    In Stock
-                  </Badge>
-                ) : (
-                  <Badge bg="danger" className="mb-1">
-                    <i className="fas fa-times-circle me-1"></i>
-                    Out of Stock
-                  </Badge>
-                )}
-              </div>
+              {/* Basic Info Grid */}
+              <Row className="mb-3">
+                <Col md={6}>
+                  <div className="mb-2">
+                    <strong>Type:</strong> 
+                    <span className="ms-2">
+                      <i className="fas fa-paw text-primary me-1"></i>
+                      {pet.type ? pet.type.charAt(0).toUpperCase() + pet.type.slice(1) : 'Pet'}
+                    </span>
+                  </div>
+                  <div className="mb-2">
+                    <strong>Age:</strong> 
+                    <span className="ms-2">
+                      <i className="fas fa-birthday-cake text-primary me-1"></i>
+                      {formatAge(pet.age)}
+                    </span>
+                  </div>
+                  {pet.color && (
+                    <div className="mb-2">
+                      <strong>Color:</strong> 
+                      <span className="ms-2">
+                        <i className="fas fa-palette text-primary me-1"></i>
+                        {pet.color}
+                      </span>
+                    </div>
+                  )}
+                </Col>
+                <Col md={6}>
+                  {pet.gender && (
+                    <div className="mb-2">
+                      <strong>Gender:</strong> 
+                      <span className="ms-2">
+                        <i className={`fas ${pet.gender === 'male' ? 'fa-mars' : 'fa-venus'} text-primary me-1`}></i>
+                        {pet.gender.charAt(0).toUpperCase() + pet.gender.slice(1)}
+                      </span>
+                    </div>
+                  )}
+                  {pet.size && (
+                    <div className="mb-2">
+                      <strong>Size:</strong> 
+                      <span className="ms-2">
+                        <i className="fas fa-ruler text-primary me-1"></i>
+                        {pet.size.charAt(0).toUpperCase() + pet.size.slice(1)}
+                      </span>
+                    </div>
+                  )}
+                  {pet.adoptionFee && (
+                    <div className="mb-2">
+                      <strong>Adoption Fee:</strong> 
+                      <span className="ms-2">
+                        <i className="fas fa-dollar-sign text-primary me-1"></i>
+                        ${pet.adoptionFee}
+                      </span>
+                    </div>
+                  )}
+                </Col>
+              </Row>
 
               {/* Description */}
-              {product.description && (
+              {pet.description && (
                 <div className="mb-4">
-                  <h5>Description</h5>
-                  <p className="text-muted">{product.description}</p>
+                  <h5>
+                    <i className="fas fa-info-circle text-primary me-2"></i>
+                    About {pet.displayName || pet.name}
+                  </h5>
+                  <p className="text-muted">{pet.description}</p>
                 </div>
               )}
 
-              {/* Quantity Selector */}
+              {/* Rating System */}
               <div className="mb-4">
-                <h6>Quantity</h6>
+                <h6>
+                  <i className="fas fa-heart text-danger me-2"></i>
+                  Rate {pet.displayName || pet.name}
+                </h6>
                 <div className="d-flex align-items-center">
-                  <Button 
-                    variant="outline-secondary" 
-                    size="sm"
-                    onClick={() => handleQuantityChange(-1)}
-                    disabled={quantity <= 1}
-                  >
-                    <i className="fas fa-minus"></i>
-                  </Button>
-                  <span className="mx-3 fw-bold">{quantity}</span>
-                  <Button 
-                    variant="outline-secondary" 
-                    size="sm"
-                    onClick={() => handleQuantityChange(1)}
-                  >
-                    <i className="fas fa-plus"></i>
-                  </Button>
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <Button
+                      key={star}
+                      variant="link"
+                      className="p-1 text-warning"
+                      onClick={() => handleRating(star)}
+                      disabled={hasRated || isRating || pet.adopted}
+                      style={{ fontSize: '1.5rem' }}
+                    >
+                      <i className={`fas fa-heart ${
+                        (rating >= star || (pet.rating || 0) >= star) 
+                          ? '' 
+                          : 'opacity-25'
+                      }`}></i>
+                    </Button>
+                  ))}
+                  <span className="ms-2 text-muted">
+                    ({pet.ratingCount || 0} rating{(pet.ratingCount || 0) !== 1 ? 's' : ''})
+                  </span>
+                  {isRating && (
+                    <Spinner animation="border" size="sm" className="ms-2" />
+                  )}
                 </div>
+                {hasRated && (
+                  <small className="text-success">
+                    <i className="fas fa-check me-1"></i>
+                    Thank you for rating {pet.displayName || pet.name}!
+                  </small>
+                )}
               </div>
 
               {/* Action Buttons */}
               <div className="d-grid gap-2">
-                <Button 
-                  variant="primary" 
-                  size="lg"
-                  disabled={product.inStock === false}
-                >
-                  <i className="fas fa-shopping-cart me-2"></i>
-                  {product.inStock === false ? 'Out of Stock' : 'Add to Cart'}
-                </Button>
-                
-                <Button variant="outline-secondary">
-                  <i className="fas fa-heart me-2"></i>
-                  Add to Wishlist
-                </Button>
+                {!pet.adopted && statusInfo.text !== 'Adopted' ? (
+                  <>
+                    <Button variant="primary" size="lg">
+                      <i className="fas fa-heart me-2"></i>
+                      Adopt {pet.displayName || pet.name}
+                    </Button>
+                    <Button variant="outline-secondary">
+                      <i className="fas fa-envelope me-2"></i>
+                      Contact About {pet.displayName || pet.name}
+                    </Button>
+                    <Button variant="outline-info">
+                      <i className="fas fa-star me-2"></i>
+                      Add to Favorites
+                    </Button>
+                  </>
+                ) : (
+                  <Alert variant="info" className="mb-0">
+                    <i className="fas fa-heart me-2"></i>
+                    {pet.displayName || pet.name} has found their forever home!
+                  </Alert>
+                )}
               </div>
             </Card.Body>
           </Card>
         </Col>
       </Row>
 
-      {/* Product Details */}
+      {/* Personality Traits */}
+      {pet.traits && pet.traits.length > 0 && (
+        <Card className="shadow-sm mb-4">
+          <Card.Body>
+            <h4 className="mb-3">
+              <i className="fas fa-smile text-warning me-2"></i>
+              Personality Traits
+            </h4>
+            <Row>
+              {pet.traits.map((trait, index) => (
+                <Col md={6} lg={4} className="mb-3" key={index}>
+                  <div className="d-flex justify-content-between align-items-center mb-1">
+                    <span className="fw-medium">
+                      {typeof trait === 'string' 
+                        ? trait.charAt(0).toUpperCase() + trait.slice(1)
+                        : trait.name || 'Trait'
+                      }
+                    </span>
+                    <span className="text-muted">{getPersonalityScore(trait)}%</span>
+                  </div>
+                  <ProgressBar 
+                    now={getPersonalityScore(trait)} 
+                    variant={
+                      getPersonalityScore(trait) > 75 ? 'success' : 
+                      getPersonalityScore(trait) > 50 ? 'warning' : 'info'
+                    }
+                    style={{ height: '8px' }}
+                  />
+                </Col>
+              ))}
+            </Row>
+          </Card.Body>
+        </Card>
+      )}
+
+      {/* Additional Details */}
       <Card className="shadow-sm mb-4">
         <Card.Body>
           <h4 className="mb-3">
-            <i className="fas fa-info-circle text-primary me-2"></i>
-            Product Details
+            <i className="fas fa-clipboard-list text-info me-2"></i>
+            Additional Information
           </h4>
           <Row>
             <Col md={6}>
               <ul className="list-unstyled">
                 <li className="mb-2">
-                  <strong>Product ID:</strong> {product._id}
+                  <strong>Pet ID:</strong> 
+                  <code className="ms-2 bg-light px-2 py-1 rounded">{pet._id}</code>
                 </li>
                 <li className="mb-2">
-                  <strong>Category:</strong> {formatCategory(product.category)}
+                  <strong>Added to Site:</strong> {formatDate(pet.createdAt)}
                 </li>
-                {product.brand && (
+                {pet.location && (
                   <li className="mb-2">
-                    <strong>Brand:</strong> {product.brand}
+                    <strong>Location:</strong> 
+                    <span className="ms-2">
+                      <i className="fas fa-map-marker-alt text-danger me-1"></i>
+                      {typeof pet.location === 'object' 
+                        ? `${pet.location.city || ''} ${pet.location.state || ''}`.trim()
+                        : pet.location
+                      }
+                    </span>
                   </li>
                 )}
               </ul>
@@ -286,14 +554,25 @@ const ProductDetail = () => {
             <Col md={6}>
               <ul className="list-unstyled">
                 <li className="mb-2">
-                  <strong>Price:</strong> {formatPrice(product.price)}
+                  <strong>Profile Views:</strong> 
+                  <span className="ms-2">
+                    <i className="fas fa-eye text-primary me-1"></i>
+                    {pet.views || 0}
+                  </span>
                 </li>
                 <li className="mb-2">
-                  <strong>Availability:</strong> {product.inStock !== false ? 
-                    'In Stock' : 'Out of Stock'}
+                  <strong>Favorites:</strong> 
+                  <span className="ms-2">
+                    <i className="fas fa-star text-warning me-1"></i>
+                    {pet.favorites || 0}
+                  </span>
                 </li>
                 <li className="mb-2">
-                  <strong>Views:</strong> {product.views || 0}
+                  <strong>Days Since Posted:</strong> 
+                  <span className="ms-2">
+                    <i className="fas fa-calendar text-success me-1"></i>
+                    {pet.daysSincePosted || 0} days
+                  </span>
                 </li>
               </ul>
             </Col>
@@ -301,39 +580,71 @@ const ProductDetail = () => {
         </Card.Body>
       </Card>
 
-      {/* Related Products Navigation */}
+      {/* Similar Pets */}
       <Card className="shadow-sm">
         <Card.Body>
           <h4 className="mb-3">
             <i className="fas fa-search text-primary me-2"></i>
-            Find Similar Products
+            Find Similar Pets
           </h4>
           <div className="d-flex gap-2 flex-wrap">
             <Button 
               variant="outline-primary" 
-              onClick={() => navigate(`/products?category=${product.category}`)}
+              onClick={() => navigate(`/browse?type=${pet.type}`)}
             >
-              More {formatCategory(product.category)} Products
+              <i className="fas fa-paw me-1"></i>
+              More {pet.type ? pet.type.charAt(0).toUpperCase() + pet.type.slice(1) : 'Pet'}s
             </Button>
-            {product.brand && (
+            {pet.age && (
               <Button 
                 variant="outline-secondary" 
-                onClick={() => navigate(`/products?brand=${encodeURIComponent(product.brand)}`)}
+                onClick={() => navigate(`/browse?age=${pet.age}`)}
               >
-                More {product.brand} Products
+                <i className="fas fa-birthday-cake me-1"></i>
+                Other {formatAge(pet.age)} Pets
+              </Button>
+            )}
+            {pet.size && (
+              <Button 
+                variant="outline-info" 
+                onClick={() => navigate(`/browse?size=${pet.size}`)}
+              >
+                <i className="fas fa-ruler me-1"></i>
+                {pet.size.charAt(0).toUpperCase() + pet.size.slice(1)} Pets
               </Button>
             )}
             <Button 
-              variant="outline-info" 
-              onClick={() => navigate('/products?featured=true')}
+              variant="outline-success" 
+              onClick={() => navigate('/browse?featured=true')}
             >
-              Featured Products
+              <i className="fas fa-star me-1"></i>
+              Featured Pets
             </Button>
           </div>
         </Card.Body>
       </Card>
+
+      {/* Debug Info (Development Only) */}
+      {process.env.NODE_ENV === 'development' && (
+        <Card className="mt-4 bg-light">
+          <Card.Header>
+            <h6 className="mb-0">
+              <i className="fas fa-bug me-2"></i>
+              Debug Information (Development Only)
+            </h6>
+          </Card.Header>
+          <Card.Body>
+            <details>
+              <summary className="fw-bold mb-2">Pet Data (Click to expand)</summary>
+              <pre className="small" style={{ maxHeight: '300px', overflow: 'auto' }}>
+                {JSON.stringify(pet, null, 2)}
+              </pre>
+            </details>
+          </Card.Body>
+        </Card>
+      )}
     </Container>
   );
 };
 
-export default ProductDetail;
+export default PetDetail;
