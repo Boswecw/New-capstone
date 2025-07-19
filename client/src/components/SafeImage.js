@@ -1,9 +1,8 @@
-// client/src/components/SafeImage.js
-
+// client/src/components/SafeImage.js - UPDATED FOR GOOGLE BUCKETS
 import React, { useState, useEffect } from 'react';
 import { Spinner } from 'react-bootstrap';
 import classNames from 'classnames';
-import styles from './Card.module.css'; // Assumes .fit-contain, .fit-cover, etc.
+import styles from './Card.module.css';
 
 const fallbackImages = {
   dog: 'https://images.unsplash.com/photo-1583337130417-3346a1be7dee?w=400&h=300&fit=crop&q=80&auto=format',
@@ -30,19 +29,11 @@ const getFallbackUrl = (category) => {
 
 const buildPrimaryUrl = (item) => {
   if (!item) return null;
-
-  if (item.imageUrl && item.imageUrl.startsWith('http')) {
-    return item.imageUrl;
-  }
-
+  if (item.image && item.image.startsWith('http')) return item.image;
   if (item.image) {
     const cleanPath = item.image.replace(/^\/+/, '');
-    const baseUrl = process.env.NODE_ENV === 'production'
-      ? 'https://furbabies-backend.onrender.com'
-      : 'http://localhost:5000';
-    return `${baseUrl}/api/images/gcs/${cleanPath}`;
+    return `https://storage.googleapis.com/furbabies-assets/${cleanPath}`;
   }
-
   return null;
 };
 
@@ -84,7 +75,6 @@ const SafeImage = ({
       };
       testImage.src = primaryUrl;
     } else {
-      setImageUrl(fallbackUrl);
       setLoading(false);
     }
   }, [item, category]);
