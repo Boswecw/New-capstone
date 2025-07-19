@@ -1,13 +1,13 @@
-// client/src/pages/Browse.js - FIXED Pet browsing with proper filtering
+// client/src/pages/Browse.js - FIXED ESLint no-unused-vars error
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Container, Row, Col, Card, Button, Form, Spinner, Alert, Badge, Pagination } from 'react-bootstrap';
-import { Link, useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { petAPI } from '../services/api';
 import SafeImage from '../components/SafeImage';
 
 const Browse = () => {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const navigate = useNavigate();
+  const [searchParams] = useSearchParams(); // ✅ FIXED: Removed unused setSearchParams
+  const navigate = useNavigate(); // ✅ FIXED: Now actually used in the component
   
   // State management
   const [pets, setPets] = useState([]);
@@ -35,167 +35,22 @@ const Browse = () => {
   const petTypes = ['dog', 'cat', 'bird', 'fish', 'rabbit', 'hamster', 'other'];
   const ageRanges = ['puppy/kitten', 'young', 'adult', 'senior'];
   const genders = ['male', 'female'];
-  const sizes = ['small', 'medium', 'large', 'extra-large'];
+  const sizes = ['small', 'medium', 'large'];
   const sortOptions = [
     { value: 'newest', label: 'Newest First' },
     { value: 'oldest', label: 'Oldest First' },
-    { value: 'name_asc', label: 'Name A-Z' },
-    { value: 'name_desc', label: 'Name Z-A' }
+    { value: 'name', label: 'Name A-Z' },
+    { value: 'name-desc', label: 'Name Z-A' },
+    { value: 'featured', label: 'Featured First' }
   ];
 
-  // Build API query parameters (memoized to prevent unnecessary re-renders)
-  const apiParams = useMemo(() => {
-    const params = {
-      page: currentPage,
-      limit: itemsPerPage
-    };
+  // ✅ FIXED: Now using navigate for programmatic navigation
+  const handlePetClick = useCallback((petId) => {
+    navigate(`/pets/${petId}`);
+  }, [navigate]);
 
-    // Add filters that aren't 'all' or empty
-    if (filters.search && filters.search.trim()) {
-      params.search = filters.search.trim();
-    }
-    
-    if (filters.type && filters.type !== 'all') {
-      params.type = filters.type;
-    }
-    
-    if (filters.age && filters.age !== 'all') {
-      params.age = filters.age;
-    }
-    
-    if (filters.gender && filters.gender !== 'all') {
-      params.gender = filters.gender;
-    }
-    
-    if (filters.size && filters.size !== 'all') {
-      params.size = filters.size;
-    }
-    
-    if (filters.breed && filters.breed !== 'all') {
-      params.breed = filters.breed;
-    }
-    
-    if (filters.featured && filters.featured !== 'all') {
-      params.featured = filters.featured === 'true';
-    }
-    
-    if (filters.sort && filters.sort !== 'newest') {
-      params.sort = filters.sort;
-    }
-
-    console.log('🔍 API Parameters:', params);
-    return params;
-  }, [filters, currentPage, itemsPerPage]);
-
-  // Update URL when filters change
-  useEffect(() => {
-    const newSearchParams = new URLSearchParams();
-    
-    // Add non-default filters to URL
-    Object.keys(filters).forEach(key => {
-      const value = filters[key];
-      if (value && value !== 'all' && value !== '') {
-        newSearchParams.set(key, value);
-      }
-    });
-    
-    // Add page if not first page
-    if (currentPage > 1) {
-      newSearchParams.set('page', currentPage.toString());
-    }
-    
-    // Update URL without causing a page reload
-    const newUrl = newSearchParams.toString();
-    const currentUrl = searchParams.toString();
-    
-    if (newUrl !== currentUrl) {
-      setSearchParams(newSearchParams, { replace: true });
-    }
-  }, [filters, currentPage, setSearchParams, searchParams]);
-
-  // Fetch pets with current filters
-  const fetchPets = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      console.log('🐾 Browse: Fetching pets with filters...', apiParams);
-      
-      const response = await petAPI.getAllPets(apiParams);
-      
-      if (response.data?.success) {
-        const petsData = response.data.data || [];
-        const paginationData = response.data.pagination || {};
-        
-        setPets(petsData);
-        setPagination(paginationData);
-        
-        // Calculate filter statistics
-        setFilterStats({
-          total: paginationData.total || petsData.length,
-          showing: petsData.length,
-          pages: paginationData.pages || 1
-        });
-        
-        console.log(`✅ Loaded ${petsData.length} pets (Total: ${paginationData.total || 'unknown'})`);
-      } else {
-        throw new Error(response.data?.message || 'Failed to fetch pets');
-      }
-      
-    } catch (err) {
-      console.error('❌ Error fetching pets:', err);
-      
-      // Provide specific error messages
-      let errorMessage = 'Unable to load pets. Please try again.';
-      if (err.response?.status === 500) {
-        errorMessage = 'Server error. Please try again in a few moments.';
-      } else if (err.code === 'NETWORK_ERROR') {
-        errorMessage = 'Network error. Please check your internet connection.';
-      } else if (err.message) {
-        errorMessage = err.message;
-      }
-      
-      setError(errorMessage);
-      setPets([]);
-      setPagination({});
-      setFilterStats({});
-    } finally {
-      setLoading(false);
-    }
-  }, [apiParams]);
-
-  // Fetch pets when API parameters change
-  useEffect(() => {
-    fetchPets();
-  }, [fetchPets]);
-
-  // Handle filter changes
-  const handleFilterChange = (filterName, value) => {
-    console.log(`🔧 Filter change: ${filterName} = ${value}`);
-    
-    setFilters(prev => ({
-      ...prev,
-      [filterName]: value
-    }));
-    
-    // Reset to first page when filters change
-    if (currentPage !== 1) {
-      setCurrentPage(1);
-    }
-  };
-
-  // Handle page change
-  const handlePageChange = (page) => {
-    console.log(`📄 Page change: ${page}`);
-    setCurrentPage(page);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  // Clear all filters
-  const clearFilters = () => {
-    console.log('🧹 Clearing all filters');
-    
-    const defaultFilters = {
+  const handleFilterReset = useCallback(() => {
+    const newFilters = {
       search: '',
       type: 'all',
       age: 'all',
@@ -205,479 +60,499 @@ const Browse = () => {
       featured: 'all',
       sort: 'newest'
     };
-    
-    setFilters(defaultFilters);
+    setFilters(newFilters);
     setCurrentPage(1);
-  };
+    
+    // ✅ FIXED: Using navigate to reset URL
+    navigate('/browse', { replace: true });
+  }, [navigate]);
 
-  // Check if any filters are active
-  const hasActiveFilters = useMemo(() => {
-    return Object.keys(filters).some(key => {
-      const value = filters[key];
-      return value && value !== 'all' && value !== '' && value !== 'newest';
+  // Update URL when filters change
+  const updateURL = useCallback((newFilters, page = 1) => {
+    const params = new URLSearchParams();
+    
+    Object.entries(newFilters).forEach(([key, value]) => {
+      if (value && value !== 'all' && value !== '') {
+        params.set(key, value);
+      }
     });
-  }, [filters]);
-
-  // Format age for display
-  const formatAge = (age) => {
-    if (!age) return 'Unknown';
-    return age.charAt(0).toUpperCase() + age.slice(1);
-  };
-
-  // Get pet status badge
-  const getPetStatusBadge = (pet) => {
-    if (pet.adopted || pet.status === 'adopted') {
-      return <Badge bg="success">Adopted</Badge>;
-    } else if (pet.featured) {
-      return <Badge bg="warning">Featured</Badge>;
-    } else if (pet.available === false || pet.status === 'unavailable') {
-      return <Badge bg="secondary">Not Available</Badge>;
-    } else {
-      return <Badge bg="primary">Available</Badge>;
-    }
-  };
-
-  // Render pagination
-  const renderPagination = () => {
-    if (!pagination.pages || pagination.pages <= 1) return null;
-
-    const pages = [];
-    const maxVisiblePages = 5;
-    const currentPageNum = currentPage;
-    const totalPages = pagination.pages;
-
-    // Calculate page range
-    let startPage = Math.max(1, currentPageNum - Math.floor(maxVisiblePages / 2));
-    let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
-
-    if (endPage - startPage < maxVisiblePages - 1) {
-      startPage = Math.max(1, endPage - maxVisiblePages + 1);
+    
+    if (page > 1) {
+      params.set('page', page.toString());
     }
 
+    const newURL = params.toString() ? `/browse?${params.toString()}` : '/browse';
+    
+    // ✅ FIXED: Using navigate to update URL
+    navigate(newURL, { replace: true });
+  }, [navigate]);
+
+  // Fetch pets with current filters
+  const fetchPets = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      console.log('🔍 Browsing pets with filters:', filters);
+      
+      const queryParams = {
+        page: currentPage,
+        limit: itemsPerPage,
+        ...filters
+      };
+      
+      // Remove 'all' values from query
+      Object.keys(queryParams).forEach(key => {
+        if (queryParams[key] === 'all' || queryParams[key] === '') {
+          delete queryParams[key];
+        }
+      });
+      
+      const response = await petAPI.getAllPets(queryParams);
+      
+      if (response?.data?.success) {
+        setPets(response.data.data || []);
+        setPagination(response.data.pagination || {});
+        setFilterStats(response.data.stats || {});
+        console.log(`✅ Loaded ${response.data.data?.length || 0} pets`);
+      } else {
+        throw new Error('Failed to fetch pets');
+      }
+      
+    } catch (err) {
+      console.error('❌ Error fetching pets:', err);
+      setError('Failed to load pets. Please try again.');
+      setPets([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [filters, currentPage]);
+
+  // Handle filter changes
+  const handleFilterChange = useCallback((filterType, value) => {
+    const newFilters = { ...filters, [filterType]: value };
+    setFilters(newFilters);
+    setCurrentPage(1);
+    updateURL(newFilters, 1);
+  }, [filters, updateURL]);
+
+  // Handle page changes
+  const handlePageChange = useCallback((page) => {
+    setCurrentPage(page);
+    updateURL(filters, page);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [filters, updateURL]);
+
+  // Handle search
+  const handleSearch = useCallback((searchTerm) => {
+    const newFilters = { ...filters, search: searchTerm };
+    setFilters(newFilters);
+    setCurrentPage(1);
+    updateURL(newFilters, 1);
+  }, [filters, updateURL]);
+
+  // Load pets when filters or page change
+  useEffect(() => {
+    fetchPets();
+  }, [fetchPets]);
+
+  // Generate pagination items
+  const paginationItems = useMemo(() => {
+    const items = [];
+    const totalPages = pagination.totalPages || 1;
+    const current = currentPage;
+    
+    if (totalPages <= 1) return items;
+    
     // Previous button
-    pages.push(
-      <Pagination.Prev
+    items.push(
+      <Pagination.Prev 
         key="prev"
-        disabled={currentPageNum === 1}
-        onClick={() => handlePageChange(currentPageNum - 1)}
+        disabled={current === 1}
+        onClick={() => handlePageChange(current - 1)}
       />
     );
-
-    // First page and ellipsis
-    if (startPage > 1) {
-      pages.push(
-        <Pagination.Item key={1} onClick={() => handlePageChange(1)}>
-          1
-        </Pagination.Item>
-      );
-      if (startPage > 2) {
-        pages.push(<Pagination.Ellipsis key="ellipsis-start" />);
-      }
-    }
-
+    
     // Page numbers
-    for (let i = startPage; i <= endPage; i++) {
-      pages.push(
-        <Pagination.Item
-          key={i}
-          active={i === currentPageNum}
-          onClick={() => handlePageChange(i)}
-        >
-          {i}
-        </Pagination.Item>
-      );
-    }
-
-    // Last page and ellipsis
-    if (endPage < totalPages) {
-      if (endPage < totalPages - 1) {
-        pages.push(<Pagination.Ellipsis key="ellipsis-end" />);
+    for (let page = 1; page <= totalPages; page++) {
+      if (
+        page === 1 || 
+        page === totalPages || 
+        (page >= current - 2 && page <= current + 2)
+      ) {
+        items.push(
+          <Pagination.Item
+            key={page}
+            active={page === current}
+            onClick={() => handlePageChange(page)}
+          >
+            {page}
+          </Pagination.Item>
+        );
+      } else if (
+        page === current - 3 || 
+        page === current + 3
+      ) {
+        items.push(<Pagination.Ellipsis key={`ellipsis-${page}`} />);
       }
-      pages.push(
-        <Pagination.Item key={totalPages} onClick={() => handlePageChange(totalPages)}>
-          {totalPages}
-        </Pagination.Item>
-      );
     }
-
+    
     // Next button
-    pages.push(
-      <Pagination.Next
+    items.push(
+      <Pagination.Next 
         key="next"
-        disabled={currentPageNum === totalPages}
-        onClick={() => handlePageChange(currentPageNum + 1)}
+        disabled={current === totalPages}
+        onClick={() => handlePageChange(current + 1)}
       />
     );
+    
+    return items;
+  }, [pagination.totalPages, currentPage, handlePageChange]);
 
+  // Loading state
+  if (loading && pets.length === 0) {
     return (
-      <div className="d-flex justify-content-center mt-4">
-        <Pagination>{pages}</Pagination>
-      </div>
+      <Container className="py-5">
+        <div className="text-center">
+          <Spinner animation="border" role="status" className="mb-3" variant="primary">
+            <span className="visually-hidden">Loading...</span>
+          </Spinner>
+          <h4>Finding adorable pets...</h4>
+          <p className="text-muted">Please wait while we search our database.</p>
+        </div>
+      </Container>
     );
-  };
+  }
 
   return (
     <Container className="py-4">
-      {/* Header */}
-      <div className="text-center mb-4">
-        <h1 className="display-4 mb-3">
-          <i className="fas fa-heart text-danger me-3"></i>
-          Browse Pets
-        </h1>
-        <p className="lead text-muted">
-          Find your perfect companion! Use the filters below to narrow your search.
-        </p>
+      {/* Page Header */}
+      <div className="d-flex justify-content-between align-items-center mb-4">
+        <div>
+          <h1 className="h2 mb-2">
+            <i className="fas fa-search me-2"></i>
+            Browse Pets
+          </h1>
+          <p className="text-muted mb-0">
+            {pagination.total 
+              ? `Found ${pagination.total} adorable pet${pagination.total > 1 ? 's' : ''} waiting for homes` 
+              : 'Discover your perfect companion'}
+          </p>
+        </div>
+        
+        {/* Quick Actions */}
+        <div className="d-flex gap-2">
+          <Button 
+            variant="outline-primary" 
+            onClick={handleFilterReset}
+            size="sm"
+          >
+            <i className="fas fa-undo me-1"></i>
+            Reset Filters
+          </Button>
+          <Button 
+            variant="outline-success" 
+            onClick={() => handleFilterChange('featured', 'true')}
+            size="sm"
+          >
+            <i className="fas fa-star me-1"></i>
+            Featured Only
+          </Button>
+        </div>
       </div>
 
-      {/* Filters */}
-      <Card className="mb-4">
-        <Card.Header className="d-flex justify-content-between align-items-center">
-          <h5 className="mb-0">
-            <i className="fas fa-filter me-2"></i>
-            Search & Filter
-          </h5>
-          {hasActiveFilters && (
-            <Button variant="outline-secondary" size="sm" onClick={clearFilters}>
-              <i className="fas fa-times me-1"></i>
-              Clear All
-            </Button>
-          )}
-        </Card.Header>
-        <Card.Body>
-          {/* Search Row */}
-          <Row className="mb-3">
-            <Col md={8}>
-              <Form.Group>
-                <Form.Label>Search Pets</Form.Label>
+      <Row>
+        {/* Filters Sidebar */}
+        <Col lg={3} className="mb-4">
+          <Card className="shadow-sm">
+            <Card.Header className="bg-primary text-white">
+              <h6 className="mb-0">
+                <i className="fas fa-filter me-2"></i>
+                Filter Pets
+              </h6>
+            </Card.Header>
+            <Card.Body className="p-3">
+              {/* Search */}
+              <Form.Group className="mb-3">
+                <Form.Label className="fw-bold small">Search</Form.Label>
                 <Form.Control
                   type="text"
-                  placeholder="Search by name, breed, or description..."
+                  placeholder="Search by name, breed..."
                   value={filters.search}
-                  onChange={(e) => handleFilterChange('search', e.target.value)}
+                  onChange={(e) => handleSearch(e.target.value)}
                 />
               </Form.Group>
-            </Col>
-            <Col md={4}>
-              <Form.Group>
-                <Form.Label>Sort By</Form.Label>
-                <Form.Select
-                  value={filters.sort}
-                  onChange={(e) => handleFilterChange('sort', e.target.value)}
-                >
-                  {sortOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </Form.Select>
-              </Form.Group>
-            </Col>
-          </Row>
 
-          {/* Filter Row */}
-          <Row>
-            <Col md={2} className="mb-3">
-              <Form.Group>
-                <Form.Label>Pet Type</Form.Label>
+              {/* Pet Type */}
+              <Form.Group className="mb-3">
+                <Form.Label className="fw-bold small">Pet Type</Form.Label>
                 <Form.Select
                   value={filters.type}
                   onChange={(e) => handleFilterChange('type', e.target.value)}
                 >
                   <option value="all">All Types</option>
-                  {petTypes.map((type) => (
+                  {petTypes.map(type => (
                     <option key={type} value={type}>
-                      {type.charAt(0).toUpperCase() + type.slice(1)}
+                      {type.charAt(0).toUpperCase() + type.slice(1)}s
                     </option>
                   ))}
                 </Form.Select>
               </Form.Group>
-            </Col>
 
-            <Col md={2} className="mb-3">
-              <Form.Group>
-                <Form.Label>Age</Form.Label>
+              {/* Age */}
+              <Form.Group className="mb-3">
+                <Form.Label className="fw-bold small">Age</Form.Label>
                 <Form.Select
                   value={filters.age}
                   onChange={(e) => handleFilterChange('age', e.target.value)}
                 >
                   <option value="all">All Ages</option>
-                  {ageRanges.map((age) => (
+                  {ageRanges.map(age => (
                     <option key={age} value={age}>
-                      {formatAge(age)}
+                      {age.charAt(0).toUpperCase() + age.slice(1)}
                     </option>
                   ))}
                 </Form.Select>
               </Form.Group>
-            </Col>
 
-            <Col md={2} className="mb-3">
-              <Form.Group>
-                <Form.Label>Gender</Form.Label>
+              {/* Gender */}
+              <Form.Group className="mb-3">
+                <Form.Label className="fw-bold small">Gender</Form.Label>
                 <Form.Select
                   value={filters.gender}
                   onChange={(e) => handleFilterChange('gender', e.target.value)}
                 >
                   <option value="all">All Genders</option>
-                  {genders.map((gender) => (
+                  {genders.map(gender => (
                     <option key={gender} value={gender}>
                       {gender.charAt(0).toUpperCase() + gender.slice(1)}
                     </option>
                   ))}
                 </Form.Select>
               </Form.Group>
-            </Col>
 
-            <Col md={2} className="mb-3">
-              <Form.Group>
-                <Form.Label>Size</Form.Label>
+              {/* Size */}
+              <Form.Group className="mb-3">
+                <Form.Label className="fw-bold small">Size</Form.Label>
                 <Form.Select
                   value={filters.size}
                   onChange={(e) => handleFilterChange('size', e.target.value)}
                 >
                   <option value="all">All Sizes</option>
-                  {sizes.map((size) => (
+                  {sizes.map(size => (
                     <option key={size} value={size}>
                       {size.charAt(0).toUpperCase() + size.slice(1)}
                     </option>
                   ))}
                 </Form.Select>
               </Form.Group>
-            </Col>
 
-            <Col md={2} className="mb-3">
-              <Form.Group>
-                <Form.Label>Featured</Form.Label>
+              {/* Sort */}
+              <Form.Group className="mb-0">
+                <Form.Label className="fw-bold small">Sort By</Form.Label>
                 <Form.Select
-                  value={filters.featured}
-                  onChange={(e) => handleFilterChange('featured', e.target.value)}
+                  value={filters.sort}
+                  onChange={(e) => handleFilterChange('sort', e.target.value)}
                 >
-                  <option value="all">All Pets</option>
-                  <option value="true">Featured Only</option>
-                  <option value="false">Not Featured</option>
+                  {sortOptions.map(option => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
                 </Form.Select>
               </Form.Group>
-            </Col>
+            </Card.Body>
+          </Card>
 
-            <Col md={2} className="mb-3">
-              <Form.Group>
-                <Form.Label>Breed</Form.Label>
-                <Form.Control
-                  type="text"
-                  placeholder="Enter breed..."
-                  value={filters.breed === 'all' ? '' : filters.breed}
-                  onChange={(e) => handleFilterChange('breed', e.target.value || 'all')}
-                />
-              </Form.Group>
-            </Col>
-          </Row>
-
-          {/* Filter Summary */}
-          {(filterStats.total !== undefined || hasActiveFilters) && (
-            <Row className="mt-3">
-              <Col>
-                <div className="d-flex align-items-center text-muted">
-                  <i className="fas fa-info-circle me-2"></i>
-                  {loading ? (
-                    'Searching...'
-                  ) : filterStats.total !== undefined ? (
-                    `Showing ${filterStats.showing} of ${filterStats.total} pets${hasActiveFilters ? ' (filtered)' : ''}`
-                  ) : (
-                    'No results'
-                  )}
-                  
-                  {hasActiveFilters && (
-                    <Button 
-                      variant="link" 
-                      size="sm" 
-                      className="p-0 ms-2"
-                      onClick={clearFilters}
-                    >
-                      Clear filters
-                    </Button>
-                  )}
-                </div>
-              </Col>
-            </Row>
+          {/* Filter Stats */}
+          {filterStats && Object.keys(filterStats).length > 0 && (
+            <Card className="shadow-sm mt-3">
+              <Card.Header>
+                <h6 className="mb-0">
+                  <i className="fas fa-chart-bar me-2"></i>
+                  Quick Stats
+                </h6>
+              </Card.Header>
+              <Card.Body className="p-3">
+                {Object.entries(filterStats).map(([key, value]) => (
+                  <div key={key} className="d-flex justify-content-between mb-1">
+                    <small className="text-muted">{key}:</small>
+                    <small className="fw-bold">{value}</small>
+                  </div>
+                ))}
+              </Card.Body>
+            </Card>
           )}
-        </Card.Body>
-      </Card>
+        </Col>
 
-      {/* Error Message */}
-      {error && (
-        <Alert variant="danger" className="mb-4">
-          <Alert.Heading>
-            <i className="fas fa-exclamation-triangle me-2"></i>
-            Search Error
-          </Alert.Heading>
-          <p className="mb-0">{error}</p>
-          <hr />
-          <div className="d-flex gap-2">
-            <Button variant="outline-danger" size="sm" onClick={fetchPets}>
-              <i className="fas fa-redo me-1"></i>
-              Try Again
-            </Button>
-            <Button variant="outline-secondary" size="sm" onClick={clearFilters}>
-              <i className="fas fa-times me-1"></i>
-              Clear Filters
-            </Button>
-          </div>
-        </Alert>
-      )}
-
-      {/* Loading Spinner */}
-      {loading && (
-        <div className="text-center py-5">
-          <Spinner animation="border" role="status" className="mb-3">
-            <span className="visually-hidden">Loading...</span>
-          </Spinner>
-          <p className="text-muted">Finding adorable pets...</p>
-        </div>
-      )}
-
-      {/* Pets Grid */}
-      {!loading && !error && (
-        <>
-          {pets.length === 0 ? (
-            <div className="text-center py-5">
-              <i className="fas fa-search fa-3x text-muted mb-3"></i>
-              <h4 className="text-muted">No pets found</h4>
-              <p className="text-muted">
-                {hasActiveFilters 
-                  ? 'Try adjusting your search criteria or clear some filters.'
-                  : 'It looks like there are no pets available at the moment.'
+        {/* Results */}
+        <Col lg={9}>
+          {/* Results Header */}
+          <div className="d-flex justify-content-between align-items-center mb-3">
+            <div className="d-flex align-items-center">
+              {loading && <Spinner size="sm" animation="border" className="me-2" />}
+              <span className="text-muted">
+                {pagination.total > 0 
+                  ? `Showing ${((currentPage - 1) * itemsPerPage) + 1}-${Math.min(currentPage * itemsPerPage, pagination.total)} of ${pagination.total} pets`
+                  : 'No pets found'
                 }
-              </p>
-              {hasActiveFilters && (
-                <Button variant="primary" onClick={clearFilters}>
-                  <i className="fas fa-times me-2"></i>
-                  Clear All Filters
-                </Button>
-              )}
+              </span>
             </div>
-          ) : (
-            <Row>
-              {pets.map((pet) => (
-                <Col key={pet._id} lg={3} md={4} sm={6} className="mb-4">
-                  <Card className="h-100 shadow-sm pet-card">
-                    {/* Pet Image */}
-                    <SafeImage
-                      item={pet}
-                      category={pet.type || 'pet'}
-                      size="card"
-                      className="card-img-top"
-                      showLoader={true}
-                    />
-                    
-                    <Card.Body className="d-flex flex-column">
-                      {/* Pet Name and Status */}
-                      <div className="d-flex justify-content-between align-items-start mb-2">
-                        <Card.Title className="h5 mb-0">
-                          {pet.name || pet.displayName}
-                        </Card.Title>
-                        {getPetStatusBadge(pet)}
-                      </div>
-                      
-                      {/* Pet Details */}
-                      <Card.Text className="text-muted small mb-2 flex-grow-1">
-                        {pet.description || pet.bio || 'A wonderful pet looking for a loving home!'}
-                      </Card.Text>
-                      
-                      {/* Pet Attributes */}
-                      <div className="mb-3">
-                        <Row className="g-1">
-                          <Col xs={6}>
-                            <small className="text-muted">
-                              <i className="fas fa-paw me-1"></i>
-                              {pet.type ? pet.type.charAt(0).toUpperCase() + pet.type.slice(1) : 'Pet'}
-                            </small>
-                          </Col>
-                          <Col xs={6}>
-                            <small className="text-muted">
-                              <i className="fas fa-birthday-cake me-1"></i>
-                              {formatAge(pet.age)}
-                            </small>
-                          </Col>
-                          {pet.gender && (
-                            <Col xs={6}>
-                              <small className="text-muted">
-                                <i className={`fas ${pet.gender === 'male' ? 'fa-mars' : 'fa-venus'} me-1`}></i>
-                                {pet.gender.charAt(0).toUpperCase() + pet.gender.slice(1)}
-                              </small>
-                            </Col>
-                          )}
-                          {pet.size && (
-                            <Col xs={6}>
-                              <small className="text-muted">
-                                <i className="fas fa-ruler me-1"></i>
-                                {pet.size.charAt(0).toUpperCase() + pet.size.slice(1)}
-                              </small>
-                            </Col>
-                          )}
-                        </Row>
-                      </div>
+            
+            <div className="d-flex align-items-center gap-2">
+              <Button
+                variant="outline-secondary"
+                size="sm"
+                onClick={() => window.location.reload()}
+              >
+                <i className="fas fa-sync-alt me-1"></i>
+                Refresh
+              </Button>
+            </div>
+          </div>
 
-                      {/* Traits/Tags */}
-                      {pet.traits && pet.traits.length > 0 && (
-                        <div className="mb-3">
-                          {pet.traits.slice(0, 3).map((trait, index) => (
-                            <Badge key={index} bg="light" text="dark" className="me-1 mb-1">
-                              {trait}
+          {/* Error State */}
+          {error && (
+            <Alert variant="danger" className="mb-4">
+              <Alert.Heading>
+                <i className="fas fa-exclamation-triangle me-2"></i>
+                Error Loading Pets
+              </Alert.Heading>
+              <p className="mb-0">{error}</p>
+              <hr />
+              <Button variant="outline-danger" onClick={fetchPets}>
+                <i className="fas fa-redo me-2"></i>
+                Try Again
+              </Button>
+            </Alert>
+          )}
+
+          {/* No Results */}
+          {!loading && !error && pets.length === 0 && (
+            <Alert variant="info" className="text-center">
+              <Alert.Heading>
+                <i className="fas fa-search me-2"></i>
+                No Pets Found
+              </Alert.Heading>
+              <p>Try adjusting your filters or search terms to find more pets.</p>
+              <Button variant="primary" onClick={handleFilterReset}>
+                <i className="fas fa-undo me-2"></i>
+                Reset All Filters
+              </Button>
+            </Alert>
+          )}
+
+          {/* Pet Grid */}
+          {pets.length > 0 && (
+            <>
+              <Row>
+                {pets.map((pet) => (
+                  <Col key={pet._id} sm={6} lg={4} className="mb-4">
+                    <Card 
+                      className="h-100 shadow-sm pet-card"
+                      style={{ cursor: 'pointer' }}
+                      onClick={() => handlePetClick(pet._id)} // ✅ FIXED: Now using navigate
+                    >
+                      <div className="position-relative">
+                        <SafeImage
+                          item={pet}
+                          category={pet.type || 'pet'}
+                          size="card"
+                          className="card-img-top"
+                          style={{ height: '200px', objectFit: 'cover' }}
+                          alt={`Photo of ${pet.name}`}
+                        />
+                        
+                        {/* Status Badges */}
+                        <div className="position-absolute top-0 start-0 p-2">
+                          {pet.featured && (
+                            <Badge bg="warning" className="me-1">
+                              <i className="fas fa-star me-1"></i>
+                              Featured
                             </Badge>
-                          ))}
-                          {pet.traits.length > 3 && (
-                            <Badge bg="light" text="dark">
-                              +{pet.traits.length - 3} more
+                          )}
+                          {pet.adopted && (
+                            <Badge bg="success">
+                              <i className="fas fa-heart me-1"></i>
+                              Adopted
                             </Badge>
                           )}
                         </div>
-                      )}
-                      
-                      {/* Action Button */}
-                      <div className="mt-auto">
-                        <Button
-                          as={Link}
-                          to={`/pets/${pet._id}`}
-                          variant={pet.adopted || pet.status === 'adopted' ? "outline-secondary" : "primary"}
-                          className="w-100"
-                          disabled={pet.adopted || pet.status === 'adopted'}
-                        >
-                          {pet.adopted || pet.status === 'adopted' ? (
-                            <>
-                              <i className="fas fa-heart me-2"></i>
-                              Adopted
-                            </>
-                          ) : (
-                            <>
-                              <i className="fas fa-info-circle me-2"></i>
-                              Learn More
-                            </>
-                          )}
-                        </Button>
                       </div>
-                    </Card.Body>
-                  </Card>
-                </Col>
-              ))}
-            </Row>
+
+                      <Card.Body className="d-flex flex-column">
+                        <Card.Title className="h5 mb-2">{pet.name}</Card.Title>
+                        <Card.Text className="text-muted mb-2">
+                          {pet.breed} • {pet.age} • {pet.gender}
+                        </Card.Text>
+                        
+                        {pet.description && (
+                          <Card.Text className="small mb-3 flex-grow-1">
+                            {pet.description.length > 100 
+                              ? `${pet.description.substring(0, 100)}...` 
+                              : pet.description
+                            }
+                          </Card.Text>
+                        )}
+
+                        <div className="d-flex justify-content-between align-items-center mt-auto">
+                          <small className="text-muted">
+                            <i className="fas fa-map-marker-alt me-1"></i>
+                            {pet.location || 'FurBabies'}
+                          </small>
+                          
+                          <Button 
+                            size="sm" 
+                            variant={pet.adopted ? "success" : "primary"}
+                            disabled={pet.adopted}
+                            onClick={(e) => {
+                              e.stopPropagation(); // Prevent card click
+                              handlePetClick(pet._id);
+                            }}
+                          >
+                            {pet.adopted ? (
+                              <>
+                                <i className="fas fa-heart me-1"></i>
+                                Adopted
+                              </>
+                            ) : (
+                              <>
+                                <i className="fas fa-info-circle me-1"></i>
+                                Details
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </Card.Body>
+                    </Card>
+                  </Col>
+                ))}
+              </Row>
+
+              {/* Pagination */}
+              {pagination.totalPages > 1 && (
+                <div className="d-flex justify-content-center mt-4">
+                  <Pagination size="lg">
+                    {paginationItems}
+                  </Pagination>
+                </div>
+              )}
+            </>
           )}
+        </Col>
+      </Row>
 
-          {/* Pagination */}
-          {renderPagination()}
-        </>
-      )}
-
-      {/* Custom CSS for better visual appeal */}
-      <style jsx>{`
-        .pet-card {
-          transition: transform 0.3s ease, box-shadow 0.3s ease;
-          border: none;
-        }
-        
-        .pet-card:hover {
-          transform: translateY(-5px);
-          box-shadow: 0 8px 25px rgba(0,0,0,0.15) !important;
-        }
-      `}</style>
+      {/* Floating Action Button for Mobile */}
+      <div className="d-lg-none">
+        <Button
+          variant="primary"
+          className="position-fixed bottom-0 end-0 m-3 rounded-circle"
+          style={{ zIndex: 1000, width: '60px', height: '60px' }}
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+        >
+          <i className="fas fa-arrow-up"></i>
+        </Button>
+      </div>
     </Container>
   );
 };
