@@ -1,11 +1,14 @@
-// server/server.js - MAIN ENTRY POINT
+// server/server.js - SECURITY ENHANCED VERSION
 const express = require('express');
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 const cors = require('cors');
 const path = require('path');
+const helmet = require('helmet'); // ADD THIS
+const rateLimit = require('express-rate-limit'); // ADD THIS
+const compression = require('compression'); // ADD THIS
 
-// Load environment variables from .env file
+// Load environment variables
 dotenv.config();
 
 // === IMPORT ROUTES ===
@@ -13,26 +16,67 @@ const petRoutes = require('./routes/pets');
 const productRoutes = require('./routes/products');
 const contactRoutes = require('./routes/contact');
 const userRoutes = require('./routes/users');
-const authRoutes = require('./routes/auth'); // ✅ Added auth routes
+const authRoutes = require('./routes/auth');
 const imageRoutes = require('./routes/images');
 const newsRoutes = require('./routes/news');
 
-// === APP INITIALIZATION ===
 const app = express();
+
+// === SECURITY MIDDLEWARE ===
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
+
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+  message: 'Too many requests from this IP, please try again later.'
+});
+app.use('/api/', limiter);
+
+// Compression
+app.use(compression());
+
+// === CORS CONFIGURATION ===
+const corsOptions = {
+  origin: process.env.NODE_ENV === 'production' 
+    ? ['https://new-capstone.onrender.com']
+    : ['http://localhost:3000', 'http://localhost:5000'],
+  credentials: true,
+  optionsSuccessStatus: 200
+};
+app.use(cors(corsOptions));
 
 // === MIDDLEWARE ===
 app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
-app.use(cors());
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// === DATABASE CONNECTION ===
-const mongoURI = process.env.MONGO_URI;
+// === FIX: Use consistent environment variable ===
+const mongoURI = process.env.MONGODB_URI; // CHANGED FROM MONGO_URI
+if (!mongoURI) {
+  console.error('❌ MONGODB_URI environment variable is not set');
+  process.exit(1);
+}
+
 mongoose.connect(mongoURI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
 })
 .then(() => console.log('✅ Connected to MongoDB Atlas'))
-.catch((err) => console.error('❌ MongoDB Connection Error:', err));
+.catch((err) => {
+  console.error('❌ MongoDB Connection Error:', err);
+  process.exit(1);
+});
+
+// === HEALTH CHECK ROUTE ===
+app.get('/api/health', (req, res) => {
+  res.json({ 
+    status: 'OK', 
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV 
+  });
+});
 
 // === ROUTES ===
 app.get('/', (req, res) => {
@@ -43,7 +87,7 @@ app.use('/api/pets', petRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/contacts', contactRoutes);
 app.use('/api/users', userRoutes);
-app.use('/api/auth', authRoutes); // ✅ Register auth routes here
+app.use('/api/auth', authRoutes);
 app.use('/api/images', imageRoutes);
 app.use('/api/news', newsRoutes);
 
@@ -57,16 +101,29 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
-// === PORT CONFIGURATION ===
+// === ERROR HANDLING MIDDLEWARE ===
+app.use((err, req, res, next) => {
+  console.error('Server Error:', err);
+  res.status(500).json({
+    success: false,
+    message: process.env.NODE_ENV === 'production' 
+      ? 'Internal server error' 
+      : err.message
+  });
+});
+
+// === 404 HANDLER ===
+app.use('*', (req, res) => {
+  res.status(404).json({
+    success: false,
+    message: 'API endpoint not found'
+  });
+});
+
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`🌍 Environment: ${process.env.NODE_ENV}`);
-  if (process.env.NEWS_API_KEY) {
-    console.log('📰 NewsAPI key loaded (backend only)');
-  } else {
-    console.warn('⚠️ NEWS_API_KEY not set in environment');
-  }
 });
 
 module.exports = app;

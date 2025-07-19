@@ -1,264 +1,305 @@
-// client/src/components/PetImage.js - Enhanced with better error handling and proper sizing
+// client/src/components/PetImage.js - UPDATED: No hardcoded URLs, improved error handling
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import PropTypes from 'prop-types';
 
-import React, { useState, useCallback, useMemo } from 'react';
-import { Spinner } from 'react-bootstrap';
+// ========================================
+// CONFIGURATION & CONSTANTS
+// ========================================
 
-const PetImage = ({ 
-  petType, 
-  imagePath, 
-  alt = "Pet Image", 
-  className = "", 
-  size = "medium",
+// Environment-based API URL configuration for DUAL DEPLOYMENT
+const getApiBaseUrl = () => {
+  // 1. Try explicit environment variable (highest priority)
+  if (process.env.REACT_APP_API_URL) {
+    return process.env.REACT_APP_API_URL;
+  }
+  
+  // 2. Dual deployment detection for Render
+  if (typeof window !== 'undefined' && window.location.hostname.includes('onrender.com')) {
+    // Frontend is on Render, so backend is separate service
+    return 'https://new-capstone-api.onrender.com';
+  }
+  
+  // 3. Development fallback
+  return 'http://localhost:5000';
+};
+
+// Fallback images from Unsplash
+const FALLBACK_IMAGES = {
+  dog: 'https://images.unsplash.com/photo-1552053831-71594a27632d?w=500&h=400&fit=crop&q=80',
+  cat: 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=500&h=400&fit=crop&q=80',
+  bird: 'https://images.unsplash.com/photo-1444464666168-49d633b86797?w=500&h=400&fit=crop&q=80',
+  fish: 'https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=500&h=400&fit=crop&q=80',
+  rabbit: 'https://images.unsplash.com/photo-1585110396000-c9ffd4e4b308?w=500&h=400&fit=crop&q=80',
+  hamster: 'https://images.unsplash.com/photo-1425082661705-1834bfd09dca?w=500&h=400&fit=crop&q=80',
+  'small-pet': 'https://images.unsplash.com/photo-1548199973-03cce0bbc87b?w=500&h=400&fit=crop&q=80',
+  other: 'https://images.unsplash.com/photo-1601758228041-f3b2795255f1?w=500&h=400&fit=crop&q=80',
+  default: 'https://images.unsplash.com/photo-1601758228041-f3b2795255f1?w=500&h=400&fit=crop&q=80'
+};
+
+// Image size configurations
+const SIZE_CONFIGS = {
+  thumbnail: { width: 80, height: 80, fit: 'crop' },
+  small: { width: 150, height: 150, fit: 'crop' },
+  medium: { width: 300, height: 250, fit: 'crop' },
+  large: { width: 500, height: 400, fit: 'crop' },
+  card: { width: 400, height: 300, fit: 'crop' },
+  hero: { width: 1200, height: 500, fit: 'crop' },
+  default: { width: 300, height: 250, fit: 'crop' }
+};
+
+// ========================================
+// PETIMAGE COMPONENT
+// ========================================
+
+const PetImage = ({
+  imagePath,
+  petType = 'default',
+  size = 'medium',
+  alt = 'Pet image',
+  className = '',
   style = {},
-  containerStyle = {},
   onLoad,
   onError,
-  priority = false,
-  lazy = true
+  loadingComponent: LoadingComponent,
+  errorComponent: ErrorComponent,
+  retryAttempts = 2,
+  ...imageProps
 }) => {
+  // ========================================
+  // STATE MANAGEMENT
+  // ========================================
   const [imageState, setImageState] = useState({
     loading: true,
     error: false,
-    retryCount: 0
+    retryCount: 0,
+    currentSrc: null
   });
 
-  // Enhanced fallback images with proper sizing
-  const fallbackImages = useMemo(() => ({
-    dog: 'https://images.unsplash.com/photo-1583337130417-3346a1be7dee?w=400&h=300&fit=crop&q=80&auto=format',
-    cat: 'https://images.unsplash.com/photo-1574144611937-0df059b5ef3e?w=400&h=300&fit=crop&q=80&auto=format',
-    fish: 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400&h=300&fit=crop&q=80&auto=format',
-    bird: 'https://images.unsplash.com/photo-1520637836862-4d197d17c448?w=400&h=300&fit=crop&q=80&auto=format',
-    'small-pet': 'https://images.unsplash.com/photo-1425082661705-1834bfd09dca?w=400&h=300&fit=crop&q=80&auto=format',
-    rabbit: 'https://images.unsplash.com/photo-1585110396000-c9ffd4e4b308?w=400&h=300&fit=crop&q=80&auto=format',
-    default: 'https://images.unsplash.com/photo-1548767797-d8c844163c4c?w=400&h=300&fit=crop&q=80&auto=format'
-  }), []);
+  // ========================================
+  // MEMOIZED VALUES
+  // ========================================
 
-  // Enhanced size configurations with responsive support
-  const sizeConfig = useMemo(() => ({
-    thumbnail: { 
-      width: '80px', 
-      height: '80px',
-      borderRadius: '50%',
-      objectFit: 'cover'
-    },
-    small: { 
-      maxWidth: '150px', 
-      maxHeight: '150px',
-      objectFit: 'cover'
-    },
-    medium: { 
-      maxWidth: '300px', 
-      maxHeight: '250px',
-      objectFit: 'cover'
-    },
-    large: { 
-      maxWidth: '500px', 
-      maxHeight: '400px',
-      objectFit: 'cover'
-    },
-    card: { 
-      width: '100%', 
-      height: '100%',
-      maxWidth: '100%',
-      maxHeight: '100%',
-      objectFit: 'cover',
-      objectPosition: 'center'
-    },
-    hero: {
-      width: '100%',
-      height: '500px',
-      maxWidth: '100%',
-      objectFit: 'cover',
-      objectPosition: 'center'
-    }
-  }), []);
+  // API base URL (memoized to prevent unnecessary recalculations)
+  const apiBaseUrl = useMemo(() => getApiBaseUrl(), []);
 
-  // Build optimized image URL with size parameters
-  const buildImageUrl = useCallback((path, isRetry = false) => {
-    if (!path) return null;
-    
-    // If it's already a full URL (fallback), use it directly
-    if (path.startsWith('http')) {
-      return path;
-    }
-    
-    // Clean the path
-    const cleanPath = path.replace(/^\/+/, '');
-    
-    // Use proxy for GCS images with size optimization
-    const baseUrl = process.env.NODE_ENV === 'production' 
-      ? 'https://new-capstone.onrender.com'
-      : 'http://localhost:5000';
-    
-    // Add size parameters for optimization
-    const sizeParams = getSizeParams(size);
-    const retryParam = isRetry ? '&retry=1' : '';
-    
-    return `${baseUrl}/api/images/gcs/${cleanPath}${sizeParams}${retryParam}`;
+  // Size parameters for URL optimization
+  const sizeParams = useMemo(() => {
+    const config = SIZE_CONFIGS[size] || SIZE_CONFIGS.default;
+    const params = new URLSearchParams({
+      w: config.width.toString(),
+      h: config.height.toString(),
+      fit: config.fit,
+      q: '80',
+      auto: 'format'
+    });
+    return `?${params.toString()}`;
   }, [size]);
 
-  // Get size parameters for URL optimization
-  const getSizeParams = useCallback((sizeType) => {
-    const params = new URLSearchParams();
-    
-    switch (sizeType) {
-      case 'thumbnail':
-        params.set('w', '80');
-        params.set('h', '80');
-        params.set('fit', 'crop');
-        break;
-      case 'small':
-        params.set('w', '150');
-        params.set('h', '150');
-        params.set('fit', 'crop');
-        break;
-      case 'medium':
-        params.set('w', '300');
-        params.set('h', '250');
-        params.set('fit', 'crop');
-        break;
-      case 'large':
-        params.set('w', '500');
-        params.set('h', '400');
-        params.set('fit', 'crop');
-        break;
-      case 'card':
-        params.set('w', '400');
-        params.set('h', '300');
-        params.set('fit', 'crop');
-        break;
-      case 'hero':
-        params.set('w', '1200');
-        params.set('h', '500');
-        params.set('fit', 'crop');
-        break;
-      default:
-        params.set('w', '300');
-        params.set('h', '250');
-        params.set('fit', 'crop');
-    }
-    
-    params.set('q', '80');
-    params.set('auto', 'format');
-    
-    return `?${params.toString()}`;
-  }, []);
-
-  // Get fallback image for the pet type
-  const getFallbackImage = useCallback(() => {
+  // Fallback image URL
+  const fallbackImageUrl = useMemo(() => {
     const type = petType?.toLowerCase() || 'default';
-    return fallbackImages[type] || fallbackImages.default;
-  }, [petType, fallbackImages]);
+    return FALLBACK_IMAGES[type] || FALLBACK_IMAGES.default;
+  }, [petType]);
 
-  // Build the final image URL
-  const imageUrl = useMemo(() => {
-    if (imageState.error || !imagePath) {
-      return getFallbackImage();
+  // Primary image URL (GCS via proxy)
+  const primaryImageUrl = useMemo(() => {
+    if (!imagePath || imagePath.trim() === '') {
+      return null;
     }
-    return buildImageUrl(imagePath, imageState.retryCount > 0);
-  }, [imagePath, imageState.error, imageState.retryCount, buildImageUrl, getFallbackImage]);
+
+    // Clean the image path
+    const cleanPath = imagePath.replace(/^\/+/, '');
+    
+    // Add retry parameter if this is a retry attempt
+    const retryParam = imageState.retryCount > 0 ? '&retry=1' : '';
+    
+    return `${apiBaseUrl}/api/images/gcs/${cleanPath}${sizeParams}${retryParam}`;
+  }, [imagePath, apiBaseUrl, sizeParams, imageState.retryCount]);
+
+  // Current image source
+  const currentImageSrc = useMemo(() => {
+    if (imageState.error || !primaryImageUrl) {
+      return fallbackImageUrl;
+    }
+    return primaryImageUrl;
+  }, [imageState.error, primaryImageUrl, fallbackImageUrl]);
+
+  // ========================================
+  // EVENT HANDLERS
+  // ========================================
 
   // Handle successful image load
-  const handleImageLoad = useCallback((e) => {
-    setImageState(prev => ({ ...prev, loading: false, error: false }));
-    onLoad?.(e);
-  }, [onLoad]);
+  const handleImageLoad = useCallback((event) => {
+    console.log('✅ Image loaded successfully:', currentImageSrc);
+    
+    setImageState(prev => ({
+      ...prev,
+      loading: false,
+      error: false
+    }));
+
+    // Call parent onLoad handler if provided
+    onLoad?.(event);
+  }, [currentImageSrc, onLoad]);
 
   // Handle image error with retry logic
-  const handleImageError = useCallback((e) => {
-    console.warn('Image load error:', imageUrl);
+  const handleImageError = useCallback((event) => {
+    console.warn('❌ Image load error:', currentImageSrc);
     
     setImageState(prev => {
       const newState = { ...prev, loading: false };
       
-      if (prev.retryCount < 2 && !imageUrl?.includes('unsplash.com')) {
-        // Retry with fallback
+      // Only retry for primary images (not fallbacks) and within retry limit
+      if (prev.retryCount < retryAttempts && 
+          currentImageSrc === primaryImageUrl && 
+          !currentImageSrc?.includes('unsplash.com')) {
+        
+        console.log(`🔄 Retrying image load (attempt ${prev.retryCount + 1}/${retryAttempts})`);
         newState.retryCount = prev.retryCount + 1;
         newState.error = false;
+        newState.loading = true;
       } else {
+        console.log('💔 Using fallback image:', fallbackImageUrl);
         newState.error = true;
       }
       
       return newState;
     });
-    
-    onError?.(e);
-  }, [imageUrl, onError]);
 
-  // Calculate combined styles
-  const combinedStyle = useMemo(() => {
-    const configStyle = sizeConfig[size] || sizeConfig.medium;
-    
-    return {
-      ...configStyle,
-      ...style,
-      display: 'block',
-      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-      willChange: 'transform, filter',
-      transform: 'translateZ(0)',
-      backfaceVisibility: 'hidden'
-    };
-  }, [size, style, sizeConfig]);
+    // Call parent onError handler if provided
+    onError?.(event);
+  }, [currentImageSrc, primaryImageUrl, retryAttempts, fallbackImageUrl, onError]);
 
-  // Container styles
-  const finalContainerStyle = useMemo(() => ({
-    position: 'relative',
-    display: 'inline-block',
-    overflow: 'hidden',
-    ...containerStyle
-  }), [containerStyle]);
+  // ========================================
+  // EFFECTS
+  // ========================================
 
-  return (
-    <div style={finalContainerStyle}>
-      {/* Loading Spinner */}
-      {imageState.loading && (
-        <div 
-          className="position-absolute top-50 start-50 translate-middle"
-          style={{ 
-            zIndex: 2,
-            background: 'rgba(255, 255, 255, 0.8)',
-            borderRadius: '50%',
-            padding: '8px'
-          }}
-        >
-          <Spinner animation="border" size="sm" className="text-primary" />
-        </div>
-      )}
-      
-      {/* Main Image */}
-      <img
-        src={imageUrl}
-        alt={alt}
-        className={`${className} ${imageState.loading ? 'loading' : ''}`}
-        style={combinedStyle}
-        onLoad={handleImageLoad}
-        onError={handleImageError}
-        loading={lazy && !priority ? "lazy" : "eager"}
-        // Accessibility
-        role="img"
-        aria-label={alt}
-        // Performance hints
-        decoding="async"
-        fetchPriority={priority ? "high" : "auto"}
-      />
-      
-      {/* Error indicator (development only) */}
-      {process.env.NODE_ENV === 'development' && imageState.error && (
-        <div 
-          className="position-absolute bottom-0 start-0 end-0 text-center"
-          style={{ 
-            fontSize: '10px', 
-            background: 'rgba(255, 193, 7, 0.9)', 
-            color: 'black',
-            padding: '2px',
-            borderRadius: '0 0 4px 4px'
-          }}
-        >
-          Fallback Image ({imageState.retryCount} retries)
-        </div>
-      )}
+  // Reset state when imagePath changes
+  useEffect(() => {
+    setImageState({
+      loading: true,
+      error: false,
+      retryCount: 0,
+      currentSrc: null
+    });
+  }, [imagePath, size]);
+
+  // ========================================
+  // RENDER HELPERS
+  // ========================================
+
+  // Default loading component
+  const DefaultLoadingComponent = () => (
+    <div 
+      className={`d-flex align-items-center justify-content-center bg-light ${className}`}
+      style={{ 
+        minHeight: SIZE_CONFIGS[size]?.height || 250,
+        ...style 
+      }}
+    >
+      <div className="spinner-border text-primary" role="status">
+        <span className="visually-hidden">Loading image...</span>
+      </div>
     </div>
   );
+
+  // Default error component
+  const DefaultErrorComponent = () => (
+    <div 
+      className={`d-flex align-items-center justify-content-center bg-light text-muted ${className}`}
+      style={{ 
+        minHeight: SIZE_CONFIGS[size]?.height || 250,
+        ...style 
+      }}
+    >
+      <div className="text-center">
+        <i className="fas fa-image fa-2x mb-2"></i>
+        <div>Image not available</div>
+      </div>
+    </div>
+  );
+
+  // ========================================
+  // MAIN RENDER
+  // ========================================
+
+  // Show loading state
+  if (imageState.loading) {
+    return LoadingComponent ? <LoadingComponent /> : <DefaultLoadingComponent />;
+  }
+
+  // Show error state (only if no fallback available)
+  if (imageState.error && !currentImageSrc) {
+    return ErrorComponent ? <ErrorComponent /> : <DefaultErrorComponent />;
+  }
+
+  // Render the image
+  return (
+    <img
+      src={currentImageSrc}
+      alt={alt}
+      className={className}
+      style={style}
+      onLoad={handleImageLoad}
+      onError={handleImageError}
+      loading="lazy"
+      {...imageProps}
+    />
+  );
+};
+
+// ========================================
+// PROP TYPES
+// ========================================
+
+PetImage.propTypes = {
+  imagePath: PropTypes.string,
+  petType: PropTypes.oneOf([
+    'dog', 'cat', 'bird', 'fish', 'rabbit', 'hamster', 'small-pet', 'other', 'default'
+  ]),
+  size: PropTypes.oneOf([
+    'thumbnail', 'small', 'medium', 'large', 'card', 'hero'
+  ]),
+  alt: PropTypes.string,
+  className: PropTypes.string,
+  style: PropTypes.object,
+  onLoad: PropTypes.func,
+  onError: PropTypes.func,
+  loadingComponent: PropTypes.elementType,
+  errorComponent: PropTypes.elementType,
+  retryAttempts: PropTypes.number
+};
+
+// ========================================
+// UTILITY FUNCTIONS (for external use)
+// ========================================
+
+// Export utility function to get API base URL
+export const getApiUrl = getApiBaseUrl;
+
+// Export utility function to get fallback image
+export const getFallbackImage = (petType) => {
+  const type = petType?.toLowerCase() || 'default';
+  return FALLBACK_IMAGES[type] || FALLBACK_IMAGES.default;
+};
+
+// Export utility function to build image URL
+export const buildImageUrl = (imagePath, size = 'medium', apiBaseUrl = null) => {
+  if (!imagePath) return null;
+  
+  const baseUrl = apiBaseUrl || getApiBaseUrl();
+  const cleanPath = imagePath.replace(/^\/+/, '');
+  const config = SIZE_CONFIGS[size] || SIZE_CONFIGS.default;
+  
+  const params = new URLSearchParams({
+    w: config.width.toString(),
+    h: config.height.toString(),
+    fit: config.fit,
+    q: '80',
+    auto: 'format'
+  });
+  
+  return `${baseUrl}/api/images/gcs/${cleanPath}?${params.toString()}`;
 };
 
 export default PetImage;
