@@ -1,14 +1,24 @@
-// client/src/services/api.js - COMPLETE CONSOLIDATED API
+
+// client/src/services/api.js - MINIMAL FIX (Just change lines 4-8)
 import axios from 'axios';
 
+// ✅ ONLY CHANGE THIS PART - Add safety check for import.meta.env
+const getBaseURL = () => {
+  if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_BASE_URL) {
+    return import.meta.env.VITE_API_BASE_URL;
+  }
+  return 'https://furbabies-backend.onrender.com/api';
+};
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'https://furbabies-backend.onrender.com/api',
+  baseURL: getBaseURL(), // ✅ Use the safe function instead of direct access
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
+// Keep everything else exactly the same...
 // Add auth token interceptor
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
