@@ -1,161 +1,157 @@
+// client/src/pages/News.js - Main News Listing Page
 import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, Badge, Alert, Spinner, Button } from 'react-bootstrap';
-import axios from 'axios';
+import { Container, Row, Col, Card, Button, Alert, Spinner, Form, Badge } from 'react-bootstrap';
+import { Link } from 'react-router-dom';
+import { newsAPI } from '../services/api';
 
 const News = () => {
-  const [articles, setArticles] = useState([]);
+  const [allNews, setAllNews] = useState([]);
+  const [filteredNews, setFilteredNews] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [debugInfo, setDebugInfo] = useState({
-    method: 'loading',
-    fetchTime: 0,
-    articleCount: 0,
-    status: 'loading',
-    error: null
+  const [error, setError] = useState(null);
+  const [filters, setFilters] = useState({
+    category: 'all',
+    search: ''
   });
 
-  // Fallback articles in case API fails
-  const fallbackArticles = [
-    {
-      id: 'fallback-1',
-      title: 'Essential Tips for New Pet Owners',
-      summary: 'Everything you need to know when bringing your first pet home. From preparation to the first week together.',
-      author: 'FurBabies Team',
-      publishedAt: '2025-01-15',
-      category: 'care',
-      image: 'https://images.unsplash.com/photo-1601758228041-f3b2795255f1?w=600&h=400&fit=crop&q=80',
-      featured: true,
-      readTime: '5 min read',
-      url: '/news/new-pet-tips'
-    },
-    {
-      id: 'fallback-2',
-      title: 'Heartwarming Adoption Success Stories',
-      summary: 'Read about pets who found their forever homes and the families who opened their hearts.',
-      author: 'Sarah Johnson',
-      publishedAt: '2025-01-12',
-      category: 'success-story',
-      image: 'https://images.unsplash.com/photo-1583337130417-3346a1be7dee?w=600&h=400&fit=crop&q=80',
-      featured: true,
-      readTime: '3 min read',
-      url: '/news/success-stories'
-    },
-    {
-      id: 'fallback-3',
-      title: 'Pet Health: Warning Signs to Watch For',
-      summary: 'Learn to recognize early warning signs of health issues in your pets and when to contact a veterinarian.',
-      author: 'Dr. Michael Chen',
-      publishedAt: '2025-01-10',
-      category: 'health',
-      image: 'https://images.unsplash.com/photo-1576201836106-db1758fd1c97?w=600&h=400&fit=crop&q=80',
-      featured: false,
-      readTime: '7 min read',
-      url: '/news/pet-health-warning-signs'
-    },
-    {
-      id: 'fallback-4',
-      title: 'Creating a Pet-Safe Home Environment',
-      summary: 'Simple steps to make your home safe and comfortable for your new furry family member.',
-      author: 'Emma Rodriguez',
-      publishedAt: '2025-01-08',
-      category: 'safety',
-      image: 'https://images.unsplash.com/photo-1587300003388-59208cc962cb?w=600&h=400&fit=crop&q=80',
-      featured: false,
-      readTime: '6 min read',
-      url: '/news/pet-safe-home'
-    },
-    {
-      id: 'fallback-5',
-      title: 'FurBabies Community Spotlight',
-      summary: 'Meet our amazing volunteers and learn about upcoming community events and fundraisers.',
-      author: 'Community Team',
-      publishedAt: '2025-01-05',
-      category: 'company-news',
-      image: 'https://images.unsplash.com/photo-1559827260-dc66d52bef19?w=600&h=400&fit=crop&q=80',
-      featured: false,
-      readTime: '4 min read',
-      url: '/news/community-spotlight'
-    },
-    {
-      id: 'fallback-6',
-      title: 'The Benefits of Pet Adoption vs. Buying',
-      summary: 'Understand why adoption is a wonderful choice for both pets and families, plus tips for the adoption process.',
-      author: 'Lisa Park',
-      publishedAt: '2025-01-03',
-      category: 'adoption',
-      image: 'https://images.unsplash.com/photo-1548199973-03cce0bbc87b?w=600&h=400&fit=crop&q=80',
-      featured: true,
-      readTime: '5 min read',
-      url: '/news/adoption-benefits'
-    }
-  ];
-
   useEffect(() => {
-    const fetchNews = async () => {
-      console.log('📰 News: Starting news fetch...');
-      setLoading(true);
-      setError('');
-      
-      const startTime = Date.now();
-      
+    const fetchAllNews = async () => {
       try {
-        const API_BASE = process.env.NODE_ENV === 'production' 
-          ? 'https://furbabies-backend.onrender.com/api/news'
-          : 'http://localhost:5000/api/news';
+        setLoading(true);
+        setError(null);
         
-        console.log(`📡 API Request: GET ${API_BASE}/featured?limit=6`);
+        console.log('📰 News Page: Fetching all news articles...');
         
-        const response = await axios.get(`${API_BASE}/featured?limit=6`, {
-          timeout: 15000
-        });
-
-        const fetchTime = Date.now() - startTime;
-        console.log(`✅ API Response: ${response.status} ${API_BASE}/featured?limit=6`);
-
-        if (response.data && response.data.success) {
-          const fetchedArticles = response.data.data || [];
-          
-          if (fetchedArticles.length > 0) {
-            setArticles(fetchedArticles);
-            setDebugInfo({
-              method: response.data.breakdown?.external > 0 ? 'mixed' : 'single',
-              fetchTime,
-              articleCount: fetchedArticles.length,
-              status: 'success',
-              error: null,
-              breakdown: response.data.breakdown
-            });
-            console.log(`✅ NewsSection: Mixed news loaded: ${fetchedArticles.length}`);
-          } else {
-            throw new Error('No articles returned from API');
-          }
+        // Get all news articles
+        const response = await newsAPI.getAllNews({ limit: 50 });
+        
+        if (response?.data?.success && response.data.data?.length > 0) {
+          setAllNews(response.data.data);
+          setFilteredNews(response.data.data);
+          console.log(`✅ Loaded ${response.data.data.length} news articles`);
         } else {
-          throw new Error('Invalid response format from API');
+          // Fallback to featured news if getAllNews fails
+          console.log('⚠️ No articles from getAllNews, trying featured news...');
+          const featuredResponse = await newsAPI.getFeaturedNews(10);
+          
+          if (featuredResponse?.data?.success && featuredResponse.data.data?.length > 0) {
+            setAllNews(featuredResponse.data.data);
+            setFilteredNews(featuredResponse.data.data);
+            console.log(`✅ Loaded ${featuredResponse.data.data.length} featured articles as fallback`);
+          } else {
+            console.log('⚠️ No news available, using fallback content');
+            const fallbackNews = getFallbackNews();
+            setAllNews(fallbackNews);
+            setFilteredNews(fallbackNews);
+          }
         }
-
+        
       } catch (err) {
-        console.error('❌ News: Complete failure, using fallback:', err);
-        setError(`API Error: ${err.message}`);
-        setArticles(fallbackArticles);
-        setDebugInfo({
-          method: 'fallback',
-          fetchTime: 0,
-          articleCount: fallbackArticles.length,
-          status: 'fallback',
-          error: err.message
-        });
+        console.error('❌ Error fetching news:', err);
+        setError('Unable to load news articles. Showing sample content.');
+        
+        // Use fallback content
+        const fallbackNews = getFallbackNews();
+        setAllNews(fallbackNews);
+        setFilteredNews(fallbackNews);
+        
       } finally {
         setLoading(false);
       }
     };
 
-    fetchNews();
+    fetchAllNews();
   }, []);
+
+  // Filter news based on search and category
+  useEffect(() => {
+    let filtered = [...allNews];
+
+    // Filter by category
+    if (filters.category !== 'all') {
+      filtered = filtered.filter(article => article.category === filters.category);
+    }
+
+    // Filter by search term
+    if (filters.search) {
+      const searchTerm = filters.search.toLowerCase();
+      filtered = filtered.filter(article =>
+        article.title?.toLowerCase().includes(searchTerm) ||
+        article.excerpt?.toLowerCase().includes(searchTerm) ||
+        article.description?.toLowerCase().includes(searchTerm)
+      );
+    }
+
+    setFilteredNews(filtered);
+  }, [allNews, filters]);
+
+  const getFallbackNews = () => [
+    {
+      id: 'fallback-1',
+      title: 'Welcome to FurBabies Pet Store',
+      excerpt: 'Discover amazing pets and everything they need for a happy life. Our platform connects loving families with their perfect furry companions.',
+      publishedAt: new Date().toISOString(),
+      category: 'company-news',
+      imageUrl: 'https://images.unsplash.com/photo-1601758228041-f3b2795255f1?w=600&h=300&fit=crop',
+      type: 'custom',
+      isFallback: true
+    },
+    {
+      id: 'fallback-2',
+      title: 'Pet Adoption Success Stories',
+      excerpt: 'Read heartwarming stories of pets finding their forever homes through our platform. Every adoption is a new beginning for both pets and families.',
+      publishedAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+      category: 'success-story',
+      imageUrl: 'https://images.unsplash.com/photo-1583337130417-3346a1be7dee?w=600&h=300&fit=crop',
+      type: 'custom',
+      isFallback: true
+    },
+    {
+      id: 'fallback-3',
+      title: 'Essential Pet Care Tips',
+      excerpt: 'Expert advice on keeping your pets healthy, happy, and well-cared for. From nutrition to exercise, learn everything you need to know.',
+      publishedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+      category: 'care',
+      imageUrl: 'https://images.unsplash.com/photo-1574144611937-0df059b5ef3e?w=600&h=300&fit=crop',
+      type: 'custom',
+      isFallback: true
+    },
+    {
+      id: 'fallback-4',
+      title: 'Pet Health & Safety Guidelines',
+      excerpt: 'Important information about pet health, safety precautions, and when to consult with veterinarians for the best care.',
+      publishedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+      category: 'safety',
+      imageUrl: 'https://images.unsplash.com/photo-1520637836862-4d197d17c448?w=600&h=300&fit=crop',
+      type: 'custom',
+      isFallback: true
+    },
+    {
+      id: 'fallback-5',
+      title: 'Choosing the Right Pet for Your Family',
+      excerpt: 'A comprehensive guide to help you choose the perfect pet companion based on your lifestyle, living space, and family needs.',
+      publishedAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
+      category: 'adoption',
+      imageUrl: 'https://images.unsplash.com/photo-1548767797-d8c844163c4c?w=600&h=300&fit=crop',
+      type: 'custom',
+      isFallback: true
+    },
+    {
+      id: 'fallback-6',
+      title: 'Building Your Pet Care Toolkit',
+      excerpt: 'Essential supplies every pet owner should have. From food and toys to grooming supplies and emergency kits.',
+      publishedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+      category: 'care',
+      imageUrl: 'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=600&h=300&fit=crop',
+      type: 'custom',
+      isFallback: true
+    }
+  ];
 
   const formatDate = (dateString) => {
     try {
       return new Date(dateString).toLocaleDateString('en-US', {
-        month: 'short',
+        month: 'long',
         day: 'numeric',
         year: 'numeric'
       });
@@ -166,264 +162,218 @@ const News = () => {
 
   const getCategoryInfo = (category) => {
     const categoryMap = {
-      'adoption': { color: 'primary', icon: 'fas fa-heart', label: 'Adoption' },
-      'care': { color: 'success', icon: 'fas fa-hand-holding-heart', label: 'Pet Care' },
-      'success-story': { color: 'warning', icon: 'fas fa-star', label: 'Success Story' },
-      'health': { color: 'info', icon: 'fas fa-stethoscope', label: 'Health' },
-      'safety': { color: 'danger', icon: 'fas fa-shield-alt', label: 'Safety' },
-      'company-news': { color: 'secondary', icon: 'fas fa-building', label: 'Company News' },
-      'external-news': { color: 'info', icon: 'fas fa-globe', label: 'Pet News' }
+      'success-story': { icon: 'fas fa-trophy', color: 'success', label: 'Success Story' },
+      'safety': { icon: 'fas fa-shield-alt', color: 'warning', label: 'Safety' },
+      'company-news': { icon: 'fas fa-building', color: 'primary', label: 'Company News' },
+      'adoption': { icon: 'fas fa-heart', color: 'danger', label: 'Adoption' },
+      'care': { icon: 'fas fa-hand-holding-heart', color: 'info', label: 'Pet Care' },
+      'health': { icon: 'fas fa-stethoscope', color: 'info', label: 'Health' }
     };
-    
-    return categoryMap[category] || { 
-      color: 'outline-primary', 
-      icon: 'fas fa-newspaper', 
-      label: category || 'News' 
-    };
+    return categoryMap[category] || { icon: 'fas fa-newspaper', color: 'secondary', label: 'News' };
   };
 
-  const truncateText = (text, maxLength = 150) => {
-    if (!text || typeof text !== 'string') {
-      return 'No description available.';
-    }
-    return text.length > maxLength ? `${text.slice(0, maxLength)}...` : text;
+  const getUniqueCategories = () => {
+    const categories = [...new Set(allNews.map(article => article.category).filter(Boolean))];
+    return categories.map(cat => ({
+      value: cat,
+      label: getCategoryInfo(cat).label
+    }));
   };
 
-  const handleImageError = (e) => {
-    e.target.src = 'https://images.unsplash.com/photo-1601758228041-f3b2795255f1?w=600&h=400&fit=crop&q=80';
-  };
-
-  const retryFetch = () => {
-    window.location.reload();
+  const handleFilterChange = (filterType, value) => {
+    setFilters(prev => ({
+      ...prev,
+      [filterType]: value
+    }));
   };
 
   if (loading) {
     return (
-      <Container className="py-5 text-center">
-        <Spinner animation="border" role="status" className="mb-3" variant="primary">
-          <span className="visually-hidden">Loading...</span>
-        </Spinner>
-        <h4>Loading Pet News...</h4>
-        <p className="text-muted">Fetching the latest stories for you</p>
+      <Container className="py-5">
+        <div className="text-center">
+          <Spinner animation="border" variant="primary" size="lg" />
+          <h3 className="mt-3">Loading News Articles...</h3>
+          <p className="text-muted">Getting the latest updates for you</p>
+        </div>
       </Container>
     );
   }
 
   return (
     <Container className="py-5">
-      {/* Header */}
-      <Row className="mb-4">
+      {/* Header Section */}
+      <Row className="mb-5">
         <Col>
-          <h1 className="text-center mb-4">
-            <i className="fas fa-newspaper text-primary me-3"></i>
-            Pet News & Stories
-          </h1>
-          <p className="text-center text-muted">
-            Stay updated with the latest pet care tips, adoption stories, and community news
-          </p>
+          <div className="text-center">
+            <h1 className="display-4 fw-bold mb-3">
+              <i className="fas fa-newspaper text-primary me-3"></i>
+              News & Updates
+            </h1>
+            <p className="lead text-muted">
+              Stay updated with the latest pet care tips, success stories, and company news
+            </p>
+            {error && (
+              <Alert variant="info" className="mt-3">
+                <i className="fas fa-info-circle me-2"></i>
+                {error}
+              </Alert>
+            )}
+          </div>
         </Col>
       </Row>
 
-      {/* Debug Info - Only show in development */}
-      {process.env.NODE_ENV === 'development' && (
-        <Alert variant="info" className="mb-4">
-          <h6>Debug Information:</h6>
-          <small>
-            <strong>Status:</strong> {debugInfo.status} | 
-            <strong> Method:</strong> {debugInfo.method} | 
-            <strong> Articles:</strong> {debugInfo.articleCount} | 
-            <strong> Fetch Time:</strong> {debugInfo.fetchTime}ms
-            {debugInfo.error && <><br/><strong>Error:</strong> {debugInfo.error}</>}
-            {debugInfo.breakdown && (
-              <>
-                <br/><strong>Breakdown:</strong> {debugInfo.breakdown.custom || 0} custom + {debugInfo.breakdown.external || 0} external
-              </>
-            )}
-          </small>
-        </Alert>
-      )}
+      {/* Filters Section */}
+      <Row className="mb-4">
+        <Col md={6}>
+          <Form.Group>
+            <Form.Label><strong>Search Articles</strong></Form.Label>
+            <Form.Control
+              type="text"
+              placeholder="Search by title or content..."
+              value={filters.search}
+              onChange={(e) => handleFilterChange('search', e.target.value)}
+            />
+          </Form.Group>
+        </Col>
+        <Col md={6}>
+          <Form.Group>
+            <Form.Label><strong>Filter by Category</strong></Form.Label>
+            <Form.Select
+              value={filters.category}
+              onChange={(e) => handleFilterChange('category', e.target.value)}
+            >
+              <option value="all">All Categories</option>
+              {getUniqueCategories().map(cat => (
+                <option key={cat.value} value={cat.value}>
+                  {cat.label}
+                </option>
+              ))}
+            </Form.Select>
+          </Form.Group>
+        </Col>
+      </Row>
 
-      {/* Error Alert */}
-      {error && (
-        <Alert variant="warning" className="mb-4" dismissible onClose={() => setError('')}>
-          <Alert.Heading>
-            <i className="fas fa-exclamation-triangle me-2"></i>
-            Connection Issue
-          </Alert.Heading>
-          <p>{error}</p>
-          <p className="mb-0">
-            Don't worry! We're showing you some featured content while we work on the connection.
-            <Button variant="outline-warning" size="sm" className="ms-2" onClick={retryFetch}>
-              <i className="fas fa-redo me-1"></i>
-              Try Again
+      {/* Results Summary */}
+      <Row className="mb-4">
+        <Col>
+          <div className="d-flex justify-content-between align-items-center">
+            <h5>
+              Showing {filteredNews.length} of {allNews.length} articles
+            </h5>
+            <Button variant="outline-primary" as={Link} to="/">
+              <i className="fas fa-home me-2"></i>
+              Back to Home
             </Button>
-          </p>
-        </Alert>
-      )}
+          </div>
+        </Col>
+      </Row>
 
-      {/* Articles Grid */}
-      <Row>
-        {articles.length > 0 ? (
-          articles.map((article, index) => {
+      {/* News Articles Grid */}
+      {filteredNews.length > 0 ? (
+        <Row>
+          {filteredNews.map((article, index) => {
             const categoryInfo = getCategoryInfo(article.category);
-            const articleId = article.id || article._id || `article-${index}`;
             
             return (
-              <Col key={articleId} lg={4} md={6} className="mb-4">
-                <Card className="h-100 border-0 shadow-sm hover-card" style={{transition: 'transform 0.2s ease, box-shadow 0.2s ease'}}>
+              <Col key={article.id || `news-${index}`} lg={4} md={6} className="mb-4">
+                <Card className="h-100 shadow-sm border-0 news-card">
                   {/* Article Image */}
-                  <div className="position-relative overflow-hidden" style={{ height: '200px', backgroundColor: '#f8f9fa' }}>
+                  <div className="position-relative overflow-hidden" style={{ height: '250px' }}>
                     <Card.Img
                       variant="top"
-                      src={article.image || article.imageUrl || article.urlToImage || 'https://images.unsplash.com/photo-1601758228041-f3b2795255f1?w=600&h=400&fit=crop&q=80'}
+                      src={article.imageUrl || article.urlToImage || 'https://images.unsplash.com/photo-1548767797-d8c844163c4c?w=600&h=250&fit=crop'}
                       alt={article.title}
-                      className="w-100 h-100"
+                      className="h-100 w-100"
                       style={{ objectFit: 'cover' }}
-                      onError={handleImageError}
+                      onError={(e) => {
+                        e.target.src = 'https://images.unsplash.com/photo-1548767797-d8c844163c4c?w=600&h=250&fit=crop';
+                      }}
                     />
                     
                     {/* Category Badge */}
-                    <div className="position-absolute top-0 start-0 m-3">
-                      <Badge bg={categoryInfo.color} className="px-2 py-1">
+                    <div className="position-absolute top-0 start-0 m-2">
+                      <Badge bg={categoryInfo.color} className="rounded-pill px-3 py-2">
                         <i className={`${categoryInfo.icon} me-1`}></i>
                         {categoryInfo.label}
                       </Badge>
                     </div>
 
-                    {/* Featured Badge */}
-                    {article.featured && (
-                      <div className="position-absolute top-0 end-0 m-3">
-                        <Badge bg="warning" text="dark" className="px-2 py-1">
-                          <i className="fas fa-star me-1"></i>
-                          Featured
+                    {/* Fallback Indicator */}
+                    {article.isFallback && (
+                      <div className="position-absolute top-0 end-0 m-2">
+                        <Badge bg="secondary" className="rounded-pill px-2 py-1">
+                          <i className="fas fa-info-circle me-1"></i>
+                          Sample
                         </Badge>
                       </div>
                     )}
                   </div>
 
-                  <Card.Body className="d-flex flex-column p-4">
+                  <Card.Body className="d-flex flex-column">
                     {/* Article Title */}
-                    <Card.Title className="h5 mb-3 fw-bold lh-base">
-                      {article.title || 'Pet News Article'}
+                    <Card.Title className="h5 mb-3">
+                      {article.title}
                     </Card.Title>
 
-                    {/* Article Summary */}
-                    <Card.Text className="text-muted flex-grow-1 mb-3">
-                      {truncateText(article.summary || article.description)}
+                    {/* Article Excerpt */}
+                    <Card.Text className="text-muted mb-3 flex-grow-1">
+                      {article.excerpt || article.description || 'Click to read more about this article.'}
                     </Card.Text>
 
-                    {/* Article Meta Information */}
-                    <div className="mt-auto border-top pt-3">
+                    {/* Article Footer */}
+                    <div className="mt-auto">
                       <div className="d-flex justify-content-between align-items-center mb-3">
-                        {article.author && (
-                          <small className="text-muted d-flex align-items-center">
-                            <i className="fas fa-user me-1"></i>
-                            {article.author}
-                          </small>
-                        )}
-                        <small className="text-muted d-flex align-items-center">
+                        <small className="text-muted">
                           <i className="fas fa-calendar me-1"></i>
                           {formatDate(article.publishedAt)}
                         </small>
-                      </div>
-                      
-                      {/* Read Time and Action */}
-                      <div className="d-flex justify-content-between align-items-center">
-                        {article.readTime && (
-                          <small className="text-muted d-flex align-items-center">
-                            <i className="fas fa-clock me-1"></i>
-                            {article.readTime}
+                        {article.type && (
+                          <small className="text-muted">
+                            <i className={article.type === 'external' ? 'fas fa-external-link-alt' : 'fas fa-home'} me-1></i>
+                            {article.type === 'external' ? 'External' : 'FurBabies'}
                           </small>
                         )}
-                        
-                        {/* Read More Button */}
-                        <Button
-                          variant="outline-primary"
-                          size="sm"
-                          onClick={() => {
-                            // Handle navigation or external link
-                            if (article.url) {
-                              if (article.url.startsWith('http')) {
-                                window.open(article.url, '_blank', 'noopener,noreferrer');
-                              } else {
-                                // Internal navigation would go here
-                                console.log('Navigate to:', article.url);
-                              }
-                            }
-                          }}
-                        >
-                          <i className="fas fa-external-link-alt me-1"></i>
-                          Read More
-                        </Button>
                       </div>
+
+                      {/* Read More Button */}
+                      <Button 
+                        variant="primary" 
+                        size="sm" 
+                        as={Link}
+                        to={`/news/${article.id}`}
+                        className="w-100"
+                      >
+                        <i className="fas fa-arrow-right me-2"></i>
+                        Read Full Article
+                      </Button>
                     </div>
                   </Card.Body>
                 </Card>
               </Col>
             );
-          })
-        ) : (
-          // Fallback when no articles
-          <Col className="text-center py-5">
-            <div className="mb-4">
-              <i className="fas fa-newspaper text-muted" style={{ fontSize: '4rem' }}></i>
-            </div>
-            <h4 className="text-muted mb-3">No Articles Available</h4>
-            <p className="text-muted">
-              We're working on bringing you the latest pet news. Please check back soon!
-            </p>
-            <Button 
-              variant="outline-primary" 
-              onClick={retryFetch}
-              className="mt-3"
-            >
-              <i className="fas fa-redo me-2"></i>
-              Try Again
-            </Button>
-          </Col>
-        )}
-      </Row>
-      
-      {/* View All News Button */}
-      {articles.length > 0 && (
-        <Row className="mt-5">
-          <Col className="text-center">
-            <hr className="my-4" />
-            <h5 className="text-muted mb-3">Stay Connected</h5>
-            <p className="text-muted mb-4">
-              Get the latest updates about pet care, adoption success stories, and community events
-            </p>
-            <div className="d-flex gap-3 justify-content-center flex-wrap">
-              <Button 
-                variant="primary"
-                onClick={() => {
-                  // Navigate to newsletter signup or full news page
-                  console.log('Navigate to newsletter signup');
-                }}
-              >
-                <i className="fas fa-envelope me-2"></i>
-                Subscribe to Newsletter
-              </Button>
-              <Button 
-                variant="outline-secondary"
-                onClick={() => {
-                  // Navigate back to home or explore more
-                  window.location.href = '/';
-                }}
-              >
-                <i className="fas fa-home me-2"></i>
-                Back to Home
-              </Button>
-            </div>
-          </Col>
+          })}
         </Row>
+      ) : (
+        <Alert variant="info" className="text-center py-5">
+          <i className="fas fa-search fa-3x text-muted mb-3"></i>
+          <h4>No Articles Found</h4>
+          <p>Try adjusting your search terms or category filter.</p>
+          <Button variant="outline-primary" onClick={() => setFilters({ category: 'all', search: '' })}>
+            <i className="fas fa-undo me-2"></i>
+            Clear Filters
+          </Button>
+        </Alert>
       )}
 
-      {/* Additional CSS for hover effects */}
+      {/* Custom CSS */}
       <style jsx>{`
-        .hover-card:hover {
+        .news-card {
+          transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .news-card:hover {
           transform: translateY(-5px);
-          box-shadow: 0 8px 25px rgba(0,0,0,0.15) !important;
+          box-shadow: 0 8px 25px rgba(0,0,0,0.15);
         }
       `}</style>
     </Container>
