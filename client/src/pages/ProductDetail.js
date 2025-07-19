@@ -1,9 +1,9 @@
-// client/src/pages/ProductDetail.js - SIMPLIFIED AND FIXED VERSION
+// client/src/pages/ProductDetail.js - SIMPLIFIED AND FIXED
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Container, Row, Col, Button, Spinner, Alert, Badge, Card } from 'react-bootstrap';
 import { productAPI } from '../services/api';
-import SafeImage from '../components/SafeImage';
+import ProductImage from '../components/ProductImage';
 
 const ProductDetail = () => {
   const { id } = useParams();
@@ -15,7 +15,7 @@ const ProductDetail = () => {
   const [error, setError] = useState(null);
   const [quantity, setQuantity] = useState(1);
 
-  // 🔧 SIMPLIFIED: Basic product fetching without complex validation
+  // Fetch product data
   useEffect(() => {
     const fetchProduct = async () => {
       if (!id) {
@@ -31,20 +31,13 @@ const ProductDetail = () => {
         console.log(`🛒 Fetching product details for ID: ${id}`);
         const response = await productAPI.getProductById(id);
         
-        // Handle different response formats
-        let productData = null;
-        
         if (response?.data?.success && response.data.data) {
-          // Standard API response format
-          productData = response.data.data;
-        } else if (response?.data && typeof response.data === 'object' && response.data._id) {
-          // Direct product object
-          productData = response.data;
-        }
-        
-        if (productData) {
-          console.log('✅ Product loaded successfully:', productData.name);
-          setProduct(productData);
+          setProduct(response.data.data);
+          console.log('✅ Product loaded successfully:', response.data.data.name);
+        } else if (response?.data && response.data._id) {
+          // Handle direct product object response
+          setProduct(response.data);
+          console.log('✅ Product loaded successfully:', response.data.name);
         } else {
           throw new Error('Product not found');
         }
@@ -57,7 +50,7 @@ const ProductDetail = () => {
         } else if (err.response?.status >= 500) {
           setError('Server error. Please try again later.');
         } else {
-          setError(err.response?.data?.message || 'Failed to load product details');
+          setError('Unable to load product details. Please try again.');
         }
       } finally {
         setLoading(false);
@@ -67,16 +60,18 @@ const ProductDetail = () => {
     fetchProduct();
   }, [id]);
 
-  // 🔧 HELPER: Format category name
-  const formatCategory = (category) => {
-    if (!category) return 'Uncategorized';
-    return category.charAt(0).toUpperCase() + category.slice(1).replace(/[-_]/g, ' ');
+  // Utility functions
+  const formatPrice = (price) => {
+    return typeof price === 'number' ? `$${price.toFixed(2)}` : 'Price N/A';
   };
 
-  // 🔧 HELPER: Format price
-  const formatPrice = (price) => {
-    if (typeof price !== 'number') return 'Price not available';
-    return `$${price.toFixed(2)}`;
+  const formatCategory = (category) => {
+    if (!category) return 'Products';
+    return category.charAt(0).toUpperCase() + category.slice(1);
+  };
+
+  const handleQuantityChange = (change) => {
+    setQuantity(prev => Math.max(1, prev + change));
   };
 
   // Loading state
@@ -84,9 +79,10 @@ const ProductDetail = () => {
     return (
       <Container className="py-5">
         <div className="text-center">
-          <Spinner animation="border" variant="primary" size="lg" />
-          <h3 className="mt-3">Loading Product Details...</h3>
-          <p className="text-muted">Please wait while we fetch the product information</p>
+          <Spinner animation="border" role="status" className="mb-3">
+            <span className="visually-hidden">Loading...</span>
+          </Spinner>
+          <h4>Loading product details...</h4>
         </div>
       </Container>
     );
@@ -102,7 +98,7 @@ const ProductDetail = () => {
             Unable to Load Product
           </Alert.Heading>
           <p>{error}</p>
-          <div className="d-flex justify-content-center gap-2 mt-3">
+          <div className="d-flex gap-2 justify-content-center">
             <Button variant="outline-danger" onClick={() => window.location.reload()}>
               <i className="fas fa-redo me-2"></i>
               Try Again
@@ -155,52 +151,61 @@ const ProductDetail = () => {
         </ol>
       </nav>
 
-      {/* Product Details */}
-      <Card className="shadow-sm mb-4">
-        <Card.Body>
-          <Row>
-            {/* Product Image */}
-            <Col md={6} className="mb-4">
-              <div className="text-center">
-                <SafeImage
-                  src={product.imageUrl || product.image}
-                  fallback="product"
-                  alt={product.name}
-                  className="img-fluid rounded shadow-sm"
-                  style={{ maxHeight: '400px', objectFit: 'cover' }}
-                />
-              </div>
-            </Col>
+      {/* Main Product Section */}
+      <Row className="mb-4">
+        {/* Product Image */}
+        <Col lg={6} className="mb-4">
+          <Card className="shadow-sm">
+            <Card.Body className="text-center">
+              <ProductImage
+                product={product}
+                size="large"
+                className="img-fluid rounded"
+                style={{ maxWidth: '100%', height: 'auto' }}
+              />
+            </Card.Body>
+          </Card>
+        </Col>
 
-            {/* Product Information */}
-            <Col md={6}>
-              <div className="mb-3">
-                <h1 className="fw-bold">{product.name || 'Unnamed Product'}</h1>
-                <p className="text-muted mb-2">
-                  <i className="fas fa-tag me-2"></i>
-                  Category: {formatCategory(product.category)}
-                </p>
-                {product.brand && (
-                  <p className="text-muted mb-2">
-                    <i className="fas fa-industry me-2"></i>
-                    Brand: {product.brand}
-                  </p>
-                )}
-              </div>
+        {/* Product Information */}
+        <Col lg={6}>
+          <Card className="shadow-sm h-100">
+            <Card.Body>
+              {/* Product Name */}
+              <h1 className="mb-3">{product.name}</h1>
 
               {/* Price */}
               <div className="mb-3">
-                <h2 className="text-success fw-bold">
+                <h2 className="text-primary mb-0">
                   {formatPrice(product.price)}
                 </h2>
               </div>
 
-              {/* Stock Status */}
+              {/* Categories and Tags */}
               <div className="mb-3">
-                <Badge bg={product.inStock ? 'success' : 'danger'} className="fs-6">
-                  <i className={`fas ${product.inStock ? 'fa-check' : 'fa-times'} me-2`}></i>
-                  {product.inStock ? 'In Stock' : 'Out of Stock'}
-                </Badge>
+                {product.category && (
+                  <Badge bg="primary" className="me-2 mb-1">
+                    <i className="fas fa-tag me-1"></i>
+                    {formatCategory(product.category)}
+                  </Badge>
+                )}
+                {product.brand && (
+                  <Badge bg="info" className="me-2 mb-1">
+                    <i className="fas fa-building me-1"></i>
+                    {product.brand}
+                  </Badge>
+                )}
+                {product.inStock !== false ? (
+                  <Badge bg="success" className="mb-1">
+                    <i className="fas fa-check-circle me-1"></i>
+                    In Stock
+                  </Badge>
+                ) : (
+                  <Badge bg="danger" className="mb-1">
+                    <i className="fas fa-times-circle me-1"></i>
+                    Out of Stock
+                  </Badge>
+                )}
               </div>
 
               {/* Description */}
@@ -211,63 +216,56 @@ const ProductDetail = () => {
                 </div>
               )}
 
-              {/* Quantity and Add to Cart (if in stock) */}
-              {product.inStock && (
-                <div className="mb-4">
-                  <Row className="align-items-center">
-                    <Col xs="auto">
-                      <label htmlFor="quantity" className="form-label">Quantity:</label>
-                    </Col>
-                    <Col xs="auto">
-                      <input
-                        type="number"
-                        id="quantity"
-                        className="form-control"
-                        value={quantity}
-                        onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                        min="1"
-                        style={{ width: '80px' }}
-                      />
-                    </Col>
-                  </Row>
+              {/* Quantity Selector */}
+              <div className="mb-4">
+                <h6>Quantity</h6>
+                <div className="d-flex align-items-center">
+                  <Button 
+                    variant="outline-secondary" 
+                    size="sm"
+                    onClick={() => handleQuantityChange(-1)}
+                    disabled={quantity <= 1}
+                  >
+                    <i className="fas fa-minus"></i>
+                  </Button>
+                  <span className="mx-3 fw-bold">{quantity}</span>
+                  <Button 
+                    variant="outline-secondary" 
+                    size="sm"
+                    onClick={() => handleQuantityChange(1)}
+                  >
+                    <i className="fas fa-plus"></i>
+                  </Button>
                 </div>
-              )}
+              </div>
 
               {/* Action Buttons */}
-              <div className="d-flex gap-2 flex-wrap">
-                {product.inStock ? (
-                  <Button variant="success" size="lg">
-                    <i className="fas fa-shopping-cart me-2"></i>
-                    Add to Cart
-                  </Button>
-                ) : (
-                  <Button variant="secondary" size="lg" disabled>
-                    <i className="fas fa-times me-2"></i>
-                    Out of Stock
-                  </Button>
-                )}
+              <div className="d-grid gap-2">
+                <Button 
+                  variant="primary" 
+                  size="lg"
+                  disabled={product.inStock === false}
+                >
+                  <i className="fas fa-shopping-cart me-2"></i>
+                  {product.inStock === false ? 'Out of Stock' : 'Add to Cart'}
+                </Button>
                 
-                <Button variant="outline-primary" size="lg">
+                <Button variant="outline-secondary">
                   <i className="fas fa-heart me-2"></i>
                   Add to Wishlist
                 </Button>
-                
-                <Button variant="outline-secondary" onClick={() => navigate('/products')}>
-                  <i className="fas fa-arrow-left me-2"></i>
-                  Back to Products
-                </Button>
               </div>
-            </Col>
-          </Row>
-        </Card.Body>
-      </Card>
+            </Card.Body>
+          </Card>
+        </Col>
+      </Row>
 
-      {/* Additional Product Information */}
+      {/* Product Details */}
       <Card className="shadow-sm mb-4">
         <Card.Body>
           <h4 className="mb-3">
-            <i className="fas fa-info-circle text-info me-2"></i>
-            Product Information
+            <i className="fas fa-info-circle text-primary me-2"></i>
+            Product Details
           </h4>
           <Row>
             <Col md={6}>
@@ -291,7 +289,8 @@ const ProductDetail = () => {
                   <strong>Price:</strong> {formatPrice(product.price)}
                 </li>
                 <li className="mb-2">
-                  <strong>Availability:</strong> {product.inStock ? 'In Stock' : 'Out of Stock'}
+                  <strong>Availability:</strong> {product.inStock !== false ? 
+                    'In Stock' : 'Out of Stock'}
                 </li>
                 <li className="mb-2">
                   <strong>Views:</strong> {product.views || 0}
@@ -333,20 +332,6 @@ const ProductDetail = () => {
           </div>
         </Card.Body>
       </Card>
-
-      {/* Debug Info (Development Only) */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="mt-4">
-          <Card bg="light">
-            <Card.Body>
-              <h6>Debug Information (Development Only)</h6>
-              <pre className="small mb-0" style={{ maxHeight: '200px', overflow: 'auto' }}>
-                {JSON.stringify(product, null, 2)}
-              </pre>
-            </Card.Body>
-          </Card>
-        </div>
-      )}
     </Container>
   );
 };
