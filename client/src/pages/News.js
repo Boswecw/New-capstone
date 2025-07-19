@@ -1,12 +1,12 @@
+// client/src/pages/News.js - UPDATED TO SHOW ONLY PET NEWS
 import React, { useState, useEffect, useCallback } from 'react';
-import { Container, Row, Col, Card, Button, Alert, Spinner, Form, Badge } from 'react-bootstrap';
+import { Container, Row, Col, Card, Button, Alert, Form, Badge } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 import { newsAPI } from '../services/api';
 
 const News = () => {
   const [news, setNews] = useState([]);
   const [filteredNews, setFilteredNews] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState('');
 
@@ -19,11 +19,9 @@ const News = () => {
   useEffect(() => {
     const fetchPetNews = async () => {
       try {
-        setLoading(true);
         setError(null);
 
-        const res = await newsAPI.getAllNews({ limit: 50, category: 'pet' });
-
+        const res = await newsAPI.getAllNews({ category: 'pet', limit: 50 });
         const articles = res?.data?.data || [];
 
         const petArticles = articles.filter(article =>
@@ -40,10 +38,9 @@ const News = () => {
           fallbackToSample();
         }
       } catch (err) {
+        console.error('❌ Error fetching pet news:', err);
         setError('Unable to load pet news articles. Showing fallback content.');
         fallbackToSample();
-      } finally {
-        setLoading(false);
       }
     };
 
@@ -58,18 +55,6 @@ const News = () => {
     );
     setFilteredNews(filtered);
   }, [search, news]);
-
-  const formatDate = (dateStr) => {
-    try {
-      return new Date(dateStr).toLocaleDateString('en-US', {
-        month: 'long',
-        day: 'numeric',
-        year: 'numeric'
-      });
-    } catch {
-      return 'Recent';
-    }
-  };
 
   const getFallbackNews = () => [
     {
@@ -92,14 +77,17 @@ const News = () => {
     }
   ];
 
-  if (loading) {
-    return (
-      <Container className="py-5 text-center">
-        <Spinner animation="border" variant="primary" />
-        <h3 className="mt-3">Loading Pet News...</h3>
-      </Container>
-    );
-  }
+  const formatDate = (dateStr) => {
+    try {
+      return new Date(dateStr).toLocaleDateString('en-US', {
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric'
+      });
+    } catch {
+      return 'Recent';
+    }
+  };
 
   return (
     <Container className="py-5">
@@ -139,12 +127,9 @@ const News = () => {
                       e.target.src = 'https://via.placeholder.com/600x300?text=Pet+News';
                     }}
                   />
-                  {/* ✅ Pet News Badge */}
                   <Badge bg="info" className="position-absolute top-0 start-0 m-2">
                     <i className="fas fa-paw me-1"></i> Pet News
                   </Badge>
-
-                  {/* Optional Fallback Label */}
                   {article.isFallback && (
                     <Badge bg="secondary" className="position-absolute top-0 end-0 m-2">
                       Sample

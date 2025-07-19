@@ -133,6 +133,8 @@ export const newsAPI = {
     return api.get(`/news/featured?limit=${limit}`);
   },
 
+  getNewsById: (id) => api.get(`/news/${id}`), // ✅ ADDED FUNCTION
+
   getExternalNews: (params = {}) => {
     const searchParams = new URLSearchParams();
     Object.keys(params).forEach(key => {
