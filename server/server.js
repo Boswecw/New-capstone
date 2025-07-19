@@ -1,20 +1,16 @@
-// server/server.js - SECURITY ENHANCED VERSION
 const express = require('express');
 const mongoose = require('mongoose');
-const dotenv = require('dotenv');
 const cors = require('cors');
 const path = require('path');
-const helmet = require('helmet'); // ADD THIS
-const rateLimit = require('express-rate-limit'); // ADD THIS
-const compression = require('compression'); // ADD THIS
+const helmet = require('helmet');
+const compression = require('compression');
+const rateLimit = require('express-rate-limit');
+require('dotenv').config();
 
-// Load environment variables
-dotenv.config();
-
-// === IMPORT ROUTES ===
+// Import routes
 const petRoutes = require('./routes/pets');
 const productRoutes = require('./routes/products');
-const contactRoutes = require('./routes/contact');
+const contactRoutes = require('./routes/contacts');
 const userRoutes = require('./routes/users');
 const authRoutes = require('./routes/auth');
 const imageRoutes = require('./routes/images');
@@ -24,7 +20,15 @@ const app = express();
 
 // === SECURITY MIDDLEWARE ===
 app.use(helmet({
-  crossOriginResourcePolicy: { policy: "cross-origin" }
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      imgSrc: ["'self'", "data:", "https:", "http:"],
+      scriptSrc: ["'self'"],
+    },
+  },
 }));
 
 // Rate limiting
@@ -38,10 +42,13 @@ app.use('/api/', limiter);
 // Compression
 app.use(compression());
 
-// === CORS CONFIGURATION ===
+// === CORRECTED CORS CONFIGURATION ===
 const corsOptions = {
   origin: process.env.NODE_ENV === 'production' 
-    ? ['https://new-capstone.onrender.com']
+    ? [
+        'https://new-capstone.onrender.com',
+        'https://furbabies-frontend.onrender.com'  // ✅ Added missing frontend URL
+      ]
     : ['http://localhost:3000', 'http://localhost:5000'],
   credentials: true,
   optionsSuccessStatus: 200
@@ -74,7 +81,8 @@ app.get('/api/health', (req, res) => {
   res.json({ 
     status: 'OK', 
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV 
+    environment: process.env.NODE_ENV,
+    corsOrigins: corsOptions.origin
   });
 });
 
@@ -124,6 +132,7 @@ const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`🌍 Environment: ${process.env.NODE_ENV}`);
+  console.log(`🔐 CORS Origins: ${JSON.stringify(corsOptions.origin)}`);
 });
 
 module.exports = app;
