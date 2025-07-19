@@ -209,4 +209,71 @@ export const authAPI = {
   }
 };
 
+// ===== NEWS API =====
+export const newsAPI = {
+  // Get featured news
+  getFeaturedNews: (limit = 6) => {
+    return api.get(`/news/featured?limit=${limit}`);
+  },
+
+  // Get all news articles
+  getAllNews: (params = {}) => {
+    const searchParams = new URLSearchParams();
+    Object.keys(params).forEach(key => {
+      if (params[key] !== undefined && params[key] !== '') {
+        searchParams.append(key, params[key]);
+      }
+    });
+    const queryString = searchParams.toString();
+    const url = queryString ? `/news?${queryString}` : '/news';
+    return api.get(url);
+  },
+
+  // Get news article by ID
+  getNewsById: (id) => {
+    return api.get(`/news/${id}`);
+  },
+
+  // Get custom articles
+  getCustomArticles: (params = {}) => {
+    const searchParams = new URLSearchParams();
+    Object.keys(params).forEach(key => {
+      if (params[key] !== undefined && params[key] !== '') {
+        searchParams.append(key, params[key]);
+      }
+    });
+    const queryString = searchParams.toString();
+    const url = queryString ? `/news/custom?${queryString}` : '/news/custom';
+    return api.get(url);
+  },
+
+  // Get external articles
+  getExternalArticles: (params = {}) => {
+    const searchParams = new URLSearchParams();
+    Object.keys(params).forEach(key => {
+      if (params[key] !== undefined && params[key] !== '') {
+        searchParams.append(key, params[key]);
+      }
+    });
+    const queryString = searchParams.toString();
+    const url = queryString ? `/news/external?${queryString}` : '/news/external';
+    return api.get(url);
+  },
+
+  // Like an article
+  likeArticle: (id) => {
+    return api.post(`/news/${id}/like`);
+  },
+
+  // Get categories
+  getCategories: () => {
+    return api.get('/news/categories');
+  },
+
+  // Get news health check
+  getHealth: () => {
+    return api.get('/news/health');
+  }
+};
+
 export default api;
