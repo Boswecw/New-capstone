@@ -94,6 +94,9 @@ const Browse = () => {
       setError(null);
       
       console.log('🔍 Browsing pets with filters:', filters);
+      if (filters.type !== 'all') {
+        console.log(`🐾 Filtering by pet type: ${filters.type}`);
+      }
       
       const queryParams = {
         page: currentPage,
@@ -108,13 +111,19 @@ const Browse = () => {
         }
       });
       
+      console.log('📡 API Query Parameters:', queryParams);
+      
       const response = await petAPI.getAllPets(queryParams);
       
       if (response?.data?.success) {
         setPets(response.data.data || []);
         setPagination(response.data.pagination || {});
         setFilterStats(response.data.stats || {});
-        console.log(`✅ Loaded ${response.data.data?.length || 0} pets`);
+        console.log(`✅ Loaded ${response.data.data?.length || 0} pets matching filters`);
+        
+        if (filters.type !== 'all') {
+          console.log(`🎯 Successfully filtered ${response.data.data?.length || 0} ${filters.type}s`);
+        }
       } else {
         throw new Error('Failed to fetch pets');
       }
@@ -150,6 +159,28 @@ const Browse = () => {
     setCurrentPage(1);
     updateURL(newFilters, 1);
   }, [filters, updateURL]);
+
+  // ✅ FIXED: Watch for URL parameter changes and update filters
+  useEffect(() => {
+    const newFilters = {
+      search: searchParams.get('search') || '',
+      type: searchParams.get('type') || 'all',
+      age: searchParams.get('age') || 'all',
+      gender: searchParams.get('gender') || 'all',
+      size: searchParams.get('size') || 'all',
+      breed: searchParams.get('breed') || 'all',
+      featured: searchParams.get('featured') || 'all',
+      sort: searchParams.get('sort') || 'newest'
+    };
+    
+    const newPage = parseInt(searchParams.get('page')) || 1;
+    
+    console.log('🌐 URL changed - Current search params:', Object.fromEntries(searchParams.entries()));
+    console.log('🔄 URL parameters changed, updating filters:', newFilters);
+    
+    setFilters(newFilters);
+    setCurrentPage(newPage);
+  }, [searchParams]); // Only watch searchParams to avoid infinite loops
 
   // Load pets when filters or page change
   useEffect(() => {
@@ -232,6 +263,18 @@ const Browse = () => {
           <h1 className="h2 mb-2">
             <i className="fas fa-search me-2"></i>
             Browse Pets
+            {/* ✅ FIXED: Show active filter in title */}
+            {filters.type !== 'all' && (
+              <Badge bg="primary" className="ms-2">
+                {filters.type.charAt(0).toUpperCase() + filters.type.slice(1)}s
+              </Badge>
+            )}
+            {filters.featured === 'true' && (
+              <Badge bg="warning" className="ms-2">
+                <i className="fas fa-star me-1"></i>
+                Featured
+              </Badge>
+            )}
           </h1>
           <p className="text-muted mb-0">
             {pagination.total 
@@ -260,6 +303,94 @@ const Browse = () => {
           </Button>
         </div>
       </div>
+
+      {/* ✅ FIXED: Active Filters Display */}
+      {(filters.type !== 'all' || filters.age !== 'all' || filters.gender !== 'all' || 
+        filters.size !== 'all' || filters.featured !== 'all' || filters.search) && (
+        <div className="mb-3">
+          <div className="d-flex align-items-center gap-2 mb-2">
+            <small className="text-muted fw-bold">Active Filters:</small>
+            {filters.search && (
+              <Badge bg="info" className="d-flex align-items-center">
+                <i className="fas fa-search me-1"></i>
+                "{filters.search}"
+                <button 
+                  className="btn btn-link btn-sm text-white p-0 ms-1"
+                  onClick={() => handleFilterChange('search', '')}
+                  style={{ fontSize: '0.7rem' }}
+                >
+                  ×
+                </button>
+              </Badge>
+            )}
+            {filters.type !== 'all' && (
+              <Badge bg="primary" className="d-flex align-items-center">
+                <i className="fas fa-paw me-1"></i>
+                {filters.type.charAt(0).toUpperCase() + filters.type.slice(1)}s
+                <button 
+                  className="btn btn-link btn-sm text-white p-0 ms-1"
+                  onClick={() => handleFilterChange('type', 'all')}
+                  style={{ fontSize: '0.7rem' }}
+                >
+                  ×
+                </button>
+              </Badge>
+            )}
+            {filters.age !== 'all' && (
+              <Badge bg="secondary" className="d-flex align-items-center">
+                <i className="fas fa-birthday-cake me-1"></i>
+                {filters.age.charAt(0).toUpperCase() + filters.age.slice(1)}
+                <button 
+                  className="btn btn-link btn-sm text-white p-0 ms-1"
+                  onClick={() => handleFilterChange('age', 'all')}
+                  style={{ fontSize: '0.7rem' }}
+                >
+                  ×
+                </button>
+              </Badge>
+            )}
+            {filters.gender !== 'all' && (
+              <Badge bg="success" className="d-flex align-items-center">
+                <i className="fas fa-venus-mars me-1"></i>
+                {filters.gender.charAt(0).toUpperCase() + filters.gender.slice(1)}
+                <button 
+                  className="btn btn-link btn-sm text-white p-0 ms-1"
+                  onClick={() => handleFilterChange('gender', 'all')}
+                  style={{ fontSize: '0.7rem' }}
+                >
+                  ×
+                </button>
+              </Badge>
+            )}
+            {filters.size !== 'all' && (
+              <Badge bg="warning" className="d-flex align-items-center">
+                <i className="fas fa-ruler me-1"></i>
+                {filters.size.charAt(0).toUpperCase() + filters.size.slice(1)}
+                <button 
+                  className="btn btn-link btn-sm text-white p-0 ms-1"
+                  onClick={() => handleFilterChange('size', 'all')}
+                  style={{ fontSize: '0.7rem' }}
+                >
+                  ×
+                </button>
+              </Badge>
+            )}
+            {filters.featured === 'true' && (
+              <Badge bg="warning" className="d-flex align-items-center">
+                <i className="fas fa-star me-1"></i>
+                Featured
+                <button 
+                  className="btn btn-link btn-sm text-white p-0 ms-1"
+                  onClick={() => handleFilterChange('featured', 'all')}
+                  style={{ fontSize: '0.7rem' }}
+                >
+                  ×
+                </button>
+              </Badge>
+            )}
+          </div>
+        </div>
+      )}
 
       <Row>
         {/* Filters Sidebar */}

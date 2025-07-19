@@ -1,8 +1,8 @@
-// client/src/components/Navbar.js - UPDATED with Admin News Link
+// client/src/components/Navbar.js - FIXED Browse Links
 import React, { useState, useContext } from 'react';
 import { Navbar, Nav, Container, Button, NavDropdown } from 'react-bootstrap';
 import { Link, useNavigate } from 'react-router-dom';
-import AuthContext from '../contexts/AuthContext'; // ✅ Default import
+import AuthContext from '../contexts/AuthContext';
 
 const AppNavbar = () => {
   const [expanded, setExpanded] = useState(false);
@@ -52,17 +52,35 @@ const AppNavbar = () => {
                 <i className="fas fa-search me-2"></i> Browse Pets
               </NavDropdown.Item>
               <NavDropdown.Divider />
-              <NavDropdown.Item as={Link} to="/pets?type=dog" onClick={closeNavbar}>
+              {/* ✅ FIXED: Changed from /pets?type= to /browse?type= */}
+              <NavDropdown.Item as={Link} to="/browse?type=dog" onClick={closeNavbar}>
                 <i className="fas fa-dog me-2"></i> Dogs
               </NavDropdown.Item>
-              <NavDropdown.Item as={Link} to="/pets?type=cat" onClick={closeNavbar}>
+              <NavDropdown.Item as={Link} to="/browse?type=cat" onClick={closeNavbar}>
                 <i className="fas fa-cat me-2"></i> Cats
               </NavDropdown.Item>
-              <NavDropdown.Item as={Link} to="/pets?type=fish" onClick={closeNavbar}>
+              <NavDropdown.Item as={Link} to="/browse?type=bird" onClick={closeNavbar}>
+                <i className="fas fa-dove me-2"></i> Birds
+              </NavDropdown.Item>
+              <NavDropdown.Item as={Link} to="/browse?type=fish" onClick={closeNavbar}>
                 <i className="fas fa-fish me-2"></i> Fish & Aquatic
               </NavDropdown.Item>
-              <NavDropdown.Item as={Link} to="/pets?type=other" onClick={closeNavbar}>
-                <i className="fas fa-dove me-2"></i> Other Pets
+              <NavDropdown.Item as={Link} to="/browse?type=rabbit" onClick={closeNavbar}>
+                <i className="fas fa-carrot me-2"></i> Rabbits
+              </NavDropdown.Item>
+              <NavDropdown.Item as={Link} to="/browse?type=hamster" onClick={closeNavbar}>
+                <i className="fas fa-circle me-2"></i> Small Pets
+              </NavDropdown.Item>
+              <NavDropdown.Item as={Link} to="/browse?type=other" onClick={closeNavbar}>
+                <i className="fas fa-paw me-2"></i> Other Pets
+              </NavDropdown.Item>
+              <NavDropdown.Divider />
+              {/* ✅ FIXED: Added quick filter links */}
+              <NavDropdown.Item as={Link} to="/browse?featured=true" onClick={closeNavbar}>
+                <i className="fas fa-star me-2"></i> Featured Pets
+              </NavDropdown.Item>
+              <NavDropdown.Item as={Link} to="/browse?age=young" onClick={closeNavbar}>
+                <i className="fas fa-heart me-2"></i> Young Pets
               </NavDropdown.Item>
             </NavDropdown>
 
