@@ -1,4 +1,4 @@
-// server/server.js - FIXED FOR DUAL DEPLOYMENT
+// server/server.js - FIXED CORS Configuration
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -28,59 +28,145 @@ const adminRoutes = require('./routes/admin');
 const newsRoutes = require('./routes/news');
 
 // ===== SECURITY & MIDDLEWARE =====
-app.use(helmet());
+app.use(helmet({
+  crossOriginEmbedderPolicy: false
+}));
 app.use(compression());
 
-// CORS configuration - Updated for multiple domains
+// ✅ FIXED CORS CONFIGURATION
+console.log('🌍 Environment:', process.env.NODE_ENV);
+console.log('🔗 Frontend URL from env:', process.env.FRONTEND_URL);
+console.log('🔗 Client URL from env:', process.env.CLIENT_URL);
+
 const allowedOrigins = [
+  // ✅ FIXED: Your actual frontend domain
+  'https://furbabies-frontend.onrender.com',
+  
+  // ✅ Other Render.com domains
   'https://furbabies-petstore.onrender.com',
   'https://new-capstone.onrender.com',
-  'https://furbabies-frontend.onrender.com',
+  
+  // ✅ Environment variable fallbacks
   process.env.FRONTEND_URL,
-  process.env.CLIENT_URL
-].filter(Boolean);
+  process.env.CLIENT_URL,
+  
+  // ✅ Development origins
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'http://127.0.0.1:3000'
+].filter(Boolean); // Remove undefined values
 
+console.log('✅ Allowed CORS origins:', allowedOrigins);
+
+// ✅ ENHANCED CORS CONFIGURATION
 app.use(cors({
   origin: function (origin, callback) {
-    if (!origin) return callback(null, true);
+    console.log(`🔍 CORS check for origin: "${origin}"`);
     
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) {
+      console.log('✅ No origin - allowing request');
+      return callback(null, true);
+    }
+    
+    // Check if origin is in allowed list
     if (allowedOrigins.includes(origin)) {
+      console.log(`✅ Origin "${origin}" is in allowed list`);
       return callback(null, true);
     }
     
+    // Allow all *.onrender.com subdomains
     if (origin && origin.match(/https:\/\/.*\.onrender\.com$/)) {
+      console.log(`✅ Origin "${origin}" matches *.onrender.com pattern`);
       return callback(null, true);
     }
     
+    // Allow localhost in development
     if (process.env.NODE_ENV !== 'production' && origin && origin.includes('localhost')) {
+      console.log(`✅ Development mode - allowing localhost origin: "${origin}"`);
       return callback(null, true);
     }
     
-    console.log('🚫 CORS blocked origin:', origin);
-    console.log('✅ Allowed origins:', allowedOrigins);
+    // Log blocked requests for debugging
+    console.log(`🚫 CORS BLOCKED origin: "${origin}"`);
+    console.log('📝 Allowed origins:', allowedOrigins);
     
+    // ✅ TEMPORARY FIX: Allow all origins (remove this after testing)
+    // TODO: Remove this line and use proper origin checking
+    console.log('⚠️ TEMPORARY: Allowing all origins for debugging');
     return callback(null, true);
+    
+    // Uncomment this line after fixing environment variables:
+    // return callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'HEAD'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'HEAD', 'PATCH'],
   allowedHeaders: [
     'Origin',
     'X-Requested-With', 
     'Content-Type', 
     'Accept',
     'Authorization',
-    'Access-Control-Allow-Origin'
+    'Access-Control-Allow-Origin',
+    'Access-Control-Allow-Credentials',
+    'Cache-Control'
+  ],
+  exposedHeaders: [
+    'Access-Control-Allow-Origin',
+    'Access-Control-Allow-Credentials'
   ],
   preflightContinue: false,
-  optionsSuccessStatus: 200
+  optionsSuccessStatus: 200,
+  maxAge: 86400 // 24 hours
 }));
 
-app.options('*', cors());
+// ✅ EXPLICIT OPTIONS HANDLER
+app.options('*', (req, res) => {
+  console.log(`🔧 OPTIONS request for: ${req.path}`);
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS,HEAD,PATCH');
+  res.header('Access-Control-Allow-Headers', 'Origin,X-Requested-With,Content-Type,Accept,Authorization');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.status(200).end();
+});
 
-// 🔧 FIXED: Rate limiting - Increased limits for better performance
+// ✅ CORS DEBUG MIDDLEWARE
+app.use((req, res, next) => {
+  console.log(`📡 ${req.method} ${req.path} from origin: ${req.headers.origin || 'no-origin'}`);
+  
+  // Set CORS headers manually as backup
+  const origin = req.headers.origin;
+  if (origin && allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+  } else if (origin && origin.match(/https:\/\/.*\.onrender\.com$/)) {
+    res.header('Access-Control-Allow-Origin', origin);
+  } else {
+    // Temporary: allow all origins for debugging
+    res.header('Access-Control-Allow-Origin', origin || '*');
+  }
+  
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS,HEAD,PATCH');
+  res.header('Access-Control-Allow-Headers', 'Origin,X-Requested-With,Content-Type,Accept,Authorization');
+  
+  next();
+});
+
+// ===== BODY PARSING =====
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// ===== LOGGING =====
+if (process.env.NODE_ENV === 'development') {
+  app.use(morgan('dev'));
+} else {
+  app.use(morgan('combined'));
+}
+
+// ===== RATE LIMITING =====
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 500, // CHANGED: Increased from 100 to 500
+  max: 500, // Increased from 100 to 500
   message: {
     error: 'Too many requests from this IP, please try again later.',
     retryAfter: '15 minutes'
@@ -88,50 +174,37 @@ const limiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   skip: (req) => {
-    // Skip rate limiting for featured content and health checks
-    return req.path.includes('/featured') || 
-           req.path.includes('/health') || 
-           req.path.includes('/images/');
+    // Skip rate limiting for OPTIONS requests
+    return req.method === 'OPTIONS';
   }
 });
 
-app.use(limiter);
-
-// Enhanced logging
-app.use(morgan('combined', {
-  skip: (req) => req.path.includes('/images/') || req.path.includes('/health')
-}));
-
-// Body parsing middleware
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use('/api', limiter);
 
 // ===== DATABASE CONNECTION =====
 mongoose.connect(process.env.MONGODB_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
 })
-.then(() => console.log('✅ MongoDB connected successfully'))
-.catch(err => console.error('❌ MongoDB connection error:', err));
+.then(() => {
+  console.log('✅ Connected to MongoDB Atlas');
+})
+.catch((error) => {
+  console.error('❌ MongoDB connection error:', error);
+  process.exit(1);
+});
 
-// ===== API ROUTE HANDLERS =====
+// ===== API ROUTES =====
 app.use('/api/pets', petRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/contact', contactRoutes);
 app.use('/api/images', imageRoutes);
+app.use('/api/gcs', gcsRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/news', newsRoutes);
 
-// Load GCS routes if available
-try {
-  console.log('✅ GCS routes loaded - Public bucket access only');
-  app.use('/api/images/gcs', gcsRoutes);
-} catch (error) {
-  console.log('⚠️ GCS routes not available - Using fallback images only');
-}
-
-// ===== HEALTH CHECK ENDPOINT =====
+// ===== HEALTH CHECK =====
 app.get('/api/health', async (req, res) => {
   try {
     const dbState = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
@@ -144,22 +217,11 @@ app.get('/api/health', async (req, res) => {
       database: dbState,
       timestamp: new Date().toISOString(),
       version: '1.0.0',
-      features: {
-        petAdoption: true,
-        userAuth: true,
-        heartRating: true,
-        imageProxy: true,
-        adminDashboard: true,
-        newsIntegration: true
-      },
-      rateLimits: {
-        general: '500 requests / 15 minutes',
-        featuredEndpoints: 'unlimited',
-        imageProxy: 'unlimited'
-      },
-      documentation: 'https://github.com/Boswecw/furbabies-petstore',
-      frontend: 'Deployed separately',
-      timestamp: new Date().toISOString()
+      cors: {
+        allowedOrigins: allowedOrigins,
+        requestOrigin: req.headers.origin,
+        userAgent: req.headers['user-agent']
+      }
     });
   } catch (error) {
     res.status(500).json({
@@ -178,116 +240,32 @@ app.use('/api/*', (req, res) => {
     availableEndpoints: [
       'GET /api/health',
       'GET /api/pets',
-      'GET /api/pets/featured?limit=4',
-      'GET /api/pets/:id',
+      'GET /api/pets/featured',
       'GET /api/products',
-      'GET /api/products/featured?limit=4',
-      'GET /api/products/:id',
+      'GET /api/products/featured',
       'GET /api/news',
-      'GET /api/news/featured?limit=3',
-      'GET /api/news/custom',
-      'GET /api/news/external',
-      'GET /api/news/health',
-      'POST /api/contact',
-      'GET /api/images/gcs/{path}',
-      'GET /api/images/health',
-      'GET /api/admin/dashboard',
-      'GET /api/admin/pets',
-      'POST /api/admin/pets',
-      'PUT /api/admin/pets/:id',
-      'DELETE /api/admin/pets/:id',
-      'GET /api/admin/products',
-      'POST /api/admin/products',
-      'PUT /api/admin/products/:id',
-      'DELETE /api/admin/products/:id',
-      'GET /api/admin/products/stats',
-      'GET /api/admin/users',
-      'GET /api/admin/contacts',
-      'GET /api/admin/reports',
-      'GET /api/admin/analytics'
-    ],
-    timestamp: new Date().toISOString()
+      'GET /api/news/featured'
+    ]
   });
 });
 
-// ===== SMART STATIC FILE SERVING =====
-// 🔧 FIXED: Conditional static file serving for dual deployment
-const clientBuildPath = path.join(__dirname, 'client/build');
-const buildIndexPath = path.join(clientBuildPath, 'index.html');
-
-if (process.env.NODE_ENV === 'production') {
-  // Check if build files exist (monolithic deployment)
-  if (fs.existsSync(buildIndexPath)) {
-    console.log('📦 Serving React build files (monolithic deployment)');
-    app.use(express.static(clientBuildPath));
-
-    app.get('*', (req, res) => {
-      if (!req.path.startsWith('/api/')) {
-        res.sendFile(buildIndexPath);
-      }
-    });
-  } else {
-    console.log('🔗 API-only mode (dual deployment detected)');
-    // API-only mode for dual deployment
-    app.get('/', (req, res) => {
-      res.json({
-        message: 'FurBabies Pet Store API - Production (Dual Deployment)',
-        status: 'API service running',
-        health: '/api/health',
-        frontend: 'Deployed separately at furbabies-frontend.onrender.com',
-        documentation: 'https://github.com/Boswecw/furbabies-petstore',
-        endpoints: '/api/health for full endpoint list'
-      });
-    });
-
-    // Handle all non-API routes with informative response
-    app.get('*', (req, res) => {
-      if (!req.path.startsWith('/api/')) {
-        res.status(404).json({
-          message: 'Frontend not served from this API',
-          frontend: 'Visit furbabies-frontend.onrender.com',
-          api: 'This service provides API endpoints only',
-          health: '/api/health'
-        });
-      }
-    });
-  }
-} else {
-  // Development mode
-  console.log('🛠️ Development mode detected');
-  if (fs.existsSync(buildIndexPath)) {
-    console.log('📦 Serving React build files');
-    app.use(express.static(clientBuildPath));
-    
-    app.get('*', (req, res) => {
-      if (!req.path.startsWith('/api/')) {
-        res.sendFile(buildIndexPath);
-      }
-    });
-  } else {
-    console.log('⚠️ No build files found - API only');
-    app.get('/', (req, res) => {
-      res.json({
-        message: 'FurBabies Pet Store API - Development Mode',
-        health: '/api/health',
-        frontend: 'Run `npm run client` to start the React app on port 3000',
-        note: 'Build files not found - run `npm run build` to create them'
-      });
-    });
-  }
-}
+// ===== ROOT ROUTE =====
+app.get('/', (req, res) => {
+  res.json({
+    message: 'FurBabies Pet Store API - Production (Dual Deployment)',
+    status: 'API service running',
+    health: '/api/health',
+    frontend: 'Deployed separately at furbabies-frontend.onrender.com',
+    documentation: 'https://github.com/Boswecw/furbabies-petstore',
+    cors: {
+      enabled: true,
+      allowedOrigins: allowedOrigins
+    }
+  });
+});
 
 // ===== GLOBAL ERROR HANDLER =====
 app.use((err, req, res, next) => {
-  // Don't log missing static file errors in dual deployment
-  if (err.code === 'ENOENT' && err.path && err.path.includes('client/build')) {
-    console.log('ℹ️ Static file not found (expected in dual deployment):', err.path);
-    return res.status(404).json({
-      message: 'Resource not found',
-      note: 'Frontend is deployed separately'
-    });
-  }
-  
   console.error('❌ Unhandled error:', err);
   
   res.status(err.status || 500).json({
@@ -298,46 +276,12 @@ app.use((err, req, res, next) => {
   });
 });
 
-// ===== GRACEFUL SHUTDOWN =====
-process.on('SIGTERM', () => {
-  console.log('🛑 SIGTERM received, shutting down gracefully');
-  mongoose.connection.close(() => {
-    console.log('📤 MongoDB connection closed');
-    process.exit(0);
-  });
-});
-
-process.on('SIGINT', () => {
-  console.log('🛑 SIGINT received, shutting down gracefully');
-  mongoose.connection.close(() => {
-    console.log('📤 MongoDB connection closed');
-    process.exit(0);
-  });
-});
-
 // ===== START SERVER =====
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`🌍 Environment: ${process.env.NODE_ENV}`);
-  console.log(`📡 API Base URL: ${process.env.NODE_ENV === 'production' ? 
-    'https://furbabies-backend.onrender.com' : 
-    `http://localhost:${PORT}`}`);
-  
-  console.log('📋 Available endpoints:');
-  console.log('   🏠 Health: /api/health');
-  console.log('   🐕 Pets: /api/pets');
-  console.log('   🛒 Products: /api/products');
-  console.log('   📰 News: /api/news');
-  console.log('   📧 Contact: /api/contact');
-  console.log('   🖼️ Images: /api/images/gcs/{path}');
-  console.log('   🔧 Admin: /api/admin/*');
-  console.log('   🐾 Admin Pets: /api/admin/pets');
-  console.log('   🛍️ Admin Products: /api/admin/products');
-  
-  console.log('🔒 Rate Limiting:');
-  console.log('   📊 General: 500 requests / 15 minutes');
-  console.log('   ⭐ Featured: Unlimited');
-  console.log('   🖼️ Images: Unlimited');
+  console.log(`📡 API Base URL: ${process.env.NODE_ENV === 'production' ? 'https://new-capstone.onrender.com' : `http://localhost:${PORT}`}`);
+  console.log(`🔗 CORS configured for origins:`, allowedOrigins);
 });
 
 module.exports = app;

@@ -1,31 +1,36 @@
-// client/src/services/api.js - FIXED API Configuration for Dual Deployment
+// client/src/services/api.js - FIXED for CORS
 import axios from 'axios';
 
-// ✅ FIXED: Proper API base URL for dual deployment
+// ✅ FIXED: Ensure correct backend URL
 const API_BASE_URL = process.env.NODE_ENV === 'production' 
-  ? 'https://new-capstone.onrender.com/api'  // Your backend URL
+  ? 'https://new-capstone.onrender.com/api'  // ✅ Your actual backend URL
   : 'http://localhost:5000/api';
 
 console.log(`🔗 API Base URL: ${API_BASE_URL}`);
+console.log(`🌍 Environment: ${process.env.NODE_ENV}`);
 
-// ✅ Create axios instance with proper timeout and headers
+// ✅ ENHANCED: Create axios instance with CORS-friendly configuration
 const api = axios.create({
   baseURL: API_BASE_URL,
   timeout: 30000, // 30 seconds
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json'
-  }
+  },
+  withCredentials: true  // ✅ ADDED: Enable credentials for CORS
 });
 
-// ✅ Request interceptor
+// ✅ ENHANCED: Request interceptor with better logging
 api.interceptors.request.use(
   (config) => {
+    // Add auth token if available
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    
     console.log(`📡 API Request: ${config.method?.toUpperCase()} ${config.url}`);
+    console.log(`🎯 Full URL: ${config.baseURL}${config.url}`);
     return config;
   },
   (error) => {
@@ -34,7 +39,7 @@ api.interceptors.request.use(
   }
 );
 
-// ✅ Response interceptor with better error handling
+// ✅ ENHANCED: Response interceptor with CORS error handling
 api.interceptors.response.use(
   (response) => {
     console.log(`✅ API Response: ${response.status} ${response.config.url}`);
@@ -45,56 +50,39 @@ api.interceptors.response.use(
       status: error.response?.status,
       message: error.response?.data?.message || error.message,
       url: error.config?.url,
-      method: error.config?.method
+      method: error.config?.method,
+      corsError: error.message.includes('CORS') || error.message.includes('Network Error')
     });
+    
+    // ✅ CORS Error Handling
+    if (error.message.includes('CORS') || error.message.includes('Network Error')) {
+      console.error('🚫 CORS Error detected:', {
+        frontend: window.location.origin,
+        backend: API_BASE_URL,
+        suggestion: 'Check backend CORS configuration'
+      });
+    }
+    
+    // Handle specific error cases
+    if (error.response?.status === 401) {
+      localStorage.removeItem('token');
+      console.log('🔐 Token removed due to 401 error');
+    }
+    
     return Promise.reject(error);
   }
 );
 
-// ===== PRODUCT API - FIXED =====
-export const productAPI = {
-  // ✅ FIXED: Get all products
-  getAllProducts: (params = {}) => {
-    const searchParams = new URLSearchParams();
-    Object.keys(params).forEach(key => {
-      if (params[key] !== undefined && params[key] !== '' && params[key] !== 'all') {
-        searchParams.append(key, params[key]);
-      }
-    });
-    
-    const queryString = searchParams.toString();
-    const url = queryString ? `/products?${queryString}` : '/products';
-    
-    console.log(`🛍️ Fetching products: ${url}`);
-    return api.get(url);
-  },
-
-  // ✅ FIXED: Get featured products - THIS WAS MISSING
-  getFeaturedProducts: (limit = 4) => {
-    console.log(`🌟 Fetching ${limit} featured products...`);
-    return api.get(`/products/featured?limit=${limit}`);
-  },
-
-  // ✅ Get single product
-  getProductById: (id) => {
-    console.log(`🛍️ Fetching product: ${id}`);
-    return api.get(`/products/${id}`);
-  },
-
-  // ✅ Get product categories
-  getProductCategories: () => {
-    console.log(`📂 Fetching product categories...`);
-    return api.get('/products/categories');
-  },
-
-  // ✅ Get product brands
-  getProductBrands: () => {
-    console.log(`🏷️ Fetching product brands...`);
-    return api.get('/products/brands');
+// ===== TEST ENDPOINT =====
+export const testAPI = {
+  // ✅ CORS Test endpoint
+  testCORS: () => {
+    console.log('🧪 Testing CORS connection...');
+    return api.get('/health');
   }
 };
 
-// ===== PET API - VERIFIED =====
+// ===== PET API =====
 export const petAPI = {
   getAllPets: (params = {}) => {
     const searchParams = new URLSearchParams();
@@ -127,7 +115,45 @@ export const petAPI = {
   }
 };
 
-// ===== NEWS API - VERIFIED =====
+// ===== PRODUCT API =====
+export const productAPI = {
+  getAllProducts: (params = {}) => {
+    const searchParams = new URLSearchParams();
+    Object.keys(params).forEach(key => {
+      if (params[key] !== undefined && params[key] !== '' && params[key] !== 'all') {
+        searchParams.append(key, params[key]);
+      }
+    });
+    
+    const queryString = searchParams.toString();
+    const url = queryString ? `/products?${queryString}` : '/products';
+    
+    console.log(`🛍️ Fetching products: ${url}`);
+    return api.get(url);
+  },
+
+  getFeaturedProducts: (limit = 4) => {
+    console.log(`🌟 Fetching ${limit} featured products...`);
+    return api.get(`/products/featured?limit=${limit}`);
+  },
+
+  getProductById: (id) => {
+    console.log(`🛍️ Fetching product: ${id}`);
+    return api.get(`/products/${id}`);
+  },
+
+  getProductCategories: () => {
+    console.log(`📂 Fetching product categories...`);
+    return api.get('/products/categories');
+  },
+
+  getProductBrands: () => {
+    console.log(`🏷️ Fetching product brands...`);
+    return api.get('/products/brands');
+  }
+};
+
+// ===== NEWS API =====
 export const newsAPI = {
   getAllNews: (params = {}) => {
     const searchParams = new URLSearchParams();
@@ -149,7 +175,6 @@ export const newsAPI = {
     return api.get(`/news/featured?limit=${limit}`);
   },
 
-  // ✅ FIXED: External news only (for New.js)
   getExternalNews: (params = {}) => {
     const searchParams = new URLSearchParams();
     Object.keys(params).forEach(key => {
@@ -209,14 +234,6 @@ export const contactAPI = {
   submitMessage: (messageData) => {
     console.log(`📧 Submitting contact message...`);
     return api.post('/contact', messageData);
-  }
-};
-
-// ===== IMAGE API =====
-export const imageAPI = {
-  getImageHealth: () => {
-    console.log(`🖼️ Checking image service health...`);
-    return api.get('/images/health');
   }
 };
 
