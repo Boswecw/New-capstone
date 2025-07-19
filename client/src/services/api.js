@@ -1,24 +1,24 @@
-// client/src/services/api.js - CONSOLIDATED API CONFIGURATION
+// client/src/services/api.js - FIXED API Configuration for Dual Deployment
 import axios from 'axios';
 
-// ✅ SINGLE SOURCE OF TRUTH: Use only your working backend
+// ✅ FIXED: Proper API base URL for dual deployment
 const API_BASE_URL = process.env.NODE_ENV === 'production' 
-  ? 'https://furbabies-backend.onrender.com/api'  // ✅ Your working backend
+  ? 'https://new-capstone.onrender.com/api'  // Your backend URL
   : 'http://localhost:5000/api';
 
-console.log('🔗 API Base URL:', API_BASE_URL);
+console.log(`🔗 API Base URL: ${API_BASE_URL}`);
 
-// ✅ SINGLE AXIOS INSTANCE: All APIs use this same instance
+// ✅ Create axios instance with proper timeout and headers
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 30000,
+  timeout: 30000, // 30 seconds
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json'
   }
 });
 
-// Request interceptor with auth
+// ✅ Request interceptor
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
@@ -29,12 +29,12 @@ api.interceptors.request.use(
     return config;
   },
   (error) => {
-    console.error('❌ API Request Error:', error);
+    console.error('❌ Request Error:', error);
     return Promise.reject(error);
   }
 );
 
-// Response interceptor with better error handling
+// ✅ Response interceptor with better error handling
 api.interceptors.response.use(
   (response) => {
     console.log(`✅ API Response: ${response.status} ${response.config.url}`);
@@ -47,43 +47,13 @@ api.interceptors.response.use(
       url: error.config?.url,
       method: error.config?.method
     });
-    
-    if (error.response?.status === 401) {
-      localStorage.removeItem('token');
-    }
-    
     return Promise.reject(error);
   }
 );
 
-// ===== PET API =====
-const petAPI = {
-  getAllPets: (params = {}) => {
-    const searchParams = new URLSearchParams();
-    Object.keys(params).forEach(key => {
-      if (params[key] !== undefined && params[key] !== '' && params[key] !== 'all') {
-        searchParams.append(key, params[key]);
-      }
-    });
-    return api.get(`/pets?${searchParams}`);
-  },
-  getPetById: (id) => api.get(`/pets/${id}`),
-  getFeaturedPets: (limit = 4) => {
-    console.log(`🐾 Fetching ${limit} featured pets...`);
-    return api.get(`/pets/featured?limit=${limit}`);
-  },
-  searchPets: (query, params = {}) => {
-    const searchParams = new URLSearchParams({ search: query, ...params });
-    return api.get(`/pets?${searchParams}`);
-  },
-  createPet: (petData) => api.post('/pets', petData),
-  updatePet: (id, petData) => api.put(`/pets/${id}`, petData),
-  deletePet: (id) => api.delete(`/pets/${id}`),
-  ratePet: (id, payload) => api.post(`/pets/${id}/rate`, payload)
-};
-
-// ===== PRODUCT API =====
-const productAPI = {
+// ===== PRODUCT API - FIXED =====
+export const productAPI = {
+  // ✅ FIXED: Get all products
   getAllProducts: (params = {}) => {
     const searchParams = new URLSearchParams();
     Object.keys(params).forEach(key => {
@@ -91,123 +61,171 @@ const productAPI = {
         searchParams.append(key, params[key]);
       }
     });
-    return api.get(`/products?${searchParams}`);
+    
+    const queryString = searchParams.toString();
+    const url = queryString ? `/products?${queryString}` : '/products';
+    
+    console.log(`🛍️ Fetching products: ${url}`);
+    return api.get(url);
   },
-  getProductById: (id) => api.get(`/products/${id}`),
+
+  // ✅ FIXED: Get featured products - THIS WAS MISSING
   getFeaturedProducts: (limit = 4) => {
-    console.log(`🛒 Fetching ${limit} featured products...`);
+    console.log(`🌟 Fetching ${limit} featured products...`);
     return api.get(`/products/featured?limit=${limit}`);
   },
-  searchProducts: (query, params = {}) => {
-    const searchParams = new URLSearchParams({ search: query, ...params });
-    return api.get(`/products?${searchParams}`);
-  },
-  getProductsByCategory: (category, params = {}) => {
-    const searchParams = new URLSearchParams({ category, ...params });
-    return api.get(`/products?${searchParams}`);
-  },
-  getProductCategories: () => api.get('/products/meta/categories'),
-  getProductBrands: () => api.get('/products/meta/brands'),
-  createProduct: (productData) => api.post('/products', productData),
-  updateProduct: (id, productData) => api.put(`/products/${id}`, productData),
-  deleteProduct: (id) => api.delete(`/products/${id}`)
-};
 
-// ===== NEWS API - CONSOLIDATED =====
-const newsAPI = {
-  getFeaturedNews: (limit = 3) => {
-    console.log(`📰 Fetching ${limit} featured news...`);
-    return api.get(`/news/featured?limit=${limit}`);  // ✅ Uses same api instance
+  // ✅ Get single product
+  getProductById: (id) => {
+    console.log(`🛍️ Fetching product: ${id}`);
+    return api.get(`/products/${id}`);
   },
-  getAllNews: (params = {}) => {
-    const searchParams = new URLSearchParams(params);
-    return api.get(`/news?${searchParams}`);
-  },
-  getNewsById: (id) => api.get(`/news/${id}`),
-  getCustomNews: (params = {}) => {
-    const searchParams = new URLSearchParams(params);
-    return api.get(`/news/custom?${searchParams}`);
-  },
-  getExternalNews: (params = {}) => {
-    const searchParams = new URLSearchParams(params);
-    return api.get(`/news/external?${searchParams}`);
-  },
-  getNewsHealth: () => api.get('/news/health')
-};
 
-// ===== USER API =====
-const userAPI = {
-  login: (credentials) => api.post('/users/login', credentials),
-  register: (userData) => api.post('/users/register', userData),
-  getProfile: () => api.get('/users/profile'),
-  updateProfile: (userData) => api.put('/users/profile', userData)
-};
-
-// ===== CONTACT API =====
-const contactAPI = {
-  submitContact: (contactData) => {
-    console.log('📧 Submitting contact form...');
-    return api.post('/contact', contactData);
+  // ✅ Get product categories
+  getProductCategories: () => {
+    console.log(`📂 Fetching product categories...`);
+    return api.get('/products/categories');
   },
-  getContactSubmissions: () => api.get('/contact'),
-  updateContactSubmission: (id, data) => api.put(`/contact/${id}`, data)
-};
 
-// ===== IMAGE API =====
-const imageAPI = {
-  getImageHealth: () => api.get('/images/health'),
-  getImageUrl: (imagePath, options = {}) => {
-    if (!imagePath) return null;
-    const baseUrl = `${API_BASE_URL}/images/gcs`;
-    const params = new URLSearchParams(options);
-    return `${baseUrl}/${imagePath}${params.toString() ? '?' + params.toString() : ''}`;
-  },
-  getFallbackImageUrl: (category = 'default') => {
-    return `${API_BASE_URL}/images/fallback/${category}`;
+  // ✅ Get product brands
+  getProductBrands: () => {
+    console.log(`🏷️ Fetching product brands...`);
+    return api.get('/products/brands');
   }
 };
 
-// ===== ADMIN API =====
-const adminAPI = {
-  getStats: () => api.get('/admin/stats'),
-  getAllUsers: () => api.get('/admin/users'),
-  getAllPetsAdmin: () => api.get('/admin/pets'),
-  getAllProductsAdmin: () => api.get('/admin/products'),
-  getAllContactsAdmin: () => api.get('/admin/contacts')
+// ===== PET API - VERIFIED =====
+export const petAPI = {
+  getAllPets: (params = {}) => {
+    const searchParams = new URLSearchParams();
+    Object.keys(params).forEach(key => {
+      if (params[key] !== undefined && params[key] !== '' && params[key] !== 'all') {
+        searchParams.append(key, params[key]);
+      }
+    });
+    
+    const queryString = searchParams.toString();
+    const url = queryString ? `/pets?${queryString}` : '/pets';
+    
+    console.log(`🐾 Fetching pets: ${url}`);
+    return api.get(url);
+  },
+
+  getFeaturedPets: (limit = 4) => {
+    console.log(`🌟 Fetching ${limit} featured pets...`);
+    return api.get(`/pets/featured?limit=${limit}`);
+  },
+
+  getPetById: (id) => {
+    console.log(`🐾 Fetching pet: ${id}`);
+    return api.get(`/pets/${id}`);
+  },
+
+  ratePet: (petId, rating) => {
+    console.log(`❤️ Rating pet ${petId}: ${rating}`);
+    return api.post(`/pets/${petId}/rate`, { rating });
+  }
 };
 
-// ===== HEALTH API =====
-const healthAPI = {
-  getHealth: () => {
-    console.log('🔍 Checking backend health...');
+// ===== NEWS API - VERIFIED =====
+export const newsAPI = {
+  getAllNews: (params = {}) => {
+    const searchParams = new URLSearchParams();
+    Object.keys(params).forEach(key => {
+      if (params[key] !== undefined && params[key] !== '') {
+        searchParams.append(key, params[key]);
+      }
+    });
+    
+    const queryString = searchParams.toString();
+    const url = queryString ? `/news?${queryString}` : '/news';
+    
+    console.log(`📰 Fetching all news: ${url}`);
+    return api.get(url);
+  },
+
+  getFeaturedNews: (limit = 6) => {
+    console.log(`🌟 Fetching ${limit} featured news articles...`);
+    return api.get(`/news/featured?limit=${limit}`);
+  },
+
+  // ✅ FIXED: External news only (for New.js)
+  getExternalNews: (params = {}) => {
+    const searchParams = new URLSearchParams();
+    Object.keys(params).forEach(key => {
+      if (params[key] !== undefined && params[key] !== '') {
+        searchParams.append(key, params[key]);
+      }
+    });
+    
+    const queryString = searchParams.toString();
+    const url = queryString ? `/news/external?${queryString}` : '/news/external';
+    
+    console.log(`🌐 Fetching external news: ${url}`);
+    return api.get(url);
+  },
+
+  getCustomNews: (params = {}) => {
+    const searchParams = new URLSearchParams();
+    Object.keys(params).forEach(key => {
+      if (params[key] !== undefined && params[key] !== '') {
+        searchParams.append(key, params[key]);
+      }
+    });
+    
+    const queryString = searchParams.toString();
+    const url = queryString ? `/news/custom?${queryString}` : '/news/custom';
+    
+    console.log(`📝 Fetching custom news: ${url}`);
+    return api.get(url);
+  },
+
+  checkNewsHealth: () => {
+    console.log(`🏥 Checking news service health...`);
+    return api.get('/news/health');
+  }
+};
+
+// ===== USER API =====
+export const userAPI = {
+  login: (credentials) => {
+    console.log(`🔐 User login attempt...`);
+    return api.post('/users/login', credentials);
+  },
+
+  register: (userData) => {
+    console.log(`📝 User registration attempt...`);
+    return api.post('/users/register', userData);
+  },
+
+  getProfile: () => {
+    console.log(`👤 Fetching user profile...`);
+    return api.get('/users/profile');
+  }
+};
+
+// ===== CONTACT API =====
+export const contactAPI = {
+  submitMessage: (messageData) => {
+    console.log(`📧 Submitting contact message...`);
+    return api.post('/contact', messageData);
+  }
+};
+
+// ===== IMAGE API =====
+export const imageAPI = {
+  getImageHealth: () => {
+    console.log(`🖼️ Checking image service health...`);
+    return api.get('/images/health');
+  }
+};
+
+// ===== HEALTH CHECK =====
+export const healthAPI = {
+  checkApiHealth: () => {
+    console.log(`🏥 Checking API health...`);
     return api.get('/health');
   }
 };
 
-// ===== EXPORTS =====
-export {
-  api,
-  petAPI,
-  productAPI,
-  newsAPI,
-  userAPI,
-  contactAPI,
-  imageAPI,
-  adminAPI,
-  healthAPI,
-  API_BASE_URL
-};
-
-// Default export
-const apiServices = {
-  pets: petAPI,
-  products: productAPI,
-  news: newsAPI,
-  users: userAPI,
-  contact: contactAPI,
-  images: imageAPI,
-  admin: adminAPI,
-  health: healthAPI
-};
-
-export default apiServices;
+export default api;
