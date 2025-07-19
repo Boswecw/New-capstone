@@ -1,9 +1,36 @@
-// server/routes/news.js - MONGODB VERSION
+// server/routes/news.js - USING YOUR EXISTING NewsArticle MODEL
 const express = require('express');
 const router = express.Router();
-const News = require('../models/News'); // ✅ Import MongoDB model
+const crypto = require('crypto');
+const NewsArticle = require('../models/NewsArticle'); // ✅ Use your existing model
 const { protect, admin } = require('../middleware/auth');
 const { fetchPetNews, getNewsServiceHealth } = require('../services/newsAPI');
+
+// ✅ Create stable ID for external articles
+const createStableExternalId = (article) => {
+  const source = article.url || article.title || 'unknown';
+  return `ext-${crypto.createHash('md5').update(source).digest('hex').substring(0, 12)}`;
+};
+
+// ✅ Format external article to match your NewsArticle schema
+const formatExternal = (article) => ({
+  id: createStableExternalId(article),
+  title: article.title || 'Untitled Article',
+  summary: article.description || '',
+  content: article.content || article.description || '',
+  author: article.author || article.source?.name || 'External Source',
+  category: 'external-news',
+  imageUrl: article.urlToImage || '',
+  originalUrl: article.url,
+  published: true,
+  featured: false,
+  publishedAt: article.publishedAt || new Date(),
+  views: 0,
+  likes: 0,
+  tags: ['external', 'news'],
+  source: 'external',
+  type: 'external'
+});
 
 // ===== MAIN ROUTES =====
 
@@ -15,7 +42,7 @@ router.get('/', async (req, res) => {
 
     console.log(`📰 GET /news - category: ${category}, source: ${source}, search: ${search}`);
 
-    // ✅ Get custom articles from MongoDB
+    // ✅ Get custom articles from MongoDB using your NewsArticle model
     if (source === 'all' || source === 'custom') {
       let query = { published: true };
       
@@ -31,13 +58,23 @@ router.get('/', async (req, res) => {
       
       let customArticles;
       
-      // ✅ Use MongoDB text search if search term provided
+      // ✅ Search functionality
       if (search && search.trim()) {
-        customArticles = await News.searchArticles(search.trim())
-          .limit(parseInt(limit))
-          .lean(); // .lean() for better performance
+        const searchRegex = new RegExp(search.trim(), 'i');
+        customArticles = await NewsArticle.find({
+          ...query,
+          $or: [
+            { title: searchRegex },
+            { summary: searchRegex },
+            { content: searchRegex },
+            { tags: { $in: [searchRegex] } }
+          ]
+        })
+        .sort({ publishedAt: -1 })
+        .limit(parseInt(limit))
+        .lean();
       } else {
-        customArticles = await News.find(query)
+        customArticles = await NewsArticle.find(query)
           .sort({ publishedAt: -1 })
           .limit(parseInt(limit))
           .lean();
@@ -47,7 +84,7 @@ router.get('/', async (req, res) => {
       console.log(`✅ Found ${customArticles.length} custom articles from MongoDB`);
     }
 
-    // ✅ Include external articles (same as before)
+    // ✅ Include external articles with error handling
     if (source === 'all' || source === 'external') {
       try {
         const searchQuery = search || 'pets OR dogs OR cats OR animal adoption';
@@ -73,7 +110,7 @@ router.get('/', async (req, res) => {
       count: limitedArticles.length,
       total: allArticles.length,
       breakdown: {
-        custom: allArticles.filter(a => a.source !== 'external').length,
+        custom: allArticles.filter(a => !a.source || a.source !== 'external').length,
         external: allArticles.filter(a => a.source === 'external').length
       }
     });
@@ -88,7 +125,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET /api/news/featured - Get featured articles
+// GET /api/news/featured - Get featured articles for home page
 router.get('/featured', async (req, res) => {
   try {
     const { limit = 6 } = req.query;
@@ -96,9 +133,14 @@ router.get('/featured', async (req, res) => {
 
     console.log(`📰 GET /news/featured - limit: ${limit}`);
 
-    // ✅ Get featured articles from MongoDB using static method
-    const featuredCustom = await News.findFeatured(parseInt(limit))
-      .lean();
+    // ✅ Get featured articles from MongoDB using your model
+    const featuredCustom = await NewsArticle.find({ 
+      featured: true, 
+      published: true 
+    })
+    .sort({ publishedAt: -1 })
+    .limit(parseInt(limit))
+    .lean();
     
     featuredArticles.push(...featuredCustom);
     console.log(`✅ Found ${featuredCustom.length} featured articles from MongoDB`);
@@ -107,7 +149,7 @@ router.get('/featured', async (req, res) => {
     const remainingSlots = Math.max(0, parseInt(limit) - featuredArticles.length);
     if (remainingSlots > 0) {
       try {
-        const externalResult = await fetchPetNews('pet adoption OR pet rescue', remainingSlots);
+        const externalResult = await fetchPetNews('pet adoption OR pet rescue OR pet care', remainingSlots);
         if (externalResult.success && externalResult.articles) {
           const formattedExternal = externalResult.articles.slice(0, remainingSlots).map(formatExternal);
           featuredArticles.push(...formattedExternal);
@@ -123,7 +165,7 @@ router.get('/featured', async (req, res) => {
       data: featuredArticles,
       count: featuredArticles.length,
       breakdown: {
-        custom: featuredArticles.filter(a => a.source !== 'external').length,
+        custom: featuredArticles.filter(a => !a.source || a.source !== 'external').length,
         external: featuredArticles.filter(a => a.source === 'external').length
       }
     });
@@ -156,12 +198,21 @@ router.get('/custom', async (req, res) => {
     let articles;
     
     if (search && search.trim()) {
-      // ✅ Use MongoDB text search
-      articles = await News.searchArticles(search.trim())
-        .limit(parseInt(limit))
-        .lean();
+      const searchRegex = new RegExp(search.trim(), 'i');
+      articles = await NewsArticle.find({
+        ...query,
+        $or: [
+          { title: searchRegex },
+          { summary: searchRegex },
+          { content: searchRegex },
+          { tags: { $in: [searchRegex] } }
+        ]
+      })
+      .sort({ publishedAt: -1 })
+      .limit(parseInt(limit))
+      .lean();
     } else {
-      articles = await News.find(query)
+      articles = await NewsArticle.find(query)
         .sort({ publishedAt: -1 })
         .limit(parseInt(limit))
         .lean();
@@ -182,6 +233,40 @@ router.get('/custom', async (req, res) => {
   }
 });
 
+// GET /api/news/external - Get only external articles
+router.get('/external', async (req, res) => {
+  try {
+    const { search = 'pets OR dogs OR cats', limit = 20 } = req.query;
+    
+    const externalResult = await fetchPetNews(search, parseInt(limit));
+    
+    if (externalResult.success && externalResult.articles) {
+      const formattedArticles = externalResult.articles.map(formatExternal);
+      
+      res.json({
+        success: true,
+        data: formattedArticles,
+        count: formattedArticles.length
+      });
+    } else {
+      res.json({
+        success: true,
+        data: [],
+        count: 0,
+        message: 'No external articles available'
+      });
+    }
+
+  } catch (err) {
+    console.error('❌ GET /news/external error:', err);
+    res.status(500).json({ 
+      success: false, 
+      message: 'External news service unavailable',
+      data: []
+    });
+  }
+});
+
 // GET /api/news/:id - Get individual article
 router.get('/:id', async (req, res) => {
   try {
@@ -189,15 +274,21 @@ router.get('/:id', async (req, res) => {
     
     console.log(`📰 GET /news/${id}`);
 
-    // ✅ Find article in MongoDB by ID
-    const article = await News.findOne({ 
-      _id: id, 
-      published: true 
-    });
+    // ✅ Try to find article by MongoDB _id first
+    let article;
+    try {
+      article = await NewsArticle.findOne({ 
+        _id: id, 
+        published: true 
+      });
+    } catch (err) {
+      // ID might not be a valid ObjectId, continue to other checks
+    }
     
     if (article) {
-      // ✅ Increment view count using instance method
-      await article.incrementViews();
+      // ✅ Increment view count
+      article.views = (article.views || 0) + 1;
+      await article.save();
       
       return res.json({
         success: true,
@@ -233,11 +324,12 @@ router.post('/:id/like', async (req, res) => {
   try {
     const { id } = req.params;
     
-    // ✅ Find and update in MongoDB
-    const article = await News.findById(id);
+    // ✅ Find and update in MongoDB using your model
+    const article = await NewsArticle.findById(id);
     
     if (article) {
-      await article.toggleLike();
+      article.likes = (article.likes || 0) + 1;
+      await article.save();
       
       res.json({
         success: true,
@@ -260,6 +352,32 @@ router.post('/:id/like', async (req, res) => {
   }
 });
 
+// GET /api/news/health - Health check
+router.get('/health', async (req, res) => {
+  try {
+    const healthData = await getNewsServiceHealth();
+    const articleCount = await NewsArticle.countDocuments();
+    
+    res.json({
+      success: true,
+      service: 'news',
+      status: 'operational',
+      timestamp: new Date().toISOString(),
+      storage: 'mongodb',
+      articles: articleCount,
+      ...healthData
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      service: 'news',
+      status: 'degraded',
+      error: err.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // ===== ADMIN ROUTES (protected) =====
 
 // POST /api/news - Create new article (admin only)
@@ -274,16 +392,18 @@ router.post('/', protect, admin, async (req, res) => {
       });
     }
 
-    // ✅ Create new article using MongoDB model
-    const newArticle = new News({
+    // ✅ Create new article using your NewsArticle model
+    const newArticle = new NewsArticle({
       title: title.trim(),
       content: content.trim(),
-      summary: summary?.trim(),
-      category: category || 'general',
-      author: req.user?.name || 'Admin',
+      summary: summary?.trim() || content.substring(0, 200) + '...',
+      category: category || 'news',
+      author: req.user?.name || 'FurBabies Team',
       featured: Boolean(featured),
-      imageUrl: imageUrl?.trim(),
-      tags: tags || []
+      imageUrl: imageUrl?.trim() || '',
+      tags: Array.isArray(tags) ? tags : [],
+      published: true,
+      publishedAt: new Date()
     });
 
     // ✅ Save to MongoDB
@@ -321,12 +441,12 @@ router.put('/:id', protect, admin, async (req, res) => {
     const { id } = req.params;
     const updates = req.body;
     
-    // ✅ Find and update in MongoDB
-    const updatedArticle = await News.findByIdAndUpdate(
+    // ✅ Find and update using your NewsArticle model
+    const updatedArticle = await NewsArticle.findByIdAndUpdate(
       id,
       { 
-        ...updates, 
-        updatedAt: new Date() 
+        ...updates,
+        updatedAt: new Date()
       },
       { 
         new: true, // Return updated document
@@ -371,8 +491,8 @@ router.delete('/:id', protect, admin, async (req, res) => {
   try {
     const { id } = req.params;
     
-    // ✅ Find and delete from MongoDB
-    const deletedArticle = await News.findByIdAndDelete(id);
+    // ✅ Find and delete using your NewsArticle model
+    const deletedArticle = await NewsArticle.findByIdAndDelete(id);
 
     if (!deletedArticle) {
       return res.status(404).json({
@@ -399,8 +519,8 @@ router.delete('/:id', protect, admin, async (req, res) => {
 // GET /api/news/stats/analytics - Get article analytics (admin only)
 router.get('/stats/analytics', protect, admin, async (req, res) => {
   try {
-    // ✅ Use MongoDB aggregation for analytics
-    const stats = await News.aggregate([
+    // ✅ Use MongoDB aggregation with your NewsArticle model
+    const stats = await NewsArticle.aggregate([
       {
         $group: {
           _id: null,
@@ -419,7 +539,7 @@ router.get('/stats/analytics', protect, admin, async (req, res) => {
       }
     ]);
 
-    const categoryStats = await News.aggregate([
+    const categoryStats = await NewsArticle.aggregate([
       { $match: { published: true } },
       {
         $group: {
@@ -447,26 +567,6 @@ router.get('/stats/analytics', protect, admin, async (req, res) => {
       message: 'Failed to fetch analytics'
     });
   }
-});
-
-// Helper function for external articles (same as before)
-const formatExternal = (article) => ({
-  id: `ext-${require('crypto').createHash('md5').update(article.url || article.title).digest('hex').substring(0, 12)}`,
-  title: article.title || 'Untitled Article',
-  summary: article.description || '',
-  excerpt: article.description || '',
-  content: article.content || article.description || '',
-  author: article.author || article.source?.name || 'External Source',
-  category: 'external-news',
-  source: 'external',
-  type: 'external',
-  publishedAt: article.publishedAt || new Date(),
-  imageUrl: article.urlToImage || '',
-  originalUrl: article.url,
-  published: true,
-  featured: false,
-  likes: 0,
-  views: 0
 });
 
 module.exports = router;
