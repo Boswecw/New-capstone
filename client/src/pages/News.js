@@ -10,33 +10,37 @@ const News = () => {
   const [error, setError] = useState(null);
   const [search, setSearch] = useState('');
 
-  // ✅ Memoized fallback setter to satisfy useEffect dependencies
   const fallbackToSample = useCallback(() => {
     const fallback = getFallbackNews();
     setNews(fallback);
     setFilteredNews(fallback);
   }, []);
 
-  // ✅ Fetch pet-related news on mount
   useEffect(() => {
     const fetchPetNews = async () => {
       try {
         setLoading(true);
         setError(null);
 
-        console.log('📰 Fetching pet-related news...');
-        const response = await newsAPI.getAllNews({ limit: 50, category: 'pet' });
+        const res = await newsAPI.getAllNews({ limit: 50, category: 'pet' });
 
-        if (response?.data?.success && response.data.data?.length > 0) {
-          setNews(response.data.data);
-          setFilteredNews(response.data.data);
+        const articles = res?.data?.data || [];
+
+        const petArticles = articles.filter(article =>
+          article.category === 'pet' ||
+          article.title?.toLowerCase().includes('pet') ||
+          article.excerpt?.toLowerCase().includes('pet') ||
+          article.description?.toLowerCase().includes('pet')
+        );
+
+        if (petArticles.length > 0) {
+          setNews(petArticles);
+          setFilteredNews(petArticles);
         } else {
-          console.warn('⚠️ No pet news found, using fallback...');
           fallbackToSample();
         }
       } catch (err) {
-        console.error('❌ Error loading pet news:', err);
-        setError('Unable to load pet news. Showing sample articles.');
+        setError('Unable to load pet news articles. Showing fallback content.');
         fallbackToSample();
       } finally {
         setLoading(false);
@@ -44,9 +48,8 @@ const News = () => {
     };
 
     fetchPetNews();
-  }, [fallbackToSample]); // ✅ Now compliant
+  }, [fallbackToSample]);
 
-  // ✅ Filter by search
   useEffect(() => {
     const filtered = news.filter(article =>
       article.title?.toLowerCase().includes(search.toLowerCase()) ||
@@ -71,22 +74,20 @@ const News = () => {
   const getFallbackNews = () => [
     {
       id: 'fallback-1',
-      title: '5 Signs Your Pet Is Happy and Healthy',
-      excerpt: 'Learn how to tell if your furry friend is thriving.',
+      title: 'How to Care for Senior Pets',
+      excerpt: 'Improve comfort and health for aging pets.',
       publishedAt: new Date().toISOString(),
       category: 'pet',
       imageUrl: 'https://images.unsplash.com/photo-1558788353-f76d92427f16?w=600&h=300&fit=crop',
-      type: 'custom',
       isFallback: true
     },
     {
       id: 'fallback-2',
-      title: 'What to Know Before Adopting a Dog',
-      excerpt: 'Prepare your home and lifestyle for a new best friend.',
+      title: 'Tips for Adopting Your First Pet',
+      excerpt: 'Everything to know before bringing home a furry friend.',
       publishedAt: new Date(Date.now() - 86400000).toISOString(),
       category: 'pet',
       imageUrl: 'https://images.unsplash.com/photo-1568572933382-74d440642117?w=600&h=300&fit=crop',
-      type: 'custom',
       isFallback: true
     }
   ];
@@ -96,33 +97,22 @@ const News = () => {
       <Container className="py-5 text-center">
         <Spinner animation="border" variant="primary" />
         <h3 className="mt-3">Loading Pet News...</h3>
-        <p className="text-muted">Please wait while we fetch the latest updates</p>
       </Container>
     );
   }
 
   return (
     <Container className="py-5">
-      {/* Header */}
-      <Row className="mb-4">
+      <Row className="mb-4 text-center">
         <Col>
-          <div className="text-center">
-            <h1 className="display-5 fw-bold">
-              <i className="fas fa-paw text-primary me-2"></i> Pet News
-            </h1>
-            <p className="text-muted">
-              Latest articles and tips for happy, healthy pets
-            </p>
-            {error && (
-              <Alert variant="info" className="mt-2">
-                <i className="fas fa-info-circle me-2"></i>{error}
-              </Alert>
-            )}
-          </div>
+          <h1 className="display-5 fw-bold">
+            <i className="fas fa-dog text-primary me-2"></i> Pet News
+          </h1>
+          <p className="text-muted">Helpful articles, updates, and tips for happy pets</p>
+          {error && <Alert variant="info">{error}</Alert>}
         </Col>
       </Row>
 
-      {/* Search */}
       <Row className="mb-4">
         <Col md={6} className="mx-auto">
           <Form.Control
@@ -134,22 +124,27 @@ const News = () => {
         </Col>
       </Row>
 
-      {/* News Grid */}
       {filteredNews.length > 0 ? (
         <Row>
           {filteredNews.map((article, idx) => (
             <Col key={article.id || `news-${idx}`} md={6} lg={4} className="mb-4">
-              <Card className="h-100 shadow-sm border-0 news-card">
-                <div className="position-relative overflow-hidden" style={{ height: '220px' }}>
+              <Card className="h-100 shadow-sm news-card position-relative">
+                <div style={{ height: '220px', overflow: 'hidden' }} className="position-relative">
                   <Card.Img
-                    src={article.imageUrl || article.urlToImage || 'https://via.placeholder.com/600x300?text=News'}
+                    src={article.imageUrl || 'https://via.placeholder.com/600x300?text=Pet+News'}
                     alt={article.title}
-                    className="h-100 w-100"
+                    className="w-100 h-100"
                     style={{ objectFit: 'cover' }}
                     onError={(e) => {
-                      e.target.src = 'https://via.placeholder.com/600x300?text=News';
+                      e.target.src = 'https://via.placeholder.com/600x300?text=Pet+News';
                     }}
                   />
+                  {/* ✅ Pet News Badge */}
+                  <Badge bg="info" className="position-absolute top-0 start-0 m-2">
+                    <i className="fas fa-paw me-1"></i> Pet News
+                  </Badge>
+
+                  {/* Optional Fallback Label */}
                   {article.isFallback && (
                     <Badge bg="secondary" className="position-absolute top-0 end-0 m-2">
                       Sample
@@ -157,19 +152,13 @@ const News = () => {
                   )}
                 </div>
                 <Card.Body className="d-flex flex-column">
-                  <Card.Title className="h6">{article.title}</Card.Title>
+                  <Card.Title>{article.title}</Card.Title>
                   <Card.Text className="text-muted flex-grow-1">{article.excerpt}</Card.Text>
                   <div className="d-flex justify-content-between align-items-center mt-3">
                     <small className="text-muted">
-                      <i className="fas fa-calendar me-1"></i>
-                      {formatDate(article.publishedAt)}
+                      <i className="fas fa-calendar me-1"></i>{formatDate(article.publishedAt)}
                     </small>
-                    <Button
-                      as={Link}
-                      to={`/news/${article.id}`}
-                      size="sm"
-                      variant="primary"
-                    >
+                    <Button as={Link} to={`/news/${article.id}`} size="sm" variant="primary">
                       Read More
                     </Button>
                   </div>
@@ -181,21 +170,19 @@ const News = () => {
       ) : (
         <Alert variant="info" className="text-center">
           <h5>No pet news found</h5>
-          <p>Try clearing your search or check back later.</p>
+          <p>Try a different search term or check back later.</p>
           <Button variant="outline-primary" onClick={() => setSearch('')}>
             <i className="fas fa-undo me-2"></i> Clear Search
           </Button>
         </Alert>
       )}
 
-      {/* Hover style */}
       <style jsx>{`
         .news-card {
-          transition: transform 0.3s ease, box-shadow 0.3s ease;
+          transition: transform 0.3s ease;
         }
         .news-card:hover {
-          transform: translateY(-4px);
-          box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+          transform: translateY(-5px);
         }
       `}</style>
     </Container>
