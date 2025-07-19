@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Container, Row, Col, Card, Button, Spinner, Alert, Badge } from 'react-bootstrap';
-import { newsAPI } from '../services/newsAPI';
+import { newsAPI } from '../services/api';
 
 const NewsDetail = () => {
   const { id } = useParams();
