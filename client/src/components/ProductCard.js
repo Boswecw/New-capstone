@@ -1,160 +1,273 @@
-// client/src/components/ProductCard.js
-
+// client/src/components/ProductCard.js - Reusable product card component using SafeImage
 import React from 'react';
-import { Card } from 'react-bootstrap';
+import { Card, Badge, Button } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
+import PropTypes from 'prop-types';
 import SafeImage from './SafeImage';
-import styles from './Card.module.css';
-import classNames from 'classnames';
 
-const ProductCard = ({ product, className = "", fitMode = "contain" }) => {
-  if (!product) {
-    return (
-      <Card className={`${styles.card} ${className} h-100`}>
-        <div className={styles.productImgContainer}>
-          <div className="text-center text-muted p-4">
-            <i className="fas fa-box fa-2x mb-2" style={{ color: '#dee2e6' }}></i>
-            <p className="mb-0">Product information unavailable</p>
-          </div>
-        </div>
-        <Card.Body className={styles.cardBody}>
-          <Card.Title className={styles.cardTitle}>Product Not Found</Card.Title>
-          <Card.Text className={styles.cardText}>
-            This product's information is currently unavailable.
-          </Card.Text>
-        </Card.Body>
-      </Card>
-    );
-  }
-
-  // 🔢 Format price
+const ProductCard = ({ 
+  product, 
+  size = 'medium', 
+  showFullDescription = false,
+  className = '',
+  onAddToCart,
+  onAddToWishlist,
+  showActions = true
+}) => {
+  // Format price
   const formatPrice = (price) => {
-    const num = typeof price === 'string' ? parseFloat(price) : price;
-    return !isNaN(num) ? `$${num.toFixed(2)}` : 'Price N/A';
+    return typeof price === 'number' ? `$${price.toFixed(2)}` : 'Price N/A';
   };
 
-  // 🧩 Match icon based on category keywords
-  const getCategoryIcon = () => {
-    const category = product.category?.toLowerCase() || '';
-    const iconMap = {
-      dog: 'fas fa-dog',
-      cat: 'fas fa-cat',
-      grooming: 'fas fa-cut',
-      training: 'fas fa-graduation-cap',
-      aquarium: 'fas fa-fish',
-      food: 'fas fa-utensils',
-      treat: 'fas fa-cookie',
-      toy: 'fas fa-ball-pile',
-      accessory: 'fas fa-collar',
-      health: 'fas fa-heartbeat',
-      supply: 'fas fa-box',
-      bedding: 'fas fa-bed',
-      carrier: 'fas fa-suitcase',
-      leash: 'fas fa-link',
-      collar: 'fas fa-circle'
-    };
-    return Object.entries(iconMap).find(([key]) => category.includes(key))?.[1] || 'fas fa-box';
-  };
-
-  // 📦 Stock status object
+  // Get stock status
   const getStockStatus = () => {
     if (product.inStock === false) {
-      return { text: 'Out of Stock', className: `${styles.statusBadge} ${styles.unavailable}` };
+      return { variant: 'danger', text: 'Out of Stock', icon: 'times-circle' };
+    } else if (product.lowStock) {
+      return { variant: 'warning', text: 'Low Stock', icon: 'exclamation-triangle' };
+    } else {
+      return { variant: 'success', text: 'In Stock', icon: 'check-circle' };
     }
-    if (product.stock <= 5) {
-      return { text: 'Low Stock', className: `${styles.statusBadge} ${styles.pending}` };
-    }
-    return { text: 'In Stock', className: `${styles.statusBadge} ${styles.available}` };
   };
 
-  const categoryIcon = getCategoryIcon();
-  const stockStatus = getStockStatus();
-  const isAvailable = product.inStock !== false;
+  // Handle add to cart
+  const handleAddToCart = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (onAddToCart && product.inStock !== false) {
+      onAddToCart(product);
+    }
+  };
 
-  const imageClass = classNames(styles.productImg, {
-    [styles['fit-contain']]: fitMode === 'contain',
-    [styles['fit-cover']]: fitMode === 'cover',
-    [styles['fit-fill']]: fitMode === 'fill',
-    [styles['fit-scale-down']]: fitMode === 'scale-down',
-  });
+  // Handle add to wishlist
+  const handleAddToWishlist = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (onAddToWishlist) {
+      onAddToWishlist(product);
+    }
+  };
+
+  const stockStatus = getStockStatus();
 
   return (
-    <Card className={`${styles.card} ${className} h-100`}>
-      <div className={styles.productImgContainer}>
+    <Card className={`h-100 shadow-sm product-card ${className}`}>
+      {/* Product Image */}
+      <div className="position-relative">
         <SafeImage
           item={product}
           category="product"
-          alt={product.name}
-          className={imageClass}
-          showSpinner
-          onLoad={() => console.log(`✅ Loaded: ${product.name}`)}
-          onError={() => console.warn(`❌ Failed: ${product.name}`)}
+          size={size}
+          className="card-img-top"
+          showLoader={true}
         />
-
-        <div className={stockStatus.className}>{stockStatus.text}</div>
-
-        <div className="position-absolute bottom-0 start-0 p-2">
-          <div
-            className="d-flex align-items-center justify-content-center"
-            style={{
-              width: 32,
-              height: 32,
-              backgroundColor: 'rgba(255, 255, 255, 0.95)',
-              borderRadius: '50%',
-              backdropFilter: 'blur(8px)',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-              border: '1px solid rgba(255,255,255,0.8)'
-            }}
-          >
-            <i className={`${categoryIcon} text-primary`} style={{ fontSize: 14 }} />
-          </div>
+        
+        {/* Featured/Sale Badges */}
+        <div className="position-absolute top-0 start-0 p-2">
+          {product.featured && (
+            <Badge bg="warning" className="me-1">
+              <i className="fas fa-star me-1"></i>
+              Featured
+            </Badge>
+          )}
+          {product.onSale && (
+            <Badge bg="danger">
+              <i className="fas fa-percent me-1"></i>
+              Sale
+            </Badge>
+          )}
         </div>
-      </div>
 
-      <Card.Body className={styles.cardBody}>
-        <div className="d-flex flex-column h-100">
-          <div className="mb-2">
-            <Card.Title className={styles.cardTitle}>{product.name}</Card.Title>
-            {product.category && (
-              <Card.Subtitle className={`${styles.cardSubtitle} text-muted`}>
-                {product.category}
-              </Card.Subtitle>
-            )}
-          </div>
-
-          <div className="mb-3 flex-grow-1">
-            <div className="row g-2 mb-2">
-              <div className="col-6">
-                <small className="text-muted">Price</small>
-                <strong className="text-primary h5 d-block">{formatPrice(product.price)}</strong>
-              </div>
-              <div className="col-6">
-                <small className="text-muted">Stock</small>
-                <strong className="text-dark">{product.stock || 'Available'}</strong>
-              </div>
-            </div>
-            {product.description && (
-              <Card.Text className={styles.cardText}>
-                {product.description.length > 100
-                  ? product.description.slice(0, 100) + '...'
-                  : product.description}
-              </Card.Text>
-            )}
-          </div>
-
-          <div className="mt-auto">
-            <Link
-              to={`/products/${product._id}`}
-              className={`btn ${isAvailable ? 'btn-primary' : 'btn-outline-secondary'} w-100`}
+        {/* Quick Actions (Wishlist) */}
+        {showActions && (
+          <div className="position-absolute top-0 end-0 p-2">
+            <Button
+              variant="light"
+              size="sm"
+              className="rounded-circle"
+              onClick={handleAddToWishlist}
+              style={{ width: '36px', height: '36px' }}
             >
-              <i className={`fas ${isAvailable ? 'fa-shopping-cart' : 'fa-info-circle'} me-2`} />
-              {isAvailable ? 'View Product' : 'Out of Stock'}
-            </Link>
+              <i className="fas fa-heart text-muted"></i>
+            </Button>
           </div>
+        )}
+      </div>
+      
+      <Card.Body className="d-flex flex-column">
+        {/* Product Title */}
+        <Card.Title className="h6 mb-2">
+          <Link 
+            to={`/products/${product._id}`} 
+            className="text-decoration-none text-dark"
+          >
+            {product.name}
+          </Link>
+        </Card.Title>
+        
+        {/* Product Description */}
+        <Card.Text className="text-muted small mb-2 flex-grow-1">
+          {showFullDescription 
+            ? (product.description || 'No description available')
+            : (product.description && product.description.length > 100
+                ? `${product.description.substring(0, 100)}...`
+                : product.description || 'No description available'
+              )
+          }
+        </Card.Text>
+        
+        {/* Category and Brand */}
+        <div className="mb-2">
+          {product.category && (
+            <Badge bg="secondary" className="me-2">
+              <i className="fas fa-tag me-1"></i>
+              {product.category.charAt(0).toUpperCase() + product.category.slice(1)}
+            </Badge>
+          )}
+          {product.brand && (
+            <Badge bg="info">
+              <i className="fas fa-building me-1"></i>
+              {product.brand}
+            </Badge>
+          )}
         </div>
+
+        {/* Rating */}
+        {product.rating && (
+          <div className="mb-2">
+            <div className="d-flex align-items-center">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <i 
+                  key={star}
+                  className={`fas fa-star ${
+                    star <= (product.rating.average || 0) 
+                      ? 'text-warning' 
+                      : 'text-muted opacity-25'
+                  }`}
+                  style={{ fontSize: '0.8rem' }}
+                ></i>
+              ))}
+              <small className="text-muted ms-2">
+                ({product.rating.count || 0})
+              </small>
+            </div>
+          </div>
+        )}
+
+        {/* Price and Stock Status */}
+        <div className="d-flex justify-content-between align-items-center mb-2">
+          <div>
+            {product.originalPrice && product.originalPrice > product.price ? (
+              <>
+                <span className="h6 text-primary mb-0">
+                  {formatPrice(product.price)}
+                </span>
+                <small className="text-muted text-decoration-line-through ms-2">
+                  {formatPrice(product.originalPrice)}
+                </small>
+              </>
+            ) : (
+              <span className="h6 text-primary mb-0">
+                {formatPrice(product.price)}
+              </span>
+            )}
+          </div>
+          
+          <Badge bg={stockStatus.variant}>
+            <i className={`fas fa-${stockStatus.icon} me-1`}></i>
+            {stockStatus.text}
+          </Badge>
+        </div>
+
+        {/* Action Buttons */}
+        {showActions && (
+          <div className="mt-auto">
+            <div className="d-grid gap-2">
+              <Button
+                variant={product.inStock === false ? "outline-secondary" : "primary"}
+                size="sm"
+                onClick={handleAddToCart}
+                disabled={product.inStock === false}
+              >
+                {product.inStock === false ? (
+                  <>
+                    <i className="fas fa-times me-2"></i>
+                    Out of Stock
+                  </>
+                ) : (
+                  <>
+                    <i className="fas fa-shopping-cart me-2"></i>
+                    Add to Cart
+                  </>
+                )}
+              </Button>
+              
+              <Button
+                as={Link}
+                to={`/products/${product._id}`}
+                variant="outline-primary"
+                size="sm"
+              >
+                <i className="fas fa-info-circle me-2"></i>
+                View Details
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Additional Info */}
+        {(product.views || product.sales) && (
+          <div className="mt-2 pt-2 border-top">
+            <div className="d-flex justify-content-between">
+              {product.views && (
+                <small className="text-muted">
+                  <i className="fas fa-eye me-1"></i>
+                  {product.views} views
+                </small>
+              )}
+              {product.sales && (
+                <small className="text-muted">
+                  <i className="fas fa-shopping-bag me-1"></i>
+                  {product.sales} sold
+                </small>
+              )}
+            </div>
+          </div>
+        )}
       </Card.Body>
+
+      {/* Custom CSS for hover effects */}
+      <style jsx>{`
+        .product-card {
+          transition: transform 0.3s ease, box-shadow 0.3s ease;
+          border: none;
+        }
+        
+        .product-card:hover {
+          transform: translateY(-5px);
+          box-shadow: 0 8px 25px rgba(0,0,0,0.15) !important;
+        }
+        
+        .product-card .card-img-top {
+          transition: transform 0.3s ease;
+        }
+        
+        .product-card:hover .card-img-top {
+          transform: scale(1.05);
+        }
+      `}</style>
     </Card>
   );
+};
+
+ProductCard.propTypes = {
+  product: PropTypes.object.isRequired,
+  size: PropTypes.oneOf(['small', 'medium', 'large', 'card']),
+  showFullDescription: PropTypes.bool,
+  className: PropTypes.string,
+  onAddToCart: PropTypes.func,
+  onAddToWishlist: PropTypes.func,
+  showActions: PropTypes.bool
 };
 
 export default ProductCard;

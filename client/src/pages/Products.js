@@ -1,9 +1,9 @@
-// client/src/pages/Products.js - Updated Products page with proper image handling
+// client/src/pages/Products.js - Updated to use SafeImage
 import React, { useState, useEffect, useCallback } from 'react';
 import { Container, Row, Col, Card, Button, Form, Spinner, Alert, Badge, Pagination } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 import { productAPI } from '../services/api';
-import ProductImage from '../components/ProductImage';
+import SafeImage from '../components/SafeImage';
 
 const Products = () => {
   // State management
@@ -69,11 +69,11 @@ const Products = () => {
     }
   }, [filters, itemsPerPage]);
 
-  // Fetch categories - FIXED METHOD NAME
+  // Fetch categories
   const fetchCategories = useCallback(async () => {
     try {
       console.log('📂 Fetching product categories...');
-      const response = await productAPI.getProductCategories(); // ✅ FIXED
+      const response = await productAPI.getProductCategories();
       
       if (response.data?.success) {
         setCategories(response.data.data || []);
@@ -81,15 +81,14 @@ const Products = () => {
       }
     } catch (err) {
       console.error('❌ Error fetching categories:', err);
-      // Don't show error to user for categories, just log it
     }
   }, []);
 
-  // Fetch brands - FIXED METHOD NAME
+  // Fetch brands
   const fetchBrands = useCallback(async () => {
     try {
       console.log('🏷️ Fetching product brands...');
-      const response = await productAPI.getProductBrands(); // ✅ FIXED
+      const response = await productAPI.getProductBrands();
       
       if (response.data?.success) {
         setBrands(response.data.data || []);
@@ -97,7 +96,6 @@ const Products = () => {
       }
     } catch (err) {
       console.error('❌ Error fetching brands:', err);
-      // Don't show error to user for brands, just log it
     }
   }, []);
 
@@ -390,11 +388,13 @@ const Products = () => {
               {products.map((product) => (
                 <Col key={product._id} lg={3} md={4} sm={6} className="mb-4">
                   <Card className="h-100 shadow-sm product-card">
-                    {/* Product Image - USING NEW COMPONENT */}
-                    <ProductImage
-                      product={product}
+                    {/* Product Image - USING UNIFIED SAFEIMAGE */}
+                    <SafeImage
+                      item={product}
+                      category="product"
                       size="card"
-                      style={{ borderTopLeftRadius: '8px', borderTopRightRadius: '8px' }}
+                      className="card-img-top"
+                      showLoader={true}
                     />
                     
                     <Card.Body className="d-flex flex-column">
