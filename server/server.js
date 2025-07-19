@@ -13,7 +13,7 @@ const petRoutes = require('./routes/pets');
 const productRoutes = require('./routes/products');
 const contactRoutes = require('./routes/contact');
 const userRoutes = require('./routes/users');
-const authRoutes = require('./routes/auth');
+const authRoutes = require('./routes/auth'); // ✅ Added auth routes
 const imageRoutes = require('./routes/images');
 const newsRoutes = require('./routes/news');
 
@@ -43,7 +43,7 @@ app.use('/api/pets', petRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/contacts', contactRoutes);
 app.use('/api/users', userRoutes);
-app.use('/api/auth', authRoutes);
+app.use('/api/auth', authRoutes); // ✅ Register auth routes here
 app.use('/api/images', imageRoutes);
 app.use('/api/news', newsRoutes);
 
