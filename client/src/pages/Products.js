@@ -1,8 +1,9 @@
-// client/src/pages/Products.js - Products Listing Page
+// client/src/pages/Products.js - Updated Products page with proper image handling
 import React, { useState, useEffect, useCallback } from 'react';
 import { Container, Row, Col, Card, Button, Form, Spinner, Alert, Badge, Pagination } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 import { productAPI } from '../services/api';
+import ProductImage from '../components/ProductImage';
 
 const Products = () => {
   // State management
@@ -68,11 +69,11 @@ const Products = () => {
     }
   }, [filters, itemsPerPage]);
 
-  // Fetch categories
+  // Fetch categories - FIXED METHOD NAME
   const fetchCategories = useCallback(async () => {
     try {
       console.log('📂 Fetching product categories...');
-      const response = await productAPI.getProductCategories();
+      const response = await productAPI.getProductCategories(); // ✅ FIXED
       
       if (response.data?.success) {
         setCategories(response.data.data || []);
@@ -80,14 +81,15 @@ const Products = () => {
       }
     } catch (err) {
       console.error('❌ Error fetching categories:', err);
+      // Don't show error to user for categories, just log it
     }
   }, []);
 
-  // Fetch brands
+  // Fetch brands - FIXED METHOD NAME
   const fetchBrands = useCallback(async () => {
     try {
       console.log('🏷️ Fetching product brands...');
-      const response = await productAPI.getProductBrands();
+      const response = await productAPI.getProductBrands(); // ✅ FIXED
       
       if (response.data?.success) {
         setBrands(response.data.data || []);
@@ -95,6 +97,7 @@ const Products = () => {
       }
     } catch (err) {
       console.error('❌ Error fetching brands:', err);
+      // Don't show error to user for brands, just log it
     }
   }, []);
 
@@ -143,356 +146,313 @@ const Products = () => {
     return typeof price === 'number' ? `$${price.toFixed(2)}` : 'Price N/A';
   };
 
-  // Generate pagination items
-  const generatePaginationItems = () => {
-    const items = [];
-    const totalPages = pagination.totalPages || 1;
-    const current = currentPage;
-    
-    // Show pages around current page
-    const startPage = Math.max(1, current - 2);
-    const endPage = Math.min(totalPages, current + 2);
-    
-    for (let page = startPage; page <= endPage; page++) {
-      items.push(
+  // Render pagination
+  const renderPagination = () => {
+    if (!pagination.totalPages || pagination.totalPages <= 1) return null;
+
+    const pages = [];
+    const maxVisiblePages = 5;
+    const currentPageNum = pagination.currentPage || 1;
+    const totalPages = pagination.totalPages;
+
+    // Calculate page range
+    let startPage = Math.max(1, currentPageNum - Math.floor(maxVisiblePages / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+
+    if (endPage - startPage < maxVisiblePages - 1) {
+      startPage = Math.max(1, endPage - maxVisiblePages + 1);
+    }
+
+    // Previous button
+    pages.push(
+      <Pagination.Prev
+        key="prev"
+        disabled={currentPageNum === 1}
+        onClick={() => handlePageChange(currentPageNum - 1)}
+      />
+    );
+
+    // First page and ellipsis
+    if (startPage > 1) {
+      pages.push(
+        <Pagination.Item key={1} onClick={() => handlePageChange(1)}>
+          1
+        </Pagination.Item>
+      );
+      if (startPage > 2) {
+        pages.push(<Pagination.Ellipsis key="ellipsis-start" />);
+      }
+    }
+
+    // Page numbers
+    for (let i = startPage; i <= endPage; i++) {
+      pages.push(
         <Pagination.Item
-          key={page}
-          active={page === current}
-          onClick={() => handlePageChange(page)}
+          key={i}
+          active={i === currentPageNum}
+          onClick={() => handlePageChange(i)}
         >
-          {page}
+          {i}
         </Pagination.Item>
       );
     }
-    
-    return items;
+
+    // Last page and ellipsis
+    if (endPage < totalPages) {
+      if (endPage < totalPages - 1) {
+        pages.push(<Pagination.Ellipsis key="ellipsis-end" />);
+      }
+      pages.push(
+        <Pagination.Item key={totalPages} onClick={() => handlePageChange(totalPages)}>
+          {totalPages}
+        </Pagination.Item>
+      );
+    }
+
+    // Next button
+    pages.push(
+      <Pagination.Next
+        key="next"
+        disabled={currentPageNum === totalPages}
+        onClick={() => handlePageChange(currentPageNum + 1)}
+      />
+    );
+
+    return (
+      <div className="d-flex justify-content-center mt-4">
+        <Pagination>{pages}</Pagination>
+      </div>
+    );
   };
 
   return (
-    <Container className="py-5">
+    <Container className="py-4">
       {/* Header */}
-      <Row className="mb-4">
-        <Col>
-          <div className="text-center">
-            <h1 className="display-4 fw-bold mb-3">
-              <i className="fas fa-shopping-bag text-primary me-3"></i>
-              Pet Products
-            </h1>
-            <p className="lead text-muted">
-              Everything your furry friends need for a happy, healthy life
-            </p>
-          </div>
-        </Col>
-      </Row>
+      <div className="text-center mb-4">
+        <h1 className="display-4 mb-3">Pet Products</h1>
+        <p className="lead text-muted">
+          Everything your furry, feathered, or scaled friends need
+        </p>
+      </div>
 
-      {/* Filters Section */}
-      <Row className="mb-4">
-        <Col>
-          <Card className="shadow-sm">
-            <Card.Header>
-              <h5 className="mb-0">
-                <i className="fas fa-filter me-2"></i>
-                Filter Products
-              </h5>
-            </Card.Header>
-            <Card.Body>
-              <Row>
-                {/* Search */}
-                <Col md={3} className="mb-3">
-                  <Form.Group>
-                    <Form.Label>Search Products</Form.Label>
-                    <Form.Control
-                      type="text"
-                      placeholder="Search by name..."
-                      value={filters.search}
-                      onChange={(e) => handleFilterChange('search', e.target.value)}
-                    />
-                  </Form.Group>
-                </Col>
+      {/* Filters */}
+      <Card className="mb-4">
+        <Card.Body>
+          <Row>
+            {/* Search */}
+            <Col md={3} className="mb-3">
+              <Form.Group>
+                <Form.Label>Search</Form.Label>
+                <Form.Control
+                  type="text"
+                  placeholder="Search products..."
+                  value={filters.search}
+                  onChange={(e) => handleFilterChange('search', e.target.value)}
+                />
+              </Form.Group>
+            </Col>
 
-                {/* Category */}
-                <Col md={2} className="mb-3">
-                  <Form.Group>
-                    <Form.Label>Category</Form.Label>
-                    <Form.Select
-                      value={filters.category}
-                      onChange={(e) => handleFilterChange('category', e.target.value)}
-                    >
-                      <option value="all">All Categories</option>
-                      {categories.map(category => (
-                        <option key={category} value={category}>
-                          {category.charAt(0).toUpperCase() + category.slice(1)}
-                        </option>
-                      ))}
-                    </Form.Select>
-                  </Form.Group>
-                </Col>
+            {/* Category */}
+            <Col md={2} className="mb-3">
+              <Form.Group>
+                <Form.Label>Category</Form.Label>
+                <Form.Select
+                  value={filters.category}
+                  onChange={(e) => handleFilterChange('category', e.target.value)}
+                >
+                  <option value="all">All Categories</option>
+                  {categories.map((category, index) => (
+                    <option key={index} value={category}>
+                      {category.charAt(0).toUpperCase() + category.slice(1)}
+                    </option>
+                  ))}
+                </Form.Select>
+              </Form.Group>
+            </Col>
 
-                {/* Brand */}
-                <Col md={2} className="mb-3">
-                  <Form.Group>
-                    <Form.Label>Brand</Form.Label>
-                    <Form.Select
-                      value={filters.brand}
-                      onChange={(e) => handleFilterChange('brand', e.target.value)}
-                    >
-                      <option value="all">All Brands</option>
-                      {brands.map(brand => (
-                        <option key={brand} value={brand}>
-                          {brand}
-                        </option>
-                      ))}
-                    </Form.Select>
-                  </Form.Group>
-                </Col>
+            {/* Brand */}
+            <Col md={2} className="mb-3">
+              <Form.Group>
+                <Form.Label>Brand</Form.Label>
+                <Form.Select
+                  value={filters.brand}
+                  onChange={(e) => handleFilterChange('brand', e.target.value)}
+                >
+                  <option value="all">All Brands</option>
+                  {brands.map((brand, index) => (
+                    <option key={index} value={brand}>
+                      {brand}
+                    </option>
+                  ))}
+                </Form.Select>
+              </Form.Group>
+            </Col>
 
-                {/* Price Range */}
-                <Col md={2} className="mb-3">
-                  <Form.Group>
-                    <Form.Label>Min Price</Form.Label>
-                    <Form.Control
-                      type="number"
-                      placeholder="$0"
-                      value={filters.minPrice}
-                      onChange={(e) => handleFilterChange('minPrice', e.target.value)}
-                    />
-                  </Form.Group>
-                </Col>
+            {/* Price Range */}
+            <Col md={2} className="mb-3">
+              <Form.Group>
+                <Form.Label>Min Price</Form.Label>
+                <Form.Control
+                  type="number"
+                  placeholder="$0"
+                  value={filters.minPrice}
+                  onChange={(e) => handleFilterChange('minPrice', e.target.value)}
+                />
+              </Form.Group>
+            </Col>
 
-                <Col md={2} className="mb-3">
-                  <Form.Group>
-                    <Form.Label>Max Price</Form.Label>
-                    <Form.Control
-                      type="number"
-                      placeholder="$999"
-                      value={filters.maxPrice}
-                      onChange={(e) => handleFilterChange('maxPrice', e.target.value)}
-                    />
-                  </Form.Group>
-                </Col>
+            <Col md={2} className="mb-3">
+              <Form.Group>
+                <Form.Label>Max Price</Form.Label>
+                <Form.Control
+                  type="number"
+                  placeholder="$999"
+                  value={filters.maxPrice}
+                  onChange={(e) => handleFilterChange('maxPrice', e.target.value)}
+                />
+              </Form.Group>
+            </Col>
 
-                {/* Sort */}
-                <Col md={1} className="mb-3">
-                  <Form.Group>
-                    <Form.Label>Sort</Form.Label>
-                    <Form.Select
-                      value={`${filters.sortBy}-${filters.sortOrder}`}
-                      onChange={(e) => {
-                        const [sortBy, sortOrder] = e.target.value.split('-');
-                        handleFilterChange('sortBy', sortBy);
-                        handleFilterChange('sortOrder', sortOrder);
-                      }}
-                    >
-                      <option value="name-asc">Name A-Z</option>
-                      <option value="name-desc">Name Z-A</option>
-                      <option value="price-asc">Price Low-High</option>
-                      <option value="price-desc">Price High-Low</option>
-                    </Form.Select>
-                  </Form.Group>
-                </Col>
-              </Row>
+            {/* Clear Filters */}
+            <Col md={1} className="mb-3 d-flex align-items-end">
+              <Button variant="outline-secondary" onClick={clearFilters} className="w-100">
+                Clear
+              </Button>
+            </Col>
+          </Row>
 
-              {/* Filter Actions */}
-              <Row>
-                <Col>
-                  <Button variant="outline-secondary" onClick={clearFilters} className="me-2">
-                    <i className="fas fa-undo me-2"></i>
-                    Clear Filters
-                  </Button>
-                  <Button variant="outline-primary" as={Link} to="/">
-                    <i className="fas fa-home me-2"></i>
-                    Back to Home
-                  </Button>
-                </Col>
-              </Row>
-            </Card.Body>
-          </Card>
-        </Col>
-      </Row>
+          {/* Sort Options */}
+          <Row>
+            <Col md={3}>
+              <Form.Group>
+                <Form.Label>Sort By</Form.Label>
+                <Form.Select
+                  value={filters.sortBy}
+                  onChange={(e) => handleFilterChange('sortBy', e.target.value)}
+                >
+                  <option value="name">Name</option>
+                  <option value="price">Price</option>
+                  <option value="category">Category</option>
+                  <option value="brand">Brand</option>
+                </Form.Select>
+              </Form.Group>
+            </Col>
+            <Col md={2}>
+              <Form.Group>
+                <Form.Label>Order</Form.Label>
+                <Form.Select
+                  value={filters.sortOrder}
+                  onChange={(e) => handleFilterChange('sortOrder', e.target.value)}
+                >
+                  <option value="asc">Ascending</option>
+                  <option value="desc">Descending</option>
+                </Form.Select>
+              </Form.Group>
+            </Col>
+            <Col md={7} className="d-flex align-items-end">
+              {pagination.totalItems && (
+                <small className="text-muted">
+                  Showing {products.length} of {pagination.totalItems} products
+                </small>
+              )}
+            </Col>
+          </Row>
+        </Card.Body>
+      </Card>
 
-      {/* Results Summary */}
-      {!loading && (
-        <Row className="mb-4">
-          <Col>
-            <div className="d-flex justify-content-between align-items-center">
-              <h5 className="mb-0">
-                {pagination.totalItems ? (
-                  <>
-                    Showing {products.length} of {pagination.totalItems} products
-                    <Badge bg="primary" className="ms-2">{pagination.totalItems}</Badge>
-                  </>
-                ) : (
-                  'No products found'
-                )}
-              </h5>
-            </div>
-          </Col>
-        </Row>
-      )}
-
-      {/* Error Alert */}
+      {/* Error Message */}
       {error && (
-        <Row className="mb-4">
-          <Col>
-            <Alert variant="danger">
-              <i className="fas fa-exclamation-triangle me-2"></i>
-              {error}
-            </Alert>
-          </Col>
-        </Row>
+        <Alert variant="danger" className="mb-4">
+          {error}
+        </Alert>
       )}
 
-      {/* Loading State */}
-      {loading ? (
-        <Row>
-          <Col className="text-center py-5">
-            <Spinner animation="border" variant="primary" size="lg" />
-            <h5 className="mt-3">Loading Products...</h5>
-            <p className="text-muted">Finding the best products for your pets</p>
-          </Col>
-        </Row>
-      ) : (
+      {/* Loading Spinner */}
+      {loading && (
+        <div className="text-center py-5">
+          <Spinner animation="border" role="status" className="mb-3">
+            <span className="visually-hidden">Loading...</span>
+          </Spinner>
+          <p className="text-muted">Loading products...</p>
+        </div>
+      )}
+
+      {/* Products Grid */}
+      {!loading && !error && (
         <>
-          {/* Products Grid */}
-          {products.length > 0 ? (
+          {products.length === 0 ? (
+            <div className="text-center py-5">
+              <h4 className="text-muted">No products found</h4>
+              <p className="text-muted">Try adjusting your search criteria.</p>
+            </div>
+          ) : (
             <Row>
               {products.map((product) => (
                 <Col key={product._id} lg={3} md={4} sm={6} className="mb-4">
                   <Card className="h-100 shadow-sm product-card">
-                    {/* Product Image */}
-                    <div className="position-relative overflow-hidden" style={{ height: '250px' }}>
-                      <Card.Img
-                        variant="top"
-                        src={product.imageUrl || product.image || 'https://images.unsplash.com/photo-1601758228041-f3b2795255f1?w=400&h=250&fit=crop'}
-                        alt={product.name}
-                        className="h-100 w-100"
-                        style={{ objectFit: 'cover' }}
-                        onError={(e) => {
-                          e.target.src = 'https://images.unsplash.com/photo-1601758228041-f3b2795255f1?w=400&h=250&fit=crop';
-                        }}
-                      />
-                      
-                      {/* Stock Badge */}
-                      <div className="position-absolute top-0 end-0 m-2">
-                        <Badge bg={product.inStock ? 'success' : 'danger'}>
-                          {product.inStock ? 'In Stock' : 'Out of Stock'}
-                        </Badge>
-                      </div>
-                    </div>
-
+                    {/* Product Image - USING NEW COMPONENT */}
+                    <ProductImage
+                      product={product}
+                      size="card"
+                      style={{ borderTopLeftRadius: '8px', borderTopRightRadius: '8px' }}
+                    />
+                    
                     <Card.Body className="d-flex flex-column">
-                      {/* Product Info */}
-                      <div className="mb-2">
-                        <Badge bg="secondary" className="mb-2">
-                          {product.category?.charAt(0).toUpperCase() + product.category?.slice(1)}
-                        </Badge>
-                        <Card.Title className="h5">{product.name}</Card.Title>
-                        <Card.Subtitle className="text-muted mb-2">
-                          {product.brand}
-                        </Card.Subtitle>
-                      </div>
-
-                      {/* Description */}
-                      <Card.Text className="text-muted mb-3 flex-grow-1">
-                        {product.description || 'Quality product for your pet\'s needs.'}
+                      <Card.Title className="h6 mb-2">
+                        {product.name}
+                      </Card.Title>
+                      
+                      <Card.Text className="text-muted small mb-2 flex-grow-1">
+                        {product.description && product.description.length > 100
+                          ? `${product.description.substring(0, 100)}...`
+                          : product.description || 'No description available'
+                        }
                       </Card.Text>
-
-                      {/* Price and Actions */}
-                      <div className="mt-auto">
-                        <div className="d-flex justify-content-between align-items-center mb-3">
-                          <h5 className="text-success mb-0">
-                            {formatPrice(product.price)}
-                          </h5>
-                        </div>
-                        
-                        <div className="d-grid gap-2">
-                          <Button 
-                            variant="primary" 
-                            as={Link} 
-                            to={`/products/${product._id}`}
-                            disabled={!product.inStock}
-                          >
-                            <i className="fas fa-eye me-2"></i>
-                            View Details
-                          </Button>
-                        </div>
+                      
+                      <div className="mb-2">
+                        {product.category && (
+                          <Badge bg="secondary" className="me-2">
+                            {product.category}
+                          </Badge>
+                        )}
+                        {product.brand && (
+                          <Badge bg="info">
+                            {product.brand}
+                          </Badge>
+                        )}
                       </div>
+                      
+                      <div className="d-flex justify-content-between align-items-center mt-auto">
+                        <span className="h5 mb-0 text-primary">
+                          {formatPrice(product.price)}
+                        </span>
+                        
+                        <Button
+                          as={Link}
+                          to={`/products/${product._id}`}
+                          variant="primary"
+                          size="sm"
+                        >
+                          View Details
+                        </Button>
+                      </div>
+                      
+                      {product.inStock === false && (
+                        <Badge bg="danger" className="mt-2">
+                          Out of Stock
+                        </Badge>
+                      )}
                     </Card.Body>
                   </Card>
                 </Col>
               ))}
             </Row>
-          ) : (
-            <Row>
-              <Col>
-                <Alert variant="info" className="text-center py-5">
-                  <i className="fas fa-search fa-3x text-muted mb-3"></i>
-                  <h4>No Products Found</h4>
-                  <p>Try adjusting your search criteria or browse our featured products.</p>
-                  <Button variant="outline-primary" onClick={clearFilters} className="me-2">
-                    <i className="fas fa-undo me-2"></i>
-                    Clear Filters
-                  </Button>
-                  <Button variant="primary" as={Link} to="/">
-                    <i className="fas fa-home me-2"></i>
-                    Browse Featured
-                  </Button>
-                </Alert>
-              </Col>
-            </Row>
           )}
 
           {/* Pagination */}
-          {pagination.totalPages > 1 && (
-            <Row className="mt-4">
-              <Col>
-                <div className="d-flex justify-content-center">
-                  <Pagination>
-                    <Pagination.First 
-                      disabled={currentPage === 1}
-                      onClick={() => handlePageChange(1)}
-                    />
-                    <Pagination.Prev 
-                      disabled={currentPage === 1}
-                      onClick={() => handlePageChange(currentPage - 1)}
-                    />
-                    
-                    {generatePaginationItems()}
-                    
-                    <Pagination.Next 
-                      disabled={currentPage === pagination.totalPages}
-                      onClick={() => handlePageChange(currentPage + 1)}
-                    />
-                    <Pagination.Last 
-                      disabled={currentPage === pagination.totalPages}
-                      onClick={() => handlePageChange(pagination.totalPages)}
-                    />
-                  </Pagination>
-                </div>
-                
-                <div className="text-center mt-2">
-                  <small className="text-muted">
-                    Page {currentPage} of {pagination.totalPages} 
-                    ({pagination.totalItems} total products)
-                  </small>
-                </div>
-              </Col>
-            </Row>
-          )}
+          {renderPagination()}
         </>
       )}
-
-      {/* Custom CSS */}
-      <style jsx>{`
-        .product-card {
-          transition: transform 0.3s ease, box-shadow 0.3s ease;
-        }
-        
-        .product-card:hover {
-          transform: translateY(-5px);
-          box-shadow: 0 8px 25px rgba(0,0,0,0.15);
-        }
-      `}</style>
     </Container>
   );
 };
