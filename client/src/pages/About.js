@@ -1,14 +1,11 @@
 import React from 'react';
 import { Container, Row, Col, Card } from 'react-bootstrap';
-import Navbar from '../components/Navbar';
 import HeroBanner from '../components/HeroBanner';
 
 const About = () => {
   return (
     <>
-      <Navbar />
-
-      {/* Offset content to avoid overlap with fixed navbar */}
+          {/* Offset content to avoid overlap with fixed navbar */}
       <div style={{ marginTop: '80px' }}>
         {/* Hero Banner */}
         <HeroBanner logoSize="large" />

@@ -1,97 +1,399 @@
 /* =============================================================================
-   components/Modal.module.css
+   ENHANCED CARDS WITH DYNAMIC IMAGE CONTAINERS - MODERN DESIGN
    ============================================================================= */
 
-.modalOverlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(4px);
+/* Enhanced Card Base Styles */
+.enhancedCard {
+  border-radius: 12px !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08) !important;
+  transition: all 0.3s ease !important;
+  background: linear-gradient(135deg, #ffffff 0%, #fafafa 100%) !important;
+  overflow: hidden;
+}
+
+.enhancedCard:hover {
+  transform: translateY(-4px) !important;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15) !important;
+  border-color: rgba(0, 0, 0, 0.12) !important;
+}
+
+/* =============================================================================
+   🆕 DYNAMIC IMAGE CONTAINERS - ADAPTS TO IMAGE ASPECT RATIOS
+   ============================================================================= */
+
+/* Base Image Container Styles */
+.cardImgContainer,
+.petImgContainer,
+.productImgContainer {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: var(--z-modal);
-  padding: var(--space-lg);
-  animation: fadeIn 0.2s ease-out;
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-.modal {
-  background: var(--color-surface);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-2xl);
-  max-width: 500px;
-  width: 100%;
-  max-height: 90vh;
+  margin: 16px auto 20px auto; /* ✅ CENTER in card with spacing */
   overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  animation: slideIn 0.3s ease-out;
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border-radius: 12px; /* ✅ ROUNDED for modern look */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); /* ✅ FLOATING effect */
+  border: 3px solid #ffffff; /* ✅ WHITE border ring */
+  transition: all 0.3s ease;
 }
 
-@keyframes slideIn {
-  from {
-    transform: translateY(-20px);
-    opacity: 0;
+/* 🆕 SQUARE CONTAINERS (Default) - Most images - ENHANCED SIZE */
+.petImgContainer.square,
+.petImgContainer:not(.portrait):not(.landscape) {
+  width: 170px; /* ✅ INCREASED from 150px */
+  height: 170px; /* ✅ INCREASED from 150px */
+  max-width: 170px;
+  max-height: 170px;
+}
+
+/* 🆕 PORTRAIT CONTAINERS - For tall images like Maggie! - ENHANCED SIZE */
+.petImgContainer.portrait {
+  width: 170px; /* ✅ INCREASED from 150px */
+  height: 225px; /* ✅ INCREASED from 200px - more height for portraits */
+  max-width: 170px;
+  max-height: 225px;
+}
+
+/* 🆕 LANDSCAPE CONTAINERS - For wide images - ENHANCED SIZE */
+.petImgContainer.landscape {
+  width: 225px; /* ✅ INCREASED from 200px */
+  height: 135px; /* ✅ INCREASED from 120px */
+  max-width: 225px;
+  max-height: 135px;
+}
+
+/* 🆕 PRODUCT CONTAINERS - Also support dynamic sizing - ENHANCED SIZE */
+.productImgContainer.square,
+.productImgContainer:not(.portrait):not(.landscape) {
+  width: 170px; /* ✅ INCREASED from 150px */
+  height: 170px; /* ✅ INCREASED from 150px */
+  max-width: 170px;
+  max-height: 170px;
+}
+
+.productImgContainer.portrait {
+  width: 170px; /* ✅ INCREASED from 150px */
+  height: 225px; /* ✅ INCREASED from 200px */
+  max-width: 170px;
+  max-height: 225px;
+}
+
+.productImgContainer.landscape {
+  width: 225px; /* ✅ INCREASED from 200px */
+  height: 135px; /* ✅ INCREASED from 120px */
+  max-width: 225px;
+  max-height: 135px;
+}
+
+/* ✅ HOVER EFFECTS for all container types */
+.cardImgContainer:hover,
+.petImgContainer:hover,
+.productImgContainer:hover {
+  transform: scale(1.03); /* ✅ GENTLE hover scale */
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+}
+
+/* Gradient overlay - lighter for smaller cards */
+.cardImgContainer::before,
+.petImgContainer::before,
+.productImgContainer::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(180deg, transparent 0%, transparent 70%, rgba(0, 0, 0, 0.02) 100%);
+  pointer-events: none;
+}
+
+/* =============================================================================
+   ENHANCED IMAGE STYLES - OPTIMIZED FOR DYNAMIC CONTAINERS
+   ============================================================================= */
+
+/* Enhanced Images - Fill Containers Perfectly */
+.cardImg,
+.petImg,
+.productImg {
+  position: relative;
+  z-index: 0;
+  display: block;
+  width: 100%; /* ✅ FILL the container */
+  height: 100%; /* ✅ FILL the container */
+  object-fit: cover; /* ✅ COVER - fills container without distortion */
+  object-position: center;
+  transition: all 0.3s ease;
+  filter: brightness(1.02) contrast(1.05) saturate(1.1); /* ✅ ENHANCED colors */
+}
+
+.cardImg:hover,
+.petImg:hover,
+.productImg:hover {
+  filter: brightness(1.08) contrast(1.1) saturate(1.15); /* ✅ BRIGHTER on hover */
+  transform: scale(1.05); /* ✅ SUBTLE zoom on image hover */
+}
+
+/* Enhanced Card Body Styling */
+.enhancedCardBody {
+  padding: 1.25rem !important; /* ✅ BETTER spacing */
+  text-align: center; /* ✅ CENTER align content */
+}
+
+.enhancedCardTitle {
+  font-size: 1.1rem !important; /* ✅ SLIGHTLY larger */
+  font-weight: 600 !important; /* ✅ MEDIUM weight */
+  color: #2c3e50 !important; /* ✅ STRONGER color */
+  margin-bottom: 0.75rem !important;
+  line-height: 1.3 !important;
+}
+
+.enhancedCardText {
+  font-size: 0.9rem !important; /* ✅ READABLE size */
+  line-height: 1.5 !important; /* ✅ BETTER readability */
+  color: #6c757d !important; /* ✅ SOFTER gray */
+  margin-bottom: 1rem !important;
+  text-align: left !important; /* ✅ LEFT align description */
+}
+
+/* Enhanced Badges */
+.enhancedBadges {
+  display: flex !important;
+  justify-content: center !important;
+  gap: 0.5rem !important;
+  margin-bottom: 1.25rem !important;
+  flex-wrap: wrap !important;
+}
+
+.enhancedBadge {
+  font-size: 0.75rem !important;
+  font-weight: 500 !important;
+  padding: 0.35rem 0.75rem !important;
+  border-radius: 20px !important; /* ✅ PILL shaped */
+  border: none !important;
+  text-transform: capitalize !important;
+}
+
+/* Enhanced Button */
+.enhancedButton {
+  font-weight: 500 !important;
+  padding: 0.75rem 2rem !important;
+  border-radius: 25px !important; /* ✅ ROUNDED button */
+  border: none !important;
+  font-size: 0.9rem !important;
+  transition: all 0.3s ease !important;
+  box-shadow: 0 2px 8px rgba(255, 193, 7, 0.3) !important;
+}
+
+.enhancedButton:hover {
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 15px rgba(255, 193, 7, 0.4) !important;
+}
+
+/* =============================================================================
+   🆕 SMART GRID LAYOUT - HANDLES DIFFERENT CONTAINER HEIGHTS
+   ============================================================================= */
+
+/* Enhanced Grid Layout for Dynamic Cards - SCALED UP */
+.enhancedCardGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); /* ✅ INCREASED from 220px */
+  gap: 1.5rem;
+  margin: 1.5rem 0;
+  align-items: start; /* 🆕 TOP-ALIGN cards of different heights */
+  justify-items: center; /* 🆕 CENTER containers within grid cells */
+}
+
+/* =============================================================================
+   RESPONSIVE DESIGN FOR DYNAMIC CONTAINERS
+   ============================================================================= */
+
+@media (max-width: 768px) {
+  /* Square containers on mobile - ENHANCED SIZE */
+  .petImgContainer.square,
+  .petImgContainer:not(.portrait):not(.landscape),
+  .productImgContainer.square,
+  .productImgContainer:not(.portrait):not(.landscape) {
+    width: 150px; /* ✅ INCREASED from 130px */
+    height: 150px; /* ✅ INCREASED from 130px */
+    max-width: 150px;
+    max-height: 150px;
   }
-  to {
-    transform: translateY(0);
-    opacity: 1;
+  
+  /* Portrait containers on mobile - ENHANCED SIZE */
+  .petImgContainer.portrait,
+  .productImgContainer.portrait {
+    width: 150px; /* ✅ INCREASED from 130px */
+    height: 200px; /* ✅ INCREASED from 175px */
+    max-width: 150px;
+    max-height: 200px;
+  }
+  
+  /* Landscape containers on mobile - ENHANCED SIZE */
+  .petImgContainer.landscape,
+  .productImgContainer.landscape {
+    width: 200px; /* ✅ INCREASED from 175px */
+    height: 120px; /* ✅ INCREASED from 105px */
+    max-width: 200px;
+    max-height: 120px;
+  }
+  
+  .enhancedCardBody {
+    padding: 1rem !important;
+  }
+  
+  .enhancedCardTitle {
+    font-size: 1rem !important;
+  }
+  
+  .enhancedCardText {
+    font-size: 0.85rem !important;
+    line-height: 1.4 !important;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  
+  .enhancedButton {
+    padding: 0.65rem 1.5rem !important;
+    font-size: 0.85rem !important;
+  }
+  
+  .enhancedCardGrid {
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); /* ✅ INCREASED from 180px */
+    gap: 1rem;
   }
 }
 
-.modalHeader {
-  padding: var(--space-lg);
-  border-bottom: 1px solid var(--color-border);
+@media (max-width: 576px) {
+  /* Very small screens - ENHANCED SIZE */
+  .petImgContainer.square,
+  .petImgContainer:not(.portrait):not(.landscape),
+  .productImgContainer.square,
+  .productImgContainer:not(.portrait):not(.landscape) {
+    width: 140px; /* ✅ INCREASED from 120px */
+    height: 140px; /* ✅ INCREASED from 120px */
+    max-width: 140px;
+    max-height: 140px;
+  }
+  
+  .petImgContainer.portrait,
+  .productImgContainer.portrait {
+    width: 140px; /* ✅ INCREASED from 120px */
+    height: 185px; /* ✅ INCREASED from 160px */
+    max-width: 140px;
+    max-height: 185px;
+  }
+  
+  .petImgContainer.landscape,
+  .productImgContainer.landscape {
+    width: 185px; /* ✅ INCREASED from 160px */
+    height: 110px; /* ✅ INCREASED from 95px */
+    max-width: 185px;
+    max-height: 110px;
+  }
+}
+
+/* =============================================================================
+   LEGACY SUPPORT - MAINTAIN EXISTING CLASSES
+   ============================================================================= */
+
+.compactCardBody {
+  padding: 0.75rem !important;
+}
+
+.compactCardBody .card-title {
+  font-size: 1rem;
+  margin-bottom: 0.5rem;
+  line-height: 1.3;
+}
+
+.compactCardBody .card-text {
+  font-size: 0.875rem;
+  line-height: 1.4;
+  margin-bottom: 0.75rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.compactCardBody .badge {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+}
+
+.compactCardBody .btn {
+  font-size: 0.875rem;
+  padding: 0.5rem 1rem;
+}
+
+/* =============================================================================
+   UTILITY CLASSES
+   ============================================================================= */
+
+.modernPetCard {
+  border-radius: 12px;
+  overflow: hidden;
+  transition: all 0.3s ease;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.modernPetCard:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+
+.compact-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); /* ✅ INCREASED from 220px */
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+@media (max-width: 576px) {
+  .compact-card-grid {
+    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); /* ✅ INCREASED from 180px */
+    gap: 0.75rem;
+  }
+}
+
+/* =============================================================================
+   LOADING & ERROR STATES
+   ============================================================================= */
+
+.cardImg.loading,
+.petImg.loading,
+.productImg.loading {
+  opacity: 0.8;
+  filter: blur(1px);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.8; }
+  50% { opacity: 0.95; }
+}
+
+.imageError {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  color: var(--color-text-muted, #999);
+  font-size: var(--font-size-sm, 12px);
+  text-align: center;
+  padding: 0.5rem;
 }
 
-.modalTitle {
-  margin: 0;
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-semibold);
-  color: var(--color-text-primary);
-}
-
-.modalCloseButton {
-  background: none;
-  border: none;
-  font-size: var(--font-size-xl);
-  color: var(--color-text-muted);
-  cursor: pointer;
-  padding: var(--space-xs);
-  border-radius: var(--radius-sm);
-  transition: all var(--transition-fast);
-}
-
-.modalCloseButton:hover {
-  background: var(--color-gray-100);
-  color: var(--color-text-primary);
-}
-
-.modalBody {
-  padding: var(--space-lg);
-  flex: 1;
-  overflow-y: auto;
-}
-
-.modalFooter {
-  padding: var(--space-lg);
-  border-top: 1px solid var(--color-border);
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--space-md);
+.imageError i {
+  margin-bottom: var(--space-xs, 4px);
+  font-size: var(--font-size-lg, 18px);
+  opacity: 0.5;
 }

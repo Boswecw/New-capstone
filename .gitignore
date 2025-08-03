@@ -1,328 +1,136 @@
-# Node.js dependencies
+# =============================================================================
+# NODE / DEPENDENCIES
+# =============================================================================
 node_modules/
+.yarn/
+.pnp.*
+.yarnrc.yml
+.npm/
+package-lock.json
+
+# =============================================================================
+# ENVIRONMENT & CREDENTIALS
+# =============================================================================
+.env
+.env.*
+*.env
+secrets.json
+credentials.json
+*.key
+*.pem
+*.crt
+*.pfx
+*.p12
+
+# =============================================================================
+# LOGS & TEMP FILES
+# =============================================================================
+*.log
+logs/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-package-lock.json
-.npm
-
-# Runtime data
-pids
 *.pid
-*.seed
 *.pid.lock
+.cache/
+.tmp/
+temp/
+tmp/
 
 # =============================================================================
-# SECURITY & CREDENTIALS (CRITICAL)
+# DATABASE & SEEDS
 # =============================================================================
-
-# Environment files with secrets
-.env
-.env.local
-.env.development
-.env.test
-.env.production
-.env.staging
-*.env
-
-# Database scripts with potential credentials
+*.sqlite
+*.db
+*.sql
+*.mongo
+*.dump
+*.backup
+database-backup-*
 server/migrations/
 server/scripts/setup/
 server/scripts/seed/
-**/create-admin*.js
-**/setup-admin*.js
-**/seed-admin*.js
-**/fix-*.js
+**/seed-*.js
 **/migrate-*.js
-
-# Admin setup scripts (contain credentials)
-**/admin-setup.js
-**/user-setup.js
-**/initial-setup.js
-
-# Configuration files that might contain secrets
-config/production.js
-config/staging.js
-config/local.js
-secrets.json
-credentials.json
-
-# Backup files that might contain sensitive data
-*.backup
-*.dump
-*.sql
-database-backup-*
-
-# Security keys and certificates
-*.pem
-*.key
-*.crt
-*.csr
-*.p12
-*.pfx
-
-# API keys and tokens
-api-keys.txt
-tokens.txt
-secrets.txt
+**/fix-*.js
 
 # =============================================================================
-# TEMPORARY & CACHE FILES
+# MEDIA & STORAGE
 # =============================================================================
-
-# Temporary folders
-tmp/
-temp/
-.tmp/
-.temp/
-
-# Cache directories
-.cache/
-.parcel-cache/
-
-# Generated CSS from Sass/SCSS
-*.css.map
-
-# Prettier cache
-.prettiercache
-
-# Build artifacts
-*.tgz
-*.tar.gz
-
-# =============================================================================
-# OPERATING SYSTEM FILES
-# =============================================================================
-
-# MacOS
-.DS_Store
-.AppleDouble
-.LSOverride
-._*
-.DocumentRevisions-V100
-.fseventsd
-.Spotlight-V100
-.TemporaryItems
-.Trashes
-.VolumeIcon.icns
-.com.apple.timemachine.donotpresent
-
-# Windows
-Thumbs.db
-Thumbs.db:encryptable
-ehthumbs.db
-ehthumbs_vista.db
-*.stackdump
-Desktop.ini
-$RECYCLE.BIN/
-*.cab
-*.msi
-*.msix
-*.msm
-*.msp
-*.lnk
-
-# Linux
-*~
-.fuse_hidden*
-.directory
-.Trash-*
-.nfs*
-
-# =============================================================================
-# IDE/EDITOR FILES
-# =============================================================================
-
-# Visual Studio Code
-.vscode/
-*.code-workspace
-
-# JetBrains IDEs
-.idea/
-*.iml
-*.ipr
-*.iws
-.idea_modules/
-atlassian-ide-plugin.xml
-com_crashlytics_export_strings.xml
-crashlytics.properties
-crashlytics-build.properties
-fabric.properties
-
-# Sublime Text
-*.sublime-project
-*.sublime-workspace
-.sublime-gulp.cache
-
-# Vim
-*.swp
-*.swo
-*~
-Session.vim
-.netrwhist
-
-# Emacs
-*~
-\#*\#
-/.emacs.desktop
-/.emacs.desktop.lock
-*.elc
-auto-save-list
-tramp
-.\#*
-
-# Eclipse
-.metadata
-bin/
-tmp/
-*.tmp
-*.bak
-*.swp
-*~.nib
-local.properties
-.settings/
-.loadpath
-.recommenders
-.project
-.externalToolBuilders/
-*.launch
-*.pydevproject
-.cproject
-.autotools
-.factorypath
-.buildpath
-.target
-.tern-project
-.texlipse
-.springBeans
-.recommenders/
-.apt_generated/
-.cache-main
-.scala_dependencies
-.worksheet
-
-# =============================================================================
-# DATABASE FILES
-# =============================================================================
-
-# SQLite
-*.db
-*.sqlite
-*.sqlite3
-*.db-shm
-*.db-wal
-
-# MongoDB
-*.mongo
-
-# MySQL dumps
-*.sql
-
-# =============================================================================
-# MEDIA & UPLOAD FILES
-# =============================================================================
-
-# Uploaded files and user content
 uploads/
-user-uploads/
 public/uploads/
 static/uploads/
 media/uploads/
 storage/
-
-# Large media files
 *.mp4
 *.avi
 *.mov
-*.wmv
-*.flv
 *.webm
 *.mkv
 
 # =============================================================================
-# DOCKER & DEPLOYMENT
+# BUILD OUTPUT / COVERAGE / TESTING
 # =============================================================================
+build/
+dist/
+coverage/
+.nyc_output/
+.prettiercache
+test-output/
+*.tgz
+*.tar.gz
+*.coverage
+coverage.*
+*.spec.js
+*.test.js
+jest-html-reporters-*.html
 
-# Docker
-.dockerignore
-Dockerfile
-docker-compose.yml
-docker-compose.override.yml
+# =============================================================================
+# OS / EDITOR FILES
+# =============================================================================
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.code-workspace
+*.iml
+*.sublime-*
+*.swp
+*.swo
+*.bak
+*~
+Session.vim
+.netrwhist
+.trash-*
+.directory
+*.stackdump
+
+# =============================================================================
+# DOCKER / DEPLOYMENT
+# =============================================================================
 .docker/
+.dockerignore
+docker-compose.override.yml
 
-# Kubernetes
+# Include Docker files (version-controlled)
+# !Dockerfile
+# !docker-compose.yml
+
+# Kubernetes (excluding GitHub actions)
 *.yaml
 *.yml
-!package.yml
 !.github/**/*.yml
 !.github/**/*.yaml
 
-# PM2 ecosystem file
+# PM2 ecosystem config
 ecosystem.config.js
 
 # =============================================================================
-# TESTING & QUALITY ASSURANCE
+# PROJECT-SPECIFIC
 # =============================================================================
-
-# Test files (uncomment if you want to exclude them)
-# __tests__/
-# *.test.js
-# *.spec.js
-# test/
-# tests/
-
-# Coverage reports
-coverage/
-.coverage
-htmlcov/
-.tox/
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-.hypothesis/
-.pytest_cache/
-
-# =============================================================================
-# LOGGING & MONITORING
-# =============================================================================
-
-# Log files that might contain sensitive information
-logs/
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-lerna-debug.log*
-
-# Performance monitoring
-.lighthouse/
-lighthouse-results.json
-
-# =============================================================================
-# PROJECT-SPECIFIC EXCLUSIONS
-# =============================================================================
-
-# One-time migration scripts (as identified in review)
 server/fixExistingPets.js
 server/create-schema-correct-admin.js
 server/create-fresh-admin.js
 server/check-admin-role.js
-
-# Generated documentation
 docs/build/
 documentation/build/
-
-# Archive files
-*.zip
-*.rar
-*.7z
-*.tar
-*.gz
-*.bz2
-*.xz# Additional security
-*.log
-.env.local
-.env.production
-
