@@ -1,168 +1,243 @@
-
-// client/src/components/browse/DetailLayout.js
+// client/src/components/browse/BrowseLayout.js - FIXED DATA FLOW VERSION
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { Container, Row, Col, Button, Breadcrumb, Card } from 'react-bootstrap';
-import SafeImage from '../SafeImage';
-import LoadingSpinner from '../LoadingSpinner';
-import ErrorAlert from '../ErrorAlert';
+import { Container, Row, Col, Spinner, Alert } from 'react-bootstrap';
+import { useSearchParams } from 'react-router-dom';
 
-const DetailLayout = ({ 
+const BrowseLayout = ({ 
   entityConfig, 
-  apiService,
-  children,
-  CustomDetailView 
+  apiService, 
+  ItemCard, 
+  useInfiniteScroll = false, 
+  itemsPerPage = 12 
 }) => {
-  const { id } = useParams();
-  const navigate = useNavigate();
-  
-  const [item, setItem] = useState(null);
+  const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [searchParams] = useSearchParams();
 
   useEffect(() => {
-    const fetchItem = async () => {
-      if (!id) {
-        setError(`No ${entityConfig.singularName} ID provided`);
-        setLoading(false);
-        return;
-      }
-
+    const fetchItems = async () => {
       try {
         setLoading(true);
         setError(null);
         
-        const response = await apiService[entityConfig.api.getByIdMethod](id);
+        // Get query parameters
+        const type = searchParams.get('type');
+        const page = parseInt(searchParams.get('page')) || 1;
         
-        let itemData = null;
+        console.log('🔧 BrowseLayout fetching with params:', { type, page, itemsPerPage });
         
-        if (response?.data?.success && response.data.data) {
-          itemData = response.data.data;
-        } else if (response?.data && response.data._id) {
-          itemData = response.data;
-        } else {
-          throw new Error('Invalid response format from server');
+        // ✅ FIX: Ensure apiService exists and has the expected method
+        if (!apiService || !apiService.getAllPets) {
+          throw new Error('API service not properly configured');
         }
         
-        if (itemData && itemData._id) {
-          setItem(itemData);
+        // Call API service with proper error handling
+        const response = await apiService.getAllPets({
+          type,
+          page,
+          limit: itemsPerPage
+        });
+        
+        console.log('🔧 BrowseLayout Raw API response:', response);
+        
+        // ✅ FIX: Handle multiple response structures safely
+        let fetchedItems = [];
+        let totalCount = 0;
+        
+        if (response && typeof response === 'object') {
+          // Structure 1: { data: { data: [...], total: N } }
+          if (response.data && response.data.data && Array.isArray(response.data.data)) {
+            fetchedItems = response.data.data;
+            totalCount = response.data.total || fetchedItems.length;
+          }
+          // Structure 2: { data: [...], total: N }
+          else if (response.data && Array.isArray(response.data)) {
+            fetchedItems = response.data;
+            totalCount = response.total || fetchedItems.length;
+          }
+          // Structure 3: { pets: [...], total: N } (legacy)
+          else if (response.pets && Array.isArray(response.pets)) {
+            fetchedItems = response.pets;
+            totalCount = response.total || fetchedItems.length;
+          }
+          // Structure 4: Direct array
+          else if (Array.isArray(response)) {
+            fetchedItems = response;
+            totalCount = fetchedItems.length;
+          }
+          // Structure 5: Success wrapper { success: true, data: [...] }
+          else if (response.success && response.data) {
+            if (Array.isArray(response.data)) {
+              fetchedItems = response.data;
+            } else if (response.data.data && Array.isArray(response.data.data)) {
+              fetchedItems = response.data.data;
+            }
+            totalCount = response.total || response.data.total || fetchedItems.length;
+          }
+          else {
+            console.warn('🚨 Unexpected API response structure:', response);
+            fetchedItems = [];
+          }
         } else {
-          throw new Error(`${entityConfig.singularDisplayName} data is incomplete`);
+          console.warn('🚨 API response is not an object:', typeof response, response);
+          fetchedItems = [];
         }
+        
+        // ✅ FIX: Validate and clean the items array
+        const validItems = fetchedItems
+          .filter(item => {
+            if (!item || typeof item !== 'object') {
+              console.warn('🚨 Invalid item found:', item);
+              return false;
+            }
+            return true;
+          })
+          .map((item, index) => ({
+            // ✅ FIX: Ensure required properties exist
+            _id: item._id || `temp-${Date.now()}-${index}`,
+            name: item.name || `Pet ${index + 1}`,
+            type: item.type || 'unknown',
+            ...item // Spread the rest of the properties
+          }));
+        
+        console.log('🔧 BrowseLayout Processed items:', {
+          originalCount: fetchedItems.length,
+          validCount: validItems.length,
+          totalFromAPI: totalCount,
+          firstItem: validItems[0]
+        });
+        
+        setItems(validItems);
         
       } catch (err) {
-        console.error(`❌ Error fetching ${entityConfig.singularName}:`, err);
-        
-        if (err.response?.status === 404) {
-          setError(`${entityConfig.singularDisplayName} "${id}" not found.`);
-        } else {
-          setError(`Unable to load ${entityConfig.singularName} "${id}". Please try again.`);
-        }
+        console.error('🚨 BrowseLayout fetch error:', err);
+        setError(err.message || 'Failed to load items');
+        setItems([]); // Ensure items is empty on error
       } finally {
         setLoading(false);
       }
     };
 
-    fetchItem();
-  }, [id, apiService, entityConfig]);
+    fetchItems();
+  }, [searchParams, apiService, itemsPerPage]);
 
+  // Loading state
   if (loading) {
-    return <LoadingSpinner message={`Loading ${entityConfig.singularName}...`} />;
+    return (
+      <Container className="text-center py-5">
+        <Spinner animation="border" role="status" variant="primary">
+          <span className="visually-hidden">Loading...</span>
+        </Spinner>
+        <p className="mt-3 text-muted">Loading pets...</p>
+      </Container>
+    );
   }
 
+  // Error state
   if (error) {
     return (
       <Container className="py-5">
-        <ErrorAlert 
-          error={error}
-          onRetry={() => window.location.reload()}
-          onGoBack={() => navigate(entityConfig.routes.browse)}
-        />
+        <Alert variant="danger">
+          <Alert.Heading>
+            <i className="fas fa-exclamation-triangle me-2"></i>
+            Error Loading Pets
+          </Alert.Heading>
+          <p className="mb-3">{error}</p>
+          <div className="d-flex gap-2">
+            <button 
+              className="btn btn-outline-danger"
+              onClick={() => window.location.reload()}
+            >
+              <i className="fas fa-redo me-1"></i>
+              Retry
+            </button>
+            <button 
+              className="btn btn-outline-secondary"
+              onClick={() => {
+                setError(null);
+                setItems([]);
+              }}
+            >
+              <i className="fas fa-times me-1"></i>
+              Clear Error
+            </button>
+          </div>
+        </Alert>
       </Container>
     );
   }
 
-  if (!item) {
+  // Empty state
+  if (!items || items.length === 0) {
     return (
       <Container className="py-5">
-        <ErrorAlert 
-          error={`${entityConfig.singularDisplayName} not found`}
-          onGoBack={() => navigate(entityConfig.routes.browse)}
-        />
+        <Alert variant="info" className="text-center">
+          <Alert.Heading>
+            <i className="fas fa-search me-2"></i>
+            No Pets Found
+          </Alert.Heading>
+          <p className="mb-3">
+            We couldn't find any pets matching your criteria. 
+            Try adjusting your search or check back later for new arrivals!
+          </p>
+          <button 
+            className="btn btn-primary"
+            onClick={() => window.location.href = '/browse'}
+          >
+            <i className="fas fa-paw me-1"></i>
+            Browse All Pets
+          </button>
+        </Alert>
       </Container>
     );
   }
 
-  // If custom detail view provided, use it
-  if (CustomDetailView) {
-    return <CustomDetailView item={item} config={entityConfig} />;
-  }
-
-  // Default detail layout
-  const title = item[entityConfig.detail.titleField] || `Unnamed ${entityConfig.singularDisplayName}`;
-  
+  // Success state - render items
   return (
     <Container className="py-4">
-      {/* Breadcrumb */}
-      <Breadcrumb className="mb-4">
-        <Breadcrumb.Item onClick={() => navigate('/')}>Home</Breadcrumb.Item>
-        <Breadcrumb.Item onClick={() => navigate(entityConfig.routes.browse)}>
-          {entityConfig.displayName}
-        </Breadcrumb.Item>
-        <Breadcrumb.Item active>
-          {entityConfig.detail.breadcrumbLogic ? entityConfig.detail.breadcrumbLogic(item) : title}
-        </Breadcrumb.Item>
-      </Breadcrumb>
+      {/* Debug info in development */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="alert alert-info small mb-4">
+          <strong>🔧 Debug:</strong> Loaded {items.length} items
+          <details className="mt-2">
+            <summary>View item data</summary>
+            <pre className="mt-2" style={{ fontSize: '10px', maxHeight: '200px', overflow: 'auto' }}>
+              {JSON.stringify(items.slice(0, 2), null, 2)}
+            </pre>
+          </details>
+        </div>
+      )}
 
       <Row>
-        {/* Image */}
-        <Col lg={6} className="mb-4">
-          <Card className="shadow-sm">
-            <Card.Body className="p-0">
-              <SafeImage
-                item={item}
-                category={entityConfig.detail.imageCategory}
-                size="large"
-                className="img-fluid"
-                style={{ 
-                  width: '100%', 
-                  height: '400px', 
-                  objectFit: 'cover',
-                  borderRadius: '8px'
-                }}
-                alt={title}
+        {items.map((item, index) => {
+          // ✅ FIX: Extra safety check for each item render
+          if (!item) {
+            console.warn(`🚨 Item at index ${index} is null/undefined`);
+            return null;
+          }
+          
+          return (
+            <Col 
+              key={item._id || `item-${index}`}
+              xs={12} 
+              sm={6} 
+              md={4} 
+              lg={3} 
+              className="mb-4"
+            >
+              <ItemCard 
+                pet={item}
+                {...(entityConfig?.cardProps || {})}
+                showFavoriteButton={true}
+                showActions={true}
               />
-            </Card.Body>
-          </Card>
-        </Col>
-
-        {/* Details */}
-        <Col lg={6}>
-          <Card className="shadow-sm h-100">
-            <Card.Body>
-              <h1 className="h2 mb-3">{title}</h1>
-              
-              {/* Custom content area */}
-              {children}
-              
-              {/* Action buttons */}
-              <div className="d-flex gap-2 mt-4">
-                <Button variant={entityConfig.detail.primaryAction.variant} size="lg">
-                  <i className={`fas fa-${entityConfig.detail.primaryAction.icon} me-2`}></i>
-                  {entityConfig.detail.primaryAction.text}
-                </Button>
-                
-                <Button variant={entityConfig.detail.secondaryAction.variant} size="lg">
-                  <i className={`fas fa-${entityConfig.detail.secondaryAction.icon} me-2`}></i>
-                  {entityConfig.detail.secondaryAction.text}
-                </Button>
-              </div>
-            </Card.Body>
-          </Card>
-        </Col>
+            </Col>
+          );
+        })}
       </Row>
     </Container>
   );
 };
 
-export default DetailLayout;
+export default BrowseLayout;

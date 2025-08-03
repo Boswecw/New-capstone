@@ -1,7 +1,6 @@
-
-// client/src/components/browse/BrowseResults.js
+// client/src/components/browse/BrowseResults.js - FIXED VERSION
 import React from 'react';
-import { Row, Col, Alert, Button, Spinner, Pagination } from 'react-bootstrap';
+import { Row, Col, Alert, Spinner, Button, Pagination } from 'react-bootstrap';
 
 const BrowseResults = ({
   items,
@@ -18,161 +17,109 @@ const BrowseResults = ({
   onPageChange,
   onRetry
 }) => {
-  
-  // Results header
-  const renderResultsHeader = () => {
-    if (useInfiniteScroll) {
-      return (
-        <div className="d-flex justify-content-between align-items-center mb-3">
-          <span className="text-muted">
-            {pagination.total > 0 
-              ? `Showing ${items.length} of ${pagination.total} ${entityConfig.displayName.toLowerCase()}${hasMore ? ' - scroll for more' : ''}`
-              : `No ${entityConfig.displayName.toLowerCase()} found`
-            }
-          </span>
-          {loading && <Spinner size="sm" animation="border" />}
-        </div>
-      );
-    } else {
-      return (
-        <div className="d-flex justify-content-between align-items-center mb-3">
-          <span className="text-muted">
-            {pagination.total > 0 
-              ? `Page ${currentPage} of ${Math.ceil(pagination.total / (pagination.limit || 12))} - ${pagination.total} total ${entityConfig.displayName.toLowerCase()}`
-              : `No ${entityConfig.displayName.toLowerCase()} found`
-            }
-          </span>
-          {loading && <Spinner size="sm" animation="border" />}
-        </div>
-      );
+
+  // ✅ FIXED: Function to determine correct prop name for ItemCard
+  const getCardProps = (item) => {
+    // For PetCard, use 'pet' prop
+    if (entityConfig.displayName === 'Pets') {
+      return {
+        pet: item,
+        showFavoriteButton: true,
+        onClick: onItemClick ? () => onItemClick(item._id) : null
+      };
     }
+    
+    // For ProductCard, use 'product' prop  
+    if (entityConfig.displayName === 'Products') {
+      return {
+        product: item,
+        showActions: true,
+        onClick: onItemClick ? () => onItemClick(item._id) : null
+      };
+    }
+    
+    // Default fallback
+    return {
+      item: item,
+      onClick: onItemClick ? () => onItemClick(item._id) : null
+    };
   };
 
-  // Error state
-  if (error) {
-    return (
-      <Alert variant="danger" className="mb-4">
-        <Alert.Heading>
-          <i className="fas fa-exclamation-triangle me-2"></i>
-          Error Loading {entityConfig.displayName}
-        </Alert.Heading>
-        <p className="mb-0">{error}</p>
-        <hr />
-        <Button variant="outline-danger" onClick={onRetry}>
-          <i className="fas fa-redo me-2"></i>
-          Try Again
-        </Button>
-      </Alert>
-    );
-  }
-
-  // No results
-  if (!loading && items.length === 0) {
-    return (
-      <Alert variant="info" className="text-center">
-        <Alert.Heading>
-          <i className="fas fa-search me-2"></i>
-          No {entityConfig.displayName} Found
-        </Alert.Heading>
-        <p>Try adjusting your filters to find more {entityConfig.displayName.toLowerCase()}.</p>
-        <Button variant="primary" onClick={() => window.location.reload()}>
-          <i className="fas fa-undo me-2"></i>
-          Reset All Filters
-        </Button>
-      </Alert>
-    );
-  }
-
-  // Pagination component for non-infinite scroll
   const renderPagination = () => {
-    if (useInfiniteScroll || !pagination.total) return null;
-    
-    const totalPages = Math.ceil(pagination.total / (pagination.limit || 12));
-    if (totalPages <= 1) return null;
-
-    const items = [];
-    const maxVisible = 5;
-    const start = Math.max(1, currentPage - Math.floor(maxVisible / 2));
-    const end = Math.min(totalPages, start + maxVisible - 1);
-
-    // Previous button
-    items.push(
-      <Pagination.Prev
-        key="prev"
-        disabled={currentPage <= 1}
-        onClick={() => onPageChange(currentPage - 1)}
-      />
-    );
-
-    // First page
-    if (start > 1) {
-      items.push(
-        <Pagination.Item key={1} onClick={() => onPageChange(1)}>
-          1
-        </Pagination.Item>
-      );
-      if (start > 2) {
-        items.push(<Pagination.Ellipsis key="start-ellipsis" />);
-      }
+    if (useInfiniteScroll || !pagination || pagination.totalPages <= 1) {
+      return null;
     }
-
-    // Visible pages
-    for (let page = start; page <= end; page++) {
-      items.push(
-        <Pagination.Item
-          key={page}
-          active={page === currentPage}
-          onClick={() => onPageChange(page)}
-        >
-          {page}
-        </Pagination.Item>
-      );
-    }
-
-    // Last page
-    if (end < totalPages) {
-      if (end < totalPages - 1) {
-        items.push(<Pagination.Ellipsis key="end-ellipsis" />);
-      }
-      items.push(
-        <Pagination.Item key={totalPages} onClick={() => onPageChange(totalPages)}>
-          {totalPages}
-        </Pagination.Item>
-      );
-    }
-
-    // Next button
-    items.push(
-      <Pagination.Next
-        key="next"
-        disabled={currentPage >= totalPages}
-        onClick={() => onPageChange(currentPage + 1)}
-      />
-    );
 
     return (
       <div className="d-flex justify-content-center mt-4">
-        <Pagination>{items}</Pagination>
+        <Pagination
+          currentPage={currentPage}
+          totalPages={pagination.totalPages}
+          onPageChange={onPageChange}
+          showInfo={true}
+          totalItems={pagination.total}
+          itemsPerPage={pagination.limit}
+        />
       </div>
     );
   };
 
   return (
     <>
-      {renderResultsHeader()}
+      {/* Error State */}
+      {error && (
+        <Alert variant="danger" className="text-center">
+          <Alert.Heading>
+            <i className="fas fa-exclamation-triangle me-2"></i>
+            Oops! Something went wrong
+          </Alert.Heading>
+          <p>{error}</p>
+          <Button variant="outline-danger" onClick={onRetry}>
+            <i className="fas fa-redo me-2"></i>
+            Try Again
+          </Button>
+        </Alert>
+      )}
+
+      {/* Loading State (Non-infinite scroll) */}
+      {loading && !useInfiniteScroll && (
+        <div className="text-center py-5">
+          <Spinner animation="border" variant="primary" className="mb-3" />
+          <h5 className="text-primary mb-2">Loading {entityConfig.displayName}...</h5>
+          <p className="text-muted">Please wait while we fetch the latest data</p>
+        </div>
+      )}
+
+      {/* No Items State */}
+      {!loading && !error && items.length === 0 && (
+        <Alert variant="info" className="text-center">
+          <Alert.Heading>
+            <i className="fas fa-search me-2"></i>
+            No {entityConfig.displayName} Found
+          </Alert.Heading>
+          <p>We couldn't find any {entityConfig.displayName.toLowerCase()} matching your criteria.</p>
+          <p className="text-muted mb-0">Try adjusting your search filters or check back later!</p>
+        </Alert>
+      )}
 
       {/* Items Grid */}
-      {items.length > 0 && (
+      {!error && items.length > 0 && (
         <>
           <Row>
-            {items.map((item) => (
-              <Col key={item._id} sm={6} lg={4} className="mb-4">
-                <ItemCard 
-                  item={item}
-                  onClick={() => onItemClick(item._id)}
-                />
-              </Col>
-            ))}
+            {items.map((item) => {
+              // ✅ DEFENSIVE CHECK: Skip if item is null/undefined
+              if (!item || !item._id) {
+                console.warn('⚠️ BrowseResults: Skipping invalid item:', item);
+                return null;
+              }
+
+              return (
+                <Col key={item._id} sm={6} lg={4} className="mb-4">
+                  {/* ✅ FIXED: Pass correct props based on card type */}
+                  <ItemCard {...getCardProps(item)} />
+                </Col>
+              );
+            })}
           </Row>
 
           {/* Infinite Scroll Elements */}
