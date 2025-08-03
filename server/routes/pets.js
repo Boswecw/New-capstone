@@ -1,11 +1,11 @@
-// server/routes/pets.js - COMPLETE FIX - Returns all pet data properly
+// server/routes/pets.js - COMPLETE CLEAN FILE - Replace everything with this
+
 const express = require('express');
 const mongoose = require('mongoose');
 const Pet = require('../models/Pet');
-const { protect, admin } = require('../middleware/auth');
 const router = express.Router();
 
-// ⭐ Pet ID validation for custom string IDs
+// ✅ Pet ID validation for custom string IDs
 const validatePetId = (req, res, next) => {
   const { id } = req.params;
   
@@ -34,6 +34,55 @@ const validatePetId = (req, res, next) => {
 
   console.log(`✅ Pet ID validation passed: ${id} (${isCustomPetId ? 'custom' : 'ObjectId'})`);
   next();
+};
+
+// ✅ ADVANCED FILTER MAPPING for PETS (matches your actual data)
+const mapPetFiltersToQuery = (filters) => {
+  const query = { status: 'available' };
+
+  // ✅ TYPE filtering - direct match (your data is already lowercase)
+  if (filters.type && filters.type !== 'all') {
+    query.type = filters.type; // Direct match: "dog", "cat", "hamster", etc.
+  }
+
+  // ✅ CATEGORY filtering (for broad groupings)
+  if (filters.category && filters.category !== 'all') {
+    if (filters.category === 'other') {
+      // ✅ "Other" = everything that's not dog, cat, or aquatic
+      query.category = 'other'; // All the small/exotic pets
+    } else {
+      query.category = filters.category; // Direct match: "dog", "cat", "aquatic"
+    }
+  }
+
+  // ✅ SIZE filtering 
+  if (filters.size && filters.size !== 'all') {
+    query.size = filters.size; // Direct match: "small", "medium", "large"
+  }
+
+  // ✅ GENDER filtering
+  if (filters.gender && filters.gender !== 'all') {
+    query.gender = filters.gender; // Direct match: "male", "female", "unknown"
+  }
+
+  // ✅ FEATURED filtering
+  if (filters.featured === 'true' || filters.featured === true) {
+    query.featured = true;
+  }
+
+  // ✅ SEARCH across multiple fields
+  if (filters.search && filters.search.trim()) {
+    const searchRegex = new RegExp(filters.search.trim(), 'i');
+    query.$or = [
+      { name: searchRegex },
+      { breed: searchRegex },
+      { description: searchRegex },
+      { type: searchRegex }
+    ];
+  }
+
+  console.log('🐕 Mapped pet filters to query:', JSON.stringify(query, null, 2));
+  return query;
 };
 
 // ⭐ Get random featured pets for home page
@@ -85,47 +134,13 @@ router.get('/featured', async (req, res) => {
   }
 });
 
-// ⭐ Get all pets with filtering
+// ⭐ Get all pets with ADVANCED filtering
 router.get('/', async (req, res) => {
   try {
     console.log('🐕 GET /api/pets - Query params:', req.query);
 
-    const query = { status: 'available' };
-
-    // Apply filters
-    if (req.query.type && req.query.type !== 'all') {
-      query.type = req.query.type;
-    }
-
-    if (req.query.category && req.query.category !== 'all') {
-      query.category = req.query.category;
-    }
-
-    if (req.query.breed && req.query.breed !== 'all') {
-      query.breed = new RegExp(req.query.breed, 'i');
-    }
-
-    if (req.query.featured === 'true') {
-      query.featured = true;
-    }
-
-    if (req.query.search) {
-      const searchRegex = new RegExp(req.query.search, 'i');
-      query.$or = [
-        { name: searchRegex },
-        { breed: searchRegex },
-        { description: searchRegex },
-        { type: searchRegex }
-      ];
-    }
-
-    if (req.query.size && req.query.size !== 'all') {
-      query.size = req.query.size;
-    }
-
-    if (req.query.gender && req.query.gender !== 'all') {
-      query.gender = req.query.gender;
-    }
+    // ✅ USE ADVANCED MAPPING
+    const query = mapPetFiltersToQuery(req.query);
 
     // Pagination
     const page = parseInt(req.query.page) || 1;
@@ -147,9 +162,14 @@ router.get('/', async (req, res) => {
       case 'name_desc':
         sortObj = { name: -1 };
         break;
+      case 'featured':
+        sortObj = { featured: -1, createdAt: -1 };
+        break;
       default:
         sortObj = { createdAt: -1 };
     }
+
+    console.log('🔍 Final pet MongoDB query:', JSON.stringify(query, null, 2));
 
     const total = await Pet.countDocuments(query);
     const pets = await Pet.find(query)
@@ -157,6 +177,9 @@ router.get('/', async (req, res) => {
       .skip(skip)
       .limit(limit)
       .lean();
+
+    console.log(`✅ Found ${pets.length} pets (Total: ${total})`);
+    console.log(`📊 Sample pet types in results:`, pets.slice(0, 3).map(p => p.type));
 
     // ✅ Enrich pet data with computed fields
     const enrichedPets = pets.map(pet => ({
@@ -168,8 +191,6 @@ router.get('/', async (req, res) => {
       isAvailable: pet.status === 'available'
     }));
 
-    console.log(`🐕 Found ${pets.length} pets (Total: ${total})`);
-
     res.json({
       success: true,
       data: enrichedPets,
@@ -179,6 +200,11 @@ router.get('/', async (req, res) => {
         limit,
         pages: Math.ceil(total / limit),
         hasMore: skip + pets.length < total
+      },
+      debug: {
+        appliedFilters: req.query,
+        mongoQuery: query,
+        resultTypes: [...new Set(pets.map(p => p.type))] // Show unique types returned
       }
     });
 

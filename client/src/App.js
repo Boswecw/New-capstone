@@ -1,4 +1,4 @@
-// client/src/App.js - WITH TOASTIFY + SCROLLTOTOP IMPLEMENTED
+// client/src/App.js - WITH REACT ROUTER FUTURE FLAGS (Optional)
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { ToastProvider } from './contexts/ToastContext';
@@ -52,7 +52,13 @@ function App() {
     <ErrorBoundary>
       <AuthProvider>
         <ToastProvider>
-          <Router>
+          {/* OPTIONAL: Add future flags to suppress React Router v7 warnings */}
+          <Router 
+            future={{
+              v7_startTransition: true,
+              v7_relativeSplatPath: true
+            }}
+          >
             <ScrollToTop />
             <div className="App d-flex flex-column min-vh-100">
               {/* Navigation */}

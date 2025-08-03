@@ -1,5 +1,4 @@
-
-// client/src/components/browse/EntityCard.js - CLEAN VERSION
+// client/src/components/browse/EntityCard.js - FIXED VERSION
 import React from 'react';
 import { Card, Badge, Button } from 'react-bootstrap';
 import SafeImage from '../SafeImage';
@@ -17,101 +16,114 @@ const EntityCard = ({
   showPrice = false,
   onClick
 }) => {
+  // ✅ FIX: Add null/undefined checks for item
+  if (!item) {
+    console.warn('EntityCard: item prop is undefined');
+    return (
+      <Card className="h-100">
+        <Card.Body className="d-flex align-items-center justify-content-center">
+          <div className="text-muted">Loading...</div>
+        </Card.Body>
+      </Card>
+    );
+  }
+
+  // ✅ FIX: Safely access properties with fallbacks
   const status = statusLogic ? statusLogic(item) : null;
   const title = item[titleField] || 'Unnamed';
-  const subtitle = subtitleFields.map(field => item[field]).filter(Boolean).join(' • ');
+  const subtitle = subtitleFields
+    .map(field => item[field])
+    .filter(Boolean)
+    .join(' • ');
   const price = priceField ? item[priceField] : null;
+  
+  // ✅ FIX: Safe access to badgeField (this was likely line 31)
   const badge = badgeField ? item[badgeField] : null;
 
   return (
-    <Card className="entity-card h-100 shadow-sm" style={{ cursor: 'pointer' }}>
-      <div onClick={() => onClick && onClick(item._id)}>
-        {/* Image container */}
-        <div className="entity-card-image-container">
-          <SafeImage
-            item={item}
-            category={imageCategory}
-            size="card"
-            className="entity-card-image"
-            alt={title}
-            showLoader={true}
-          />
-          
-          {/* Hover overlay */}
-          <div className="entity-card-overlay">
-            <div className="entity-card-overlay-content">
-              <i className="fas fa-eye"></i>
-              <span>View Details</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Card body */}
-        <Card.Body className="d-flex flex-column">
-          {/* Header */}
-          <div className="d-flex justify-content-between align-items-start mb-2">
-            <div>
-              {badge && (
-                <Badge bg="secondary" className="mb-1">
-                  {badge.charAt(0).toUpperCase() + badge.slice(1)}
-                </Badge>
-              )}
-            </div>
-            {status && (
-              <Badge bg={status.variant}>
-                <i className={`fas fa-${status.icon} me-1`}></i>
-                {status.text}
-              </Badge>
-            )}
-          </div>
-
-          {/* Title and subtitle */}
-          <h5 className="card-title mb-1">{title}</h5>
-          {subtitle && (
-            <p className="card-text text-muted small mb-2">{subtitle}</p>
-          )}
-
-          {/* Price */}
-          {showPrice && price && (
-            <div className="mb-2">
-              <span className="h5 text-primary">${price}</span>
-            </div>
-          )}
-
-          {/* Actions */}
-          <div className="mt-auto pt-2">
-            <div className="d-flex gap-2">
-              {showFavoriteButton && (
-                <Button
-                  variant="outline-danger"
-                  size="sm"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    // Handle favorite
-                  }}
-                >
-                  <i className="far fa-heart"></i>
-                </Button>
-              )}
-              
-              {showAddToCart && (
-                <Button
-                  variant="primary"
-                  size="sm"
-                  className="flex-grow-1"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    // Handle add to cart
-                  }}
-                >
-                  <i className="fas fa-shopping-cart me-1"></i>
-                  Add to Cart
-                </Button>
-              )}
-            </div>
-          </div>
-        </Card.Body>
+    <Card className="h-100 shadow-sm border-0" onClick={onClick}>
+      {/* Image Section */}
+      <div style={{ height: '200px', overflow: 'hidden' }}>
+        <SafeImage
+          src={item.imageUrl || item.image}
+          fallbackCategory={imageCategory || item.type || 'default'}
+          alt={title}
+          className="card-img-top"
+          style={{
+            height: '100%',
+            width: '100%',
+            objectFit: 'cover'
+          }}
+        />
       </div>
+
+      {/* Card Body */}
+      <Card.Body className="d-flex flex-column">
+        {/* Title */}
+        <Card.Title className="mb-2 fw-bold">
+          {title}
+        </Card.Title>
+
+        {/* Subtitle */}
+        {subtitle && (
+          <Card.Text className="text-muted small mb-2">
+            {subtitle}
+          </Card.Text>
+        )}
+
+        {/* Badge */}
+        {badge && (
+          <div className="mb-2">
+            <Badge bg="primary" className="me-1">
+              {badge}
+            </Badge>
+          </div>
+        )}
+
+        {/* Status Badge */}
+        {status && (
+          <div className="mb-2">
+            <Badge 
+              bg={status.available ? 'success' : 'warning'}
+              className="me-1"
+            >
+              {status.available ? 'Available' : 'Pending'}
+            </Badge>
+          </div>
+        )}
+
+        {/* Price */}
+        {showPrice && price && (
+          <div className="mb-2">
+            <span className="fw-bold text-success">
+              ${price}
+            </span>
+          </div>
+        )}
+
+        {/* Action Buttons */}
+        <div className="mt-auto">
+          {showFavoriteButton && (
+            <Button
+              variant="outline-danger"
+              size="sm"
+              className="me-2"
+            >
+              <i className="fas fa-heart"></i>
+            </Button>
+          )}
+          
+          {showAddToCart && (
+            <Button
+              variant="primary"
+              size="sm"
+            >
+              <i className="fas fa-cart-plus me-1"></i>
+              Add to Cart
+            </Button>
+          )}
+        </div>
+      </Card.Body>
     </Card>
   );
 };

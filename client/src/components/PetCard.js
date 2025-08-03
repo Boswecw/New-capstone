@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Card, Badge, Button } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
-import SafeImage from '../components/SafeImage';
+import SafeImage from './SafeImage';
 import styles from './Card.module.css';
 
 const PetCard = ({ 
@@ -13,21 +13,53 @@ const PetCard = ({
 }) => {
   const [containerType, setContainerType] = useState('square');
 
+  // ✅ DEFENSIVE CHECK: Return early if pet is undefined or null
+  if (!pet) {
+    console.warn('⚠️ PetCard: pet prop is undefined or null');
+    return (
+      <Card className={`h-100 ${styles.enhancedCard} ${className}`}>
+        <Card.Body className="d-flex align-items-center justify-content-center">
+          <div className="text-center text-muted">
+            <i className="fas fa-exclamation-triangle fa-2x mb-2"></i>
+            <div>Pet data unavailable</div>
+          </div>
+        </Card.Body>
+      </Card>
+    );
+  }
+
+  // ✅ DEFENSIVE CHECK: Ensure pet has minimum required properties
+  const safePet = {
+    _id: pet._id || 'unknown',
+    name: pet.name || 'Unknown Pet',
+    type: pet.type || 'pet',
+    breed: pet.breed || '',
+    age: pet.age || '',
+    gender: pet.gender || '',
+    size: pet.size || '',
+    description: pet.description || pet.bio || 'Adorable pet looking for a loving home!',
+    location: pet.location || 'FurBabies',
+    adopted: pet.adopted || false,
+    featured: pet.featured || false,
+    status: pet.status || '',
+    ...pet // Spread original pet to preserve other properties
+  };
+
   // Handle click event if onClick is provided, otherwise use Link
   const handleCardClick = (e) => {
     if (onClick) {
       e.preventDefault();
-      onClick(pet._id);
+      onClick(safePet._id);
     }
   };
 
   const CardContent = () => (
     <>
-      {/* Enhanced: Dynamic container with status badges */}
+      {/* 🆕 ENHANCED: Dynamic container that adapts to image aspect ratio */}
       <div className={`${styles.petImgContainer} ${styles[containerType]} position-relative`}>
         <SafeImage
-          item={pet}
-          category={pet.type || 'pet'}
+          item={safePet}
+          category={safePet.type}
           size="card"
           showLoader={true}
           className={styles.petImg}
@@ -37,13 +69,13 @@ const PetCard = ({
         {/* Status Badges Overlay */}
         {showAdoptionStatus && (
           <div className="position-absolute top-0 start-0 p-2">
-            {pet.featured && (
+            {safePet.featured && (
               <Badge bg="warning" className="me-1">
                 <i className="fas fa-star me-1"></i>
                 Featured
               </Badge>
             )}
-            {pet.adopted && (
+            {safePet.status === 'adopted' && (
               <Badge bg="success">
                 <i className="fas fa-heart me-1"></i>
                 Adopted
@@ -62,8 +94,7 @@ const PetCard = ({
               onClick={(e) => {
                 e.stopPropagation();
                 e.preventDefault();
-                // Add favorite functionality here
-                console.log('Favorite clicked for:', pet.name);
+                console.log('Favorite clicked for:', safePet.name);
               }}
             >
               <i className="fas fa-heart"></i>
@@ -74,96 +105,70 @@ const PetCard = ({
       
       <Card.Body className={`d-flex flex-column ${styles.enhancedCardBody}`}>
         <Card.Title className={styles.enhancedCardTitle}>
-          {pet.name}
+          {safePet.name}
         </Card.Title>
         
         {/* Enhanced: Show breed, age, gender info */}
-        {(pet.breed || pet.age || pet.gender) && (
+        {(safePet.breed || safePet.age || safePet.gender) && (
           <Card.Text className="text-muted mb-2">
-            {[pet.breed, pet.age, pet.gender].filter(Boolean).join(' • ')}
+            {[safePet.breed, safePet.age, safePet.gender].filter(Boolean).join(' • ')}
           </Card.Text>
         )}
         
         <Card.Text className={`text-muted small mb-2 flex-grow-1 ${styles.enhancedCardText}`}>
-          {pet.description || pet.bio || 'Adorable pet looking for a loving home!'}
+          {safePet.description}
         </Card.Text>
-        
+
+        {/* Enhanced Badges */}
         <div className={styles.enhancedBadges}>
-          {pet.type && (
-            <Badge bg="primary" className={styles.enhancedBadge}>
-              <i className="fas fa-paw me-1"></i>
-              {pet.type}
+          {safePet.type && (
+            <Badge 
+              bg="primary" 
+              className={styles.enhancedBadge}
+            >
+              {safePet.type}
             </Badge>
           )}
-          {pet.size && (
-            <Badge bg="secondary" className={styles.enhancedBadge}>
-              <i className="fas fa-ruler me-1"></i>
-              {pet.size}
-            </Badge>
-          )}
-          {pet.gender && (
-            <Badge bg="info" className={styles.enhancedBadge}>
-              <i className="fas fa-venus-mars me-1"></i>
-              {pet.gender}
+          {safePet.size && (
+            <Badge 
+              bg="secondary" 
+              className={styles.enhancedBadge}
+            >
+              {safePet.size}
             </Badge>
           )}
         </div>
-        
-        {/* Enhanced: Button adapts based on adoption status */}
-        <div className="d-flex justify-content-between align-items-center mt-auto">
-          <small className="text-muted">
-            <i className="fas fa-map-marker-alt me-1"></i>
-            {pet.location || 'FurBabies'}
-          </small>
-          
-          <Button
-            variant={pet.adopted ? "success" : "primary"}
-            size="sm"
-            disabled={pet.adopted}
-            className={styles.enhancedButton}
-            onClick={(e) => {
-              if (onClick) {
-                e.stopPropagation();
-                onClick(pet._id);
-              }
-            }}
-            {...(!onClick && !pet.adopted && { as: Link, to: `/pets/${pet._id}` })}
-          >
-            {pet.adopted ? (
-              <>
-                <i className="fas fa-heart me-1"></i>
-                Adopted
-              </>
-            ) : (
-              <>
-                <i className="fas fa-info-circle me-1"></i>
-                Details
-              </>
-            )}
-          </Button>
-        </div>
+
+        {/* Enhanced Button */}
+        <Button 
+          variant="warning" 
+          className={`w-100 ${styles.enhancedButton}`}
+        >
+          <i className="fas fa-heart me-2"></i>
+          Learn More
+        </Button>
       </Card.Body>
     </>
   );
 
-  // If onClick is provided, make the whole card clickable
-  if (onClick) {
-    return (
-      <Card 
-        className={`h-100 shadow-sm pet-card ${styles.enhancedCard} ${className}`}
-        style={{ cursor: 'pointer' }}
-        onClick={handleCardClick}
-      >
-        <CardContent />
-      </Card>
-    );
-  }
-
-  // Otherwise, use Link wrapper for the card
-  return (
-    <Card className={`h-100 shadow-sm pet-card ${styles.enhancedCard} ${className}`}>
+  // Return either a Link or a clickable div based on onClick prop
+  return onClick ? (
+    <Card 
+      className={`h-100 ${styles.enhancedCard} ${className}`}
+      style={{ cursor: 'pointer' }}
+      onClick={handleCardClick}
+    >
       <CardContent />
     </Card>
+  ) : (
+    <Link 
+      to={`/pets/${safePet._id}`} 
+      className="text-decoration-none"
+    >
+      <Card className={`h-100 ${styles.enhancedCard} ${className}`}>
+        <CardContent />
+      </Card>
+    </Link>
   );
 };
 

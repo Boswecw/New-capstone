@@ -1,9 +1,9 @@
-import React, { useState } from 'react'; // 🆕 Add useState for container state
+import React, { useState } from 'react';
 import { Card, Badge, Button, Row, Col } from 'react-bootstrap';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router-dom'; // ✅ KEEPING this since we'll use it
 import PropTypes from 'prop-types';
 import SafeImage from './SafeImage';
-import styles from './Card.module.css'; // ✅ Import enhanced CSS module
+import styles from './Card.module.css';
 
 const ProductCard = ({ 
   product, 
@@ -17,24 +17,51 @@ const ProductCard = ({
   // 🆕 NEW: State to track what type of container to use
   const [containerType, setContainerType] = useState('square');
 
+  // ✅ DEFENSIVE CHECK: Return early if product is undefined or null
+  if (!product) {
+    console.warn('⚠️ ProductCard: product prop is undefined or null');
+    return (
+      <Card className={`h-100 ${styles.enhancedCard} ${className}`}>
+        <Card.Body className="d-flex align-items-center justify-content-center">
+          <div className="text-center text-muted">
+            <i className="fas fa-exclamation-triangle fa-2x mb-2"></i>
+            <div>Product data unavailable</div>
+          </div>
+        </Card.Body>
+      </Card>
+    );
+  }
+
+  // ✅ DEFENSIVE CHECK: Ensure product has minimum required properties
+  const safeProduct = {
+    _id: product._id || 'unknown',
+    name: product.name || 'Unknown Product',
+    description: product.description || 'Quality product for your beloved pet!',
+    price: product.price || 0,
+    category: product.category || 'product',
+    brand: product.brand || '',
+    inStock: product.inStock !== false, // Default to true unless explicitly false
+    ...product // Spread original product to preserve other properties
+  };
+
   // Format price
   const formatPrice = (price) => {
     return typeof price === 'number' ? 
-      `${price.toFixed(2)}` : 
+      `$${price.toFixed(2)}` : 
       (price ? String(price) : 'Price unavailable');
   };
 
   return (
-    <Card className={`h-100 shadow-sm product-card ${styles.enhancedCard} ${className}`}>
+    <Card className={`h-100 ${styles.enhancedCard} ${className}`}>
       {/* 🆕 ENHANCED: Dynamic container that adapts to image aspect ratio */}
       <div className={`${styles.productImgContainer} ${styles[containerType]}`}>
         <SafeImage
-          item={product}
-          category={product.category || 'product'}
+          item={safeProduct}
+          category={safeProduct.category}
           size="card"
           showLoader={true}
           className={styles.productImg}
-          onContainerTypeDetected={setContainerType} // 🆕 NEW: Tell SafeImage to update our container
+          onContainerTypeDetected={setContainerType}
         />
       </div>
       
@@ -42,11 +69,11 @@ const ProductCard = ({
         {/* Product Name & Price */}
         <div className="d-flex justify-content-between align-items-start mb-2">
           <Card.Title className={`mb-0 ${styles.enhancedCardTitle}`} style={{ textAlign: 'left', flex: 1 }}>
-            {product.name}
+            {safeProduct.name}
           </Card.Title>
-          {product.price && (
+          {safeProduct.price && (
             <Badge bg="success" className={`ms-2 ${styles.enhancedBadge}`}>
-              {formatPrice(product.price)}
+              {formatPrice(safeProduct.price)}
             </Badge>
           )}
         </div>
@@ -54,77 +81,79 @@ const ProductCard = ({
         {/* Product Description */}
         <Card.Text className={`text-muted small mb-2 flex-grow-1 ${styles.enhancedCardText}`}>
           {showFullDescription 
-            ? (product.description || 'Quality product for your beloved pet!')
-            : (product.description || 'Quality product for your beloved pet!').length > 100 
-              ? (product.description || 'Quality product for your beloved pet!').substring(0, 100) + '...'
-              : (product.description || 'Quality product for your beloved pet!')
+            ? safeProduct.description
+            : safeProduct.description.length > 100 
+              ? safeProduct.description.substring(0, 100) + '...'
+              : safeProduct.description
           }
         </Card.Text>
-        
-        {/* Product Categories/Tags */}
-        {(product.category || product.brand) && (
-          <div className={styles.enhancedBadges}>
-            {product.category && (
-              <Badge bg="primary" className={styles.enhancedBadge}>
-                {product.category}
-              </Badge>
-            )}
-            {product.brand && (
-              <Badge bg="secondary" className={styles.enhancedBadge}>
-                {product.brand}
-              </Badge>
-            )}
-            {product.inStock === false && (
-              <Badge bg="warning" className={styles.enhancedBadge}>
-                Out of Stock
-              </Badge>
-            )}
-          </div>
-        )}
-        
-        {/* Action Buttons */}
+
+        {/* Enhanced Badges */}
+        <div className={styles.enhancedBadges}>
+          {safeProduct.category && (
+            <Badge 
+              bg="info" 
+              className={styles.enhancedBadge}
+            >
+              {safeProduct.category}
+            </Badge>
+          )}
+          {safeProduct.brand && (
+            <Badge 
+              bg="secondary" 
+              className={styles.enhancedBadge}
+            >
+              {safeProduct.brand}
+            </Badge>
+          )}
+          {!safeProduct.inStock && (
+            <Badge 
+              bg="danger" 
+              className={styles.enhancedBadge}
+            >
+              Out of Stock
+            </Badge>
+          )}
+        </div>
+
+        {/* Enhanced Actions */}
         {showActions && (
-          <div className="mt-auto">
-            <Row className="g-2">
-              <Col>
-                <Button
-                  as={Link}
-                  to={`/products/${product._id}`}
-                  variant="outline-primary"
-                  className={`w-100 ${styles.enhancedButton}`}
-                  style={{ background: 'transparent', color: '#0d6efd' }}
-                >
-                  Details
-                </Button>
-              </Col>
-              {onAddToCart && (
-                <Col>
-                  <Button
-                    onClick={() => onAddToCart(product)}
-                    variant="primary"
-                    className={`w-100 ${styles.enhancedButton}`}
-                  >
-                    <i className="fas fa-cart-plus me-1"></i>
-                    Cart
-                  </Button>
-                </Col>
-              )}
-            </Row>
-            
-            {/* Wishlist Button */}
-            {onAddToWishlist && (
-              <Button
-                onClick={() => onAddToWishlist(product)}
-                variant="outline-secondary"
-                size="sm"
-                className={`mt-2 w-100 ${styles.enhancedButton}`}
-                style={{ borderRadius: '20px' }}
+          <Row className="g-2 mt-auto">
+            <Col>
+              {/* ✅ FIXED: Using Link for Details button */}
+              <Button 
+                as={Link}
+                to={`/products/${safeProduct._id}`}
+                variant="outline-primary" 
+                size="sm" 
+                className={`w-100 ${styles.enhancedButton}`}
               >
-                <i className="fas fa-heart me-1"></i>
-                Wishlist
+                <i className="fas fa-info-circle me-1"></i>
+                Details
               </Button>
-            )}
-          </div>
+            </Col>
+            <Col>
+              <Button 
+                variant="warning" 
+                size="sm" 
+                className={`w-100 ${styles.enhancedButton}`}
+                onClick={() => onAddToCart && onAddToCart(safeProduct)}
+                disabled={!safeProduct.inStock}
+              >
+                <i className="fas fa-shopping-cart me-1"></i>
+                Add to Cart
+              </Button>
+            </Col>
+            <Col xs="auto">
+              <Button 
+                variant="outline-secondary" 
+                size="sm"
+                onClick={() => onAddToWishlist && onAddToWishlist(safeProduct)}
+              >
+                <i className="fas fa-heart"></i>
+              </Button>
+            </Col>
+          </Row>
         )}
       </Card.Body>
     </Card>
@@ -133,7 +162,7 @@ const ProductCard = ({
 
 ProductCard.propTypes = {
   product: PropTypes.object.isRequired,
-  size: PropTypes.oneOf(['small', 'medium', 'large']),
+  size: PropTypes.string,
   showFullDescription: PropTypes.bool,
   className: PropTypes.string,
   onAddToCart: PropTypes.func,

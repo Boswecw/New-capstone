@@ -1,5 +1,4 @@
 
-// client/src/components/browse/BrowseLayout.js - CLEAN VERSION
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Container, Row, Col } from 'react-bootstrap';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -8,6 +7,7 @@ import FilterSidebar from './FilterSidebar';
 import BrowseResults from './BrowseResults';
 import LoadingSpinner from '../LoadingSpinner';
 
+// ✅ FIX: Proper component name and export
 const BrowseLayout = ({ 
   entityConfig, 
   apiService,
@@ -43,12 +43,7 @@ const BrowseLayout = ({
   
   const [currentPage, setCurrentPage] = useState(parseInt(searchParams.get('page')) || 1);
 
-  // Navigation handlers
-  const handleItemClick = useCallback((itemId) => {
-    const detailRoute = entityConfig.routes.detail.replace(':id', itemId);
-    navigate(detailRoute);
-  }, [navigate, entityConfig.routes.detail]);
-
+  // ✅ FIX: Properly define all callback dependencies
   const handleFilterReset = useCallback(() => {
     const resetFilters = {};
     Object.keys(entityConfig.filters).forEach(key => {
@@ -85,7 +80,7 @@ const BrowseLayout = ({
     navigate(newURL, { replace: true });
   }, [navigate, entityConfig.routes.browse]);
 
-  // Filter change handlers
+  // ✅ FIX: Define handleFilterChange before using it in other callbacks
   const handleFilterChange = useCallback((filterType, value) => {
     const newFilters = { ...filters, [filterType]: value };
     setFilters(newFilters);
@@ -104,6 +99,17 @@ const BrowseLayout = ({
   const handleSearch = useCallback((searchTerm) => {
     handleFilterChange('search', searchTerm);
   }, [handleFilterChange]);
+
+  const handleItemClick = useCallback((itemId) => {
+    const detailRoute = entityConfig.routes.detail.replace(':id', itemId);
+    navigate(detailRoute);
+  }, [navigate, entityConfig.routes.detail]);
+
+  // ✅ FIX: Include all dependencies in the quick action callback
+  const handleQuickAction = useCallback((action) => {
+    if (action === 'reset') handleFilterReset();
+    if (action === 'featured') handleFilterChange('featured', 'true');
+  }, [handleFilterReset, handleFilterChange]);
 
   // Data fetching
   const fetchData = useCallback(async (page = 1, append = false) => {
@@ -128,7 +134,11 @@ const BrowseLayout = ({
         }
       });
       
+      console.log('🔧 BrowseLayout fetching with params:', queryParams);
+      
       const response = await apiService[entityConfig.api.getAllMethod](queryParams);
+      
+      console.log('🔧 BrowseLayout API response:', response);
       
       if (response?.data?.success) {
         const newItems = response.data.data || [];
@@ -147,6 +157,8 @@ const BrowseLayout = ({
         if (useInfiniteScroll) {
           setHasMore(newItems.length === itemsPerPage);
         }
+        
+        console.log('🔧 BrowseLayout processed items:', newItems.length);
       } else {
         throw new Error(`Failed to fetch ${entityConfig.displayName.toLowerCase()}`);
       }
@@ -241,10 +253,7 @@ const BrowseLayout = ({
         filters={filters}
         totalCount={pagination.total || items.length}
         onReset={handleFilterReset}
-        onQuickAction={(action) => {
-          if (action === 'reset') handleFilterReset();
-          if (action === 'featured') handleFilterChange('featured', 'true');
-        }}
+        onQuickAction={handleQuickAction}
       />
 
       <Row>
