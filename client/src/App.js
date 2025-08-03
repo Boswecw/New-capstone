@@ -1,4 +1,4 @@
-// client/src/App.js - COMPLETE WITH NEWS ROUTES AND ADMIN ANALYTICS
+// client/src/App.js - WITH TOASTIFY + SCROLLTOTOP IMPLEMENTED
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { ToastProvider } from './contexts/ToastContext';
@@ -7,7 +7,11 @@ import ErrorBoundary from './components/ErrorBoundary';
 // Layout Components
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
-import ToastContainer from './components/ToastContainer';
+import ScrollToTop from './components/ScrollToTop';
+
+// Toastify
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 // Pages
 import Home from './pages/Home';
@@ -25,24 +29,22 @@ import Register from './pages/Register';
 import Profile from './pages/Profile';
 import NotFound from './pages/NotFound';
 
-// ✅ ALL 9 ADMIN PAGES
-import AdminDashboard from './pages/admin/AdminDashboard';     
-import AdminUsers from './pages/admin/AdminUsers';             
-import AdminPets from './pages/admin/AdminPets';               
-import AdminProducts from './pages/admin/AdminProducts';       
-import AdminContacts from './pages/admin/AdminContacts';       
-import AdminReports from './pages/admin/AdminReports';         
-import AdminAnalytics from './pages/admin/AdminAnalytics';     
-import AdminSettings from './pages/admin/AdminSettings';       
-import AdminNews from './pages/admin/AdminNews';               // ✅ NEW ADMIN NEWS
+// Admin Pages
+import AdminDashboard from './pages/admin/AdminDashboard';
+import AdminUsers from './pages/admin/AdminUsers';
+import AdminPets from './pages/admin/AdminPets';
+import AdminProducts from './pages/admin/AdminProducts';
+import AdminContacts from './pages/admin/AdminContacts';
+import AdminReports from './pages/admin/AdminReports';
+import AdminAnalytics from './pages/admin/AdminAnalytics';
+import AdminSettings from './pages/admin/AdminSettings';
+import AdminNews from './pages/admin/AdminNews';
 
-// Protected Route Component
+// Protected Route
 import ProtectedRoute from './components/ProtectedRoute';
 
-// Bootstrap CSS
+// Bootstrap & Custom Styles
 import 'bootstrap/dist/css/bootstrap.min.css';
-
-// Custom CSS
 import './App.css';
 
 function App() {
@@ -51,110 +53,102 @@ function App() {
       <AuthProvider>
         <ToastProvider>
           <Router>
+            <ScrollToTop />
             <div className="App d-flex flex-column min-vh-100">
               {/* Navigation */}
               <Navbar />
-              
-              {/* Toast Notifications */}
-              <ToastContainer />
-              
+
+              {/* Toastify Container */}
+              <ToastContainer 
+                position="top-right"
+                autoClose={3000}
+                hideProgressBar={false}
+                newestOnTop={false}
+                closeOnClick
+                rtl={false}
+                pauseOnFocusLoss
+                draggable
+                pauseOnHover
+              />
+
               {/* Main Content */}
               <main className="flex-grow-1">
                 <Routes>
-                  {/* ===== PUBLIC ROUTES ===== */}
+                  {/* Public Routes */}
                   <Route path="/" element={<Home />} />
                   <Route path="/home" element={<Home />} />
-                  
-                  {/* Pet Routes */}
                   <Route path="/pets" element={<Pets />} />
                   <Route path="/browse" element={<Browse />} />
                   <Route path="/pets/:id" element={<PetDetail />} />
-                  
-                  {/* Product Routes */}
                   <Route path="/products" element={<Products />} />
                   <Route path="/products/:id" element={<ProductDetail />} />
-                  
-                  {/* News Routes */}
                   <Route path="/news" element={<News />} />
                   <Route path="/news/:id" element={<NewsDetail />} />
-                  
-                  {/* Info Pages */}
                   <Route path="/about" element={<About />} />
                   <Route path="/contact" element={<Contact />} />
-                  
-                  {/* Auth Routes */}
                   <Route path="/login" element={<Login />} />
                   <Route path="/register" element={<Register />} />
-                  
-                  {/* Protected User Routes */}
+
+                  {/* Protected User Route */}
                   <Route path="/profile" element={
                     <ProtectedRoute>
                       <Profile />
                     </ProtectedRoute>
                   } />
-                  
-                  {/* ===== ADMIN ROUTES ===== */}
+
+                  {/* Admin Routes */}
                   <Route path="/admin" element={
                     <ProtectedRoute adminOnly>
                       <AdminDashboard />
                     </ProtectedRoute>
                   } />
-
                   <Route path="/admin/dashboard" element={
                     <ProtectedRoute adminOnly>
                       <AdminDashboard />
                     </ProtectedRoute>
                   } />
-
                   <Route path="/admin/users" element={
                     <ProtectedRoute adminOnly>
                       <AdminUsers />
                     </ProtectedRoute>
                   } />
-
                   <Route path="/admin/pets" element={
                     <ProtectedRoute adminOnly>
                       <AdminPets />
                     </ProtectedRoute>
                   } />
-
                   <Route path="/admin/products" element={
                     <ProtectedRoute adminOnly>
                       <AdminProducts />
                     </ProtectedRoute>
                   } />
-
                   <Route path="/admin/contacts" element={
                     <ProtectedRoute adminOnly>
                       <AdminContacts />
                     </ProtectedRoute>
                   } />
-
                   <Route path="/admin/reports" element={
                     <ProtectedRoute adminOnly>
                       <AdminReports />
                     </ProtectedRoute>
                   } />
-
                   <Route path="/admin/analytics" element={
                     <ProtectedRoute adminOnly>
                       <AdminAnalytics />
                     </ProtectedRoute>
                   } />
-
                   <Route path="/admin/settings" element={
                     <ProtectedRoute adminOnly>
                       <AdminSettings />
                     </ProtectedRoute>
                   } />
-
                   <Route path="/admin/news" element={
                     <ProtectedRoute adminOnly>
                       <AdminNews />
                     </ProtectedRoute>
                   } />
 
-                  {/* ===== 404 ROUTE ===== */}
+                  {/* 404 Not Found */}
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </main>

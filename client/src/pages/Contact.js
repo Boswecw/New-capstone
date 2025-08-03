@@ -8,9 +8,7 @@ import {
   Alert,
   Card,
 } from "react-bootstrap";
-import Navbar from "../components/Navbar";
 import HeroBanner from "../components/HeroBanner";
-import Footer from "../components/Footer";
 import api from "../services/api";
 
 const Contact = () => {
@@ -51,7 +49,6 @@ const Contact = () => {
 
   return (
     <>
-      <Navbar />
       <div style={{ marginTop: "80px" }}>
         <HeroBanner
           logoSize="large"
@@ -197,7 +194,6 @@ const Contact = () => {
           </Row>
         </Container>
       </div>
-      <Footer />
     </>
   );
 };

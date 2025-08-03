@@ -5,14 +5,16 @@
   "main": "server/server.js",
   "scripts": {
     "start": "node server/server.js",
-    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "dev": "concurrently \"yarn server\" \"yarn client\"",
     "server": "cd server && nodemon server.js",
-    "client": "cd client && npm start",
-    "build": "cd client && npm run build",
-    "install-server": "cd server && npm install",
-    "install-client": "cd client && npm install",
-    "install-all": "npm run install-server && npm run install-client",
-    "render-postbuild": "npm run install-all && npm run build"
+    "client": "cd client && yarn start",
+    "build": "cd client && yarn build",
+    "install-server": "cd server && yarn install",
+    "install-client": "cd client && yarn install",
+    "install-all": "yarn install-server && yarn install-client",
+    "render-postbuild": "yarn install-all && yarn build",
+    "clean": "rm -rf node_modules server/node_modules client/node_modules yarn.lock",
+    "test": "echo \"No tests yet\" && exit 0"
   },
   "keywords": [
     "pet-adoption",
