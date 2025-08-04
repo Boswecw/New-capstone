@@ -1,3 +1,4 @@
+// client/src/components/browse/BrowseHeader.js - FULLY UPDATED
 
 import React from 'react';
 import { Badge, Button } from 'react-bootstrap';
@@ -5,7 +6,7 @@ import { Badge, Button } from 'react-bootstrap';
 const BrowseHeader = ({ config, filters, totalCount, onReset, onQuickAction }) => {
   const getActiveFilterBadges = () => {
     const badges = [];
-    
+
     Object.entries(filters || {}).forEach(([key, value]) => {
       if (value && value !== 'all' && value !== '') {
         if (key === 'search') {
@@ -29,24 +30,17 @@ const BrowseHeader = ({ config, filters, totalCount, onReset, onQuickAction }) =
         }
       }
     });
-    
+
     return badges;
   };
 
-  // ✅ FIX: Handle both string and function subtitles safely
   const getSubtitle = () => {
     if (!config?.subtitle) return '';
-    
-    // If subtitle is a function, call it with totalCount
-    if (typeof config.subtitle === 'function') {
-      return config.subtitle(totalCount || 0);
-    }
-    
-    // If subtitle is a string, use it directly
-    return config.subtitle;
+    return typeof config.subtitle === 'function'
+      ? config.subtitle(totalCount || 0)
+      : config.subtitle;
   };
 
-  // ✅ FIX: Safe defaults for config
   const safeConfig = {
     title: config?.title || 'Browse Items',
     subtitle: getSubtitle(),
@@ -54,46 +48,51 @@ const BrowseHeader = ({ config, filters, totalCount, onReset, onQuickAction }) =
     quickActions: config?.quickActions || []
   };
 
+  const isActive = (actionId) => {
+    const match = safeConfig.quickActions.find((a) => a.action === actionId);
+    if (!match || !match.filters) return false;
+
+    return Object.entries(match.filters).every(([key, val]) => filters[key] === val);
+  };
+
   return (
-    <div className="d-flex justify-content-between align-items-center mb-4">
-      <div>
-        <h1 className="h2 mb-2">
-          <i className={`${safeConfig.icon} me-2`}></i>
-          {safeConfig.title}
-          {getActiveFilterBadges()}
-        </h1>
-        {safeConfig.subtitle && (
-          <p className="text-muted mb-0">
-            {safeConfig.subtitle}
-          </p>
+    <div className="mb-4">
+      <div className="d-flex justify-content-between align-items-center flex-wrap mb-3">
+        <div className="me-3">
+          <h1 className="h2 mb-2">
+            <i className={`${safeConfig.icon} me-2`}></i>
+            {safeConfig.title}
+            {getActiveFilterBadges()}
+          </h1>
+          {safeConfig.subtitle && (
+            <p className="text-muted mb-0">{safeConfig.subtitle}</p>
+          )}
+        </div>
+
+        {safeConfig.quickActions.length > 0 && (
+          <div className="d-flex flex-wrap gap-2 justify-content-start justify-content-md-end mt-3 mt-md-0">
+            {safeConfig.quickActions.map((action, index) => (
+              <Button
+                key={index}
+                variant={isActive(action.action) ? 'primary' : (action.variant || 'outline-primary')}
+                size="sm"
+                onClick={() => onQuickAction?.(action)}
+              >
+                {action.icon && <span className="me-1">{action.icon}</span>}
+                {action.text || action.label}
+              </Button>
+            ))}
+            <Button
+              variant="outline-secondary"
+              size="sm"
+              onClick={onReset}
+            >
+              <i className="fas fa-undo me-1"></i>
+              Reset
+            </Button>
+          </div>
         )}
       </div>
-      
-      {safeConfig.quickActions.length > 0 && (
-        <div className="d-flex gap-2">
-          {safeConfig.quickActions.map((action, index) => (
-            <Button
-              key={index}
-              variant={action.variant || 'outline-primary'}
-              size="sm"
-              onClick={() => onQuickAction?.(action.action)}
-            >
-              {action.icon && <i className={`fas fa-${action.icon} me-1`}></i>}
-              {action.text || action.label}
-            </Button>
-          ))}
-          
-          {/* Reset button */}
-          <Button
-            variant="outline-secondary"
-            size="sm"
-            onClick={onReset}
-          >
-            <i className="fas fa-undo me-1"></i>
-            Reset
-          </Button>
-        </div>
-      )}
     </div>
   );
 };

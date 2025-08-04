@@ -1,10 +1,12 @@
 // client/src/pages/Browse.js - USING ALL BOOTSTRAP IMPORTS
 import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Alert, Spinner } from 'react-bootstrap';
+import { Container, Row, Col, Alert} from 'react-bootstrap';
 import BrowseLayout from '../components/browse/BrowseLayout';
 import { ENTITY_CONFIGS } from '../config/entityConfigs';
 import { petAPI } from '../services/api';
 import PetCard from '../components/PetCard';
+import LoadingSpinner from '../components/LoadingSpinner';
+
 
 const Browse = () => {
   const [isInitialLoading, setIsInitialLoading] = useState(true);
@@ -18,21 +20,11 @@ const Browse = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  // Loading state using Spinner in Row/Col
   if (isInitialLoading) {
-    return (
-      <Container className="py-5">
-        <Row className="justify-content-center">
-          <Col xs="auto" className="text-center">
-            <Spinner animation="border" variant="primary" size="lg" />
-            <p className="mt-3 text-muted">Preparing pet browser...</p>
-          </Col>
-        </Row>
-      </Container>
-    );
+    return <LoadingSpinner message="Loading available pets..." noContainer />;
   }
-
-  // Main content
+  
+    // Main content
   return (
     <>
       <Container className="py-3">
