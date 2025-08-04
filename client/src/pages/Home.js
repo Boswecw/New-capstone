@@ -1,7 +1,8 @@
-// client/src/pages/Home.js - ORIGINAL DESIGN RESTORED with ESLint fix
+// client/src/pages/Home.js - CONVERTED to use react-toastify
 import React, { useState, useEffect, useCallback } from 'react';
 import { Container, Row, Col, Alert, Button, Spinner } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
+import { toast } from 'react-toastify'; // ✅ CHANGED: Use react-toastify
 
 // Components
 import HeroBanner from '../components/HeroBanner';
@@ -9,11 +10,11 @@ import SectionHeader from '../components/SectionHeader';
 import PetCard from '../components/PetCard';
 import ProductCard from '../components/ProductCard';
 import NewsSection from '../components/NewsSection';
-import ToastContainer from '../components/ToastContainer';
+// ❌ REMOVED: Custom ToastContainer import
 
 // Services & Hooks
 import { petAPI, productAPI } from '../services/api';
-import useToast from '../hooks/useToast';
+// ❌ REMOVED: Custom useToast import
 
 const Home = () => {
   // State management
@@ -25,8 +26,24 @@ const Home = () => {
   const [productsError, setProductsError] = useState(null);
   const [loadingPhase, setLoadingPhase] = useState('Starting...');
 
-  // Toast notifications
-  const { toasts, showSuccess, showError, showInfo, removeToast } = useToast();
+  // ❌ REMOVED: Custom toast notifications
+  // const { toasts, showSuccess, showError, showInfo, removeToast } = useToast();
+
+  // ✅ ADDED: Helper functions for react-toastify
+  const showSuccess = useCallback((message, title) => {
+    const displayMessage = title ? `${title}: ${message}` : message;
+    toast.success(displayMessage);
+  }, []);
+
+  const showError = useCallback((message, title) => {
+    const displayMessage = title ? `${title}: ${message}` : message;
+    toast.error(displayMessage);
+  }, []);
+
+  const showInfo = useCallback((message, title) => {
+    const displayMessage = title ? `${title}: ${message}` : message;
+    toast.info(displayMessage);
+  }, []);
 
   // 🔧 ENHANCED: API call with retry logic
   const apiCallWithRetry = useCallback(async (apiCall, retryCount = 0, maxRetries = 3) => {
@@ -173,8 +190,8 @@ const Home = () => {
 
   return (
     <div className="home-page">
-      {/* Toast notifications */}
-      <ToastContainer toasts={toasts} removeToast={removeToast} />
+      {/* ❌ REMOVED: Custom Toast notifications */}
+      {/* <ToastContainer toasts={toasts} removeToast={removeToast} /> */}
       
       {/* Hero section */}
       <HeroBanner />

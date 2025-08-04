@@ -212,12 +212,12 @@ export const productAPI = {
 export const userAPI = {
   // Register
   register: (userData) => {
-    return api.post('/users/register', userData);
+    return api.post('/auth/register', userData);
   },
 
   // Login
   login: (credentials) => {
-    return api.post('/users/login', credentials);
+    return api.post('/auth/login', credentials);
   },
 
   // Get profile

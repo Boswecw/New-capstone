@@ -1,4 +1,4 @@
-// client/src/App.js - WITH REACT ROUTER FUTURE FLAGS (Optional)
+// client/src/App.js - UPDATED TO USE AUTHFORMS
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { ToastProvider } from './contexts/ToastContext';
@@ -24,7 +24,8 @@ import News from './pages/News';
 import NewsDetail from './pages/NewsDetail';
 import About from './pages/About';
 import Contact from './pages/Contact';
-import Login from './pages/Login';
+// ✅ CHANGED: Import LoginForm from AuthForms instead of Login page
+import { LoginForm } from './components/Form/AuthForms';
 import Register from './pages/Register';
 import Profile from './pages/Profile';
 import NotFound from './pages/NotFound';
@@ -92,7 +93,8 @@ function App() {
                   <Route path="/news/:id" element={<NewsDetail />} />
                   <Route path="/about" element={<About />} />
                   <Route path="/contact" element={<Contact />} />
-                  <Route path="/login" element={<Login />} />
+                  {/* ✅ CHANGED: Use LoginForm from AuthForms instead of Login page */}
+                  <Route path="/login" element={<LoginForm />} />
                   <Route path="/register" element={<Register />} />
 
                   {/* Protected User Route */}

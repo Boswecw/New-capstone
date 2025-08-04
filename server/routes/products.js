@@ -1,22 +1,29 @@
-// server/routes/products.js - FIXED for actual product data structure
-
+// server/routes/products.js - FIXED VERSION with correct route order
 const express = require('express');
 const Product = require('../models/Product');
 const router = express.Router();
 
-// ✅ ADVANCED FILTER MAPPING for PRODUCTS (handles actual data structure)
+// ✅ ADVANCED FILTER MAPPING for PRODUCTS
 const mapProductFiltersToQuery = (filters) => {
   const query = { inStock: true }; // Only show in-stock products
 
-  // ✅ CATEGORY mapping - Map frontend values to actual database values
+  // ✅ FEATURED filtering - Handle both boolean and string
+  if (filters.featured === 'true' || filters.featured === true) {
+    query.$or = [
+      { featured: true },
+      { featured: "true" } // Handle string version from your data
+    ];
+  }
+
+  // ✅ CATEGORY mapping
   if (filters.category && filters.category !== 'all') {
     switch (filters.category.toLowerCase()) {
       case 'food':
-        query.category = new RegExp('(dog care|cat care)', 'i'); // Food is in Dog/Cat Care
-        query.name = new RegExp('(food|kibble)', 'i'); // AND name contains food
+        query.category = new RegExp('(dog care|cat care)', 'i');
+        query.name = new RegExp('(food|kibble)', 'i');
         break;
       case 'toys':
-        query.name = new RegExp('toy', 'i'); // Any product with "toy" in name
+        query.name = new RegExp('toy', 'i');
         break;
       case 'accessories':
         query.category = new RegExp('(dog care|cat care)', 'i');
@@ -29,7 +36,6 @@ const mapProductFiltersToQuery = (filters) => {
         query.category = new RegExp('aquarium', 'i');
         break;
       default:
-        // Direct category match as fallback
         query.category = new RegExp(filters.category, 'i');
     }
   }
@@ -49,14 +55,6 @@ const mapProductFiltersToQuery = (filters) => {
     }
   }
 
-  // ✅ FEATURED filtering - Handle string "true" from database
-  if (filters.featured === 'true' || filters.featured === true) {
-    query.$or = [
-      { featured: true },
-      { featured: "true" } // Handle string version from your data
-    ];
-  }
-
   // ✅ SEARCH across multiple fields
   if (filters.search && filters.search.trim()) {
     const searchRegex = new RegExp(filters.search.trim(), 'i');
@@ -72,38 +70,13 @@ const mapProductFiltersToQuery = (filters) => {
   return query;
 };
 
-// ⭐ Get featured products with string "true" handling
+// ⭐ IMPORTANT: Put specific routes BEFORE parameterized routes
+// ⭐ Get featured products - DEDICATED endpoint
 router.get('/featured', async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 4;
     
     console.log(`🌟 GET /api/products/featured - Fetching ${limit} featured products`);
-
-    // ⭐ Get featured products with string "true" handling
-router.get('/featured', async (req, res) => {
-  try {
-    const limit = parseInt(req.query.limit) || 4;
-    
-    console.log(`🌟 GET /api/products/featured - Fetching ${limit} featured products`);
-    
-    // 🔍 ADD THIS DEBUG LINE RIGHT HERE:
-    console.log('🔍 Product model schema has featured field:', 'featured' in Product.schema.paths);
-    
-    // ✅ Handle both boolean and string "true"
-    const featuredProducts = await Product.find({
-      $or: [
-        { featured: true },
-        { featured: "true" }
-      ],
-      inStock: true
-    })
-    .limit(limit)
-    .lean();
-    
-    console.log(`✅ Found ${featuredProducts.length} featured products`);
-    
-    // ... rest of your existing code stays the same
-    
     
     // ✅ Handle both boolean and string "true"
     const featuredProducts = await Product.find({
@@ -122,7 +95,7 @@ router.get('/featured', async (req, res) => {
     const enrichedProducts = featuredProducts.map(product => ({
       ...product,
       imageUrl: product.image,
-      priceDisplay: `$${parseFloat(product.price).toFixed(2)}`
+      priceDisplay: `$${parseFloat(product.price || 0).toFixed(2)}`
     }));
 
     res.json({
@@ -142,7 +115,7 @@ router.get('/featured', async (req, res) => {
   }
 });
 
-// ⭐ Get all products with ADVANCED filtering
+// ⭐ Get all products with ADVANCED filtering - MAIN endpoint
 router.get('/', async (req, res) => {
   try {
     console.log('🛍️ GET /api/products - Query params:', req.query);
@@ -190,14 +163,14 @@ router.get('/', async (req, res) => {
       .lean();
 
     console.log(`✅ Found ${products.length} products (Total: ${total})`);
-    console.log(`📊 Sample product categories:`, products.slice(0, 3).map(p => p.category));
+    console.log(`📊 Sample product categories:`, products.slice(0, 3).map(p => p.category || 'No category'));
 
     // Enrich product data
     const enrichedProducts = products.map(product => ({
       ...product,
-      imageUrl: product.image, // Keep as-is
+      imageUrl: product.image,
       hasImage: !!product.image,
-      priceDisplay: `$${parseFloat(product.price).toFixed(2)}`,
+      priceDisplay: `$${parseFloat(product.price || 0).toFixed(2)}`,
       isInStock: product.inStock === true || product.inStock === "true"
     }));
 
@@ -213,7 +186,7 @@ router.get('/', async (req, res) => {
       debug: {
         appliedFilters: req.query,
         mongoQuery: query,
-        resultCategories: [...new Set(products.map(p => p.category))]
+        resultCategories: [...new Set(products.map(p => p.category || 'uncategorized'))]
       }
     });
 
@@ -227,7 +200,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// ⭐ Get single product by ID
+// ⭐ Get single product by ID - MUST come after specific routes
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -247,7 +220,7 @@ router.get('/:id', async (req, res) => {
     const productWithImageUrl = {
       ...product,
       imageUrl: product.image,
-      priceDisplay: `$${parseFloat(product.price).toFixed(2)}`
+      priceDisplay: `$${parseFloat(product.price || 0).toFixed(2)}`
     };
     
     console.log(`✅ Found product: ${product.name}`);
