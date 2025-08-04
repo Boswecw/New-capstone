@@ -78,6 +78,32 @@ router.get('/featured', async (req, res) => {
     const limit = parseInt(req.query.limit) || 4;
     
     console.log(`🌟 GET /api/products/featured - Fetching ${limit} featured products`);
+
+    // ⭐ Get featured products with string "true" handling
+router.get('/featured', async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 4;
+    
+    console.log(`🌟 GET /api/products/featured - Fetching ${limit} featured products`);
+    
+    // 🔍 ADD THIS DEBUG LINE RIGHT HERE:
+    console.log('🔍 Product model schema has featured field:', 'featured' in Product.schema.paths);
+    
+    // ✅ Handle both boolean and string "true"
+    const featuredProducts = await Product.find({
+      $or: [
+        { featured: true },
+        { featured: "true" }
+      ],
+      inStock: true
+    })
+    .limit(limit)
+    .lean();
+    
+    console.log(`✅ Found ${featuredProducts.length} featured products`);
+    
+    // ... rest of your existing code stays the same
+    
     
     // ✅ Handle both boolean and string "true"
     const featuredProducts = await Product.find({
