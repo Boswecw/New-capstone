@@ -1,3 +1,4 @@
+// client/src/components/browse/BrowseLayout.js - FULLY CORRECTED VERSION
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Container, Row, Col } from 'react-bootstrap';
@@ -7,7 +8,6 @@ import FilterSidebar from './FilterSidebar';
 import BrowseResults from './BrowseResults';
 import LoadingSpinner from '../LoadingSpinner';
 
-// ✅ FIX: Proper component name and export
 const BrowseLayout = ({ 
   entityConfig, 
   apiService,
@@ -18,20 +18,17 @@ const BrowseLayout = ({
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const triggerRef = useRef(null);
-  
-  // State Management
+
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [error, setError] = useState(null);
   const [pagination, setPagination] = useState({});
   const [stats, setStats] = useState({});
-  
-  // Infinite Scroll State
+
   const [pageCounter, setPageCounter] = useState(1);
   const [hasMore, setHasMore] = useState(true);
-  
-  // Initialize filters from URL
+
   const [filters, setFilters] = useState(() => {
     const initialFilters = {};
     Object.keys(entityConfig.filters).forEach(key => {
@@ -40,17 +37,16 @@ const BrowseLayout = ({
     initialFilters.search = searchParams.get('search') || '';
     return initialFilters;
   });
-  
+
   const [currentPage, setCurrentPage] = useState(parseInt(searchParams.get('page')) || 1);
 
-  // ✅ FIX: Properly define all callback dependencies
   const handleFilterReset = useCallback(() => {
     const resetFilters = {};
     Object.keys(entityConfig.filters).forEach(key => {
       resetFilters[key] = 'all';
     });
     resetFilters.search = '';
-    
+
     setFilters(resetFilters);
     setCurrentPage(1);
     if (useInfiniteScroll) {
@@ -60,16 +56,15 @@ const BrowseLayout = ({
     navigate(entityConfig.routes.browse, { replace: true });
   }, [navigate, entityConfig, useInfiniteScroll]);
 
-  // URL management
   const updateURL = useCallback((newFilters, page = 1) => {
     const params = new URLSearchParams();
-    
+
     Object.entries(newFilters).forEach(([key, value]) => {
       if (value && value !== 'all' && value !== '') {
         params.set(key, value);
       }
     });
-    
+
     if (page > 1) {
       params.set('page', page.toString());
     }
@@ -80,11 +75,10 @@ const BrowseLayout = ({
     navigate(newURL, { replace: true });
   }, [navigate, entityConfig.routes.browse]);
 
-  // ✅ FIX: Define handleFilterChange before using it in other callbacks
   const handleFilterChange = useCallback((filterType, value) => {
     const newFilters = { ...filters, [filterType]: value };
     setFilters(newFilters);
-    
+
     if (useInfiniteScroll) {
       setPageCounter(1);
       setItems([]);
@@ -92,7 +86,7 @@ const BrowseLayout = ({
     } else {
       setCurrentPage(1);
     }
-    
+
     updateURL(newFilters, 1);
   }, [filters, updateURL, useInfiniteScroll]);
 
@@ -105,13 +99,30 @@ const BrowseLayout = ({
     navigate(detailRoute);
   }, [navigate, entityConfig.routes.detail]);
 
-  // ✅ FIX: Include all dependencies in the quick action callback
-  const handleQuickAction = useCallback((action) => {
-    if (action === 'reset') handleFilterReset();
-    if (action === 'featured') handleFilterChange('featured', 'true');
-  }, [handleFilterReset, handleFilterChange]);
+  const handleQuickAction = useCallback((actionObj) => {
+    if (!actionObj || typeof actionObj !== 'object') return;
 
-  // Data fetching
+    const { action, filters: actionFilters = {} } = actionObj;
+
+    if (action === 'reset') {
+      handleFilterReset();
+      return;
+    }
+
+    const newFilters = { ...filters, ...actionFilters };
+
+    if (useInfiniteScroll) {
+      setPageCounter(1);
+      setItems([]);
+      setHasMore(true);
+    } else {
+      setCurrentPage(1);
+    }
+
+    setFilters(newFilters);
+    updateURL(newFilters, 1);
+  }, [filters, handleFilterReset, updateURL, useInfiniteScroll]);
+
   const fetchData = useCallback(async (page = 1, append = false) => {
     try {
       if (!append) {
@@ -120,53 +131,44 @@ const BrowseLayout = ({
       } else {
         setLoading(true);
       }
-      
+
       const queryParams = {
         page,
         limit: itemsPerPage,
         ...filters
       };
-      
-      // Remove 'all' values
+
       Object.keys(queryParams).forEach(key => {
         if (queryParams[key] === 'all' || queryParams[key] === '') {
           delete queryParams[key];
         }
       });
-      
-      console.log('🔧 BrowseLayout fetching with params:', queryParams);
-      
+
       const response = await apiService[entityConfig.api.getAllMethod](queryParams);
-      
-      console.log('🔧 BrowseLayout API response:', response);
-      
+
       if (response?.data?.success) {
         const newItems = response.data.data || [];
         const newPagination = response.data.pagination || {};
         const newStats = response.data.stats || {};
-        
+
         if (append) {
           setItems(prevItems => [...prevItems, ...newItems]);
         } else {
           setItems(newItems);
         }
-        
+
         setPagination(newPagination);
         setStats(newStats);
-        
+
         if (useInfiniteScroll) {
           setHasMore(newItems.length === itemsPerPage);
         }
-        
-        console.log('🔧 BrowseLayout processed items:', newItems.length);
       } else {
         throw new Error(`Failed to fetch ${entityConfig.displayName.toLowerCase()}`);
       }
-      
+
     } catch (err) {
-      console.error(`❌ Error fetching ${entityConfig.displayName}:`, err);
       setError(`Failed to load ${entityConfig.displayName.toLowerCase()}. Please try again.`);
-      
       if (!append) {
         setItems([]);
       }
@@ -176,33 +178,29 @@ const BrowseLayout = ({
     }
   }, [filters, itemsPerPage, apiService, entityConfig, useInfiniteScroll]);
 
-  // Infinite scroll load more
   const loadMore = useCallback(async () => {
     if (!hasMore || loading || !useInfiniteScroll) return;
-    
+
     const nextPage = pageCounter + 1;
     setPageCounter(nextPage);
     await fetchData(nextPage, true);
   }, [hasMore, loading, pageCounter, fetchData, useInfiniteScroll]);
 
-  // Effects
   useEffect(() => {
-    // Watch URL params
     const newFilters = {};
     Object.keys(entityConfig.filters).forEach(key => {
       newFilters[key] = searchParams.get(key) || 'all';
     });
     newFilters.search = searchParams.get('search') || '';
-    
+
     setFilters(newFilters);
-    
+
     if (!useInfiniteScroll) {
       setCurrentPage(parseInt(searchParams.get('page')) || 1);
     }
   }, [searchParams, entityConfig.filters, useInfiniteScroll]);
 
   useEffect(() => {
-    // Fetch data when filters change
     if (useInfiniteScroll) {
       setItems([]);
       setPageCounter(1);
@@ -213,12 +211,11 @@ const BrowseLayout = ({
     }
   }, [fetchData, currentPage, useInfiniteScroll]);
 
-  // Infinite scroll observer
   useEffect(() => {
     if (!useInfiniteScroll) return;
-    
+
     const currentTrigger = triggerRef.current;
-    
+
     const observer = new IntersectionObserver(
       (entries) => {
         const target = entries[0];
@@ -241,7 +238,6 @@ const BrowseLayout = ({
     };
   }, [hasMore, loading, initialLoading, loadMore, useInfiniteScroll]);
 
-  // Loading state
   if (initialLoading) {
     return <LoadingSpinner message={`Finding ${entityConfig.displayName.toLowerCase()}...`} />;
   }
