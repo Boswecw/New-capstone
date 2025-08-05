@@ -284,8 +284,19 @@ export const newsAPI = {
   // Delete news (admin)
   deleteNews: (id) => {
     return api.delete(`/news/${id}`);
+  },
+
+  // ✅ NEW: Get distinct news categories (for filters)
+  getCategories: () => {
+    return api.get('/news/categories');
+  },
+
+  // ✅ NEW: Get custom news (admin dashboard)
+  getCustomNews: () => {
+    return api.get('/news/custom');
   }
 };
+
 
 // ===== CONTACT API =====
 export const contactAPI = {

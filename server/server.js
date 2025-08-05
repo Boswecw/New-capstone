@@ -37,8 +37,8 @@ app.use(compression());
 const corsOptions = {
   origin: process.env.NODE_ENV === 'production' 
     ? [
-        'https://new-capstone.onrender.com',
-        'https://furbabies-frontend.onrender.com'  // ✅ Added missing frontend URL
+        'https://furbabies-backend.onrender.com',
+        'https://furbabies-frontend.onrender.com'
       ]
     : ['http://localhost:3000', 'http://localhost:5000'],
   credentials: true,
@@ -89,6 +89,7 @@ safeImport('products', './routes/products');
 safeImport('contacts', './routes/contacts');
 safeImport('users', './routes/users');
 safeImport('auth', './routes/auth');
+safeImport('admin', './routes/admin');        // ✅ ADDED: Admin routes
 safeImport('images', './routes/images');
 safeImport('news', './routes/news');
 
@@ -116,6 +117,7 @@ if (routes.products) app.use('/api/products', routes.products);
 if (routes.contacts) app.use('/api/contacts', routes.contacts);
 if (routes.users) app.use('/api/users', routes.users);
 if (routes.auth) app.use('/api/auth', routes.auth);
+if (routes.admin) app.use('/api/admin', routes.admin);    // ✅ ADDED: Admin route registration
 if (routes.images) app.use('/api/images', routes.images);
 if (routes.news) app.use('/api/news', routes.news);
 
