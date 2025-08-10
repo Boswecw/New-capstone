@@ -6,13 +6,14 @@ const router = express.Router();
 // ✅ ADVANCED FILTER MAPPING for PRODUCTS
 const mapProductFiltersToQuery = (filters) => {
   const query = { inStock: true }; // Only show in-stock products
+  const orConditions = [];
 
   // ✅ FEATURED filtering - Handle both boolean and string
   if (filters.featured === 'true' || filters.featured === true) {
-    query.$or = [
+    orConditions.push([
       { featured: true },
       { featured: "true" } // Handle string version from your data
-    ];
+    ]);
   }
 
   // ✅ CATEGORY mapping
@@ -58,12 +59,22 @@ const mapProductFiltersToQuery = (filters) => {
   // ✅ SEARCH across multiple fields
   if (filters.search && filters.search.trim()) {
     const searchRegex = new RegExp(filters.search.trim(), 'i');
-    query.$or = [
+    orConditions.push([
       { name: searchRegex },
       { brand: searchRegex },
       { description: searchRegex },
       { category: searchRegex }
-    ];
+    ]);
+  }
+
+  if (orConditions.length > 1) {
+    console.log('🔍 Combining featured and search filters with $and');
+  }
+
+  if (orConditions.length === 1) {
+    query.$or = orConditions[0];
+  } else if (orConditions.length > 1) {
+    query.$and = orConditions.map(cond => ({ $or: cond }));
   }
 
   console.log('🛍️ Mapped product filters to query:', JSON.stringify(query, null, 2));
