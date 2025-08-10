@@ -67,7 +67,7 @@ async function testEndpoint(name, url, expectedFields = []) {
 
 async function runAllTests() {
   log('\n🚀 Starting News Functionality Tests', 'cyan');
-  log('=' * 50, 'cyan');
+  log('='.repeat(50), 'cyan');
   
   const results = {
     passed: 0,
@@ -236,7 +236,7 @@ async function runAllTests() {
 
   // Final Results
   log('\n📊 Test Results Summary', 'cyan');
-  log('=' * 30, 'cyan');
+  log('='.repeat(30), 'cyan');
   logSuccess(`Passed: ${results.passed}`);
   if (results.warnings > 0) {
     logWarning(`Warnings: ${results.warnings}`);
