@@ -86,7 +86,7 @@ const safeImport = (routeName, routePath) => {
 // Import available routes
 safeImport('pets', './routes/pets');
 safeImport('products', './routes/products');
-safeImport('contacts', './routes/contacts');
+safeImport('contact', './routes/contact');
 safeImport('users', './routes/users');
 safeImport('auth', './routes/auth');
 safeImport('admin', './routes/admin');        // ✅ ADDED: Admin routes
@@ -114,7 +114,7 @@ app.get('/', (req, res) => {
 // Register routes only if they were successfully loaded
 if (routes.pets) app.use('/api/pets', routes.pets);
 if (routes.products) app.use('/api/products', routes.products);
-if (routes.contacts) app.use('/api/contacts', routes.contacts);
+if (routes.contact) app.use('/api/contact', routes.contact);
 if (routes.users) app.use('/api/users', routes.users);
 if (routes.auth) app.use('/api/auth', routes.auth);
 if (routes.admin) app.use('/api/admin', routes.admin);    // ✅ ADDED: Admin route registration
