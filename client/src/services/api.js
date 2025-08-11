@@ -3,17 +3,15 @@ import axios from 'axios';
 
 // ✅ Environment-based API URL configuration
 const getBaseURL = () => {
-  if (process.env.REACT_APP_API_URL) {
+  if (process.env.NODE_ENV === 'production') {
+    if (!process.env.REACT_APP_API_URL) {
+      throw new Error('REACT_APP_API_URL is required in production');
+    }
     return process.env.REACT_APP_API_URL;
   }
-  
-  // Production detection
-  if (process.env.NODE_ENV === 'production') {
-    return 'https://new-capstone.onrender.com/api';
-  }
-  
+
   // Development fallback
-  return 'http://localhost:5000/api';
+  return process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 };
 
 const api = axios.create({
