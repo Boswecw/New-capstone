@@ -3,17 +3,15 @@ import axios from 'axios';
 
 // ✅ Environment-based API URL configuration
 const getBaseURL = () => {
-  if (process.env.REACT_APP_API_URL) {
+  if (process.env.NODE_ENV === 'production') {
+    if (!process.env.REACT_APP_API_URL) {
+      throw new Error('REACT_APP_API_URL is required in production');
+    }
     return process.env.REACT_APP_API_URL;
   }
-  
-  // Production detection
-  if (process.env.NODE_ENV === 'production') {
-    return 'https://new-capstone.onrender.com/api';
-  }
-  
+
   // Development fallback
-  return 'http://localhost:5000/api';
+  return process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 };
 
 const api = axios.create({
@@ -212,12 +210,12 @@ export const productAPI = {
 export const userAPI = {
   // Register
   register: (userData) => {
-    return api.post('/users/register', userData);
+    return api.post('/auth/register', userData);
   },
 
   // Login
   login: (credentials) => {
-    return api.post('/users/login', credentials);
+    return api.post('/auth/login', credentials);
   },
 
   // Get profile
@@ -284,8 +282,19 @@ export const newsAPI = {
   // Delete news (admin)
   deleteNews: (id) => {
     return api.delete(`/news/${id}`);
+  },
+
+  // ✅ NEW: Get distinct news categories (for filters)
+  getCategories: () => {
+    return api.get('/news/categories');
+  },
+
+  // ✅ NEW: Get custom news (admin dashboard)
+  getCustomNews: () => {
+    return api.get('/news/custom');
   }
 };
+
 
 // ===== CONTACT API =====
 export const contactAPI = {

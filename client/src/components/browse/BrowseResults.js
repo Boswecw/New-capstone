@@ -1,4 +1,4 @@
-// client/src/components/browse/BrowseResults.js - FIXED VERSION
+// client/src/components/browse/BrowseResults.js - CLEAN FIXED VERSION (React-Bootstrap Pagination)
 import React from 'react';
 import { Row, Col, Alert, Spinner, Button, Pagination } from 'react-bootstrap';
 
@@ -17,10 +17,8 @@ const BrowseResults = ({
   onPageChange,
   onRetry
 }) => {
-
-  // ✅ FIXED: Function to determine correct prop name for ItemCard
+  // Handles prop mapping for each item type
   const getCardProps = (item) => {
-    // For PetCard, use 'pet' prop
     if (entityConfig.displayName === 'Pets') {
       return {
         pet: item,
@@ -28,8 +26,6 @@ const BrowseResults = ({
         onClick: onItemClick ? () => onItemClick(item._id) : null
       };
     }
-    
-    // For ProductCard, use 'product' prop  
     if (entityConfig.displayName === 'Products') {
       return {
         product: item,
@@ -37,30 +33,36 @@ const BrowseResults = ({
         onClick: onItemClick ? () => onItemClick(item._id) : null
       };
     }
-    
-    // Default fallback
     return {
       item: item,
       onClick: onItemClick ? () => onItemClick(item._id) : null
     };
   };
 
+  // Correct Pagination rendering using React-Bootstrap
   const renderPagination = () => {
-    if (useInfiniteScroll || !pagination || pagination.totalPages <= 1) {
-      return null;
-    }
+    if (useInfiniteScroll || !pagination || pagination.totalPages <= 1) return null;
+
+    const handlePageClick = (page) => {
+      if (onPageChange && typeof onPageChange === 'function') {
+        onPageChange(page);
+      }
+    };
+
+    const pages = Array.from({ length: pagination.totalPages }, (_, i) => i + 1);
 
     return (
-      <div className="d-flex justify-content-center mt-4">
-        <Pagination
-          currentPage={currentPage}
-          totalPages={pagination.totalPages}
-          onPageChange={onPageChange}
-          showInfo={true}
-          totalItems={pagination.total}
-          itemsPerPage={pagination.limit}
-        />
-      </div>
+      <Pagination className="justify-content-center mt-4">
+        {pages.map(page => (
+          <Pagination.Item
+            key={page}
+            active={page === currentPage}
+            onClick={() => handlePageClick(page)}
+          >
+            {page}
+          </Pagination.Item>
+        ))}
+      </Pagination>
     );
   };
 
@@ -81,7 +83,7 @@ const BrowseResults = ({
         </Alert>
       )}
 
-      {/* Loading State (Non-infinite scroll) */}
+      {/* Loading State */}
       {loading && !useInfiniteScroll && (
         <div className="text-center py-5">
           <Spinner animation="border" variant="primary" className="mb-3" />
@@ -90,7 +92,7 @@ const BrowseResults = ({
         </div>
       )}
 
-      {/* No Items State */}
+      {/* No Results */}
       {!loading && !error && items.length === 0 && (
         <Alert variant="info" className="text-center">
           <Alert.Heading>
@@ -102,27 +104,25 @@ const BrowseResults = ({
         </Alert>
       )}
 
-      {/* Items Grid */}
+      {/* Grid Results */}
       {!error && items.length > 0 && (
         <>
           <Row>
-            {items.map((item) => {
-              // ✅ DEFENSIVE CHECK: Skip if item is null/undefined
+            {items.map(item => {
               if (!item || !item._id) {
-                console.warn('⚠️ BrowseResults: Skipping invalid item:', item);
+                console.warn('⚠️ Skipping invalid item:', item);
                 return null;
               }
 
               return (
                 <Col key={item._id} sm={6} lg={4} className="mb-4">
-                  {/* ✅ FIXED: Pass correct props based on card type */}
                   <ItemCard {...getCardProps(item)} />
                 </Col>
               );
             })}
           </Row>
 
-          {/* Infinite Scroll Elements */}
+          {/* Infinite Scroll */}
           {useInfiniteScroll && hasMore && (
             <>
               {loading && (
@@ -131,9 +131,9 @@ const BrowseResults = ({
                   <h6 className="text-primary mb-2">Loading More {entityConfig.displayName}...</h6>
                 </div>
               )}
-              
-              <div 
-                ref={triggerRef} 
+
+              <div
+                ref={triggerRef}
                 style={{ height: '40px', margin: '30px 0' }}
                 className="d-flex justify-content-center align-items-center"
               >
@@ -150,12 +150,12 @@ const BrowseResults = ({
             </>
           )}
 
-          {/* All Items Loaded Message (Infinite Scroll) */}
+          {/* All Loaded Message */}
           {useInfiniteScroll && !hasMore && items.length > 12 && (
             <div className="text-center mt-4">
               <Alert variant="success" className="d-inline-block">
                 <i className="fas fa-check-circle me-2"></i>
-                🎉 You've seen all {items.length} available {entityConfig.displayName.toLowerCase()}! 
+                🎉 You've seen all {items.length} available {entityConfig.displayName.toLowerCase()}!
                 <br />
                 <small className="text-muted">Try adjusting filters to discover more</small>
               </Alert>
@@ -163,7 +163,7 @@ const BrowseResults = ({
           )}
 
           {/* Regular Pagination */}
-          {renderPagination()}
+          {!useInfiniteScroll && renderPagination()}
         </>
       )}
     </>

@@ -64,7 +64,7 @@ A modern pet adoption platform built with the MERN stack, helping connect loving
 ### Prerequisites
 - Node.js >= 18.x
 - MongoDB Atlas
-- Git + npm
+- Git + Yarn
 - GCS bucket (optional)
 
 ### Installation
@@ -75,17 +75,17 @@ https://github.com/Boswecw/furbabies-petstore.git
 cd furbabies-petstore
 
 # Install server dependencies
-npm install
+yarn install
 
 # Install client dependencies
 cd client
-npm install
+yarn install
 cd ..
 ```
 
 ### Required Packages
 ```bash
-npm install react-icons
+yarn add react-icons
 ```
 
 ### Environment Variables
@@ -97,11 +97,18 @@ JWT_SECRET=your_secret
 NODE_ENV=development
 PORT=5000
 FRONTEND_URL=http://localhost:3000
+REACT_APP_API_URL=http://localhost:5000/api
+SMTP_HOST=your_smtp_host
+SMTP_PORT=587
+SMTP_USER=your_smtp_username
+SMTP_PASS=your_smtp_password
+SMTP_FROM=notifications@example.com
+ADMIN_EMAILS=admin1@example.com,admin2@example.com
 ```
 
 ### Start the App
 ```bash
-npm run dev
+yarn dev
 ```
 - Frontend: http://localhost:3000
 - Backend: http://localhost:5000
@@ -110,13 +117,13 @@ npm run dev
 
 ## 📦 Scripts
 
-| Command            | Description                      |
-|--------------------|----------------------------------|
-| `npm run dev`      | Start fullstack dev servers      |
-| `npm run client`   | React app only                   |
-| `npm run server`   | API server only                  |
-| `npm start`        | Prod server                      |
-| `npm run build`    | Build React for deployment       |
+| Command          | Description                    |
+|------------------|--------------------------------|
+| `yarn dev`       | Start fullstack dev servers    |
+| `yarn client`    | React app only                 |
+| `yarn server`    | API server only                |
+| `yarn start`     | Prod server                    |
+| `yarn build`     | Build React for deployment     |
 
 ---
 
@@ -167,13 +174,20 @@ furbabies-petstore/
 | NODE_ENV        | Environment              | ✅       |
 | PORT            | Backend server port      | ✅       |
 | FRONTEND_URL    | CORS origin              | ✅       |
+| REACT_APP_API_URL | Base URL for frontend API requests | ✅ (prod) |
+| SMTP_HOST       | SMTP server hostname     | ✅       |
+| SMTP_PORT       | SMTP server port         | ✅       |
+| SMTP_USER       | SMTP username            | ✅       |
+| SMTP_PASS       | SMTP password            | ✅       |
+| SMTP_FROM       | Sender email address     | ✅       |
+| ADMIN_EMAILS    | Admin notification emails (comma-separated) | ✅       |
 
 ---
 
 ## 📦 Dependencies
 
 ```bash
-npm install react-icons react-router-dom react-bootstrap axios concurrently dotenv
+yarn add react-icons react-router-dom react-bootstrap axios concurrently dotenv
 ```
 
 ---
@@ -192,15 +206,23 @@ curl http://localhost:5000/api/images/health
 
 ### Backend
 - Auto-deploy from GitHub `main`
-- Build Command: `npm install`
-- Start Command: `npm start`
+- Build Command: `yarn install`
+- Start Command: `yarn start`
 - Set environment variables manually
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> 7147bbd10087f3d8c934a448e0fc622cfd9f09f1
 ### Frontend
 - Render Static Site
 - Root: `client`
-- Build Command: `npm install && npm run build`
+- Build Command: `yarn install && yarn build`
+<<<<<<< HEAD
 - Publish directory: `client/build`
+=======
+- Publish directory: `build`
+>>>>>>> 7147bbd10087f3d8c934a448e0fc622cfd9f09f1
 
 ---
 

@@ -1,6 +1,8 @@
-// server/routes/users.js - UPDATED: Authentication removed, focus on user management
+// server/routes/users.js - COMPLETE VERSION WITH REGISTER ENDPOINT
 const express = require('express');
 const mongoose = require('mongoose');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const Pet = require('../models/Pet');
 const { protect, admin } = require('../middleware/auth');
@@ -9,57 +11,99 @@ const {
   validateObjectId,
   handleValidationErrors 
 } = require('../middleware/validation');
+const { validateName, validateEmail, validatePassword } = require('../utils/validation');
 
 const router = express.Router();
+
+// ========================================
+// REGISTER USER
+// ========================================
+router.post('/register', async (req, res) => {
+  try {
+    const { name, email, password, firstName, lastName } = req.body;
+    const fullName = (name || `${firstName} ${lastName}`.trim()).trim();
+
+    const nameCheck = validateName(fullName);
+    const emailCheck = validateEmail(email);
+    const passwordCheck = validatePassword(password);
+
+    if (!nameCheck.isValid) {
+      return res.status(400).json({ success: false, message: nameCheck.errors.join(', ') });
+    }
+
+    if (!emailCheck.isValid) {
+      return res.status(400).json({ success: false, message: emailCheck.errors.join(', ') });
+    }
+
+    if (!passwordCheck.isValid) {
+      return res.status(400).json({ success: false, message: passwordCheck.errors.join(', ') });
+    }
+
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ success: false, message: 'Email already in use' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 12);
+
+    const newUser = new User({
+      name: fullName,
+      email,
+      password: hashedPassword,
+      isActive: true
+    });
+
+    await newUser.save();
+
+    const token = jwt.sign({ id: newUser._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
+
+    res.status(201).json({
+      success: true,
+      message: 'User registered successfully',
+      data: {
+        token,
+        user: {
+          id: newUser._id,
+          name: newUser.name,
+          email: newUser.email,
+          role: newUser.role
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Registration error:', error);
+    res.status(500).json({ success: false, message: 'Server error during registration' });
+  }
+});
 
 // ========================================
 // USER PROFILE MANAGEMENT ROUTES
 // ========================================
 
-// @route   GET /api/users/profile
-// @desc    Get current user profile
-// @access  Private
 router.get('/profile', protect, async (req, res) => {
   try {
-    console.log('👤 GET /api/users/profile - User ID:', req.user._id);
-    
     const user = await User.findById(req.user._id)
       .select('-password -loginAttempts -lockUntil')
       .populate('favorites', 'name type breed image status');
 
     if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
+      return res.status(404).json({ success: false, message: 'User not found' });
     }
 
-    res.json({
-      success: true,
-      data: user,
-      message: 'Profile retrieved successfully'
-    });
+    res.json({ success: true, data: user, message: 'Profile retrieved successfully' });
 
   } catch (error) {
     console.error('❌ Error fetching user profile:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching profile'
-    });
+    res.status(500).json({ success: false, message: 'Error fetching profile' });
   }
 });
 
-// @route   PUT /api/users/profile
-// @desc    Update user profile
-// @access  Private
 router.put('/profile', protect, validateUserProfile, async (req, res) => {
   try {
-    console.log('👤 PUT /api/users/profile - Updating user:', req.user._id);
-    
     const allowedUpdates = ['name', 'email', 'profile'];
     const updates = {};
-    
-    // Only allow specific fields to be updated
+
     Object.keys(req.body).forEach(key => {
       if (allowedUpdates.includes(key)) {
         updates[key] = req.body[key];
@@ -73,32 +117,17 @@ router.put('/profile', protect, validateUserProfile, async (req, res) => {
     ).select('-password -loginAttempts -lockUntil');
 
     if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
+      return res.status(404).json({ success: false, message: 'User not found' });
     }
 
-    res.json({
-      success: true,
-      data: user,
-      message: 'Profile updated successfully'
-    });
+    res.json({ success: true, data: user, message: 'Profile updated successfully' });
 
   } catch (error) {
     console.error('❌ Error updating user profile:', error);
-    
     if (error.code === 11000) {
-      return res.status(400).json({
-        success: false,
-        message: 'Email already exists'
-      });
+      return res.status(400).json({ success: false, message: 'Email already exists' });
     }
-
-    res.status(500).json({
-      success: false,
-      message: 'Error updating profile'
-    });
+    res.status(500).json({ success: false, message: 'Error updating profile' });
   }
 });
 
@@ -106,13 +135,8 @@ router.put('/profile', protect, validateUserProfile, async (req, res) => {
 // USER FAVORITES MANAGEMENT
 // ========================================
 
-// @route   GET /api/users/favorites
-// @desc    Get user's favorite pets
-// @access  Private
 router.get('/favorites', protect, async (req, res) => {
   try {
-    console.log('❤️ GET /api/users/favorites - User ID:', req.user._id);
-    
     const user = await User.findById(req.user._id)
       .populate({
         path: 'favorites',
@@ -121,10 +145,7 @@ router.get('/favorites', protect, async (req, res) => {
       });
 
     if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
+      return res.status(404).json({ success: false, message: 'User not found' });
     }
 
     res.json({
@@ -136,44 +157,21 @@ router.get('/favorites', protect, async (req, res) => {
 
   } catch (error) {
     console.error('❌ Error fetching favorites:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching favorites'
-    });
+    res.status(500).json({ success: false, message: 'Error fetching favorites' });
   }
 });
 
-// @route   POST /api/users/favorites/:petId
-// @desc    Add pet to favorites
-// @access  Private
 router.post('/favorites/:petId', protect, validateObjectId, async (req, res) => {
   try {
     const { petId } = req.params;
-    console.log('❤️ POST /api/users/favorites - Adding pet:', petId);
-
-    // Check if pet exists
     const pet = await Pet.findById(petId);
-    if (!pet) {
-      return res.status(404).json({
-        success: false,
-        message: 'Pet not found'
-      });
-    }
+    if (!pet) return res.status(404).json({ success: false, message: 'Pet not found' });
 
     const user = await User.findById(req.user._id);
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
-    }
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
-    // Check if already in favorites
     if (user.favorites.includes(petId)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Pet already in favorites'
-      });
+      return res.status(400).json({ success: false, message: 'Pet already in favorites' });
     }
 
     await user.addToFavorites(petId);
@@ -186,51 +184,27 @@ router.post('/favorites/:petId', protect, validateObjectId, async (req, res) => 
 
   } catch (error) {
     console.error('❌ Error adding to favorites:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error adding to favorites'
-    });
+    res.status(500).json({ success: false, message: 'Error adding to favorites' });
   }
 });
 
-// @route   DELETE /api/users/favorites/:petId
-// @desc    Remove pet from favorites
-// @access  Private
 router.delete('/favorites/:petId', protect, validateObjectId, async (req, res) => {
   try {
     const { petId } = req.params;
-    console.log('💔 DELETE /api/users/favorites - Removing pet:', petId);
-
     const user = await User.findById(req.user._id);
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
-    }
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
-    // Check if pet is in favorites
     if (!user.favorites.includes(petId)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Pet not in favorites'
-      });
+      return res.status(400).json({ success: false, message: 'Pet not in favorites' });
     }
 
     await user.removeFromFavorites(petId);
 
-    res.json({
-      success: true,
-      message: 'Pet removed from favorites',
-      data: { petId }
-    });
+    res.json({ success: true, message: 'Pet removed from favorites', data: { petId } });
 
   } catch (error) {
     console.error('❌ Error removing from favorites:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error removing from favorites'
-    });
+    res.status(500).json({ success: false, message: 'Error removing from favorites' });
   }
 });
 

@@ -1,10 +1,28 @@
 // server/routes/news.js - CLEANED UP VERSION (No problematic imports)
+<<<<<<< HEAD
+const express = require('express');
+const router = express.Router();
+const NewsArticle = require('../models/NewsArticle'); // ✅ Use your existing model
+const { protect, admin } = require('../middleware/auth');
+const {
+  formatExternal,
+  fetchExternalNews,
+  getFallbackExternalNews,
+  getNewsServiceHealth
+} = require('../services/newsService');
+
+// ===== MAIN ROUTES =====
+=======
 const express = require('express');
 const router = express.Router();
 const crypto = require('crypto');
-const axios = require('axios');
 const NewsArticle = require('../models/NewsArticle'); // ✅ Use your existing model
 const { protect, admin } = require('../middleware/auth');
+const {
+  fetchPetNews,
+  getFallbackNews,
+  getNewsServiceHealth,
+} = require('../services/newsAPI');
 
 // ===== HELPER FUNCTIONS =====
 
@@ -34,85 +52,9 @@ const formatExternal = (article) => ({
   type: 'external'
 });
 
-// ✅ Fetch external news directly (replaces broken service)
-const fetchExternalNews = async (query = 'pets OR dogs OR cats', limit = 10) => {
-  try {
-    const NEWS_API_KEY = process.env.NEWS_API_KEY;
-    
-    if (!NEWS_API_KEY) {
-      console.log('⚠️ No NewsAPI key configured - using fallback');
-      return getFallbackExternalNews();
-    }
-
-    const response = await axios.get('https://newsapi.org/v2/everything', {
-      params: {
-        q: query,
-        language: 'en',
-        sortBy: 'publishedAt',
-        pageSize: limit,
-        apiKey: NEWS_API_KEY
-      },
-      timeout: 10000
-    });
-
-    return {
-      success: true,
-      articles: response.data.articles || [],
-      source: 'newsapi'
-    };
-  } catch (error) {
-    console.error('❌ External news fetch error:', error.message);
-    return getFallbackExternalNews();
-  }
-};
-
-// ✅ Fallback news data
-const getFallbackExternalNews = () => {
-  return {
-    success: true,
-    articles: [
-      {
-        title: 'Pet Adoption Tips for New Families',
-        description: 'Essential guide for families considering pet adoption this season.',
-        content: 'When adopting a pet, preparation is key...',
-        url: 'https://example.com/adoption-tips',
-        urlToImage: 'https://images.unsplash.com/photo-1601758228041-f3b2795255f1?w=400',
-        publishedAt: new Date().toISOString(),
-        source: { name: 'Pet Care Guide' },
-        author: 'Pet Expert'
-      },
-      {
-        title: 'Senior Pet Care: What You Need to Know',
-        description: 'Special considerations for caring for older pets in your home.',
-        content: 'Senior pets require extra attention and care...',
-        url: 'https://example.com/senior-pet-care',
-        urlToImage: 'https://images.unsplash.com/photo-1548199973-03cce0bbc87b?w=400',
-        publishedAt: new Date().toISOString(),
-        source: { name: 'Pet Health Today' },
-        author: 'Dr. Pet Care'
-      }
-    ],
-    isFallback: true,
-    source: 'fallback'
-  };
-};
-
-// ✅ Health check for news service
-const getNewsServiceHealth = () => {
-  return {
-    status: 'operational',
-    timestamp: new Date().toISOString(),
-    services: {
-      database: 'connected',
-      externalAPI: {
-        configured: !!process.env.NEWS_API_KEY,
-        status: process.env.NEWS_API_KEY ? 'operational' : 'fallback'
-      }
-    }
-  };
-};
 
 // ===== MAIN ROUTES =====
+>>>>>>> 7147bbd10087f3d8c934a448e0fc622cfd9f09f1
 
 // GET /api/news/health - Health check
 router.get('/health', (req, res) => {
@@ -184,7 +126,7 @@ router.get('/', async (req, res) => {
     // ✅ Include external articles if requested
     if (source === 'all' || source === 'external') {
       const searchQuery = search || 'pets OR dogs OR cats OR pet adoption';
-      const externalResult = await fetchExternalNews(searchQuery, 10);
+      const externalResult = await fetchPetNews(searchQuery, 10);
       
       if (externalResult.success && externalResult.articles) {
         const formattedExternal = externalResult.articles.map(formatExternal);
@@ -242,7 +184,7 @@ router.get('/featured', async (req, res) => {
     // ✅ Fill remaining slots with external news if needed
     const remaining = parseInt(limit) - featuredCustom.length;
     if (remaining > 0) {
-      const externalResult = await fetchExternalNews('pets trending news', remaining);
+      const externalResult = await fetchPetNews('pets trending news', remaining);
       
       if (externalResult.success && externalResult.articles) {
         const formattedExternal = externalResult.articles
@@ -271,7 +213,7 @@ router.get('/featured', async (req, res) => {
     console.error('❌ GET /news/featured error:', err);
     
     // ✅ Return fallback data instead of failure
-    const fallbackData = getFallbackExternalNews();
+    const fallbackData = getFallbackNews();
     res.json({
       success: true,
       data: fallbackData.articles.map(formatExternal).slice(0, parseInt(req.query.limit || 6)),
@@ -336,7 +278,7 @@ router.get('/external', async (req, res) => {
   try {
     const { search = 'pets OR dogs OR cats', limit = 20 } = req.query;
     
-    const externalResult = await fetchExternalNews(search, parseInt(limit));
+    const externalResult = await fetchPetNews(search, parseInt(limit));
     
     if (externalResult.success && externalResult.articles) {
       const formattedArticles = externalResult.articles.map(formatExternal);

@@ -1,8 +1,9 @@
-// client/src/pages/NewsDetail.js - News article detail page
+// client/src/pages/NewsDetail.js - UPDATED with custom Button system
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Container, Row, Col, Card, Button, Spinner, Alert, Badge } from 'react-bootstrap';
+import { Container, Row, Col, Card, Spinner, Alert, Badge } from 'react-bootstrap';
 import { newsAPI } from '../services/api';
+import Button from '../components/button/Button.jsx'; // ✅ ADDED: Custom Button component
 
 const NewsDetail = () => {
   const { id } = useParams();
@@ -152,7 +153,8 @@ const NewsDetail = () => {
           </Alert.Heading>
           <p>{error}</p>
           <div className="d-flex gap-2 justify-content-center">
-            <Button variant="outline-danger" onClick={() => window.location.reload()}>
+            {/* ✅ UPDATED: Custom Buttons */}
+            <Button variant="danger" onClick={() => window.location.reload()}>
               <i className="fas fa-redo me-2"></i>
               Try Again
             </Button>
@@ -173,6 +175,7 @@ const NewsDetail = () => {
         <Alert variant="warning" className="text-center">
           <Alert.Heading>Article Not Found</Alert.Heading>
           <p>The article you're looking for doesn't exist or may have been removed.</p>
+          {/* ✅ UPDATED: Custom Button */}
           <Button variant="primary" onClick={() => navigate('/news')}>
             <i className="fas fa-arrow-left me-2"></i>
             Browse All News
@@ -191,12 +194,13 @@ const NewsDetail = () => {
       <nav aria-label="breadcrumb" className="mb-4">
         <ol className="breadcrumb">
           <li className="breadcrumb-item">
-            <Button variant="link" className="p-0" onClick={() => navigate('/')}>
+            {/* ✅ UPDATED: Custom Button for breadcrumb */}
+            <Button variant="secondary" size="small" onClick={() => navigate('/')} className="p-0 border-0 bg-transparent text-primary">
               Home
             </Button>
           </li>
           <li className="breadcrumb-item">
-            <Button variant="link" className="p-0" onClick={() => navigate('/news')}>
+            <Button variant="secondary" size="small" onClick={() => navigate('/news')} className="p-0 border-0 bg-transparent text-primary">
               News
             </Button>
           </li>
@@ -302,35 +306,35 @@ const NewsDetail = () => {
                 <Alert variant="info">
                   <i className="fas fa-external-link-alt me-2"></i>
                   This is an external article. 
-                  <Button
-                    variant="link"
+                  <a
                     href={article.originalUrl || article.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="p-0 ms-2"
+                    className="alert-link ms-2"
                   >
                     Read the full article on the original site
-                  </Button>
+                  </a>
                 </Alert>
               )}
 
               {/* Action Buttons */}
               <div className="d-flex gap-2 flex-wrap">
+                {/* ✅ UPDATED: Custom Buttons */}
                 <Button 
-                  variant="outline-primary" 
+                  variant="secondary" 
                   onClick={handleLikeArticle}
                 >
                   <i className="fas fa-heart me-2"></i>
                   Like ({article.likes || 0})
                 </Button>
                 
-                <Button variant="outline-secondary">
+                <Button variant="secondary">
                   <i className="fas fa-share me-2"></i>
                   Share
                 </Button>
                 
                 <Button 
-                  variant="outline-info"
+                  variant="primary"
                   onClick={() => navigate('/news')}
                 >
                   <i className="fas fa-arrow-left me-2"></i>

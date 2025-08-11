@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Card, Badge, Button, Row, Col } from 'react-bootstrap';
-import { Link } from 'react-router-dom'; // ✅ KEEPING this since we'll use it
+import { Link } from 'react-router-dom';
 import PropTypes from 'prop-types';
 import SafeImage from './SafeImage';
 import styles from './Card.module.css';
@@ -14,10 +14,8 @@ const ProductCard = ({
   onAddToWishlist,
   showActions = true
 }) => {
-  // 🆕 NEW: State to track what type of container to use
   const [containerType, setContainerType] = useState('square');
 
-  // ✅ DEFENSIVE CHECK: Return early if product is undefined or null
   if (!product) {
     console.warn('⚠️ ProductCard: product prop is undefined or null');
     return (
@@ -32,28 +30,22 @@ const ProductCard = ({
     );
   }
 
-  // ✅ DEFENSIVE CHECK: Ensure product has minimum required properties
   const safeProduct = {
-    _id: product._id || 'unknown',
-    name: product.name || 'Unknown Product',
-    description: product.description || 'Quality product for your beloved pet!',
-    price: product.price || 0,
-    category: product.category || 'product',
-    brand: product.brand || '',
-    inStock: product.inStock !== false, // Default to true unless explicitly false
-    ...product // Spread original product to preserve other properties
+    ...product,
+    _id: product?._id ?? 'unknown',
+    name: product?.name ?? 'Unknown Product',
+    description: product?.description ?? 'Quality product for your beloved pet!',
+    price: product?.price ?? 0,
+    category: product?.category ?? 'product',
+    brand: product?.brand ?? '',
+    inStock: product?.inStock !== false
   };
 
-  // Format price
-  const formatPrice = (price) => {
-    return typeof price === 'number' ? 
-      `$${price.toFixed(2)}` : 
-      (price ? String(price) : 'Price unavailable');
-  };
+  const formatPrice = (price) =>
+    typeof price === 'number' ? `$${price.toFixed(2)}` : (price ? String(price) : 'Price unavailable');
 
   return (
-    <Card className={`h-100 ${styles.enhancedCard} ${className}`}>
-      {/* 🆕 ENHANCED: Dynamic container that adapts to image aspect ratio */}
+    <Card className={`h-100 ${styles.enhancedCard} ${className}`} data-testid={`product-card-${safeProduct._id}`}>
       <div className={`${styles.productImgContainer} ${styles[containerType]}`}>
         <SafeImage
           item={safeProduct}
@@ -64,9 +56,8 @@ const ProductCard = ({
           onContainerTypeDetected={setContainerType}
         />
       </div>
-      
+
       <Card.Body className={`d-flex flex-column ${styles.enhancedCardBody}`}>
-        {/* Product Name & Price */}
         <div className="d-flex justify-content-between align-items-start mb-2">
           <Card.Title className={`mb-0 ${styles.enhancedCardTitle}`} style={{ textAlign: 'left', flex: 1 }}>
             {safeProduct.name}
@@ -77,55 +68,41 @@ const ProductCard = ({
             </Badge>
           )}
         </div>
-        
-        {/* Product Description */}
+
         <Card.Text className={`text-muted small mb-2 flex-grow-1 ${styles.enhancedCardText}`}>
-          {showFullDescription 
+          {showFullDescription
             ? safeProduct.description
-            : safeProduct.description.length > 100 
+            : (typeof safeProduct.description === 'string' && safeProduct.description.length > 100
               ? safeProduct.description.substring(0, 100) + '...'
-              : safeProduct.description
-          }
+              : safeProduct.description)}
         </Card.Text>
 
-        {/* Enhanced Badges */}
         <div className={styles.enhancedBadges}>
           {safeProduct.category && (
-            <Badge 
-              bg="info" 
-              className={styles.enhancedBadge}
-            >
+            <Badge bg="info" className={styles.enhancedBadge}>
               {safeProduct.category}
             </Badge>
           )}
           {safeProduct.brand && (
-            <Badge 
-              bg="secondary" 
-              className={styles.enhancedBadge}
-            >
+            <Badge bg="secondary" className={styles.enhancedBadge}>
               {safeProduct.brand}
             </Badge>
           )}
           {!safeProduct.inStock && (
-            <Badge 
-              bg="danger" 
-              className={styles.enhancedBadge}
-            >
+            <Badge bg="danger" className={styles.enhancedBadge}>
               Out of Stock
             </Badge>
           )}
         </div>
 
-        {/* Enhanced Actions */}
         {showActions && (
           <Row className="g-2 mt-auto">
             <Col>
-              {/* ✅ FIXED: Using Link for Details button */}
-              <Button 
+              <Button
                 as={Link}
                 to={`/products/${safeProduct._id}`}
-                variant="outline-primary" 
-                size="sm" 
+                variant="outline-primary"
+                size="sm"
                 className={`w-100 ${styles.enhancedButton}`}
               >
                 <i className="fas fa-info-circle me-1"></i>
@@ -133,20 +110,21 @@ const ProductCard = ({
               </Button>
             </Col>
             <Col>
-              <Button 
-                variant="warning" 
-                size="sm" 
+              <Button
+                variant="warning"
+                size="sm"
                 className={`w-100 ${styles.enhancedButton}`}
                 onClick={() => onAddToCart && onAddToCart(safeProduct)}
                 disabled={!safeProduct.inStock}
+                title={!safeProduct.inStock ? 'Out of Stock' : ''}
               >
                 <i className="fas fa-shopping-cart me-1"></i>
                 Add to Cart
               </Button>
             </Col>
             <Col xs="auto">
-              <Button 
-                variant="outline-secondary" 
+              <Button
+                variant="outline-secondary"
                 size="sm"
                 onClick={() => onAddToWishlist && onAddToWishlist(safeProduct)}
               >

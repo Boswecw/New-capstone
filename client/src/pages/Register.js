@@ -1,12 +1,17 @@
-// client/src/pages/Register.js - Updated with Password Requirements
+// client/src/pages/Register.js - UPDATED with custom Button system
 import React, { useState } from 'react';
-import { Container, Row, Col, Card, Form, Button, Alert } from 'react-bootstrap';
-import { Link, Navigate } from 'react-router-dom';
+import { Container, Row, Col, Card, Form, Alert } from 'react-bootstrap';
+import { Link, Navigate, useNavigate } from 'react-router-dom';
+import { toast } from 'react-toastify';
 import { useAuth } from '../contexts/AuthContext';
 import PasswordRequirements from '../components/PasswordRequirements';
+import { validateName, validateEmail, validatePassword } from '../utils/validation';
+import Button from '../components/button/Button.jsx'; // ✅ ADDED: Custom Button component
 
 const Register = () => {
-  const { user, register, validatePassword, validateName, validateEmail } = useAuth();
+  const { user, register } = useAuth();
+  const navigate = useNavigate();
+
   const [formData, setFormData] = useState({
     username: '',
     email: '',
@@ -15,12 +20,12 @@ const Register = () => {
     firstName: '',
     lastName: ''
   });
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  // Redirect if already logged in
   if (user) {
     return <Navigate to="/" />;
   }
@@ -30,8 +35,6 @@ const Register = () => {
       ...formData,
       [e.target.name]: e.target.value
     });
-    
-    // Clear error when user starts typing
     if (error) setError('');
   };
 
@@ -40,34 +43,30 @@ const Register = () => {
     setLoading(true);
     setError('');
 
-    // Client-side validation
     const fullName = `${formData.firstName} ${formData.lastName}`.trim();
+
     const nameValidation = validateName(fullName);
     const emailValidation = validateEmail(formData.email);
     const passwordValidation = validatePassword(formData.password);
 
-    // Check name validation
     if (!nameValidation.isValid) {
       setError(nameValidation.errors.join(', '));
       setLoading(false);
       return;
     }
 
-    // Check email validation
     if (!emailValidation.isValid) {
       setError(emailValidation.errors.join(', '));
       setLoading(false);
       return;
     }
 
-    // Check password validation
     if (!passwordValidation.isValid) {
       setError(passwordValidation.errors.join(', '));
       setLoading(false);
       return;
     }
 
-    // Validate passwords match
     if (formData.password !== formData.confirmPassword) {
       setError('Passwords do not match');
       setLoading(false);
@@ -75,18 +74,105 @@ const Register = () => {
     }
 
     try {
-      const result = await register(formData);
+      // Transform data to match backend expectations
+      const registrationData = {
+        name: `${formData.firstName} ${formData.lastName}`.trim(),
+        email: formData.email,
+        password: formData.password
+      };
+      
+      const result = await register(registrationData);
       
       if (!result.success) {
-        setError(result.message);
+        const errorMessage = result.message || 'Registration failed. Please try again.';
+        setError(errorMessage);
+        
+        // DEBUG: Log the actual error message
+        console.log('Registration error message:', errorMessage);
+        
+        // IMPROVED: More comprehensive check for already registered
+        const isAlreadyRegistered = errorMessage.toLowerCase().includes('already registered') || 
+                                   errorMessage.toLowerCase().includes('already exists') ||
+                                   errorMessage.toLowerCase().includes('email already') ||
+                                   errorMessage.toLowerCase().includes('user already') ||
+                                   errorMessage.toLowerCase().includes('exists');
+        
+        if (isAlreadyRegistered) {
+          toast.warn('👤 This email is already registered! Try signing in instead.', {
+            position: "top-right",
+            autoClose: 6000,
+            hideProgressBar: false,
+            closeOnClick: true,
+            pauseOnHover: true,
+            draggable: true,
+          });
+        } else {
+          // General error toast
+          toast.error(errorMessage, {
+            position: "top-right",
+            autoClose: 5000,
+            hideProgressBar: false,
+            closeOnClick: true,
+            pauseOnHover: true,
+            draggable: true,
+          });
+        }
+      } else {
+        // SUCCESS: Show success toast and redirect
+        toast.success('🎉 Account created successfully! Welcome to FurBabies!', {
+          position: "top-right",
+          autoClose: 3000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+        });
+        
+        // Small delay to let user see the toast before redirect
+        setTimeout(() => {
+          navigate('/');
+        }, 1500);
       }
-      // If successful, user will be redirected by AuthContext
-      
     } catch (err) {
       console.error('Registration error:', err);
-      setError(err.message || 'Registration failed. Please try again.');
+      console.log('Error response:', err.response); // DEBUG: Log full error response
+      
+      const errorMessage = err.response?.data?.message || err.message || 'Registration failed. Please try again.';
+      setError(errorMessage);
+      
+      // IMPROVED: Multiple ways to detect already registered
+      const isStatus409 = err.response?.status === 409;
+      const isAlreadyRegistered = errorMessage.toLowerCase().includes('already registered') || 
+                                 errorMessage.toLowerCase().includes('already exists') ||
+                                 errorMessage.toLowerCase().includes('email already') ||
+                                 errorMessage.toLowerCase().includes('user already') ||
+                                 errorMessage.toLowerCase().includes('exists');
+      
+      console.log('Is 409 status:', isStatus409); // DEBUG
+      console.log('Is already registered message:', isAlreadyRegistered); // DEBUG
+      
+      if (isStatus409 || isAlreadyRegistered) {
+        toast.warn('👤 This email is already registered! Try signing in instead.', {
+          position: "top-right",
+          autoClose: 6000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+        });
+      } else {
+        // General error toast
+        toast.error(errorMessage, {
+          position: "top-right",
+          autoClose: 5000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+        });
+      }
     }
-    
+
     setLoading(false);
   };
 
@@ -101,7 +187,26 @@ const Register = () => {
                 <p className="text-muted">Create your account to find your perfect pet companion</p>
               </div>
 
-              {error && <Alert variant="danger">{error}</Alert>}
+              {error && (
+                <Alert variant={
+                  error.toLowerCase().includes('already registered') || 
+                  error.toLowerCase().includes('already exists') 
+                    ? "warning" 
+                    : "danger"
+                }>
+                  {error.toLowerCase().includes('already registered') || 
+                   error.toLowerCase().includes('already exists') ? (
+                    <>
+                      {error}{' '}
+                      <Link to="/login" className="alert-link">
+                        <strong>Sign in here</strong>
+                      </Link>
+                    </>
+                  ) : (
+                    error
+                  )}
+                </Alert>
+              )}
 
               <Form onSubmit={handleSubmit}>
                 <Row>
@@ -116,9 +221,7 @@ const Register = () => {
                         placeholder="First name"
                         required
                       />
-                      <Form.Text className="text-muted">
-                        Letters and spaces only
-                      </Form.Text>
+                      <Form.Text className="text-muted">Letters and spaces only</Form.Text>
                     </Form.Group>
                   </Col>
                   <Col md={6}>
@@ -132,9 +235,7 @@ const Register = () => {
                         placeholder="Last name"
                         required
                       />
-                      <Form.Text className="text-muted">
-                        Letters and spaces only
-                      </Form.Text>
+                      <Form.Text className="text-muted">Letters and spaces only</Form.Text>
                     </Form.Group>
                   </Col>
                 </Row>
@@ -149,9 +250,7 @@ const Register = () => {
                     placeholder="Choose a username"
                     required
                   />
-                  <Form.Text className="text-muted">
-                    This will be displayed on your profile
-                  </Form.Text>
+                  <Form.Text className="text-muted">This will be displayed on your profile</Form.Text>
                 </Form.Group>
 
                 <Form.Group className="mb-3">
@@ -164,9 +263,7 @@ const Register = () => {
                     placeholder="Enter your email"
                     required
                   />
-                  <Form.Text className="text-muted">
-                    We'll never share your email with anyone else
-                  </Form.Text>
+                  <Form.Text className="text-muted">We'll never share your email</Form.Text>
                 </Form.Group>
 
                 <Form.Group className="mb-3">
@@ -180,16 +277,17 @@ const Register = () => {
                       placeholder="Create a strong password"
                       required
                     />
-                    <Button 
-                      variant="outline-secondary"
+                    {/* ✅ UPDATED: Custom Button for password toggle */}
+                    <Button
+                      variant="secondary"
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
+                      className="border border-start-0"
+                      style={{ borderTopLeftRadius: 0, borderBottomLeftRadius: 0 }}
                     >
                       <i className={`fas ${showPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
                     </Button>
                   </div>
-                  
-                  {/* Password Requirements Component */}
                   <div className="mt-2">
                     <PasswordRequirements 
                       password={formData.password}
@@ -209,10 +307,13 @@ const Register = () => {
                       placeholder="Confirm your password"
                       required
                     />
-                    <Button 
-                      variant="outline-secondary"
+                    {/* ✅ UPDATED: Custom Button for password toggle */}
+                    <Button
+                      variant="secondary"
                       type="button"
                       onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="border border-start-0"
+                      style={{ borderTopLeftRadius: 0, borderBottomLeftRadius: 0 }}
                     >
                       <i className={`fas ${showConfirmPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
                     </Button>
@@ -223,7 +324,7 @@ const Register = () => {
                       Passwords do not match
                     </small>
                   )}
-                  {formData.confirmPassword && formData.password === formData.confirmPassword && formData.password && (
+                  {formData.confirmPassword && formData.password === formData.confirmPassword && (
                     <small className="text-success d-block mt-1">
                       <i className="fas fa-check-circle me-1"></i>
                       Passwords match
@@ -231,37 +332,28 @@ const Register = () => {
                   )}
                 </Form.Group>
 
-                {/* Account Requirements Summary */}
                 <div className="alert alert-info mb-4">
                   <h6 className="alert-heading">
                     <i className="fas fa-info-circle me-2"></i>
                     Account Requirements
                   </h6>
                   <ul className="mb-0 small">
-                    <li><strong>Name:</strong> Letters and spaces only (2-50 characters)</li>
+                    <li><strong>Name:</strong> Letters and spaces only (2–50 characters)</li>
                     <li><strong>Email:</strong> Valid email address</li>
                     <li><strong>Password:</strong> See requirements above</li>
                   </ul>
                 </div>
 
-                <Button 
-                  type="submit" 
-                  variant="primary" 
+                {/* ✅ UPDATED: Custom Button for form submission */}
+                <Button
+                  type="submit"
+                  variant="primary"
                   className="w-100 mb-3"
-                  size="lg"
-                  disabled={loading}
+                  size="large"
+                  loading={loading}
                 >
-                  {loading ? (
-                    <>
-                      <span className="spinner-border spinner-border-sm me-2" />
-                      Creating Account...
-                    </>
-                  ) : (
-                    <>
-                      <i className="fas fa-user-plus me-2"></i>
-                      Create Account
-                    </>
-                  )}
+                  <i className="fas fa-user-plus me-2"></i>
+                  {loading ? 'Creating Account...' : 'Create Account'}
                 </Button>
               </Form>
 
