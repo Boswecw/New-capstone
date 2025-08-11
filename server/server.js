@@ -46,7 +46,7 @@ try {
 }
 
 // ===== IMPORT ROUTE MODULES =====
-let petRoutes, productRoutes, userRoutes, contactRoutes, imageRoutes, gcsRoutes, newsRoutes;
+let petRoutes, productRoutes, userRoutes, contactRoutes, imageRoutes, newsRoutes;
 
 try {
   petRoutes = require('./routes/pets');
@@ -54,7 +54,6 @@ try {
   userRoutes = require('./routes/users');
   contactRoutes = require('./routes/contact');
   imageRoutes = require('./routes/images');
-  gcsRoutes = require('./routes/gcs');
   newsRoutes = require('./routes/news');
   logger.info('Route modules imported successfully');
 } catch (error) {
@@ -224,7 +223,6 @@ app.use('/api/products', productRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/contact', contactRoutes);
 app.use('/api/images', imageRoutes);
-app.use('/api/gcs', gcsRoutes);
 app.use('/api/news', newsRoutes);
 
 // ===== STATIC FILES (PRODUCTION) =====
