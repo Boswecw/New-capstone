@@ -64,7 +64,7 @@ A modern pet adoption platform built with the MERN stack, helping connect loving
 ### Prerequisites
 - Node.js >= 18.x
 - MongoDB Atlas
-- Git + npm
+- Git + Yarn
 - GCS bucket (optional)
 
 ### Installation
@@ -75,17 +75,17 @@ https://github.com/Boswecw/furbabies-petstore.git
 cd furbabies-petstore
 
 # Install server dependencies
-npm install
+yarn install
 
 # Install client dependencies
 cd client
-npm install
+yarn install
 cd ..
 ```
 
 ### Required Packages
 ```bash
-npm install react-icons
+yarn add react-icons
 ```
 
 ### Environment Variables
@@ -101,7 +101,7 @@ FRONTEND_URL=http://localhost:3000
 
 ### Start the App
 ```bash
-npm run dev
+yarn dev
 ```
 - Frontend: http://localhost:3000
 - Backend: http://localhost:5000
@@ -110,13 +110,13 @@ npm run dev
 
 ## 📦 Scripts
 
-| Command            | Description                      |
-|--------------------|----------------------------------|
-| `npm run dev`      | Start fullstack dev servers      |
-| `npm run client`   | React app only                   |
-| `npm run server`   | API server only                  |
-| `npm start`        | Prod server                      |
-| `npm run build`    | Build React for deployment       |
+| Command          | Description                    |
+|------------------|--------------------------------|
+| `yarn dev`       | Start fullstack dev servers    |
+| `yarn client`    | React app only                 |
+| `yarn server`    | API server only                |
+| `yarn start`     | Prod server                    |
+| `yarn build`     | Build React for deployment     |
 
 ---
 
@@ -173,7 +173,7 @@ furbabies-petstore/
 ## 📦 Dependencies
 
 ```bash
-npm install react-icons react-router-dom react-bootstrap axios concurrently dotenv
+yarn add react-icons react-router-dom react-bootstrap axios concurrently dotenv
 ```
 
 ---
@@ -192,14 +192,14 @@ curl http://localhost:5000/api/images/health
 
 ### Backend
 - Auto-deploy from GitHub `main`
-- Build Command: `npm install`
-- Start Command: `npm start`
+- Build Command: `yarn install`
+- Start Command: `yarn start`
 - Set environment variables manually
 
 ### Frontend
 - Render Static Site
 - Root: `client`
-- Build Command: `npm install && npm run build`
+- Build Command: `yarn install && yarn build`
 - Publish directory: `client/build`
 
 ---
