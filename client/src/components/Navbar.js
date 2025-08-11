@@ -3,6 +3,7 @@ import React, { useState, useContext } from 'react';
 import { Navbar, Nav, Container, Button, NavDropdown } from 'react-bootstrap';
 import { Link, useNavigate } from 'react-router-dom';
 import AuthContext from '../contexts/AuthContext';
+import './Navbar.css';
 
 const AppNavbar = () => {
   const [expanded, setExpanded] = useState(false);

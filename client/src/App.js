@@ -49,7 +49,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 
 // Bootstrap & Custom Styles
 import "bootstrap/dist/css/bootstrap.min.css";
-import "./App.css";
+import './styles/globals.css';
 
 function App() {
   return (

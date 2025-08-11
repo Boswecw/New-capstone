@@ -1,8 +1,8 @@
-// client/src/pages/Home.js - CONVERTED to use react-toastify
+// client/src/pages/Home.js - UPDATED with custom Button system
 import React, { useState, useEffect, useCallback } from 'react';
-import { Container, Row, Col, Alert, Button, Spinner } from 'react-bootstrap';
+import { Container, Row, Col, Alert, Spinner } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
-import { toast } from 'react-toastify'; // ✅ CHANGED: Use react-toastify
+import { toast } from 'react-toastify';
 
 // Components
 import HeroBanner from '../components/HeroBanner';
@@ -10,11 +10,10 @@ import SectionHeader from '../components/SectionHeader';
 import PetCard from '../components/PetCard';
 import ProductCard from '../components/ProductCard';
 import NewsSection from '../components/NewsSection';
-// ❌ REMOVED: Custom ToastContainer import
+import Button from '../components/button/Button.jsx'; // ✅ ADDED: Custom Button component
 
 // Services & Hooks
 import { petAPI, productAPI } from '../services/api';
-// ❌ REMOVED: Custom useToast import
 
 const Home = () => {
   // State management
@@ -26,10 +25,7 @@ const Home = () => {
   const [productsError, setProductsError] = useState(null);
   const [loadingPhase, setLoadingPhase] = useState('Starting...');
 
-  // ❌ REMOVED: Custom toast notifications
-  // const { toasts, showSuccess, showError, showInfo, removeToast } = useToast();
-
-  // ✅ ADDED: Helper functions for react-toastify
+  // Helper functions for react-toastify
   const showSuccess = useCallback((message, title) => {
     const displayMessage = title ? `${title}: ${message}` : message;
     toast.success(displayMessage);
@@ -45,13 +41,13 @@ const Home = () => {
     toast.info(displayMessage);
   }, []);
 
-  // 🔧 ENHANCED: API call with retry logic
+  // API call with retry logic
   const apiCallWithRetry = useCallback(async (apiCall, retryCount = 0, maxRetries = 3) => {
     try {
       return await apiCall();
     } catch (error) {
       if (error.response?.status === 429 && retryCount < maxRetries) {
-        const delay = Math.pow(2, retryCount) * 1000 + Math.random() * 1000; // Exponential backoff with jitter
+        const delay = Math.pow(2, retryCount) * 1000 + Math.random() * 1000;
         console.log(`⏳ Rate limited, retrying in ${delay}ms (attempt ${retryCount + 1}/${maxRetries})...`);
         
         await new Promise(resolve => setTimeout(resolve, delay));
@@ -61,7 +57,7 @@ const Home = () => {
     }
   }, []);
 
-  // 🔧 ENHANCED: Fetch featured pets with retry logic
+  // Fetch featured pets with retry logic
   const fetchFeaturedPets = useCallback(async () => {
     try {
       setPetsLoading(true);
@@ -91,7 +87,7 @@ const Home = () => {
     }
   }, [apiCallWithRetry, showSuccess, showError, showInfo]);
 
-  // 🔧 ENHANCED: Fetch featured products with retry logic
+  // Fetch featured products with retry logic
   const fetchFeaturedProducts = useCallback(async () => {
     try {
       setProductsLoading(true);
@@ -121,7 +117,7 @@ const Home = () => {
     }
   }, [apiCallWithRetry, showSuccess, showError, showInfo]);
 
-  // 🔧 OPTIMIZED: Staggered loading to prevent simultaneous API calls
+  // Staggered loading to prevent simultaneous API calls
   useEffect(() => {
     const loadHomePageContent = async () => {
       console.log('🏠 Home: Starting staggered content loading...');
@@ -151,7 +147,7 @@ const Home = () => {
     };
 
     loadHomePageContent();
-  }, [fetchFeaturedPets, fetchFeaturedProducts, showError]); // ✅ Added missing dependencies
+  }, [fetchFeaturedPets, fetchFeaturedProducts, showError]);
 
   // Manual refresh handlers
   const handleRefreshPets = useCallback(async () => {
@@ -190,9 +186,6 @@ const Home = () => {
 
   return (
     <div className="home-page">
-      {/* ❌ REMOVED: Custom Toast notifications */}
-      {/* <ToastContainer toasts={toasts} removeToast={removeToast} /> */}
-      
       {/* Hero section */}
       <HeroBanner />
 
@@ -214,24 +207,25 @@ const Home = () => {
             subtitle="Meet our adorable pets looking for loving homes" 
           />
           <div className="d-flex gap-2">
+            {/* ✅ UPDATED: Custom Button with loading state */}
             <Button 
-              variant="outline-primary" 
-              size="sm" 
+              variant="secondary" 
+              size="small" 
               onClick={handleRefreshPets}
-              disabled={petsLoading}
+              loading={petsLoading}
+              className="me-2"
             >
-              <i className={`fas ${petsLoading ? 'fa-spinner fa-spin' : 'fa-sync-alt'} me-2`}></i>
+              <i className="fas fa-sync-alt me-2"></i>
               {petsLoading ? 'Loading...' : 'Refresh'}
             </Button>
-            <Button 
-              variant="primary" 
-              size="sm" 
-              as={Link} 
-              to="/browse"
-            >
-              <i className="fas fa-paw me-2"></i>
-              Browse All Pets
-            </Button>
+            
+            {/* ✅ UPDATED: Custom Button as Link */}
+            <Link to="/browse" className="text-decoration-none">
+              <Button variant="primary" size="small">
+                <i className="fas fa-paw me-2"></i>
+                Browse All Pets
+              </Button>
+            </Link>
           </div>
         </div>
 
@@ -249,14 +243,21 @@ const Home = () => {
               Unable to Load Featured Pets
             </Alert.Heading>
             <p>{petsError}</p>
-            <Button variant="outline-warning" onClick={handleRefreshPets} className="me-2">
+            {/* ✅ UPDATED: Custom Buttons */}
+            <Button 
+              variant="danger" 
+              onClick={handleRefreshPets} 
+              className="me-2"
+            >
               <i className="fas fa-redo me-2"></i>
               Try Again
             </Button>
-            <Button variant="primary" as={Link} to="/browse">
-              <i className="fas fa-search me-2"></i>
-              Browse All Pets
-            </Button>
+            <Link to="/browse" className="text-decoration-none">
+              <Button variant="primary">
+                <i className="fas fa-search me-2"></i>
+                Browse All Pets
+              </Button>
+            </Link>
           </Alert>
         ) : featuredPets.length === 0 ? (
           <Alert variant="info" className="text-center">
@@ -265,14 +266,21 @@ const Home = () => {
               No Featured Pets Available
             </Alert.Heading>
             <p>Check back soon for new featured pets!</p>
-            <Button variant="outline-info" onClick={handleRefreshPets} className="me-2">
+            {/* ✅ UPDATED: Custom Buttons */}
+            <Button 
+              variant="secondary" 
+              onClick={handleRefreshPets} 
+              className="me-2"
+            >
               <i className="fas fa-sync-alt me-2"></i>
               Refresh
             </Button>
-            <Button variant="primary" as={Link} to="/browse">
-              <i className="fas fa-search me-2"></i>
-              Browse All Pets
-            </Button>
+            <Link to="/browse" className="text-decoration-none">
+              <Button variant="primary">
+                <i className="fas fa-search me-2"></i>
+                Browse All Pets
+              </Button>
+            </Link>
           </Alert>
         ) : (
           <Row>
@@ -297,24 +305,25 @@ const Home = () => {
             subtitle="Everything your pet needs for a happy life" 
           />
           <div className="d-flex gap-2">
+            {/* ✅ UPDATED: Custom Button with loading state */}
             <Button 
-              variant="outline-primary" 
-              size="sm" 
+              variant="secondary" 
+              size="small" 
               onClick={handleRefreshProducts}
-              disabled={productsLoading}
+              loading={productsLoading}
+              className="me-2"
             >
-              <i className={`fas ${productsLoading ? 'fa-spinner fa-spin' : 'fa-sync-alt'} me-2`}></i>
+              <i className="fas fa-sync-alt me-2"></i>
               {productsLoading ? 'Loading...' : 'Refresh'}
             </Button>
-            <Button 
-              variant="primary" 
-              size="sm" 
-              as={Link} 
-              to="/products"
-            >
-              <i className="fas fa-shopping-bag me-2"></i>
-              Shop All Products
-            </Button>
+            
+            {/* ✅ UPDATED: Custom Button as Link */}
+            <Link to="/products" className="text-decoration-none">
+              <Button variant="primary" size="small">
+                <i className="fas fa-shopping-bag me-2"></i>
+                Shop All Products
+              </Button>
+            </Link>
           </div>
         </div>
 
@@ -332,14 +341,21 @@ const Home = () => {
               Unable to Load Featured Products
             </Alert.Heading>
             <p>{productsError}</p>
-            <Button variant="outline-warning" onClick={handleRefreshProducts} className="me-2">
+            {/* ✅ UPDATED: Custom Buttons */}
+            <Button 
+              variant="danger" 
+              onClick={handleRefreshProducts} 
+              className="me-2"
+            >
               <i className="fas fa-redo me-2"></i>
               Try Again
             </Button>
-            <Button variant="primary" as={Link} to="/products">
-              <i className="fas fa-search me-2"></i>
-              Browse All Products
-            </Button>
+            <Link to="/products" className="text-decoration-none">
+              <Button variant="primary">
+                <i className="fas fa-search me-2"></i>
+                Browse All Products
+              </Button>
+            </Link>
           </Alert>
         ) : featuredProducts.length === 0 ? (
           <Alert variant="info" className="text-center">
@@ -348,14 +364,21 @@ const Home = () => {
               No Featured Products Available
             </Alert.Heading>
             <p>Check back soon for new featured products!</p>
-            <Button variant="outline-info" onClick={handleRefreshProducts} className="me-2">
+            {/* ✅ UPDATED: Custom Buttons */}
+            <Button 
+              variant="secondary" 
+              onClick={handleRefreshProducts} 
+              className="me-2"
+            >
               <i className="fas fa-sync-alt me-2"></i>
               Refresh
             </Button>
-            <Button variant="primary" as={Link} to="/products">
-              <i className="fas fa-search me-2"></i>
-              Browse All Products
-            </Button>
+            <Link to="/products" className="text-decoration-none">
+              <Button variant="primary">
+                <i className="fas fa-search me-2"></i>
+                Browse All Products
+              </Button>
+            </Link>
           </Alert>
         ) : (
           <Row>
@@ -385,34 +408,37 @@ const Home = () => {
               Join thousands of happy families who found their furry companions through FurBabies
             </p>
             <div className="d-flex gap-3 justify-content-center flex-wrap">
+              {/* ✅ UPDATED: Custom Buttons in CTA section */}
+              <Link to="/browse" className="text-decoration-none">
+                <Button 
+                  variant="secondary" 
+                  size="large" 
+                  className="px-4 py-2 bg-white text-primary"
+                >
+                  <i className="fas fa-search me-2"></i>
+                  Browse Pets
+                </Button>
+              </Link>
+              
+              <Link to="/contact" className="text-decoration-none">
+                <Button 
+                  variant="secondary" 
+                  size="large" 
+                  className="px-4 py-2 border-white text-white bg-transparent"
+                >
+                  <i className="fas fa-heart me-2"></i>
+                  Learn More
+                </Button>
+              </Link>
+              
               <Button 
-                variant="light" 
-                size="lg" 
-                as={Link} 
-                to="/browse"
-                className="px-4 py-2"
-              >
-                <i className="fas fa-search me-2"></i>
-                Browse Pets
-              </Button>
-              <Button 
-                variant="outline-light" 
-                size="lg" 
-                as={Link} 
-                to="/contact"
-                className="px-4 py-2"
-              >
-                <i className="fas fa-heart me-2"></i>
-                Learn More
-              </Button>
-              <Button 
-                variant="warning" 
-                size="lg" 
+                variant="success" 
+                size="large" 
                 onClick={handleRefreshAll}
+                loading={petsLoading || productsLoading}
                 className="px-4 py-2"
-                disabled={petsLoading || productsLoading}
               >
-                <i className={`fas ${petsLoading || productsLoading ? 'fa-spinner fa-spin' : 'fa-sync-alt'} me-2`}></i>
+                <i className="fas fa-sync-alt me-2"></i>
                 {petsLoading || productsLoading ? 'Loading...' : 'Refresh All'}
               </Button>
             </div>

@@ -1,9 +1,11 @@
-// client/src/pages/PetDetail.js - CORRECTED Pet detail page
+// client/src/pages/PetDetail.js - UPDATED with custom Button system
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Container, Row, Col, Button, Spinner, Alert, Badge, Card, ProgressBar } from 'react-bootstrap';
+import { Container, Row, Col, Spinner, Alert, Badge, Card, ProgressBar } from 'react-bootstrap';
 import { petAPI } from '../services/api';
 import SafeImage from '../components/SafeImage';
+import Button from '../components/button/Button.jsx'; // ✅ ADDED: Custom Button component
+import '../styles/EnhancedComponents.css'; // ✅ ADDED: Enhanced component styles
 
 const PetDetail = () => {
   const { id } = useParams();
@@ -52,7 +54,7 @@ const PetDetail = () => {
         }
         
         if (petData && petData._id) {
-          // ✅ FIXED: Normalize pet data to handle backend field variations safely
+          // Normalize pet data to handle backend field variations safely
           const normalizedPet = {
             ...petData,
             // Ensure basic fields are strings, not objects
@@ -69,7 +71,7 @@ const PetDetail = () => {
             // Handle description safely
             description: petData.description ? String(petData.description) : 'This adorable pet is looking for a loving home!',
             
-            // ✅ FIXED: Ensure traits is always an array of strings
+            // Ensure traits is always an array of strings
             traits: Array.isArray(petData.traits) 
               ? petData.traits.filter(trait => typeof trait === 'string') 
               : Array.isArray(petData.personalityTraits) 
@@ -160,7 +162,7 @@ const PetDetail = () => {
     }
   }, [hasRated, isRating, pet]);
 
-  // ✅ FIXED: Safe utility functions with proper null checking
+  // Safe utility functions with proper null checking
   const formatAge = useCallback((age) => {
     if (!age || age === 'Unknown') return 'Unknown';
     const ageStr = String(age);
@@ -209,7 +211,7 @@ const PetDetail = () => {
     }
   }, [pet]);
 
-  // ✅ FIXED: Safe render functions with proper null checking
+  // Safe render functions with proper null checking
   const renderStarRating = useCallback((currentRating = 0, onRate = null) => {
     const stars = [];
     const rating = Number(currentRating) || 0;
@@ -298,7 +300,8 @@ const PetDetail = () => {
           </Alert.Heading>
           <p>{error}</p>
           <div className="d-flex gap-2 justify-content-center flex-wrap">
-            <Button variant="outline-danger" onClick={() => window.location.reload()}>
+            {/* ✅ UPDATED: Custom Buttons */}
+            <Button variant="danger" onClick={() => window.location.reload()}>
               <i className="fas fa-redo me-2"></i>
               Try Again
             </Button>
@@ -306,7 +309,7 @@ const PetDetail = () => {
               <i className="fas fa-arrow-left me-2"></i>
               Back to Browse
             </Button>
-            <Button variant="outline-primary" onClick={() => navigate('/pets')}>
+            <Button variant="secondary" onClick={() => navigate('/pets')}>
               <i className="fas fa-paw me-2"></i>
               View All Pets
             </Button>
@@ -327,11 +330,12 @@ const PetDetail = () => {
           </Alert.Heading>
           <p>The pet you're looking for doesn't exist or may have been adopted.</p>
           <div className="d-flex gap-2 justify-content-center">
+            {/* ✅ UPDATED: Custom Buttons */}
             <Button variant="primary" onClick={() => navigate('/browse')}>
               <i className="fas fa-search me-2"></i>
               Browse Available Pets
             </Button>
-            <Button variant="outline-primary" onClick={() => navigate('/pets')}>
+            <Button variant="secondary" onClick={() => navigate('/pets')}>
               <i className="fas fa-home me-2"></i>
               Go to Pets Home
             </Button>
@@ -343,32 +347,32 @@ const PetDetail = () => {
 
   const statusInfo = getPetStatusInfo();
 
-  // ✅ FIXED: Main pet display with safe rendering
+  // Main pet display with safe rendering
   return (
     <Container className="py-4">
       {/* Breadcrumb */}
       <nav aria-label="breadcrumb" className="mb-4">
         <ol className="breadcrumb">
           <li className="breadcrumb-item">
-            <Button variant="link" className="p-0" onClick={() => navigate('/')}>
+            {/* ✅ UPDATED: Custom Button for breadcrumb */}
+            <Button variant="secondary" size="small" onClick={() => navigate('/')} className="p-0 border-0 bg-transparent text-primary">
               <i className="fas fa-home me-1"></i>
               Home
             </Button>
           </li>
           <li className="breadcrumb-item">
-            <Button variant="link" className="p-0" onClick={() => navigate('/pets')}>
+            <Button variant="secondary" size="small" onClick={() => navigate('/pets')} className="p-0 border-0 bg-transparent text-primary">
               <i className="fas fa-paw me-1"></i>
               Pets
             </Button>
           </li>
           <li className="breadcrumb-item">
-            <Button variant="link" className="p-0" onClick={() => navigate('/browse')}>
+            <Button variant="secondary" size="small" onClick={() => navigate('/browse')} className="p-0 border-0 bg-transparent text-primary">
               <i className="fas fa-search me-1"></i>
               Browse
             </Button>
           </li>
           <li className="breadcrumb-item active" aria-current="page">
-            {/* ✅ FIXED: Safe string rendering */}
             {pet.displayName || pet.name || 'Pet Details'}
           </li>
         </ol>
@@ -465,22 +469,23 @@ const PetDetail = () => {
               {/* Action Buttons */}
               <div className="d-grid gap-2">
                 {pet.adopted ? (
-                  <Button variant="success" size="lg" disabled>
+                  <Button variant="success" size="large" disabled>
                     <i className="fas fa-heart me-2"></i>
                     This Pet Has Been Adopted!
                   </Button>
                 ) : (
                   <>
+                    {/* ✅ UPDATED: Custom Buttons */}
                     <Button 
                       variant="primary" 
-                      size="lg"
+                      size="large"
                       onClick={() => navigate(`/adopt/${pet._id}`)}
                     >
                       <i className="fas fa-heart me-2"></i>
                       Start Adoption Process
                     </Button>
                     <Button 
-                      variant="outline-info" 
+                      variant="secondary" 
                       onClick={() => navigate('/contact', { state: { petId: pet._id, petName: pet.name } })}
                     >
                       <i className="fas fa-envelope me-2"></i>
@@ -529,8 +534,9 @@ const PetDetail = () => {
             Explore More Pets
           </h5>
           <div className="d-flex gap-2 flex-wrap">
+            {/* ✅ UPDATED: Custom Buttons */}
             <Button 
-              variant="outline-primary" 
+              variant="secondary" 
               onClick={() => navigate(`/browse?type=${pet.type}`)}
             >
               <i className="fas fa-paw me-1"></i>
@@ -538,7 +544,7 @@ const PetDetail = () => {
             </Button>
             {pet.age && (
               <Button 
-                variant="outline-secondary" 
+                variant="secondary" 
                 onClick={() => navigate(`/browse?age=${pet.age}`)}
               >
                 <i className="fas fa-birthday-cake me-1"></i>
@@ -547,7 +553,7 @@ const PetDetail = () => {
             )}
             {pet.size && (
               <Button 
-                variant="outline-info" 
+                variant="secondary" 
                 onClick={() => navigate(`/browse?size=${pet.size}`)}
               >
                 <i className="fas fa-ruler me-1"></i>
@@ -555,7 +561,7 @@ const PetDetail = () => {
               </Button>
             )}
             <Button 
-              variant="outline-success" 
+              variant="success" 
               onClick={() => navigate('/browse?featured=true')}
             >
               <i className="fas fa-star me-1"></i>
@@ -565,7 +571,7 @@ const PetDetail = () => {
         </Card.Body>
       </Card>
 
-      {/* ✅ FIXED: Safe debug info (Development Only) */}
+      {/* Safe debug info (Development Only) */}
       {process.env.NODE_ENV === 'development' && (
         <Card className="mt-4 bg-light">
           <Card.Header>
@@ -578,7 +584,6 @@ const PetDetail = () => {
             <details>
               <summary className="fw-bold mb-2">Pet Data (Click to expand)</summary>
               <pre className="small" style={{ maxHeight: '300px', overflow: 'auto' }}>
-                {/* ✅ FIXED: Safe JSON.stringify with error handling */}
                 {(() => {
                   try {
                     return JSON.stringify(pet, null, 2);

@@ -1,419 +1,795 @@
-// server/routes/pets.js - COMPLETE CLEAN FILE - Replace everything with this
-
+// server/routes/pets.js - COMPLETE PETS ROUTES
 const express = require('express');
-const mongoose = require('mongoose');
-const Pet = require('../models/Pet');
 const router = express.Router();
+const Pet = require('../models/Pet');
+const { protect, admin } = require('../middleware/auth');
+const { body, validationResult, param, query } = require('express-validator');
 
-// ✅ Pet ID validation for custom string IDs
-const validatePetId = (req, res, next) => {
-  const { id } = req.params;
-  
-  if (!id || id.trim() === '') {
-    return res.status(400).json({
-      success: false,
-      message: 'Pet ID is required',
-      error: 'MISSING_ID'
-    });
-  }
-
-  // Accept both MongoDB ObjectIds AND custom pet IDs (p001, p003, etc.)
-  const isValidObjectId = mongoose.Types.ObjectId.isValid(id);
-  const isCustomPetId = /^p\d{3}$/.test(id);
-  
-  if (!isValidObjectId && !isCustomPetId) {
-    return res.status(400).json({
-      success: false,
-      message: 'Invalid pet ID format',
-      error: 'INVALID_ID_FORMAT',
-      received: id,
-      expected: 'Either a MongoDB ObjectId (24 chars) or custom pet ID (p001, p003, etc.)',
-      examples: ['p001', 'p003', 'p025', 'p054']
-    });
-  }
-
-  console.log(`✅ Pet ID validation passed: ${id} (${isCustomPetId ? 'custom' : 'ObjectId'})`);
-  next();
-};
-
-// ✅ ADVANCED FILTER MAPPING for PETS (matches your actual data)
-const mapPetFiltersToQuery = (filters) => {
-  const query = { status: 'available' };
-
-  // ✅ TYPE filtering - direct match (your data is already lowercase)
-  if (filters.type && filters.type !== 'all') {
-    query.type = filters.type; // Direct match: "dog", "cat", "hamster", etc.
-  }
-
-  // ✅ CATEGORY filtering (for broad groupings)
-  if (filters.category && filters.category !== 'all') {
-    if (filters.category === 'other') {
-      // ✅ "Other" = everything that's not dog, cat, or aquatic
-      query.category = 'other'; // All the small/exotic pets
-    } else {
-      query.category = filters.category; // Direct match: "dog", "cat", "aquatic"
+// ===== LOGGING UTILITY =====
+const logger = {
+  info: (message, ...args) => console.log(`ℹ️  ${new Date().toISOString()} - ${message}`, ...args),
+  error: (message, ...args) => console.error(`❌ ${new Date().toISOString()} - ${message}`, ...args),
+  warn: (message, ...args) => console.warn(`⚠️  ${new Date().toISOString()} - ${message}`, ...args),
+  debug: (message, ...args) => {
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`🐛 ${new Date().toISOString()} - ${message}`, ...args);
     }
   }
+};
 
-  // ✅ SIZE filtering 
-  if (filters.size && filters.size !== 'all') {
-    query.size = filters.size; // Direct match: "small", "medium", "large"
-  }
+// ===== VALIDATION MIDDLEWARE =====
+const validatePetData = [
+  body('name')
+    .notEmpty()
+    .withMessage('Pet name is required')
+    .isLength({ min: 1, max: 100 })
+    .withMessage('Pet name must be between 1 and 100 characters')
+    .trim()
+    .escape(),
+  
+  body('type')
+    .notEmpty()
+    .withMessage('Pet type is required')
+    .isIn(['dog', 'cat', 'bird', 'rabbit', 'hamster', 'fish', 'reptile', 'other'])
+    .withMessage('Invalid pet type'),
+  
+  body('breed')
+    .optional()
+    .isLength({ max: 100 })
+    .withMessage('Breed must be less than 100 characters')
+    .trim()
+    .escape(),
+  
+  body('age')
+    .optional()
+    .isLength({ max: 50 })
+    .withMessage('Age must be less than 50 characters')
+    .trim()
+    .escape(),
+  
+  body('size')
+    .optional()
+    .isIn(['small', 'medium', 'large', 'extra-large'])
+    .withMessage('Invalid size'),
+  
+  body('gender')
+    .optional()
+    .isIn(['male', 'female', 'unknown'])
+    .withMessage('Invalid gender'),
+  
+  body('description')
+    .optional()
+    .isLength({ max: 2000 })
+    .withMessage('Description must be less than 2000 characters')
+    .trim(),
+  
+  body('price')
+    .optional()
+    .isFloat({ min: 0, max: 10000 })
+    .withMessage('Price must be between 0 and 10,000'),
+  
+  body('location')
+    .optional()
+    .isLength({ max: 200 })
+    .withMessage('Location must be less than 200 characters')
+    .trim()
+    .escape(),
+  
+  body('status')
+    .optional()
+    .isIn(['available', 'pending', 'adopted', 'unavailable'])
+    .withMessage('Invalid status'),
+  
+  body('featured')
+    .optional()
+    .isBoolean()
+    .withMessage('Featured must be a boolean'),
+  
+  body('image')
+    .optional()
+    .isLength({ max: 500 })
+    .withMessage('Image path must be less than 500 characters')
+];
 
-  // ✅ GENDER filtering
-  if (filters.gender && filters.gender !== 'all') {
-    query.gender = filters.gender; // Direct match: "male", "female", "unknown"
-  }
+const validatePetId = [
+  param('id')
+    .isMongoId()
+    .withMessage('Invalid pet ID format')
+];
 
-  // ✅ FEATURED filtering
-  if (filters.featured === 'true' || filters.featured === true) {
-    query.featured = true;
-  }
+const validateQueryParams = [
+  query('page')
+    .optional()
+    .isInt({ min: 1, max: 1000 })
+    .withMessage('Page must be between 1 and 1000'),
+  
+  query('limit')
+    .optional()
+    .isInt({ min: 1, max: 100 })
+    .withMessage('Limit must be between 1 and 100'),
+  
+  query('type')
+    .optional()
+    .isIn(['dog', 'cat', 'bird', 'rabbit', 'hamster', 'fish', 'reptile', 'other'])
+    .withMessage('Invalid pet type'),
+  
+  query('status')
+    .optional()
+    .isIn(['available', 'pending', 'adopted', 'unavailable'])
+    .withMessage('Invalid status'),
+  
+  query('size')
+    .optional()
+    .isIn(['small', 'medium', 'large', 'extra-large'])
+    .withMessage('Invalid size'),
+  
+  query('featured')
+    .optional()
+    .isBoolean()
+    .withMessage('Featured must be a boolean'),
+  
+  query('search')
+    .optional()
+    .isLength({ max: 100 })
+    .withMessage('Search term must be less than 100 characters')
+    .trim()
+    .escape()
+];
 
-  // ✅ SEARCH across multiple fields
-  if (filters.search && filters.search.trim()) {
-    const searchRegex = new RegExp(filters.search.trim(), 'i');
+// ===== HELPER FUNCTIONS =====
+const enrichPetData = (pet) => {
+  const petObj = pet.toObject ? pet.toObject() : pet;
+  
+  return {
+    ...petObj,
+    imageUrl: petObj.image ? 
+      `https://storage.googleapis.com/furbabies-petstore/${petObj.image}` : null,
+    hasImage: !!petObj.image,
+    displayName: petObj.name || 'Unnamed Pet',
+    isAvailable: petObj.status === 'available',
+    daysSincePosted: Math.floor((new Date() - new Date(petObj.createdAt)) / (1000 * 60 * 60 * 24)),
+    shortDescription: petObj.description ? 
+      petObj.description.substring(0, 150) + (petObj.description.length > 150 ? '...' : '') : '',
+    formattedPrice: petObj.price ? `$${petObj.price.toFixed(2)}` : 'Free'
+  };
+};
+
+const buildFilterQuery = (filters) => {
+  const query = {};
+  
+  if (filters.type) query.type = filters.type;
+  if (filters.status) query.status = filters.status;
+  if (filters.size) query.size = filters.size;
+  if (filters.featured !== undefined) query.featured = filters.featured === 'true';
+  if (filters.location) query.location = new RegExp(filters.location, 'i');
+  
+  if (filters.search) {
     query.$or = [
-      { name: searchRegex },
-      { breed: searchRegex },
-      { description: searchRegex },
-      { type: searchRegex }
+      { name: new RegExp(filters.search, 'i') },
+      { breed: new RegExp(filters.search, 'i') },
+      { description: new RegExp(filters.search, 'i') }
     ];
   }
-
-  console.log('🐕 Mapped pet filters to query:', JSON.stringify(query, null, 2));
+  
   return query;
 };
 
-// ⭐ Get random featured pets for home page
-router.get('/featured', async (req, res) => {
-  try {
-    console.log('🏠 GET /api/pets/featured - Random selection requested');
-    
-    const limit = parseInt(req.query.limit) || 4;
-    
-    const featuredPets = await Pet.aggregate([
-      { 
-        $match: { 
-          featured: true, 
-          status: 'available' 
-        } 
-      },
-      { $sample: { size: limit } },
-      {
-        $addFields: {
-          imageUrl: {
-            $cond: {
-              if: { $ne: ["$image", null] },
-              then: { $concat: ["https://storage.googleapis.com/furbabies-petstore/", "$image"] },
-              else: null
-            }
-          },
-          hasImage: { $ne: ["$image", null] },
-          displayName: { $ifNull: ["$name", "Unnamed Pet"] },
-          isAvailable: { $eq: ["$status", "available"] }
-        }
-      }
-    ]);
-
-    console.log(`🏠 Returning ${featuredPets.length} random featured pets`);
-    
-    res.json({
-      success: true,
-      data: featuredPets,
-      count: featuredPets.length
-    });
-
-  } catch (error) {
-    console.error('❌ Error fetching featured pets:', error);
-    res.status(500).json({
+// ===== VALIDATION ERROR HANDLER =====
+const handleValidationErrors = (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    logger.warn('Validation errors:', errors.array());
+    return res.status(400).json({
       success: false,
-      message: 'Error fetching featured pets',
-      error: error.message
+      message: 'Validation failed',
+      errors: errors.array().map(error => ({
+        field: error.param,
+        message: error.msg,
+        value: error.value
+      }))
     });
   }
-});
+  next();
+};
 
-// ⭐ Get all pets with ADVANCED filtering
-router.get('/', async (req, res) => {
+// ============================================
+// PUBLIC ROUTES
+// ============================================
+
+// @desc Get all pets with filtering, search, and pagination
+// @route GET /api/pets
+// @access Public
+router.get('/', validateQueryParams, handleValidationErrors, async (req, res) => {
   try {
-    console.log('🐕 GET /api/pets - Query params:', req.query);
+    logger.info('GET /api/pets - Fetching pets with filters:', req.query);
 
-    // ✅ USE ADVANCED MAPPING
-    const query = mapPetFiltersToQuery(req.query);
-
-    // Pagination
     const page = parseInt(req.query.page) || 1;
-    const limit = Math.min(parseInt(req.query.limit) || 20, 100);
+    const limit = parseInt(req.query.limit) || 12;
     const skip = (page - 1) * limit;
 
-    // Sorting
-    let sortObj = {};
-    switch (req.query.sort || 'newest') {
+    // Build filter query
+    const filterQuery = buildFilterQuery(req.query);
+    
+    // Build sort query
+    let sortQuery = {};
+    switch (req.query.sort) {
       case 'newest':
-        sortObj = { createdAt: -1 };
+        sortQuery = { createdAt: -1 };
         break;
       case 'oldest':
-        sortObj = { createdAt: 1 };
+        sortQuery = { createdAt: 1 };
         break;
-      case 'name_asc':
-        sortObj = { name: 1 };
+      case 'price-low':
+        sortQuery = { price: 1 };
         break;
-      case 'name_desc':
-        sortObj = { name: -1 };
+      case 'price-high':
+        sortQuery = { price: -1 };
         break;
-      case 'featured':
-        sortObj = { featured: -1, createdAt: -1 };
+      case 'popular':
+        sortQuery = { views: -1 };
+        break;
+      case 'name':
+        sortQuery = { name: 1 };
         break;
       default:
-        sortObj = { createdAt: -1 };
+        sortQuery = { featured: -1, createdAt: -1 };
     }
 
-    console.log('🔍 Final pet MongoDB query:', JSON.stringify(query, null, 2));
+    logger.debug('Filter query:', filterQuery);
+    logger.debug('Sort query:', sortQuery);
 
-    const total = await Pet.countDocuments(query);
-    const pets = await Pet.find(query)
-      .sort(sortObj)
-      .skip(skip)
-      .limit(limit)
-      .lean();
+    // Execute queries
+    const [pets, totalCount] = await Promise.all([
+      Pet.find(filterQuery)
+        .sort(sortQuery)
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      Pet.countDocuments(filterQuery)
+    ]);
 
-    console.log(`✅ Found ${pets.length} pets (Total: ${total})`);
-    console.log(`📊 Sample pet types in results:`, pets.slice(0, 3).map(p => p.type));
+    // Enrich pet data
+    const enrichedPets = pets.map(enrichPetData);
 
-    // ✅ Enrich pet data with computed fields
-    const enrichedPets = pets.map(pet => ({
-      ...pet,
-      imageUrl: pet.image ? 
-        `https://storage.googleapis.com/furbabies-petstore/${pet.image}` : null,
-      hasImage: !!pet.image,
-      displayName: pet.name || 'Unnamed Pet',
-      isAvailable: pet.status === 'available'
-    }));
+    // Calculate pagination info
+    const totalPages = Math.ceil(totalCount / limit);
+    const hasNextPage = page < totalPages;
+    const hasPrevPage = page > 1;
+
+    logger.info(`Found ${pets.length} pets (${totalCount} total)`);
 
     res.json({
       success: true,
       data: enrichedPets,
       pagination: {
-        total,
-        page,
-        limit,
-        pages: Math.ceil(total / limit),
-        hasMore: skip + pets.length < total
+        currentPage: page,
+        totalPages,
+        totalCount,
+        hasNextPage,
+        hasPrevPage,
+        nextPage: hasNextPage ? page + 1 : null,
+        prevPage: hasPrevPage ? page - 1 : null,
+        limit
       },
-      debug: {
-        appliedFilters: req.query,
-        mongoQuery: query,
-        resultTypes: [...new Set(pets.map(p => p.type))] // Show unique types returned
-      }
+      filters: req.query,
+      message: `Found ${totalCount} pets`
     });
 
   } catch (error) {
-    console.error('❌ Error fetching pets:', error);
+    logger.error('Error fetching pets:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch pets',
-      error: error.message
+      message: 'Error fetching pets',
+      error: process.env.NODE_ENV === 'production' ? 'Internal server error' : error.message
     });
   }
 });
 
-// ⭐ MAIN FIX: Get single pet by ID - returns ALL pet data
-router.get('/:id', validatePetId, async (req, res) => {
+// @desc Get featured pets
+// @route GET /api/pets/featured
+// @access Public
+router.get('/featured', async (req, res) => {
   try {
-    console.log('🐕 GET /api/pets/:id - Pet ID:', req.params.id);
-    
-    let pet;
-    
-    try {
-      // ✅ Try findOne first for custom string IDs
-      pet = await Pet.findOne({ _id: req.params.id }).lean();
-    } catch (queryError) {
-      console.log('⚠️ findOne failed, trying findById:', queryError.message);
-      
-      // ✅ Fallback to findById for ObjectIds
-      if (mongoose.Types.ObjectId.isValid(req.params.id)) {
-        try {
-          pet = await Pet.findById(req.params.id).lean();
-        } catch (findByIdError) {
-          console.error('❌ findById also failed:', findByIdError.message);
-        }
-      }
-      
-      // ✅ Final fallback - direct collection query
-      if (!pet) {
-        try {
-          pet = await Pet.collection.findOne({ _id: req.params.id });
-        } catch (collectionError) {
-          console.error('❌ Collection query failed:', collectionError.message);
-        }
-      }
-    }
+    logger.info('GET /api/pets/featured - Fetching featured pets');
+
+    const limit = parseInt(req.query.limit) || 6;
+
+    const featuredPets = await Pet.find({ 
+      featured: true, 
+      status: 'available' 
+    })
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .lean();
+
+    const enrichedPets = featuredPets.map(enrichPetData);
+
+    logger.info(`Found ${featuredPets.length} featured pets`);
+
+    res.json({
+      success: true,
+      data: enrichedPets,
+      count: featuredPets.length,
+      message: 'Featured pets retrieved successfully'
+    });
+
+  } catch (error) {
+    logger.error('Error fetching featured pets:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching featured pets',
+      error: process.env.NODE_ENV === 'production' ? 'Internal server error' : error.message
+    });
+  }
+});
+
+// @desc Get pet statistics
+// @route GET /api/pets/stats
+// @access Public
+router.get('/stats', async (req, res) => {
+  try {
+    logger.info('GET /api/pets/stats - Fetching pet statistics');
+
+    const [totalPets, availablePets, adoptedPets, typeStats] = await Promise.all([
+      Pet.countDocuments(),
+      Pet.countDocuments({ status: 'available' }),
+      Pet.countDocuments({ status: 'adopted' }),
+      Pet.aggregate([
+        { $group: { _id: '$type', count: { $sum: 1 } } },
+        { $sort: { count: -1 } }
+      ])
+    ]);
+
+    const stats = {
+      total: totalPets,
+      available: availablePets,
+      adopted: adoptedPets,
+      pending: totalPets - availablePets - adoptedPets,
+      byType: typeStats.reduce((acc, item) => {
+        acc[item._id] = item.count;
+        return acc;
+      }, {})
+    };
+
+    logger.info('Pet statistics calculated:', stats);
+
+    res.json({
+      success: true,
+      data: stats,
+      message: 'Pet statistics retrieved successfully'
+    });
+
+  } catch (error) {
+    logger.error('Error fetching pet statistics:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching pet statistics',
+      error: process.env.NODE_ENV === 'production' ? 'Internal server error' : error.message
+    });
+  }
+});
+
+// @desc Get single pet by ID
+// @route GET /api/pets/:id
+// @access Public
+router.get('/:id', validatePetId, handleValidationErrors, async (req, res) => {
+  try {
+    logger.info(`GET /api/pets/${req.params.id} - Fetching single pet`);
+
+    const pet = await Pet.findById(req.params.id).lean();
 
     if (!pet) {
-      console.log('🐕 Pet not found for ID:', req.params.id);
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Pet not found',
-        error: 'PET_NOT_FOUND',
-        petId: req.params.id,
-        suggestion: 'This pet may have been adopted or is no longer available'
+      logger.warn(`Pet not found: ${req.params.id}`);
+      return res.status(404).json({
+        success: false,
+        message: 'Pet not found'
       });
     }
 
-    // ✅ COMPREHENSIVE: Return ALL pet data with proper enrichment
-    const enrichedPet = {
-      // Core identification
-      _id: pet._id,
-      name: pet.name,
-      
-      // Type and categorization
-      type: pet.type,
-      category: pet.category,
-      breed: pet.breed,
-      
-      // Physical characteristics
-      age: pet.age,
-      gender: pet.gender,
-      size: pet.size,
-      color: pet.color,
-      
-      // Description and personality
-      description: pet.description,
-      personalityTraits: pet.personalityTraits || [],
-      
-      // Images
-      image: pet.image,
-      imageUrl: pet.image ? 
-        `https://storage.googleapis.com/furbabies-petstore/${pet.image}` : null,
-      imagePublicId: pet.imagePublicId,
-      additionalImages: pet.additionalImages || [],
-      hasImage: !!pet.image,
-      
-      // Status and availability
-      status: pet.status,
-      featured: pet.featured,
-      isAvailable: pet.status === 'available',
-      
-      // Health and care info
-      healthInfo: pet.healthInfo || {},
-      
-      // Adoption details
-      adoptionFee: pet.adoptionFee || 0,
-      
-      // Location info
-      location: pet.location || {},
-      
-      // Contact information
-      contactInfo: pet.contactInfo || {},
-      
-      // Engagement metrics
-      views: pet.views || 0,
-      favorites: pet.favorites || 0,
-      rating: pet.rating || 0,
-      ratingCount: pet.ratingCount || 0,
-      
-      // Adoption tracking
-      adoptedBy: pet.adoptedBy,
-      adoptedAt: pet.adoptedAt,
-      
-      // Creation info
-      createdBy: pet.createdBy,
-      createdAt: pet.createdAt,
-      updatedAt: pet.updatedAt,
-      
-      // Computed fields
-      displayName: pet.name || 'Unnamed Pet',
-      daysSincePosted: pet.createdAt ? 
-        Math.floor((new Date() - new Date(pet.createdAt)) / (1000 * 60 * 60 * 24)) : 0,
-      
-      // Age formatting
-      ageInWords: pet.age || 'Age unknown'
-    };
+    // Increment view count
+    await Pet.findByIdAndUpdate(
+      req.params.id, 
+      { $inc: { views: 1 } },
+      { new: true }
+    );
 
-    console.log('✅ Pet found and enriched:', pet.name, '(ID:', req.params.id + ')');
-    console.log('📊 Pet data fields:', Object.keys(enrichedPet).length);
+    const enrichedPet = enrichPetData(pet);
+
+    logger.info(`Pet found: ${enrichedPet.displayName}`);
 
     res.json({
       success: true,
       data: enrichedPet,
-      message: `Pet details for ${pet.name}`
+      message: 'Pet retrieved successfully'
     });
 
   } catch (error) {
-    console.error('❌ Error fetching pet by ID:', error);
-    
+    logger.error('Error retrieving pet:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch pet details',
-      error: error.message,
-      petId: req.params.id,
-      suggestion: 'This might be a temporary server issue. Please try again.',
-      timestamp: new Date().toISOString()
+      message: 'Error retrieving pet',
+      error: process.env.NODE_ENV === 'production' ? 'Internal server error' : error.message
     });
   }
 });
 
-// ⭐ Rate a pet
-router.post('/:id/rate', validatePetId, async (req, res) => {
+// ============================================
+// ADMIN ROUTES (Protected)
+// ============================================
+
+// @desc Create new pet (Admin only)
+// @route POST /api/pets
+// @access Private/Admin
+router.post('/', protect, admin, validatePetData, handleValidationErrors, async (req, res) => {
   try {
-    const { rating } = req.body;
-    
-    if (!rating || rating < 1 || rating > 5) {
-      return res.status(400).json({
-        success: false,
-        message: 'Rating must be between 1 and 5',
-        received: rating
-      });
-    }
+    logger.info('POST /api/pets - Creating new pet:', req.body.name);
 
-    let pet;
-    
-    try {
-      pet = await Pet.findOne({ _id: req.params.id });
-    } catch (queryError) {
-      if (mongoose.Types.ObjectId.isValid(req.params.id)) {
-        pet = await Pet.findById(req.params.id);
+    // Create pet with defaults and standardized fields
+    const petData = {
+      name: req.body.name,
+      type: req.body.type,
+      breed: req.body.breed || '',
+      age: req.body.age || 'Unknown',
+      size: req.body.size || 'medium',
+      gender: req.body.gender || 'unknown',
+      description: req.body.description || '',
+      image: req.body.image || '',
+      category: req.body.category || req.body.type,
+      price: req.body.price || 0,
+      location: req.body.location || '',
+      status: 'available', // Always start as available
+      featured: req.body.featured || false,
+      createdBy: req.user._id,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      views: 0,
+      votes: {
+        upvotes: 0,
+        downvotes: 0
       }
-    }
+    };
 
-    if (!pet) {
-      return res.status(404).json({
-        success: false,
-        message: 'Pet not found',
-        error: 'PET_NOT_FOUND'
-      });
-    }
-
-    // Update rating
-    const currentRating = pet.rating || 0;
-    const ratingCount = pet.ratingCount || 0;
-    const newRatingCount = ratingCount + 1;
-    const newRating = ((currentRating * ratingCount) + rating) / newRatingCount;
-
-    pet.rating = Math.round(newRating * 10) / 10;
-    pet.ratingCount = newRatingCount;
-    
+    const pet = new Pet(petData);
     await pet.save();
 
-    console.log(`✅ Pet ${pet.name} (${pet._id}) rated: ${rating} (new average: ${pet.rating})`);
+    const enrichedPet = enrichPetData(pet);
+
+    logger.info(`Pet created successfully: ${pet._id}`);
+
+    res.status(201).json({
+      success: true,
+      message: 'Pet created successfully',
+      data: enrichedPet
+    });
+
+  } catch (error) {
+    logger.error('Error creating pet:', error);
+    
+    // Handle duplicate key errors
+    if (error.code === 11000) {
+      return res.status(400).json({
+        success: false,
+        message: 'A pet with this information already exists'
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: 'Error creating pet',
+      error: process.env.NODE_ENV === 'production' ? 'Internal server error' : error.message
+    });
+  }
+});
+
+// @desc Update pet (Admin only)
+// @route PUT /api/pets/:id
+// @access Private/Admin
+router.put('/:id', protect, admin, validatePetId, validatePetData, handleValidationErrors, async (req, res) => {
+  try {
+    logger.info(`PUT /api/pets/${req.params.id} - Updating pet`);
+
+    const pet = await Pet.findById(req.params.id);
+
+    if (!pet) {
+      logger.warn(`Pet not found for update: ${req.params.id}`);
+      return res.status(404).json({
+        success: false,
+        message: 'Pet not found'
+      });
+    }
+
+    // Update fields
+    const updateData = {
+      ...req.body,
+      updatedAt: new Date(),
+      updatedBy: req.user._id
+    };
+
+    // Remove undefined fields
+    Object.keys(updateData).forEach(key => {
+      if (updateData[key] === undefined) {
+        delete updateData[key];
+      }
+    });
+
+    const updatedPet = await Pet.findByIdAndUpdate(
+      req.params.id,
+      updateData,
+      { new: true, runValidators: true }
+    );
+
+    const enrichedPet = enrichPetData(updatedPet);
+
+    logger.info(`Pet updated successfully: ${req.params.id}`);
 
     res.json({
       success: true,
-      message: `Thank you for rating ${pet.name}!`,
+      message: 'Pet updated successfully',
+      data: enrichedPet
+    });
+
+  } catch (error) {
+    logger.error('Error updating pet:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error updating pet',
+      error: process.env.NODE_ENV === 'production' ? 'Internal server error' : error.message
+    });
+  }
+});
+
+// @desc Update pet status (Admin only)
+// @route PATCH /api/pets/:id/status
+// @access Private/Admin
+router.patch('/:id/status', protect, admin, validatePetId, [
+  body('status')
+    .isIn(['available', 'pending', 'adopted', 'unavailable'])
+    .withMessage('Invalid status')
+], handleValidationErrors, async (req, res) => {
+  try {
+    logger.info(`PATCH /api/pets/${req.params.id}/status - Updating status to: ${req.body.status}`);
+
+    const pet = await Pet.findByIdAndUpdate(
+      req.params.id,
+      { 
+        status: req.body.status,
+        updatedAt: new Date(),
+        updatedBy: req.user._id
+      },
+      { new: true, runValidators: true }
+    );
+
+    if (!pet) {
+      logger.warn(`Pet not found for status update: ${req.params.id}`);
+      return res.status(404).json({
+        success: false,
+        message: 'Pet not found'
+      });
+    }
+
+    const enrichedPet = enrichPetData(pet);
+
+    logger.info(`Pet status updated successfully: ${req.params.id} -> ${req.body.status}`);
+
+    res.json({
+      success: true,
+      message: 'Pet status updated successfully',
+      data: enrichedPet
+    });
+
+  } catch (error) {
+    logger.error('Error updating pet status:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error updating pet status',
+      error: process.env.NODE_ENV === 'production' ? 'Internal server error' : error.message
+    });
+  }
+});
+
+// @desc Toggle pet featured status (Admin only)
+// @route PATCH /api/pets/:id/featured
+// @access Private/Admin
+router.patch('/:id/featured', protect, admin, validatePetId, handleValidationErrors, async (req, res) => {
+  try {
+    logger.info(`PATCH /api/pets/${req.params.id}/featured - Toggling featured status`);
+
+    const pet = await Pet.findById(req.params.id);
+
+    if (!pet) {
+      logger.warn(`Pet not found for featured toggle: ${req.params.id}`);
+      return res.status(404).json({
+        success: false,
+        message: 'Pet not found'
+      });
+    }
+
+    pet.featured = !pet.featured;
+    pet.updatedAt = new Date();
+    pet.updatedBy = req.user._id;
+
+    await pet.save();
+
+    const enrichedPet = enrichPetData(pet);
+
+    logger.info(`Pet featured status toggled: ${req.params.id} -> ${pet.featured}`);
+
+    res.json({
+      success: true,
+      message: `Pet ${pet.featured ? 'featured' : 'unfeatured'} successfully`,
+      data: enrichedPet
+    });
+
+  } catch (error) {
+    logger.error('Error toggling pet featured status:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error updating pet featured status',
+      error: process.env.NODE_ENV === 'production' ? 'Internal server error' : error.message
+    });
+  }
+});
+
+// @desc Delete pet (Admin only)
+// @route DELETE /api/pets/:id
+// @access Private/Admin
+router.delete('/:id', protect, admin, validatePetId, handleValidationErrors, async (req, res) => {
+  try {
+    logger.info(`DELETE /api/pets/${req.params.id} - Deleting pet`);
+
+    const pet = await Pet.findById(req.params.id);
+
+    if (!pet) {
+      logger.warn(`Pet not found for deletion: ${req.params.id}`);
+      return res.status(404).json({
+        success: false,
+        message: 'Pet not found'
+      });
+    }
+
+    // Store pet info for logging
+    const petInfo = {
+      id: pet._id,
+      name: pet.name,
+      type: pet.type
+    };
+
+    await Pet.findByIdAndDelete(req.params.id);
+
+    logger.info(`Pet deleted successfully:`, petInfo);
+
+    res.json({
+      success: true,
+      message: 'Pet deleted successfully',
+      data: { id: req.params.id }
+    });
+
+  } catch (error) {
+    logger.error('Error deleting pet:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error deleting pet',
+      error: process.env.NODE_ENV === 'production' ? 'Internal server error' : error.message
+    });
+  }
+});
+
+// @desc Bulk update pets (Admin only)
+// @route PATCH /api/pets/bulk
+// @access Private/Admin
+router.patch('/bulk', protect, admin, [
+  body('petIds')
+    .isArray({ min: 1 })
+    .withMessage('Pet IDs array is required')
+    .custom((value) => {
+      if (!value.every(id => /^[0-9a-fA-F]{24}$/.test(id))) {
+        throw new Error('All pet IDs must be valid MongoDB ObjectIds');
+      }
+      return true;
+    }),
+  body('updates')
+    .isObject()
+    .withMessage('Updates object is required')
+    .custom((value) => {
+      const allowedFields = ['status', 'featured', 'location', 'price'];
+      const updateFields = Object.keys(value);
+      if (!updateFields.some(field => allowedFields.includes(field))) {
+        throw new Error('At least one valid update field is required');
+      }
+      return true;
+    })
+], handleValidationErrors, async (req, res) => {
+  try {
+    logger.info(`PATCH /api/pets/bulk - Bulk updating ${req.body.petIds.length} pets`);
+
+    const { petIds, updates } = req.body;
+
+    // Add metadata
+    updates.updatedAt = new Date();
+    updates.updatedBy = req.user._id;
+
+    const result = await Pet.updateMany(
+      { _id: { $in: petIds } },
+      { $set: updates },
+      { runValidators: true }
+    );
+
+    logger.info(`Bulk update completed: ${result.modifiedCount} pets modified`);
+
+    res.json({
+      success: true,
+      message: `Successfully updated ${result.modifiedCount} pets`,
       data: {
-        petId: pet._id,
-        newRating: pet.rating,
-        ratingCount: pet.ratingCount
+        matched: result.matchedCount,
+        modified: result.modifiedCount,
+        updates
       }
     });
 
   } catch (error) {
-    console.error('❌ Error rating pet:', error);
+    logger.error('Error in bulk update:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to rate pet',
-      error: error.message
+      message: 'Error updating pets',
+      error: process.env.NODE_ENV === 'production' ? 'Internal server error' : error.message
+    });
+  }
+});
+
+// @desc Get pets by admin (Admin only)
+// @route GET /api/pets/admin/all
+// @access Private/Admin
+router.get('/admin/all', protect, admin, validateQueryParams, handleValidationErrors, async (req, res) => {
+  try {
+    logger.info('GET /api/pets/admin/all - Admin fetching all pets');
+
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const skip = (page - 1) * limit;
+
+    const filterQuery = buildFilterQuery(req.query);
+    
+    const [pets, totalCount] = await Promise.all([
+      Pet.find(filterQuery)
+        .populate('createdBy', 'firstName lastName email')
+        .populate('updatedBy', 'firstName lastName email')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      Pet.countDocuments(filterQuery)
+    ]);
+
+    const enrichedPets = pets.map(pet => ({
+      ...enrichPetData(pet),
+      createdBy: pet.createdBy,
+      updatedBy: pet.updatedBy
+    }));
+
+    const totalPages = Math.ceil(totalCount / limit);
+
+    logger.info(`Admin retrieved ${pets.length} pets (${totalCount} total)`);
+
+    res.json({
+      success: true,
+      data: enrichedPets,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalCount,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1,
+        limit
+      },
+      message: `Retrieved ${totalCount} pets for admin`
+    });
+
+  } catch (error) {
+    logger.error('Error fetching pets for admin:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching pets',
+      error: process.env.NODE_ENV === 'production' ? 'Internal server error' : error.message
     });
   }
 });

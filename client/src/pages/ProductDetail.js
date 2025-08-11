@@ -1,9 +1,11 @@
-// client/src/pages/ProductDetail.js - CORRECTED Product detail page
+// client/src/pages/ProductDetail.js - UPDATED with custom Button system
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Container, Row, Col, Button, Spinner, Alert, Badge, Card } from 'react-bootstrap';
+import { Container, Row, Col, Spinner, Alert, Badge, Card } from 'react-bootstrap';
 import { productAPI } from '../services/api';
 import SafeImage from '../components/SafeImage';
+import Button from '../components/button/Button.jsx'; // ✅ FIXED: Match working PetDetail import
+import '../styles/EnhancedComponents.css'; // ✅ ADDED: Enhanced component styles
 
 const ProductDetail = () => {
   const { id } = useParams();
@@ -16,7 +18,7 @@ const ProductDetail = () => {
   const [quantity, setQuantity] = useState(1);
   const [addingToCart, setAddingToCart] = useState(false);
 
-  // ✅ FIXED: Enhanced fetch with multiple ID format attempts
+  // Enhanced fetch with multiple ID format attempts
   useEffect(() => {
     const fetchProduct = async () => {
       if (!id) {
@@ -34,7 +36,7 @@ const ProductDetail = () => {
         let response = null;
         let lastError = null;
         
-        // ✅ FIXED: Try multiple approaches for product fetching
+        // Try multiple approaches for product fetching
         const fetchAttempts = [
           // 1. Try direct ID as-is
           () => productAPI.getProductById(id),
@@ -103,7 +105,7 @@ const ProductDetail = () => {
         }
         
         if (productData && (productData._id || productData.id)) {
-          // ✅ FIXED: Normalize product data to handle backend field variations safely
+          // Normalize product data to handle backend field variations safely
           const normalizedProduct = {
             ...productData,
             // Ensure basic fields are strings, not objects
@@ -154,7 +156,7 @@ const ProductDetail = () => {
       } catch (err) {
         console.error('❌ Error fetching product:', err);
         
-        // ✅ ENHANCED: Better error messages based on error type
+        // Better error messages based on error type
         if (err.response?.status === 404) {
           setError(`Product "${id}" not found. This product may no longer be available.`);
         } else if (err.response?.status === 400) {
@@ -196,7 +198,7 @@ const ProductDetail = () => {
     }
   }, [product, quantity, addingToCart]);
 
-  // ✅ FIXED: Safe utility functions with proper null checking
+  // Safe utility functions with proper null checking
   const formatPrice = useCallback((price) => {
     if (typeof price === 'number' && price >= 0) {
       return `$${price.toFixed(2)}`;
@@ -231,7 +233,7 @@ const ProductDetail = () => {
     }
   }, [product]);
 
-  // ✅ FIXED: Safe render functions with proper null checking
+  // Safe render functions with proper null checking
   const renderStarRating = useCallback((rating = 0, size = 'sm') => {
     const stars = [];
     const numRating = Number(rating) || 0;
@@ -275,7 +277,8 @@ const ProductDetail = () => {
           </Alert.Heading>
           <p>{error}</p>
           <div className="d-flex gap-2 justify-content-center flex-wrap">
-            <Button variant="outline-danger" onClick={() => window.location.reload()}>
+            {/* ✅ UPDATED: Custom Buttons */}
+            <Button variant="danger" onClick={() => window.location.reload()}>
               <i className="fas fa-redo me-2"></i>
               Try Again
             </Button>
@@ -300,6 +303,7 @@ const ProductDetail = () => {
           </Alert.Heading>
           <p>The product you're looking for doesn't exist or may no longer be available.</p>
           <div className="d-flex gap-2 justify-content-center">
+            {/* ✅ UPDATED: Custom Button */}
             <Button variant="primary" onClick={() => navigate('/products')}>
               <i className="fas fa-shopping-bag me-2"></i>
               Browse All Products
@@ -312,20 +316,21 @@ const ProductDetail = () => {
 
   const stockStatus = getStockStatus();
 
-  // ✅ FIXED: Main product display with safe rendering
+  // Main product display with safe rendering
   return (
     <Container className="py-4">
       {/* Breadcrumb */}
       <nav aria-label="breadcrumb" className="mb-4">
         <ol className="breadcrumb">
           <li className="breadcrumb-item">
-            <Button variant="link" className="p-0" onClick={() => navigate('/')}>
+            {/* ✅ UPDATED: Custom Button for breadcrumb */}
+            <Button variant="secondary" size="small" onClick={() => navigate('/')} className="p-0 border-0 bg-transparent text-primary">
               <i className="fas fa-home me-1"></i>
               Home
             </Button>
           </li>
           <li className="breadcrumb-item">
-            <Button variant="link" className="p-0" onClick={() => navigate('/products')}>
+            <Button variant="secondary" size="small" onClick={() => navigate('/products')} className="p-0 border-0 bg-transparent text-primary">
               <i className="fas fa-shopping-bag me-1"></i>
               Products
             </Button>
@@ -333,8 +338,9 @@ const ProductDetail = () => {
           {product.category && (
             <li className="breadcrumb-item">
               <Button 
-                variant="link" 
-                className="p-0" 
+                variant="secondary" 
+                size="small"
+                className="p-0 border-0 bg-transparent text-primary"
                 onClick={() => navigate(`/products?category=${encodeURIComponent(product.category)}`)}
               >
                 {product.category}
@@ -342,7 +348,6 @@ const ProductDetail = () => {
             </li>
           )}
           <li className="breadcrumb-item active" aria-current="page">
-            {/* ✅ FIXED: Safe string rendering */}
             {product.name || 'Product Details'}
           </li>
         </ol>
@@ -443,24 +448,17 @@ const ProductDetail = () => {
                       </select>
                     </Col>
                     <Col xs={8}>
+                      {/* ✅ UPDATED: Custom Button with loading state */}
                       <Button 
                         variant="primary" 
-                        size="lg"
+                        size="large"
                         className="w-100"
                         onClick={handleAddToCart}
-                        disabled={addingToCart || product.inStock === false}
+                        loading={addingToCart}
+                        disabled={product.inStock === false}
                       >
-                        {addingToCart ? (
-                          <>
-                            <Spinner size="sm" animation="border" className="me-2" />
-                            Adding to Cart...
-                          </>
-                        ) : (
-                          <>
-                            <i className="fas fa-shopping-cart me-2"></i>
-                            Add to Cart
-                          </>
-                        )}
+                        <i className="fas fa-shopping-cart me-2"></i>
+                        {addingToCart ? 'Adding to Cart...' : 'Add to Cart'}
                       </Button>
                     </Col>
                   </Row>
@@ -528,22 +526,23 @@ const ProductDetail = () => {
             Explore More Products
           </h5>
           <div className="d-flex gap-2 flex-wrap">
+            {/* ✅ UPDATED: Custom Buttons */}
             <Button 
-              variant="outline-primary" 
+              variant="secondary" 
               onClick={() => navigate(`/products?category=${encodeURIComponent(product.category)}`)}
             >
               <i className="fas fa-tag me-1"></i>
               More in {product.category}
             </Button>
             <Button 
-              variant="outline-secondary" 
+              variant="secondary" 
               onClick={() => navigate(`/products?brand=${encodeURIComponent(product.brand)}`)}
             >
               <i className="fas fa-building me-1"></i>
               More from {product.brand}
             </Button>
             <Button 
-              variant="outline-success" 
+              variant="success" 
               onClick={() => navigate('/products?featured=true')}
             >
               <i className="fas fa-star me-1"></i>
@@ -553,7 +552,7 @@ const ProductDetail = () => {
         </Card.Body>
       </Card>
 
-      {/* ✅ FIXED: Safe debug info (Development Only) */}
+      {/* Safe debug info (Development Only) */}
       {process.env.NODE_ENV === 'development' && (
         <Card className="mt-4 bg-light">
           <Card.Header>
@@ -566,7 +565,6 @@ const ProductDetail = () => {
             <details>
               <summary className="fw-bold mb-2">Product Data (Click to expand)</summary>
               <pre className="small" style={{ maxHeight: '300px', overflow: 'auto' }}>
-                {/* ✅ FIXED: Safe JSON.stringify with error handling */}
                 {(() => {
                   try {
                     return JSON.stringify(product, null, 2);

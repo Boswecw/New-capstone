@@ -1,10 +1,12 @@
+// client/src/pages/Register.js - UPDATED with custom Button system
 import React, { useState } from 'react';
-import { Container, Row, Col, Card, Form, Button, Alert } from 'react-bootstrap';
+import { Container, Row, Col, Card, Form, Alert } from 'react-bootstrap';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { useAuth } from '../contexts/AuthContext';
 import PasswordRequirements from '../components/PasswordRequirements';
 import { validateName, validateEmail, validatePassword } from '../utils/validation';
+import Button from '../components/button/Button.jsx'; // ✅ ADDED: Custom Button component
 
 const Register = () => {
   const { user, register } = useAuth();
@@ -72,7 +74,7 @@ const Register = () => {
     }
 
     try {
-      // ✅ FIXED: Transform data to match backend expectations
+      // Transform data to match backend expectations
       const registrationData = {
         name: `${formData.firstName} ${formData.lastName}`.trim(),
         email: formData.email,
@@ -85,10 +87,10 @@ const Register = () => {
         const errorMessage = result.message || 'Registration failed. Please try again.';
         setError(errorMessage);
         
-        // ✅ DEBUG: Log the actual error message
+        // DEBUG: Log the actual error message
         console.log('Registration error message:', errorMessage);
         
-        // ✅ IMPROVED: More comprehensive check for already registered
+        // IMPROVED: More comprehensive check for already registered
         const isAlreadyRegistered = errorMessage.toLowerCase().includes('already registered') || 
                                    errorMessage.toLowerCase().includes('already exists') ||
                                    errorMessage.toLowerCase().includes('email already') ||
@@ -116,7 +118,7 @@ const Register = () => {
           });
         }
       } else {
-        // ✅ SUCCESS: Show success toast and redirect
+        // SUCCESS: Show success toast and redirect
         toast.success('🎉 Account created successfully! Welcome to FurBabies!', {
           position: "top-right",
           autoClose: 3000,
@@ -133,12 +135,12 @@ const Register = () => {
       }
     } catch (err) {
       console.error('Registration error:', err);
-      console.log('Error response:', err.response); // ✅ DEBUG: Log full error response
+      console.log('Error response:', err.response); // DEBUG: Log full error response
       
       const errorMessage = err.response?.data?.message || err.message || 'Registration failed. Please try again.';
       setError(errorMessage);
       
-      // ✅ IMPROVED: Multiple ways to detect already registered
+      // IMPROVED: Multiple ways to detect already registered
       const isStatus409 = err.response?.status === 409;
       const isAlreadyRegistered = errorMessage.toLowerCase().includes('already registered') || 
                                  errorMessage.toLowerCase().includes('already exists') ||
@@ -146,8 +148,8 @@ const Register = () => {
                                  errorMessage.toLowerCase().includes('user already') ||
                                  errorMessage.toLowerCase().includes('exists');
       
-      console.log('Is 409 status:', isStatus409); // ✅ DEBUG
-      console.log('Is already registered message:', isAlreadyRegistered); // ✅ DEBUG
+      console.log('Is 409 status:', isStatus409); // DEBUG
+      console.log('Is already registered message:', isAlreadyRegistered); // DEBUG
       
       if (isStatus409 || isAlreadyRegistered) {
         toast.warn('👤 This email is already registered! Try signing in instead.', {
@@ -275,10 +277,13 @@ const Register = () => {
                       placeholder="Create a strong password"
                       required
                     />
+                    {/* ✅ UPDATED: Custom Button for password toggle */}
                     <Button
-                      variant="outline-secondary"
+                      variant="secondary"
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
+                      className="border border-start-0"
+                      style={{ borderTopLeftRadius: 0, borderBottomLeftRadius: 0 }}
                     >
                       <i className={`fas ${showPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
                     </Button>
@@ -302,10 +307,13 @@ const Register = () => {
                       placeholder="Confirm your password"
                       required
                     />
+                    {/* ✅ UPDATED: Custom Button for password toggle */}
                     <Button
-                      variant="outline-secondary"
+                      variant="secondary"
                       type="button"
                       onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="border border-start-0"
+                      style={{ borderTopLeftRadius: 0, borderBottomLeftRadius: 0 }}
                     >
                       <i className={`fas ${showConfirmPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
                     </Button>
@@ -336,24 +344,16 @@ const Register = () => {
                   </ul>
                 </div>
 
+                {/* ✅ UPDATED: Custom Button for form submission */}
                 <Button
                   type="submit"
                   variant="primary"
                   className="w-100 mb-3"
-                  size="lg"
-                  disabled={loading}
+                  size="large"
+                  loading={loading}
                 >
-                  {loading ? (
-                    <>
-                      <span className="spinner-border spinner-border-sm me-2" />
-                      Creating Account...
-                    </>
-                  ) : (
-                    <>
-                      <i className="fas fa-user-plus me-2"></i>
-                      Create Account
-                    </>
-                  )}
+                  <i className="fas fa-user-plus me-2"></i>
+                  {loading ? 'Creating Account...' : 'Create Account'}
                 </Button>
               </Form>
 
