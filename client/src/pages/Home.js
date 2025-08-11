@@ -109,7 +109,7 @@ const Home = () => {
     }
 
     const imagePath = findProductImage(product);
-    return `https://storage.googleapis.com/furbabies-petstore/${imagePath}`;
+    return `https://storage.googleapis.com/furbabies-petstore/${encodeURIComponent(imagePath)}`;
   };
 
   const testimonials = [
