@@ -13,7 +13,7 @@
     "install-client": "cd client && yarn install",
     "install-all": "yarn install-server && yarn install-client",
     "render-postbuild": "yarn install-all && yarn build",
-    "clean": "rm -rf node_modules server/node_modules client/node_modules yarn.lock",
+    "clean": "rm -rf node_modules server/node_modules client/node_modules yarn.lock server/yarn.lock client/yarn.lock",
     "test": "echo \"No tests yet\" && exit 0"
   },
   "keywords": [
@@ -51,7 +51,7 @@
   },
   "engines": {
     "node": ">=18.0.0",
-    "npm": ">=8.0.0"
+    "yarn": ">=1.22.0"
   },
   "repository": {
     "type": "git",
