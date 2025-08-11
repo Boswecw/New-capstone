@@ -6,14 +6,12 @@
   "scripts": {
     "start": "node server/server.js",
     "dev": "concurrently \"yarn server\" \"yarn client\"",
-    "server": "cd server && nodemon server.js",
+    "server": "nodemon server/server.js",
     "client": "cd client && yarn start",
     "build": "cd client && yarn build",
-    "install-server": "cd server && yarn install",
     "install-client": "cd client && yarn install",
-    "install-all": "yarn install-server && yarn install-client",
-    "render-postbuild": "yarn install-all && yarn build",
-    "clean": "rm -rf node_modules server/node_modules client/node_modules yarn.lock server/yarn.lock client/yarn.lock",
+    "render-postbuild": "yarn install-client && yarn build",
+    "clean": "rm -rf node_modules server/node_modules client/node_modules yarn.lock client/yarn.lock",
     "test": "echo \"No tests yet\" && exit 0"
   },
   "keywords": [
@@ -43,7 +41,7 @@
     "morgan": "^1.10.0",
     "multer": "^2.0.1",
     "nodemailer": "^6.10.1",
-    "react-toastify": "^11.0.5"
+    "sharp": "^0.33.5"
   },
   "devDependencies": {
     "concurrently": "^9.2.0",

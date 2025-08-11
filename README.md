@@ -192,7 +192,7 @@ curl http://localhost:5000/api/images/health
 
 ### Backend
 - Auto-deploy from GitHub `main`
-- Build Command: `yarn install`
+- Build Command: `yarn install && yarn render-postbuild`
 - Start Command: `yarn start`
 - Set environment variables manually
 
