@@ -3,10 +3,30 @@ const express = require('express');
 const { Storage } = require('@google-cloud/storage');
 const router = express.Router();
 
-// Initialize Google Cloud Storage
-const storage = new Storage({
-  projectId: process.env.GOOGLE_CLOUD_PROJECT_ID,
-});
+// Initialize Google Cloud Storage with explicit credentials
+function initStorage() {
+  const options = { projectId: process.env.GOOGLE_CLOUD_PROJECT_ID };
+
+  if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+    options.keyFilename = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+  } else if (process.env.GCS_CREDENTIALS) {
+    try {
+      options.credentials = JSON.parse(process.env.GCS_CREDENTIALS);
+    } catch (err) {
+      console.error('Invalid GCS_CREDENTIALS JSON');
+      return null;
+    }
+  }
+
+  if (!options.keyFilename && !options.credentials) {
+    console.error('Google Cloud Storage credentials not provided');
+    return null;
+  }
+
+  return new Storage(options);
+}
+
+const storage = initStorage();
 
 // Use environment variable for the bucket name so deployments can target
 // different buckets without code changes
@@ -14,7 +34,6 @@ const bucketName = process.env.GCS_BUCKET;
 if (!bucketName) {
   console.warn('GCS_BUCKET environment variable is not set');
 }
-const bucket = storage.bucket(bucketName);
 
 // ===== CORS MIDDLEWARE FOR IMAGES =====
 router.use((req, res, next) => {
@@ -46,11 +65,19 @@ router.get('/health', (req, res) => {
 // This matches your URL pattern: /api/images/gcs/pet/clown-fish.png
 router.get('/gcs/:category/:filename', async (req, res) => {
   try {
+    if (!storage) {
+      return res.status(500).json({
+        error: 'Google Cloud Storage is not configured',
+        details: 'Missing service account credentials'
+      });
+    }
+
+    const bucket = storage.bucket(bucketName);
     const { category, filename } = req.params;
     const filePath = `${category}/${filename}`;
-    
+
     console.log(`🖼️ Image request: ${filePath}`);
-    
+
     // Get the file from GCS
     const file = bucket.file(filePath);
     

@@ -2,7 +2,34 @@
 
 const sharp = require('sharp');
 const { Storage } = require('@google-cloud/storage');
-const storage = new Storage();
+
+function initStorage() {
+  const options = {};
+
+  if (process.env.GOOGLE_CLOUD_PROJECT_ID) {
+    options.projectId = process.env.GOOGLE_CLOUD_PROJECT_ID;
+  }
+
+  if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+    options.keyFilename = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+  } else if (process.env.GCS_CREDENTIALS) {
+    try {
+      options.credentials = JSON.parse(process.env.GCS_CREDENTIALS);
+    } catch (err) {
+      console.error('Invalid GCS_CREDENTIALS JSON');
+      return null;
+    }
+  }
+
+  if (!options.keyFilename && !options.credentials) {
+    console.error('Google Cloud Storage credentials not provided');
+    return null;
+  }
+
+  return new Storage(options);
+}
+
+const storage = initStorage();
 
 // Configuration
 const BUCKET_NAME = 'furbabies-petstore';
@@ -112,6 +139,14 @@ const imageOptimizationMiddleware = async (req, res, next) => {
     // If no optimization parameters, proceed normally
     if (!optimizationParams.width && !optimizationParams.height && req.query.q === undefined) {
       return next();
+    }
+
+    if (!storage) {
+      return res.status(500).json({
+        success: false,
+        message: 'Google Cloud Storage is not configured',
+        details: 'Missing service account credentials'
+      });
     }
 
     console.log(`🖼️  Optimizing image: ${imagePath}`, optimizationParams);
