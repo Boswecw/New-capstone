@@ -18,4 +18,4 @@ const petController = {
   }
 };
 
-export default petController;
+module.exports = petController;

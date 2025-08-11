@@ -1,8 +1,8 @@
 // ===== server/controllers/contactController.js =====
-import Contact from '../models/Contact.js';
+const Contact = require('../models/Contact');
 
 // Submit contact form
-export const submitContact = async (req, res) => {
+const submitContact = async (req, res) => {
   try {
     const { name, email, subject, message } = req.body;
     
@@ -36,7 +36,7 @@ export const submitContact = async (req, res) => {
 };
 
 // Get all contacts (admin only)
-export const getAllContacts = async (req, res) => {
+const getAllContacts = async (req, res) => {
   try {
     const { status, page = 1, limit = 10 } = req.query;
     
@@ -71,10 +71,7 @@ export const getAllContacts = async (req, res) => {
   }
 };
 
-// Default export with all functions
-const contactController = {
+module.exports = {
   submitContact,
   getAllContacts
 };
-
-export default contactController;
