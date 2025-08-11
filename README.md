@@ -209,20 +209,14 @@ curl http://localhost:5000/api/images/health
 - Build Command: `yarn install`
 - Start Command: `yarn start`
 - Set environment variables manually
-<<<<<<< HEAD
+  Required: `MONGODB_URI`, `JWT_SECRET`, `GCS_BUCKET`
+  Optional: `GOOGLE_CLOUD_PROJECT_ID`, `FRONTEND_URL`
 
-=======
-
->>>>>>> 7147bbd10087f3d8c934a448e0fc622cfd9f09f1
 ### Frontend
 - Render Static Site
 - Root: `client`
 - Build Command: `yarn install && yarn build`
-<<<<<<< HEAD
 - Publish directory: `client/build`
-=======
-- Publish directory: `build`
->>>>>>> 7147bbd10087f3d8c934a448e0fc622cfd9f09f1
 
 ---
 
