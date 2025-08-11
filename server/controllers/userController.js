@@ -13,29 +13,25 @@ const generateToken = (userId) => {
 // Register user
 export const register = async (req, res) => {
   try {
-    const { username, email, password, firstName, lastName } = req.body;
-    
+    const { name, email, password, firstName, lastName } = req.body;
+
+    const fullName = (name || `${firstName || ''} ${lastName || ''}`.trim()).trim();
+
     // Check if user already exists
-    const existingUser = await User.findOne({
-      $or: [{ email }, { username }]
-    });
-    
+    const existingUser = await User.findOne({ email });
+
     if (existingUser) {
       return res.status(400).json({
         success: false,
-        message: 'User with this email or username already exists'
+        message: 'User with this email already exists'
       });
     }
-    
+
     // Create new user
     const user = new User({
-      username,
+      name: fullName,
       email,
-      password,
-      profile: {
-        firstName,
-        lastName
-      }
+      password
     });
     
     await user.save();
@@ -49,10 +45,9 @@ export const register = async (req, res) => {
       data: {
         user: {
           id: user._id,
-          username: user.username,
+          name: user.name,
           email: user.email,
-          role: user.role,
-          profile: user.profile
+          role: user.role
         },
         token
       }
@@ -98,7 +93,7 @@ export const login = async (req, res) => {
       data: {
         user: {
           id: user._id,
-          username: user.username,
+          name: user.name,
           email: user.email,
           role: user.role,
           profile: user.profile
@@ -120,7 +115,7 @@ export const getProfile = async (req, res) => {
   try {
     const user = await User.findById(req.user.id)
       .select('-password')
-      .populate('favoritesPets');
+      .populate('favorites');
     
     res.json({
       success: true,
@@ -169,12 +164,12 @@ export const updateProfile = async (req, res) => {
 export const getFavorites = async (req, res) => {
   try {
     const user = await User.findById(req.user.id)
-      .populate('favoritesPets')
-      .select('favoritesPets');
-    
+      .populate('favorites')
+      .select('favorites');
+
     res.json({
       success: true,
-      data: user.favoritesPets
+      data: user.favorites
     });
   } catch (error) {
     res.status(500).json({
@@ -202,8 +197,8 @@ export const addToFavorites = async (req, res) => {
     
     // Add to favorites if not already there
     const user = await User.findById(userId);
-    if (!user.favoritesPets.includes(petId)) {
-      user.favoritesPets.push(petId);
+    if (!user.favorites.includes(petId)) {
+      user.favorites.push(petId);
       await user.save();
     }
     
@@ -227,7 +222,7 @@ export const removeFromFavorites = async (req, res) => {
     const userId = req.user.id;
     
     const user = await User.findById(userId);
-    user.favoritesPets = user.favoritesPets.filter(
+    user.favorites = user.favorites.filter(
       id => id.toString() !== petId
     );
     await user.save();
