@@ -96,12 +96,12 @@ export const findBestMatchingImage = (images, searchTerms, fallbackImage) => {
   });
 
   if (matchingImage) {
-    return getPublicImageUrl(matchingImage.name);
+    return getPublicImageUrl(matchingImage.fileName);
   }
 
   // If no specific match, return the first available image
   const anyImage = images[0];
-  return anyImage ? getPublicImageUrl(anyImage.name) : fallbackImage;
+  return anyImage ? getPublicImageUrl(anyImage.fileName) : fallbackImage;
 };
 
 /**

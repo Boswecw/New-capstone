@@ -72,8 +72,12 @@ const Home = () => {
       );
 
       if (response.data && response.data.success) {
-        setProductImages(response.data.data || []);
-        console.log('✅ Product images loaded:', response.data.data.length);
+        const images = (response.data.data || []).map(img => ({
+          ...img,
+          fileName: img.fileName || img.name || '',
+        }));
+        setProductImages(images);
+        console.log('✅ Product images loaded:', images.length);
       } else {
         console.warn('⚠️ Product images not available');
         setProductImages([]);
