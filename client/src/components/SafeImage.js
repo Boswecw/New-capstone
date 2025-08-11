@@ -111,16 +111,16 @@ const SafeImage = ({
     // ✅ NEW: Multiple URL strategies based on attempt
     if (attempt === 0 || !useProxy) {
       // First attempt: Direct GCS URL
-      const gcsUrl = `https://storage.googleapis.com/furbabies-petstore/${cleanPath}`;
+      const gcsUrl = `https://storage.googleapis.com/furbabies-petstore/${encodeURIComponent(cleanPath)}`;
       console.log(`🖼️ SafeImage - Building GCS URL (attempt ${attempt}): "${imagePath}" -> "${gcsUrl}"`);
       return gcsUrl;
     } else {
       // Second attempt: Proxy URL (if available)
-      const proxyBaseUrl = process.env.NODE_ENV === 'production' 
-        ? process.env.REACT_APP_API_URL?.replace('/api', '') + '/api/images/gcs' 
+      const proxyBaseUrl = process.env.NODE_ENV === 'production'
+        ? process.env.REACT_APP_API_URL?.replace('/api', '') + '/api/images/gcs'
         : 'http://localhost:5000/api/images/gcs';
-      
-      const proxyUrl = `${proxyBaseUrl}/${cleanPath}`;
+
+      const proxyUrl = `${proxyBaseUrl}/${encodeURIComponent(cleanPath)}`;
       console.log(`🖼️ SafeImage - Building Proxy URL (attempt ${attempt}): "${imagePath}" -> "${proxyUrl}"`);
       return proxyUrl;
     }

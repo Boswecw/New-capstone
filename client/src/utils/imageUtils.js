@@ -76,8 +76,8 @@ export const getImageUrl = (imagePath, category = null, type = null) => {
     return getFallbackImage(category, type);
   }
 
-  // Build direct GCS URL
-  const gcsUrl = `${GCS_BASE_URL}/${cleanPath}`;
+  // Build direct GCS URL with encoded path
+  const gcsUrl = `${GCS_BASE_URL}/${encodeURIComponent(cleanPath)}`;
   
   console.log('🖼️ Building image URL:', {
     input: imagePath,
@@ -149,7 +149,7 @@ export const getProxyImageUrl = (imagePath, category = null, type = null) => {
     return getFallbackImage(category, type);
   }
 
-  const proxyUrl = `${getProxyBaseUrl()}/${cleanPath}`;
+  const proxyUrl = `${getProxyBaseUrl()}/${encodeURIComponent(cleanPath)}`;
   
   console.log('🛡️ Building proxy URL:', {
     input: imagePath,
