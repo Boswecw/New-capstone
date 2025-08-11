@@ -1,10 +1,10 @@
-// client/src/pages/Home.js - UPDATED AND FIXED VERSION
+// client/src/pages/Home.js
 
 import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, Button, Spinner, Alert } from 'react-bootstrap';
+import { Container, Row, Col, Card, Button, Spinner, Alert, Placeholder } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 
-
+import Navbar from '../components/Navbar';
 import HeroBanner from '../components/HeroBanner';
 import PetCard from '../components/PetCard';
 import api from '../services/api';
@@ -14,146 +14,133 @@ const Home = () => {
   const [featuredPets, setFeaturedPets] = useState([]);
   const [featuredProducts, setFeaturedProducts] = useState([]);
   const [productImages, setProductImages] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [imageLoading, setImageLoading] = useState(true);
+  const [loadingPets, setLoadingPets] = useState(true);
+  const [loadingProducts, setLoadingProducts] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
     fetchFeaturedPets();
-    fetchFeaturedProducts();
-    fetchProductImages();
+    loadFeaturedProductsWithFallback();
   }, []);
 
+  // --- Pets ---
   const fetchFeaturedPets = async () => {
     try {
-      console.log('🐾 Fetching featured pets...');
+      setLoadingPets(true);
+      setError(''); // Clear any previous errors
       const response = await api.get('/pets/featured?limit=6');
-      console.log('✅ Pets response:', response.data);
-
       if (response.data && response.data.success) {
         setFeaturedPets(response.data.data || []);
       } else {
-        console.error('❌ Invalid pets response format:', response.data);
         setFeaturedPets([]);
       }
-    } catch (error) {
-      console.error('❌ Error fetching featured pets:', error);
+    } catch (err) {
       setFeaturedPets([]);
-      setError('Failed to load featured pets');
+      setError('Failed to load featured pets. Please try again later.');
     } finally {
-      setLoading(false);
+      setLoadingPets(false);
     }
   };
 
-  const fetchFeaturedProducts = async () => {
+  // --- Products (prefer /products imageUrl, fallback to GCS match) ---
+  const loadFeaturedProductsWithFallback = async () => {
     try {
-      console.log('📦 Fetching featured products...');
-      const response = await api.get('/products/featured?limit=3');
-      console.log('✅ Products response:', response.data);
+      setLoadingProducts(true);
 
-      if (response.data && response.data.success) {
-        setFeaturedProducts(response.data.data || []);
+      // 1) Get featured products from Mongo
+      const prodRes = await api.get('/products/featured?limit=3');
+      const products = prodRes?.data?.success ? (prodRes.data.data || []) : [];
+      setFeaturedProducts(products);
+
+      // 2) Only fetch GCS images if at least one product lacks an imageUrl
+      const needsFallback = products.some(p => !p?.imageUrl);
+      if (needsFallback) {
+        const gcsRes = await api.get(
+          `/gcs/buckets/furbabies-petstore/images?prefix=${bucketFolders.PRODUCT}/&public=true`
+        );
+        const imgs = gcsRes?.data?.success ? (gcsRes.data.data || []) : [];
+        setProductImages(imgs);
       } else {
-        console.error('❌ Invalid products response format:', response.data);
-        setFeaturedProducts([]);
+        setProductImages([]); // no fallback needed
       }
-    } catch (error) {
-      console.error('❌ Error fetching featured products:', error);
+    } catch (err) {
+      // If /products fails, show nothing; if GCS fails we still render products with placeholders
       setFeaturedProducts([]);
-    }
-  };
-
-  const fetchProductImages = async () => {
-    setImageLoading(true);
-    try {
-      console.log('🖼️ Fetching product images...');
-      const response = await api.get(
-        `/gcs/buckets/furbabies-petstore/images?prefix=${bucketFolders.PRODUCT}/&public=true`
-      );
-
-      if (response.data && response.data.success) {
-        setProductImages(response.data.data || []);
-        console.log('✅ Product images loaded:', response.data.data.length);
-      } else {
-        console.warn('⚠️ Product images not available');
-        setProductImages([]);
-      }
-    } catch (error) {
-      console.error('❌ Error fetching product images:', error);
-      setError('Failed to load product images');
       setProductImages([]);
     } finally {
-      setImageLoading(false);
+      setLoadingProducts(false);
     }
   };
 
   const findProductImage = (product) => {
     if (!product) return 'product/placeholder.png';
-
     try {
       return findBestMatchingImage(
         productImages,
         [product.name, product.category, product.brand],
         product.image
       );
-    } catch (error) {
-      console.error('Error finding product image:', error);
+    } catch {
       return product.image || 'product/placeholder.png';
     }
   };
 
   const getProductImageUrl = (product) => {
-    // Use the imageUrl from API if available, otherwise build URL
-    if (product.imageUrl) {
-      return product.imageUrl;
-    }
+    // 1) Prefer the API-provided URL
+    if (product?.imageUrl) return product.imageUrl;
 
+    // 2) Fallback to GCS match
     const imagePath = findProductImage(product);
     return `https://storage.googleapis.com/furbabies-petstore/${imagePath}`;
   };
 
   const testimonials = [
-    {
-      name: 'Jessica R.',
-      text: 'FurBabies has everything I need for my pup. The staff is friendly and the quality is top-notch!',
-      icon: 'fa-dog',
-      rating: 5.0,
-    },
-    {
-      name: 'Marcus D.',
-      text: 'My cat LOVES the toys I got here. Fast delivery and great prices!',
-      icon: 'fa-cat',
-      rating: 4.8,
-    },
-    {
-      name: 'Linda M.',
-      text: 'Excellent customer service and a wide variety of pet products. Highly recommended!',
-      icon: 'fa-heart',
-      rating: 5.0,
-    },
+    { name: "Jessica R.", text: "FurBabies has everything I need for my pup. The staff is friendly and the quality is top-notch!", icon: "fa-dog", rating: 5.0 },
+    { name: "Marcus D.", text: "My cat LOVES the toys I got here. Fast delivery and great prices!", icon: "fa-cat", rating: 4.8 },
+    { name: "Linda M.", text: "Excellent customer service and a wide variety of pet products. Highly recommended!", icon: "fa-heart", rating: 5.0 }
   ];
+
+  // --- Subtle product skeleton ---
+  const ProductSkeleton = () => (
+    <Card className="h-100 shadow-sm">
+      <div className="bg-light" style={{ height: '200px' }} />
+      <Card.Body className="d-flex flex-column">
+        <Placeholder as={Card.Title} animation="glow" className="mb-2">
+          <Placeholder xs={6} />
+        </Placeholder>
+        <Placeholder as={Card.Text} animation="glow" className="flex-grow-1">
+          <Placeholder xs={12} /> <Placeholder xs={10} /> <Placeholder xs={8} />
+        </Placeholder>
+        <div className="d-flex justify-content-between align-items-center">
+          <Placeholder animation="glow">
+            <Placeholder xs={3} />
+          </Placeholder>
+          <Placeholder.Button variant="outline-primary" xs={4} />
+        </div>
+      </Card.Body>
+    </Card>
+  );
 
   return (
     <div className="home-page">
+      <Navbar />
       <HeroBanner />
 
       <Container className="py-5">
-        {/* Featured Pets Section */}
+        {/* Featured Pets */}
         <section className="featured-pets mb-5">
           <h2 className="text-center mb-4">Featured Pets</h2>
 
-          {loading ? (
+          {loadingPets ? (
             <div className="text-center">
               <Spinner animation="border" variant="primary" />
               <p className="mt-2">Loading featured pets...</p>
             </div>
           ) : error ? (
-            <Alert variant="danger" className="text-center">
-              {error}
-            </Alert>
+            <Alert variant="danger" className="text-center">{error}</Alert>
           ) : featuredPets && featuredPets.length > 0 ? (
             <Row className="g-4">
-              {featuredPets.map((pet) =>
+              {featuredPets.slice(0, 3).map(pet =>
                 pet && pet._id ? (
                   <Col key={pet._id} md={4}>
                     <PetCard pet={pet} />
@@ -169,25 +156,24 @@ const Home = () => {
 
           <div className="text-center mt-4">
             <Link to="/pets">
-              <Button variant="primary" size="lg">
-                View All Pets
-              </Button>
+              <Button variant="primary" size="lg">View All Pets</Button>
             </Link>
           </div>
         </section>
 
-        {/* Featured Products Section */}
+        {/* Featured Products */}
         <section className="featured-products mb-5">
           <h2 className="text-center mb-4">Featured Products</h2>
 
-          {imageLoading ? (
-            <div className="text-center">
-              <Spinner animation="border" variant="primary" />
-              <p className="mt-2">Loading products...</p>
-            </div>
+          {loadingProducts ? (
+            <Row className="g-4">
+              {[1, 2, 3].map((k) => (
+                <Col md={4} key={k}><ProductSkeleton /></Col>
+              ))}
+            </Row>
           ) : featuredProducts && featuredProducts.length > 0 ? (
             <Row className="g-4">
-              {featuredProducts.map((product) =>
+              {featuredProducts.map(product =>
                 product && product._id ? (
                   <Col key={product._id} md={4}>
                     <Card className="h-100 shadow-sm">
@@ -197,8 +183,7 @@ const Home = () => {
                         alt={product.name || 'Product'}
                         style={{ height: '200px', objectFit: 'cover' }}
                         onError={(e) => {
-                          e.currentTarget.src =
-                            'https://via.placeholder.com/300x200?text=Product+Image';
+                          e.currentTarget.src = 'https://via.placeholder.com/300x200?text=Product+Image';
                         }}
                       />
                       <Card.Body className="d-flex flex-column">
@@ -211,8 +196,7 @@ const Home = () => {
                         </Card.Text>
                         <div className="d-flex justify-content-between align-items-center">
                           <span className="h5 text-primary mb-0">
-                            $
-                            {product.price ? Number(product.price).toFixed(2) : '0.00'}
+                            ${product.price ? product.price.toFixed(2) : '0.00'}
                           </span>
                           <Button variant="outline-primary" size="sm">
                             View Details
@@ -232,28 +216,26 @@ const Home = () => {
 
           <div className="text-center mt-4">
             <Link to="/products">
-              <Button variant="outline-secondary" size="lg">
-                View All Products
-              </Button>
+              <Button variant="outline-secondary" size="lg">View All Products</Button>
             </Link>
           </div>
         </section>
 
-        {/* Testimonials Section */}
+        {/* Testimonials */}
         <section className="testimonials">
           <h2 className="text-center mb-4">What Our Customers Say</h2>
           <Row className="g-4">
-            {testimonials.map((testimonial, index) => (
-              <Col key={index} md={4}>
+            {testimonials.map((t, i) => (
+              <Col key={i} md={4}>
                 <Card className="h-100 text-center shadow-sm">
                   <Card.Body>
-                    <i className={`fas ${testimonial.icon} fa-3x text-primary mb-3`}></i>
-                    <Card.Text>"{testimonial.text}"</Card.Text>
-                    <Card.Title className="h6">{testimonial.name}</Card.Title>
+                    <i className={`fas ${t.icon} fa-3x text-primary mb-3`}></i>
+                    <Card.Text>"{t.text}"</Card.Text>
+                    <Card.Title className="h6">{t.name}</Card.Title>
                     <div className="text-warning">
-                      {'★'.repeat(Math.floor(testimonial.rating))}
-                      {testimonial.rating % 1 !== 0 && '☆'}
-                      <span className="ms-2 text-muted">({testimonial.rating})</span>
+                      {'★'.repeat(Math.floor(t.rating))}
+                      {t.rating % 1 !== 0 && '☆'}
+                      <span className="ms-2 text-muted">({t.rating})</span>
                     </div>
                   </Card.Body>
                 </Card>
