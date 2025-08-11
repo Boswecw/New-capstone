@@ -1,17 +1,23 @@
+// client/src/components/SafeImage.js - ENHANCED VERSION
 import React, { useState, useEffect, useCallback } from 'react';
 import PropTypes from 'prop-types';
 
-// Fallback images that work
+// Enhanced fallback images - more comprehensive
 const FALLBACK_IMAGES = {
   pet: 'https://images.unsplash.com/photo-1601758228041-f3b2795255f1?w=400&h=300&fit=crop&q=80&auto=format',
   dog: 'https://images.unsplash.com/photo-1583337130417-3346a1be7dee?w=400&h=300&fit=crop&q=80&auto=format',
   cat: 'https://images.unsplash.com/photo-1574144611937-0df059b5ef3e?w=400&h=300&fit=crop&q=80&auto=format',
   fish: 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400&h=300&fit=crop&q=80&auto=format',
+  aquatic: 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400&h=300&fit=crop&q=80&auto=format',
   bird: 'https://images.unsplash.com/photo-1520637836862-4d197d17c448?w=400&h=300&fit=crop&q=80&auto=format',
   rabbit: 'https://images.unsplash.com/photo-1585110396000-c9ffd4e4b308?w=400&h=300&fit=crop&q=80&auto=format',
   chinchilla: 'https://images.unsplash.com/photo-1585110396000-c9ffd4e4b308?w=400&h=300&fit=crop&q=80&auto=format',
+  ferret: 'https://images.unsplash.com/photo-1425082661705-1834bfd09dca?w=400&h=300&fit=crop&q=80&auto=format',
+  hamster: 'https://images.unsplash.com/photo-1425082661705-1834bfd09dca?w=400&h=300&fit=crop&q=80&auto=format',
+  'guinea pig': 'https://images.unsplash.com/photo-1425082661705-1834bfd09dca?w=400&h=300&fit=crop&q=80&auto=format',
   product: 'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400&h=300&fit=crop&q=80&auto=format',
   'small-pet': 'https://images.unsplash.com/photo-1425082661705-1834bfd09dca?w=400&h=300&fit=crop&q=80&auto=format',
+  other: 'https://images.unsplash.com/photo-1548767797-d8c844163c4c?w=400&h=300&fit=crop&q=80&auto=format',
   default: 'https://images.unsplash.com/photo-1548767797-d8c844163c4c?w=400&h=300&fit=crop&q=80&auto=format'
 };
 
@@ -27,43 +33,56 @@ const SafeImage = ({
   onLoad,
   onError,
   onContainerTypeDetected,
+  useProxy = false,  // ✅ NEW: Option to use proxy for CORS
+  maxRetries = 2,    // ✅ NEW: Maximum retry attempts
   ...otherProps
 }) => {
   const [imageSrc, setImageSrc] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
 
-  // Get fallback image based on category
+  // Get fallback image based on category - enhanced logic
   const getFallbackImage = useCallback(() => {
     let fallbackCategory = category?.toLowerCase() || 'default';
     
-    // If we have an item, try to get category from it
+    // Enhanced item analysis for better fallback selection
     if (item) {
       if (item.type) {
-        fallbackCategory = item.type.toLowerCase();
+        const itemType = item.type.toLowerCase();
+        fallbackCategory = itemType;
+        
+        // Handle compound types
+        if (itemType.includes('guinea pig')) fallbackCategory = 'guinea pig';
+        else if (itemType.includes('hedge hog')) fallbackCategory = 'small-pet';
+        else if (itemType.includes('fancy rat')) fallbackCategory = 'small-pet';
+        
       } else if (item.category) {
         const cat = item.category.toLowerCase();
         if (cat.includes('dog')) fallbackCategory = 'dog';
         else if (cat.includes('cat')) fallbackCategory = 'cat';
+        else if (cat.includes('aquatic') || cat.includes('fish')) fallbackCategory = 'fish';
+        else if (cat.includes('other')) fallbackCategory = 'other';
         else fallbackCategory = 'product';
-      } else if (item.price !== undefined) {
+      } else if (item.price !== undefined || item.brand) {
         fallbackCategory = 'product';
       }
     }
     
-    return FALLBACK_IMAGES[fallbackCategory] || FALLBACK_IMAGES.default;
+    const fallbackUrl = FALLBACK_IMAGES[fallbackCategory] || FALLBACK_IMAGES.default;
+    console.log(`🖼️ SafeImage - Fallback selected: "${fallbackCategory}" -> "${fallbackUrl}"`);
+    return fallbackUrl;
   }, [category, item]);
 
-  // Build the image URL
-  const buildImageUrl = useCallback(() => {
-    // Priority: src prop > item.image/imageUrl > fallback
+  // ✅ ENHANCED: Build URL with multiple strategies
+  const buildImageUrl = useCallback((attempt = 0) => {
     let imagePath = src;
     
     if (!imagePath && item) {
       imagePath = item.image || item.imageUrl || item.imageFile || item.photo;
     }
 
-    // If no image path, use fallback
+    // If no image path, use fallback immediately
     if (!imagePath || typeof imagePath !== 'string' || imagePath.trim() === '') {
       const fallbackUrl = getFallbackImage();
       console.log(`🖼️ SafeImage - No image path, using fallback: "${fallbackUrl}"`);
@@ -89,14 +108,25 @@ const SafeImage = ({
       return cleanPath;
     }
 
-    // Build the Google Cloud Storage URL
-    const gcsUrl = `https://storage.googleapis.com/furbabies-petstore/${cleanPath}`;
-    console.log(`🖼️ SafeImage - Building GCS URL: "${imagePath}" -> "${gcsUrl}"`);
-    
-    return gcsUrl;
-  }, [src, item, getFallbackImage]);
+    // ✅ NEW: Multiple URL strategies based on attempt
+    if (attempt === 0 || !useProxy) {
+      // First attempt: Direct GCS URL
+      const gcsUrl = `https://storage.googleapis.com/furbabies-petstore/${cleanPath}`;
+      console.log(`🖼️ SafeImage - Building GCS URL (attempt ${attempt}): "${imagePath}" -> "${gcsUrl}"`);
+      return gcsUrl;
+    } else {
+      // Second attempt: Proxy URL (if available)
+      const proxyBaseUrl = process.env.NODE_ENV === 'production' 
+        ? process.env.REACT_APP_API_URL?.replace('/api', '') + '/api/images/gcs' 
+        : 'http://localhost:5000/api/images/gcs';
+      
+      const proxyUrl = `${proxyBaseUrl}/${cleanPath}`;
+      console.log(`🖼️ SafeImage - Building Proxy URL (attempt ${attempt}): "${imagePath}" -> "${proxyUrl}"`);
+      return proxyUrl;
+    }
+  }, [src, item, getFallbackImage, useProxy]);
 
-  // Load the image
+  // ✅ ENHANCED: Load image with retry logic
   useEffect(() => {
     let isMounted = true;
     
@@ -104,8 +134,8 @@ const SafeImage = ({
       setLoading(true);
       setError(false);
       
-      const imageUrl = buildImageUrl();
-      console.log(`🖼️ SafeImage - Loading: "${imageUrl}"`);
+      const imageUrl = buildImageUrl(retryCount);
+      console.log(`🖼️ SafeImage - Loading (attempt ${retryCount + 1}): "${imageUrl}"`);
       
       const img = new Image();
       
@@ -141,10 +171,18 @@ const SafeImage = ({
       
       img.onerror = () => {
         if (isMounted) {
-          console.log(`❌ SafeImage - Error loading: "${imageUrl}"`);
+          console.log(`❌ SafeImage - Error loading (attempt ${retryCount + 1}): "${imageUrl}"`);
           
+          // ✅ ENHANCED: Retry logic before falling back
+          if (retryCount < maxRetries && (useProxy || retryCount === 0)) {
+            console.log(`🔄 SafeImage - Retrying with different strategy (${retryCount + 1}/${maxRetries})`);
+            setRetryCount(prev => prev + 1);
+            return;
+          }
+          
+          // All retries failed, use fallback
           const fallbackUrl = getFallbackImage();
-          console.log(`🔄 SafeImage - Switching to fallback: "${fallbackUrl}"`);
+          console.log(`🔄 SafeImage - All attempts failed, switching to fallback: "${fallbackUrl}"`);
           
           // Try loading the fallback
           const fallbackImg = new Image();
@@ -153,10 +191,10 @@ const SafeImage = ({
               setImageSrc(fallbackUrl);
               setLoading(false);
               setError(false);
+              setRetryCount(0); // Reset for next image
               
-              // Even fallback images should detect container type
               if (onContainerTypeDetected) {
-                onContainerTypeDetected('square'); // Fallback images are typically square
+                onContainerTypeDetected('square');
               }
             }
           };
@@ -166,6 +204,7 @@ const SafeImage = ({
               console.log(`💥 SafeImage - Fallback also failed`);
               setLoading(false);
               setError(true);
+              setRetryCount(0); // Reset for next image
               if (onError) onError();
               if (onContainerTypeDetected) onContainerTypeDetected('square');
             }
@@ -183,9 +222,14 @@ const SafeImage = ({
     return () => {
       isMounted = false;
     };
-  }, [buildImageUrl, getFallbackImage, onLoad, onError, onContainerTypeDetected]);
+  }, [buildImageUrl, getFallbackImage, onLoad, onError, onContainerTypeDetected, retryCount, maxRetries, useProxy]);
 
-  // Loading state
+  // Reset retry count when src changes
+  useEffect(() => {
+    setRetryCount(0);
+  }, [src, item]);
+
+  // ✅ ENHANCED: Better loading state
   if (loading && showLoader) {
     return (
       <div 
@@ -200,7 +244,10 @@ const SafeImage = ({
           <div className="spinner-border spinner-border-sm text-primary mb-2" role="status">
             <span className="visually-hidden">Loading...</span>
           </div>
-          <div className="small text-muted">Loading image...</div>
+          <div className="small text-muted">
+            Loading image...
+            {retryCount > 0 && <div className="tiny">Retry {retryCount}/{maxRetries}</div>}
+          </div>
         </div>
       </div>
     );
@@ -232,6 +279,8 @@ const SafeImage = ({
   delete cleanProps.size;
   delete cleanProps.showLoader; 
   delete cleanProps.onContainerTypeDetected;
+  delete cleanProps.useProxy;
+  delete cleanProps.maxRetries;
 
   return (
     <img
@@ -261,7 +310,9 @@ SafeImage.propTypes = {
   showLoader: PropTypes.bool,
   onLoad: PropTypes.func,
   onError: PropTypes.func,
-  onContainerTypeDetected: PropTypes.func
+  onContainerTypeDetected: PropTypes.func,
+  useProxy: PropTypes.bool,
+  maxRetries: PropTypes.number
 };
 
 export default SafeImage;

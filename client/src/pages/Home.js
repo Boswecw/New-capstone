@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, Button, Spinner, Alert } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 
-import Navbar from '../components/Navbar';
+
 import HeroBanner from '../components/HeroBanner';
 import PetCard from '../components/PetCard';
 import api from '../services/api';
@@ -135,7 +135,6 @@ const Home = () => {
 
   return (
     <div className="home-page">
-      <Navbar />
       <HeroBanner />
 
       <Container className="py-5">
