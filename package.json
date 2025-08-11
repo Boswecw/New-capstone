@@ -1,42 +1,37 @@
 {
-  "name": "furbabies-petstore",
+  "name": "new-capstone",
   "version": "1.0.0",
-  "description": "FurBabies Pet Store MERN Application",
+  "description": "New Capstone Pet Adoption Platform",
   "main": "server/server.js",
   "scripts": {
-    "start": "node server/server.js",
-    "dev": "concurrently \"yarn server\" \"yarn client\"",
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
     "server": "cd server && nodemon server.js",
-    "client": "cd client && yarn start",
-    "build": "cd client && yarn build",
-    "install-server": "cd server && yarn install",
-    "install-client": "cd client && yarn install",
-    "install-all": "yarn install-server && yarn install-client",
-<<<<<<< HEAD
-    "render-postbuild": "yarn install-all && yarn build",
-    "clean": "rm -rf node_modules server/node_modules client/node_modules yarn.lock server/yarn.lock client/yarn.lock",
-=======
-    "render-postbuild": "yarn install-server",
-    "clean": "rm -rf node_modules server/node_modules client/node_modules yarn.lock",
->>>>>>> 7147bbd10087f3d8c934a448e0fc622cfd9f09f1
-    "test": "echo \"No tests yet\" && exit 0"
+    "client": "cd client && npm start",
+    "build": "cd client && npm ci --production=false && npm run build",
+    "postbuild": "cd client && rm -rf node_modules",
+    "start": "node server/server.js",
+    "install-server": "cd server && npm install",
+    "install-client": "cd client && npm install",
+    "install-all": "npm run install-server && npm run install-client",
+    "render-postbuild": "npm run install-all && npm run build"
   },
   "keywords": [
     "pet-adoption",
     "mern-stack",
     "react",
     "nodejs",
-    "mongodb",
-    "image-optimization"
+    "mongodb"
   ],
-  "author": "Charlie Boswell",
+  "author": "Charles W Boswell",
   "license": "MIT",
   "dependencies": {
     "@google-cloud/storage": "^7.16.0",
     "axios": "^1.10.0",
     "bcryptjs": "^2.4.3",
+    "cloudinary": "^1.41.3",
     "compression": "^1.8.0",
     "cors": "^2.8.5",
+    "crypto": "^1.0.1",
     "dotenv": "^16.6.1",
     "express": "^4.21.2",
     "express-rate-limit": "^7.5.1",
@@ -55,14 +50,6 @@
   },
   "engines": {
     "node": ">=18.0.0",
-    "yarn": ">=1.22.0"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/Boswecw/furbabies-petstore.git"
-  },
-  "bugs": {
-    "url": "https://github.com/Boswecw/furbabies-petstore/issues"
-  },
-  "homepage": "https://github.com/Boswecw/furbabies-petstore#readme"
+    "npm": ">=8.0.0"
+  }
 }
