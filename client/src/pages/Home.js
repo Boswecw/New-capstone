@@ -68,7 +68,7 @@ const Home = () => {
     try {
       console.log('🖼️ Fetching product images...');
       const response = await api.get(
-        `/gcs/buckets/furbabies-petstore/images?prefix=${bucketFolders.PRODUCT}/&public=true`
+        `/images/gcs?prefix=${bucketFolders.PRODUCT}/&public=true`
       );
 
       if (response.data && response.data.success) {
