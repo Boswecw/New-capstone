@@ -18,8 +18,19 @@ const requiredEnvVars = ['MONGODB_URI', 'JWT_SECRET'];
 const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
 
 if (missingEnvVars.length > 0) {
-  console.error('❌ Missing required environment variables:', missingEnvVars.join(', '));
-  process.exit(1);
+  const message = `❌ Missing required environment variables: ${missingEnvVars.join(', ')}.`;
+
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error(`${message} Please set them in your hosting environment.`);
+  }
+
+  console.warn(`${message} Using development defaults.`);
+  if (!process.env.MONGODB_URI) {
+    process.env.MONGODB_URI = 'mongodb://localhost:27017/furbabies-dev';
+  }
+  if (!process.env.JWT_SECRET) {
+    process.env.JWT_SECRET = 'development_secret';
+  }
 }
 
 // ===== LOGGING SETUP =====
@@ -42,7 +53,7 @@ try {
   logger.info('Models imported successfully');
 } catch (error) {
   logger.error('Failed to import models:', error.message);
-  process.exit(1);
+  throw new Error('Model import failed. Check file paths and syntax.');
 }
 
 // ===== IMPORT ROUTE MODULES =====
@@ -59,7 +70,7 @@ try {
   logger.info('Route modules imported successfully');
 } catch (error) {
   logger.error('Failed to import route modules:', error.message);
-  process.exit(1);
+  throw new Error('Route module import failed. Ensure all route files exist and export correctly.');
 }
 
 // ===== SECURITY MIDDLEWARE =====
@@ -342,7 +353,7 @@ const connectDB = async () => {
 
   } catch (error) {
     logger.error('Database connection failed:', error.message);
-    process.exit(1);
+    throw new Error('Failed to connect to MongoDB. Verify MONGODB_URI and network accessibility.');
   }
 };
 
@@ -388,12 +399,12 @@ const startServer = async () => {
       } else {
         logger.error('Server error:', error);
       }
-      process.exit(1);
+      gracefulShutdown('SERVER_ERROR');
     });
 
   } catch (error) {
     logger.error('Failed to start server:', error.message);
-    process.exit(1);
+    throw error;
   }
 };
 
@@ -403,12 +414,12 @@ process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 process.on('uncaughtException', (error) => {
   logger.error('Uncaught Exception:', error);
-  process.exit(1);
+  gracefulShutdown('uncaughtException');
 });
 
 process.on('unhandledRejection', (reason, promise) => {
   logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
-  process.exit(1);
+  gracefulShutdown('unhandledRejection');
 });
 
 // Start the server

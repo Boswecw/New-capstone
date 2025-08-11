@@ -96,8 +96,13 @@ MONGODB_URI=your_mongo_url
 JWT_SECRET=your_secret
 NODE_ENV=development
 PORT=5000
+# FRONTEND_URL is optional – used for CORS in production
 FRONTEND_URL=http://localhost:3000
 ```
+
+`MONGODB_URI` and `JWT_SECRET` are required. `FRONTEND_URL` can be set when hosting the frontend separately.
+
+When deploying to **Render**, add these variables in the service's **Environment** settings.
 
 ### Start the App
 ```bash
@@ -166,7 +171,7 @@ furbabies-petstore/
 | JWT_SECRET      | JWT signing key          | ✅       |
 | NODE_ENV        | Environment              | ✅       |
 | PORT            | Backend server port      | ✅       |
-| FRONTEND_URL    | CORS origin              | ✅       |
+| FRONTEND_URL    | CORS origin (optional)   | Optional |
 
 ---
 
@@ -194,7 +199,7 @@ curl http://localhost:5000/api/images/health
 - Auto-deploy from GitHub `main`
 - Build Command: `yarn install`
 - Start Command: `yarn start`
-- Set environment variables manually
+- Environment Variables: set `MONGODB_URI` and `JWT_SECRET` in Render. Optionally set `FRONTEND_URL` if using a custom frontend domain.
 
 ### Frontend
 - Render Static Site
