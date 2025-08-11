@@ -12,7 +12,9 @@ const storage = new Storage({
 // different buckets without code changes
 const bucketName = process.env.GCS_BUCKET;
 if (!bucketName) {
-  console.warn('GCS_BUCKET environment variable is not set');
+  const message = 'GCS_BUCKET environment variable is not set';
+  console.warn(message);
+  throw new Error(message);
 }
 const bucket = storage.bucket(bucketName);
 
