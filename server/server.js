@@ -346,6 +346,7 @@ const connectDB = async () => {
   }
 };
 
+<<<<<<< HEAD
 // ===== GRACEFUL SHUTDOWN =====
 const gracefulShutdown = (signal) => {
   logger.info(`Received ${signal}. Starting graceful shutdown...`);
@@ -357,6 +358,28 @@ const gracefulShutdown = (signal) => {
       logger.info('MongoDB connection closed');
       process.exit(0);
     });
+=======
+// Import available routes
+safeImport('pets', './routes/pets');
+safeImport('products', './routes/products');
+safeImport('contact', './routes/contact');
+safeImport('users', './routes/users');
+safeImport('auth', './routes/auth');
+safeImport('admin', './routes/admin');        // ✅ ADDED: Admin routes
+safeImport('images', './routes/images');
+safeImport('news', './routes/news');
+
+// === HEALTH CHECK ROUTE ===
+app.get('/api/health', (req, res) => {
+  const loadedRoutes = Object.keys(routes);
+  res.json({ 
+    status: 'OK', 
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV,
+    corsOrigins: corsOptions.origin,
+    loadedRoutes: loadedRoutes,
+    routeCount: loadedRoutes.length
+>>>>>>> c526cf834a127180f3db7821387cb2e4631e039d
   });
 
   // Force close after 30 seconds
@@ -411,7 +434,56 @@ process.on('unhandledRejection', (reason, promise) => {
   process.exit(1);
 });
 
+<<<<<<< HEAD
 // Start the server
 startServer();
+=======
+// Register routes only if they were successfully loaded
+if (routes.pets) app.use('/api/pets', routes.pets);
+if (routes.products) app.use('/api/products', routes.products);
+if (routes.contact) app.use('/api/contact', routes.contact);
+if (routes.users) app.use('/api/users', routes.users);
+if (routes.auth) app.use('/api/auth', routes.auth);
+if (routes.admin) app.use('/api/admin', routes.admin);    // ✅ ADDED: Admin route registration
+if (routes.images) app.use('/api/images', routes.images);
+if (routes.news) app.use('/api/news', routes.news);
+
+// === SERVE STATIC FILES IN PRODUCTION ===
+if (process.env.NODE_ENV === 'production') {
+  const clientBuildPath = path.join(__dirname, '../client/dist');
+  app.use(express.static(clientBuildPath));
+
+  app.get('*', (req, res) => {
+    res.sendFile(path.resolve(clientBuildPath, 'index.html'));
+  });
+}
+
+// === ERROR HANDLING MIDDLEWARE ===
+app.use((err, req, res, next) => {
+  console.error('Server Error:', err);
+  res.status(500).json({
+    success: false,
+    message: process.env.NODE_ENV === 'production' 
+      ? 'Internal server error' 
+      : err.message
+  });
+});
+
+// === 404 HANDLER ===
+app.use('*', (req, res) => {
+  res.status(404).json({
+    success: false,
+    message: 'API endpoint not found'
+  });
+});
+
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`🌍 Environment: ${process.env.NODE_ENV}`);
+  console.log(`🔐 CORS Origins: ${JSON.stringify(corsOptions.origin)}`);
+  console.log(`📁 Loaded Routes: ${Object.keys(routes).join(', ')}`);
+});
+>>>>>>> c526cf834a127180f3db7821387cb2e4631e039d
 
 module.exports = app;

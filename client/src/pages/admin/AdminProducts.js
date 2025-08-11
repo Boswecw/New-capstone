@@ -15,6 +15,7 @@ import {
 } from "react-bootstrap";
 import DataTable from "../../components/DataTable";
 import axios from 'axios';
+import adminAPI from "../../services/adminAPI";
 
 const AdminProducts = () => {
   const [products, setProducts] = useState([]);
@@ -36,12 +37,19 @@ const AdminProducts = () => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deletingProduct, setDeletingProduct] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [newProduct, setNewProduct] = useState({
+    name: "",
+    brand: "",
+    category: "",
+    price: "",
+    inStock: true
+  });
   const [alert, setAlert] = useState({ show: false, message: "", variant: "" });
 
   // ✅ Stable API instance (same pattern as AdminPets)
-  const adminAPI = useMemo(() => {
+  const api = useMemo(() => {
     const api = axios.create({
-      baseURL: process.env.NODE_ENV === 'production' 
+      baseURL: process.env.NODE_ENV === 'production'
         ? 'https://furbabies-backend.onrender.com/api'
         : 'http://localhost:5000/api',
       timeout: 45000,
@@ -94,7 +102,7 @@ const AdminProducts = () => {
         
         // Try admin-specific endpoint first, fallback to regular products endpoint
         try {
-          const response = await adminAPI.get(`/admin/products?${params.toString()}`);
+          const response = await api.get(`/admin/products?${params.toString()}`);
           if (response.data.success) {
             setProducts(response.data.data || []);
             setPagination(response.data.pagination || {});
@@ -104,7 +112,7 @@ const AdminProducts = () => {
           if (adminError.response?.status === 404) {
             // Admin endpoint doesn't exist, use regular products endpoint
             console.log('🔄 Admin products endpoint not found, using regular products endpoint...');
-            const response = await adminAPI.get(`/products?${params.toString()}`);
+            const response = await api.get(`/products?${params.toString()}`);
             
             if (response.data.success) {
               setProducts(response.data.data || []);
@@ -135,7 +143,7 @@ const AdminProducts = () => {
         setLoading(false);
       }
     },
-    [filters, adminAPI, viewMode, itemsPerPage]
+    [filters, api, viewMode, itemsPerPage]
   );
 
   // ✅ Load products on mount
@@ -182,6 +190,7 @@ const AdminProducts = () => {
   };
 
   const handleAddProduct = () => {
+    setNewProduct({ name: "", brand: "", category: "", price: "", inStock: true });
     setShowAddModal(true);
   };
 
@@ -190,26 +199,26 @@ const AdminProducts = () => {
 
     try {
       console.log('🗑️ Deleting product:', deletingProduct._id);
-      
-      // Try admin endpoint first, fallback to regular endpoint
+
+      // Try admin service first, fallback to regular endpoint
       let response;
       try {
-        response = await adminAPI.delete(`/admin/products/${deletingProduct._id}`);
+        response = await adminAPI.deleteProduct(deletingProduct._id);
       } catch (adminError) {
         if (adminError.response?.status === 404) {
-          response = await adminAPI.delete(`/products/${deletingProduct._id}`);
+          response = await api.delete(`/products/${deletingProduct._id}`);
         } else {
           throw adminError;
         }
       }
-      
+
       if (response.data.success) {
         showAlert("Product deleted successfully", "success");
         fetchProducts(currentPage);
       } else {
         throw new Error(response.data.message || 'Failed to delete product');
       }
-      
+
     } catch (error) {
       console.error("❌ Error deleting product:", error);
       showAlert(error.response?.data?.message || error.message || "Error deleting product", "danger");
@@ -224,26 +233,26 @@ const AdminProducts = () => {
 
     try {
       console.log('✏️ Updating product:', editingProduct._id);
-      
-      // Try admin endpoint first, fallback to regular endpoint
+
+      // Try admin service first, fallback to regular endpoint
       let response;
       try {
-        response = await adminAPI.put(`/admin/products/${editingProduct._id}`, updatedProductData);
+        response = await adminAPI.updateProduct(editingProduct._id, updatedProductData);
       } catch (adminError) {
         if (adminError.response?.status === 404) {
-          response = await adminAPI.put(`/products/${editingProduct._id}`, updatedProductData);
+          response = await api.put(`/products/${editingProduct._id}`, updatedProductData);
         } else {
           throw adminError;
         }
       }
-      
+
       if (response.data.success) {
         showAlert("Product updated successfully", "success");
         fetchProducts(currentPage);
       } else {
         throw new Error(response.data.message || 'Failed to update product');
       }
-      
+
     } catch (error) {
       console.error("❌ Error updating product:", error);
       showAlert(error.response?.data?.message || error.message || "Error updating product", "danger");
@@ -256,26 +265,26 @@ const AdminProducts = () => {
   const handleAddProductSave = async (newProductData) => {
     try {
       console.log('➕ Creating new product:', newProductData);
-      
-      // Try admin endpoint first, fallback to regular endpoint
+
+      // Try admin service first, fallback to regular endpoint
       let response;
       try {
-        response = await adminAPI.post('/admin/products', newProductData);
+        response = await adminAPI.createProduct(newProductData);
       } catch (adminError) {
         if (adminError.response?.status === 404) {
-          response = await adminAPI.post('/products', newProductData);
+          response = await api.post('/products', newProductData);
         } else {
           throw adminError;
         }
       }
-      
+
       if (response.data.success) {
         showAlert("Product created successfully", "success");
         fetchProducts(currentPage);
       } else {
         throw new Error(response.data.message || 'Failed to create product');
       }
-      
+
     } catch (error) {
       console.error("❌ Error creating product:", error);
       showAlert(error.response?.data?.message || error.message || "Error creating product", "danger");
@@ -566,8 +575,160 @@ const AdminProducts = () => {
         </Card.Body>
       </Card>
 
-      {/* TODO: Add Edit, Delete, and Add Product Modals */}
-      {/* These would be similar to AdminPets modals but with product fields */}
+      {/* Add Product Modal */}
+      <Modal show={showAddModal} onHide={() => setShowAddModal(false)}>
+        <Modal.Header closeButton>
+          <Modal.Title>Add Product</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Form>
+            <Form.Group className="mb-3">
+              <Form.Label>Name</Form.Label>
+              <Form.Control
+                type="text"
+                value={newProduct.name}
+                onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
+              />
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Brand</Form.Label>
+              <Form.Control
+                type="text"
+                value={newProduct.brand}
+                onChange={(e) => setNewProduct({ ...newProduct, brand: e.target.value })}
+              />
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Category</Form.Label>
+              <Form.Select
+                value={newProduct.category}
+                onChange={(e) => setNewProduct({ ...newProduct, category: e.target.value })}
+              >
+                <option value="">Select Category</option>
+                <option value="toys">Toys</option>
+                <option value="food">Food</option>
+                <option value="accessories">Accessories</option>
+                <option value="health">Health</option>
+                <option value="grooming">Grooming</option>
+              </Form.Select>
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Price</Form.Label>
+              <Form.Control
+                type="number"
+                value={newProduct.price}
+                onChange={(e) => setNewProduct({ ...newProduct, price: parseFloat(e.target.value) })}
+              />
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Check
+                type="checkbox"
+                label="In Stock"
+                checked={newProduct.inStock}
+                onChange={(e) => setNewProduct({ ...newProduct, inStock: e.target.checked })}
+              />
+            </Form.Group>
+          </Form>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowAddModal(false)}>
+            Cancel
+          </Button>
+          <Button variant="primary" onClick={() => handleAddProductSave(newProduct)}>
+            Save Product
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Edit Product Modal */}
+      <Modal show={showEditModal} onHide={() => setShowEditModal(false)}>
+        <Modal.Header closeButton>
+          <Modal.Title>Edit Product</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {editingProduct && (
+            <Form>
+              <Form.Group className="mb-3">
+                <Form.Label>Name</Form.Label>
+                <Form.Control
+                  type="text"
+                  value={editingProduct.name || ''}
+                  onChange={(e) => setEditingProduct({ ...editingProduct, name: e.target.value })}
+                />
+              </Form.Group>
+              <Form.Group className="mb-3">
+                <Form.Label>Brand</Form.Label>
+                <Form.Control
+                  type="text"
+                  value={editingProduct.brand || ''}
+                  onChange={(e) => setEditingProduct({ ...editingProduct, brand: e.target.value })}
+                />
+              </Form.Group>
+              <Form.Group className="mb-3">
+                <Form.Label>Category</Form.Label>
+                <Form.Select
+                  value={editingProduct.category || ''}
+                  onChange={(e) => setEditingProduct({ ...editingProduct, category: e.target.value })}
+                >
+                  <option value="">Select Category</option>
+                  <option value="toys">Toys</option>
+                  <option value="food">Food</option>
+                  <option value="accessories">Accessories</option>
+                  <option value="health">Health</option>
+                  <option value="grooming">Grooming</option>
+                </Form.Select>
+              </Form.Group>
+              <Form.Group className="mb-3">
+                <Form.Label>Price</Form.Label>
+                <Form.Control
+                  type="number"
+                  value={editingProduct.price ?? ''}
+                  onChange={(e) => setEditingProduct({ ...editingProduct, price: parseFloat(e.target.value) })}
+                />
+              </Form.Group>
+              <Form.Group className="mb-3">
+                <Form.Check
+                  type="checkbox"
+                  label="In Stock"
+                  checked={editingProduct.inStock !== false}
+                  onChange={(e) => setEditingProduct({ ...editingProduct, inStock: e.target.checked })}
+                />
+              </Form.Group>
+            </Form>
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowEditModal(false)}>
+            Cancel
+          </Button>
+          <Button variant="primary" onClick={() => handleSaveEdit(editingProduct)}>
+            Save Changes
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Delete Product Modal */}
+      <Modal show={showDeleteModal} onHide={() => setShowDeleteModal(false)}>
+        <Modal.Header closeButton>
+          <Modal.Title>Delete Product</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {deletingProduct && (
+            <p>
+              Are you sure you want to delete <strong>{deletingProduct.name}</strong>? This
+              action cannot be undone.
+            </p>
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowDeleteModal(false)}>
+            Cancel
+          </Button>
+          <Button variant="danger" onClick={confirmDeleteProduct}>
+            Delete
+          </Button>
+        </Modal.Footer>
+      </Modal>
     </div>
   );
 };

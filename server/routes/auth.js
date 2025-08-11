@@ -194,73 +194,75 @@ router.post('/login', [
 
 // Add these at the end of your auth.js file, before module.exports
 
-// DEBUG ROUTE 1: See all users
-router.get('/debug-users', async (req, res) => {
-  try {
-    const users = await User.find({}).select('name email createdAt');
-    console.log('📊 Total users in database:', users.length);
-    
-    res.json({
-      success: true,
-      count: users.length,
-      users: users.map(u => ({
-        id: u._id,
-        name: u.name,
-        email: u.email,
-        createdAt: u.createdAt
-      }))
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
+if (process.env.NODE_ENV === 'development') {
+  // DEBUG ROUTE 1: See all users
+  router.get('/debug-users', async (req, res) => {
+    try {
+      const users = await User.find({}).select('name email createdAt');
+      console.log('📊 Total users in database:', users.length);
 
-// DEBUG ROUTE 2: Test specific login
-router.post('/debug-login', async (req, res) => {
-  try {
-    const { email, password } = req.body;
-    console.log('🔍 Debug login for:', email);
-    console.log('📝 Password provided:', !!password, 'Length:', password?.length);
-    
-    // Find user WITH password field (important!)
-    const user = await User.findOne({ email }).select('+password');
-    console.log('👤 User found:', !!user);
-    
-    if (user) {
-      console.log('📊 User data:', {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        hasPassword: !!user.password,
-        passwordLength: user.password?.length,
-        passwordStartsWith: user.password?.substring(0, 10) + '...',
-        isActive: user.isActive
+      res.json({
+        success: true,
+        count: users.length,
+        users: users.map(u => ({
+          id: u._id,
+          name: u.name,
+          email: u.email,
+          createdAt: u.createdAt
+        }))
       });
-      
-      // Test password comparison manually
-      if (user.password && password) {
-        console.log('🔍 Testing password comparison...');
-        const bcrypt = require('bcryptjs');
-        const isMatch = await bcrypt.compare(password, user.password);
-        console.log('🔍 Manual bcrypt compare result:', isMatch);
-        
-        // Test using model method
-        if (user.comparePassword) {
-          const modelMatch = await user.comparePassword(password);
-          console.log('🔍 Model method compare result:', modelMatch);
+    } catch (error) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // DEBUG ROUTE 2: Test specific login
+  router.post('/debug-login', async (req, res) => {
+    try {
+      const { email, password } = req.body;
+      console.log('🔍 Debug login for:', email);
+      console.log('📝 Password provided:', !!password, 'Length:', password?.length);
+
+      // Find user WITH password field (important!)
+      const user = await User.findOne({ email }).select('+password');
+      console.log('👤 User found:', !!user);
+
+      if (user) {
+        console.log('📊 User data:', {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          hasPassword: !!user.password,
+          passwordLength: user.password?.length,
+          passwordStartsWith: user.password?.substring(0, 10) + '...',
+          isActive: user.isActive
+        });
+
+        // Test password comparison manually
+        if (user.password && password) {
+          console.log('🔍 Testing password comparison...');
+          const bcrypt = require('bcryptjs');
+          const isMatch = await bcrypt.compare(password, user.password);
+          console.log('🔍 Manual bcrypt compare result:', isMatch);
+
+          // Test using model method
+          if (user.comparePassword) {
+            const modelMatch = await user.comparePassword(password);
+            console.log('🔍 Model method compare result:', modelMatch);
+          }
         }
       }
+
+      res.json({
+        success: true,
+        userFound: !!user,
+        hasPassword: user ? !!user.password : false
+      });
+    } catch (error) {
+      console.error('❌ Debug login error:', error);
+      res.status(500).json({ success: false, error: error.message });
     }
-    
-    res.json({ 
-      success: true, 
-      userFound: !!user,
-      hasPassword: user ? !!user.password : false
-    });
-  } catch (error) {
-    console.error('❌ Debug login error:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
+  });
+}
 
 module.exports = router;

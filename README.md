@@ -97,6 +97,12 @@ JWT_SECRET=your_secret
 NODE_ENV=development
 PORT=5000
 FRONTEND_URL=http://localhost:3000
+SMTP_HOST=your_smtp_host
+SMTP_PORT=587
+SMTP_USER=your_smtp_username
+SMTP_PASS=your_smtp_password
+SMTP_FROM=notifications@example.com
+ADMIN_EMAILS=admin1@example.com,admin2@example.com
 ```
 
 ### Start the App
@@ -167,6 +173,12 @@ furbabies-petstore/
 | NODE_ENV        | Environment              | ✅       |
 | PORT            | Backend server port      | ✅       |
 | FRONTEND_URL    | CORS origin              | ✅       |
+| SMTP_HOST       | SMTP server hostname     | ✅       |
+| SMTP_PORT       | SMTP server port         | ✅       |
+| SMTP_USER       | SMTP username            | ✅       |
+| SMTP_PASS       | SMTP password            | ✅       |
+| SMTP_FROM       | Sender email address     | ✅       |
+| ADMIN_EMAILS    | Admin notification emails (comma-separated) | ✅       |
 
 ---
 

@@ -19,6 +19,7 @@ const productSchema = new mongoose.Schema({
   category: {
     type: String,
     required: [true, 'Category is required'],
+    lowercase: true,
     trim: true
   },
   brand: {
