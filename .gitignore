@@ -85,6 +85,10 @@ coverage.*
 *.test.js
 jest-html-reporters-*.html
 
+# Allow controller smoke tests
+!server/controllers/__tests__/
+!server/controllers/__tests__/controllers.test.js
+
 # =============================================================================
 # OS / EDITOR FILES
 # =============================================================================
