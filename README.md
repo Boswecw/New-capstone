@@ -206,15 +206,15 @@ curl http://localhost:5000/api/images/health
 
 ### Backend
 - Auto-deploy from GitHub `main`
-- Build Command: `npm install`
-- Start Command: `npm start`
+- Build Command: `yarn install`
+- Start Command: `yarn start`
 - Set environment variables manually
 
 ### Frontend
 - Render Static Site
 - Root: `client`
-- Build Command: `npm install && npm run build`
-- Publish directory: `client/build`
+- Build Command: `yarn install && yarn build`
+- Publish directory: `build`
 
 ---
 
