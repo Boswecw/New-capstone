@@ -134,3 +134,6 @@ server/create-fresh-admin.js
 server/check-admin-role.js
 docs/build/
 documentation/build/
+
+client/build/
+server/FurBabies-petstore Deployment Guide.pdf
