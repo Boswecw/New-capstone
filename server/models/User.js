@@ -200,36 +200,45 @@ userSchema.virtual('displayName').get(function() {
 
 // ✅ ENHANCED: Pre-save middleware to hash password with detailed logging
 userSchema.pre('save', async function(next) {
-  console.log('🔧 User pre-save middleware triggered');
-  console.log('🔍 Password modified:', this.isModified('password'));
-  console.log('🔍 Is new document:', this.isNew);
-  
+  const isDebug = process.env.NODE_ENV !== 'production';
+  if (isDebug) {
+    console.log('🔧 User pre-save middleware triggered');
+    console.log('🔍 Password modified:', this.isModified('password'));
+    console.log('🔍 Is new document:', this.isNew);
+  }
+
   // Only hash the password if it has been modified (or is new)
   if (!this.isModified('password')) {
-    console.log('⏭️ Password not modified, skipping hash');
+    if (isDebug) {
+      console.log('⏭️ Password not modified, skipping hash');
+    }
     return next();
   }
-  
+
   try {
-    console.log('🔐 Starting password hash process...');
-    console.log('📊 Original password length:', this.password?.length);
-    
+    if (isDebug) {
+      console.log('🔐 Starting password hash process...');
+      console.log('📊 Original password length:', this.password?.length);
+    }
+
     // ✅ ENHANCED: Check if bcryptjs is available
     if (!bcrypt) {
       console.error('❌ bcryptjs not available!');
       return next(new Error('bcryptjs dependency not found'));
     }
-    
+
     // Hash password with cost of 12
-    console.log('🧂 Generating salt...');
+    if (isDebug) console.log('🧂 Generating salt...');
     const salt = await bcrypt.genSalt(12);
-    console.log('✅ Salt generated');
-    
-    console.log('🔒 Hashing password...');
+    if (isDebug) console.log('✅ Salt generated');
+
+    if (isDebug) console.log('🔒 Hashing password...');
     this.password = await bcrypt.hash(this.password, salt);
-    console.log('✅ Password hashed successfully');
-    console.log('📊 Hashed password length:', this.password?.length);
-    
+    if (isDebug) {
+      console.log('✅ Password hashed successfully');
+      console.log('📊 Hashed password length:', this.password?.length);
+    }
+
     next();
   } catch (error) {
     console.error('❌ Password hashing error:', error);
