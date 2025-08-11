@@ -97,6 +97,7 @@ JWT_SECRET=your_secret
 NODE_ENV=development
 PORT=5000
 FRONTEND_URL=http://localhost:3000
+REACT_APP_API_URL=http://localhost:5000/api
 SMTP_HOST=your_smtp_host
 SMTP_PORT=587
 SMTP_USER=your_smtp_username
@@ -173,6 +174,7 @@ furbabies-petstore/
 | NODE_ENV        | Environment              | ✅       |
 | PORT            | Backend server port      | ✅       |
 | FRONTEND_URL    | CORS origin              | ✅       |
+| REACT_APP_API_URL | Base URL for frontend API requests | ✅ (prod) |
 | SMTP_HOST       | SMTP server hostname     | ✅       |
 | SMTP_PORT       | SMTP server port         | ✅       |
 | SMTP_USER       | SMTP username            | ✅       |
