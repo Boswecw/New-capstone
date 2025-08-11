@@ -12,7 +12,7 @@
     "install-server": "cd server && yarn install",
     "install-client": "cd client && yarn install",
     "install-all": "yarn install-server && yarn install-client",
-    "render-postbuild": "yarn install-all && yarn build",
+    "render-postbuild": "yarn install-server",
     "clean": "rm -rf node_modules server/node_modules client/node_modules yarn.lock",
     "test": "echo \"No tests yet\" && exit 0"
   },
