@@ -8,7 +8,12 @@ const storage = new Storage({
   projectId: process.env.GOOGLE_CLOUD_PROJECT_ID,
 });
 
-const bucketName = 'furbabies-petstore'; // Your bucket name from the logs
+// Use environment variable for the bucket name so deployments can target
+// different buckets without code changes
+const bucketName = process.env.GCS_BUCKET;
+if (!bucketName) {
+  console.warn('GCS_BUCKET environment variable is not set');
+}
 const bucket = storage.bucket(bucketName);
 
 // ===== CORS MIDDLEWARE FOR IMAGES =====
@@ -152,3 +157,4 @@ router.use('*', (req, res) => {
 });
 
 module.exports = router;
+
