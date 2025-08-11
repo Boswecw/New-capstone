@@ -1,10 +1,76 @@
 // ===== server/routes/contact.js =====
 const express = require('express');
 const router = express.Router();
+<<<<<<< HEAD
 const mongoose = require('mongoose');
 const Contact = require('../models/Contact');
 const { protect, admin } = require('../middleware/auth');
 const { validateContactSubmission, validateObjectId } = require('../middleware/validation');
+=======
+const Contact = require('../models/Contact');
+const { protect, admin } = require('../middleware/auth');
+const { validateContactSubmission, validateObjectId } = require('../middleware/validation');
+const nodemailer = require('nodemailer');
+
+// === EMAIL CONFIGURATION ===
+const {
+  SMTP_HOST,
+  SMTP_PORT,
+  SMTP_USER,
+  SMTP_PASS,
+  SMTP_FROM,
+  ADMIN_EMAILS
+} = process.env;
+
+let transporter = null;
+
+if (SMTP_HOST && SMTP_PORT && SMTP_USER && SMTP_PASS) {
+  transporter = nodemailer.createTransport({
+    host: SMTP_HOST,
+    port: parseInt(SMTP_PORT),
+    secure: Number(SMTP_PORT) === 465,
+    auth: {
+      user: SMTP_USER,
+      pass: SMTP_PASS
+    }
+  });
+} else {
+  console.warn('⚠️  SMTP credentials are not fully configured. Email features are disabled.');
+}
+
+const adminRecipients = ADMIN_EMAILS ? ADMIN_EMAILS.split(',').map(email => email.trim()) : [];
+
+const sendContactNotification = async (contact) => {
+  if (!transporter || adminRecipients.length === 0) return;
+
+  try {
+    await transporter.sendMail({
+      from: SMTP_FROM || SMTP_USER,
+      to: adminRecipients,
+      subject: `New Contact Submission: ${contact.subject}`,
+      text: `You have a new contact form submission.\n\nName: ${contact.name}\nEmail: ${contact.email}\nSubject: ${contact.subject}\n\n${contact.message}`
+    });
+  } catch (err) {
+    console.error('Error sending contact notification email:', err);
+  }
+};
+
+const sendContactResponse = async (contact) => {
+  if (!transporter || !contact.email) return;
+
+  try {
+    const responderName = contact.response?.respondedBy?.name || 'Admin';
+    await transporter.sendMail({
+      from: SMTP_FROM || SMTP_USER,
+      to: contact.email,
+      subject: `Re: ${contact.subject}`,
+      text: `Hello ${contact.name},\n\n${contact.response.message}\n\n— ${responderName}`
+    });
+  } catch (err) {
+    console.error('Error sending contact response email:', err);
+  }
+};
+>>>>>>> 7147bbd10087f3d8c934a448e0fc622cfd9f09f1
 
 // Helpers
 const toInt = (v, d) => {
@@ -42,7 +108,12 @@ router.post('/', validateContactSubmission, async (req, res) => {
 
     await contact.save();
 
+<<<<<<< HEAD
     // TODO: send admin notification email here
+=======
+    // Notify administrators of the new submission
+    await sendContactNotification(contact);
+>>>>>>> 7147bbd10087f3d8c934a448e0fc622cfd9f09f1
 
     return res.status(201).json({
       success: true,
@@ -211,7 +282,12 @@ router.put('/:id/respond', protect, admin, validateObjectId, async (req, res) =>
 
     await contact.populate('response.respondedBy', 'name username email');
 
+<<<<<<< HEAD
     // TODO: optionally send email to the customer with the response
+=======
+    // Send a response email to the customer
+    await sendContactResponse(contact);
+>>>>>>> 7147bbd10087f3d8c934a448e0fc622cfd9f09f1
 
     return res.json({
       success: true,

@@ -1,4 +1,5 @@
 // server/routes/news.js - CLEANED UP VERSION (No problematic imports)
+<<<<<<< HEAD
 const express = require('express');
 const router = express.Router();
 const NewsArticle = require('../models/NewsArticle'); // ✅ Use your existing model
@@ -11,6 +12,49 @@ const {
 } = require('../services/newsService');
 
 // ===== MAIN ROUTES =====
+=======
+const express = require('express');
+const router = express.Router();
+const crypto = require('crypto');
+const NewsArticle = require('../models/NewsArticle'); // ✅ Use your existing model
+const { protect, admin } = require('../middleware/auth');
+const {
+  fetchPetNews,
+  getFallbackNews,
+  getNewsServiceHealth,
+} = require('../services/newsAPI');
+
+// ===== HELPER FUNCTIONS =====
+
+// ✅ Create stable ID for external articles
+const createStableExternalId = (article) => {
+  const source = article.url || article.title || 'unknown';
+  return `ext-${crypto.createHash('md5').update(source).digest('hex').substring(0, 12)}`;
+};
+
+// ✅ Format external article to match your NewsArticle schema
+const formatExternal = (article) => ({
+  id: createStableExternalId(article),
+  title: article.title || 'Untitled Article',
+  summary: article.description || '',
+  content: article.content || article.description || '',
+  author: article.author || article.source?.name || 'External Source',
+  category: 'external-news',
+  imageUrl: article.urlToImage || '',
+  originalUrl: article.url,
+  published: true,
+  featured: false,
+  publishedAt: article.publishedAt || new Date(),
+  views: 0,
+  likes: 0,
+  tags: ['external', 'news'],
+  source: 'external',
+  type: 'external'
+});
+
+
+// ===== MAIN ROUTES =====
+>>>>>>> 7147bbd10087f3d8c934a448e0fc622cfd9f09f1
 
 // GET /api/news/health - Health check
 router.get('/health', (req, res) => {
@@ -82,7 +126,7 @@ router.get('/', async (req, res) => {
     // ✅ Include external articles if requested
     if (source === 'all' || source === 'external') {
       const searchQuery = search || 'pets OR dogs OR cats OR pet adoption';
-      const externalResult = await fetchExternalNews(searchQuery, 10);
+      const externalResult = await fetchPetNews(searchQuery, 10);
       
       if (externalResult.success && externalResult.articles) {
         const formattedExternal = externalResult.articles.map(formatExternal);
@@ -140,7 +184,7 @@ router.get('/featured', async (req, res) => {
     // ✅ Fill remaining slots with external news if needed
     const remaining = parseInt(limit) - featuredCustom.length;
     if (remaining > 0) {
-      const externalResult = await fetchExternalNews('pets trending news', remaining);
+      const externalResult = await fetchPetNews('pets trending news', remaining);
       
       if (externalResult.success && externalResult.articles) {
         const formattedExternal = externalResult.articles
@@ -169,7 +213,7 @@ router.get('/featured', async (req, res) => {
     console.error('❌ GET /news/featured error:', err);
     
     // ✅ Return fallback data instead of failure
-    const fallbackData = getFallbackExternalNews();
+    const fallbackData = getFallbackNews();
     res.json({
       success: true,
       data: fallbackData.articles.map(formatExternal).slice(0, parseInt(req.query.limit || 6)),
@@ -234,7 +278,7 @@ router.get('/external', async (req, res) => {
   try {
     const { search = 'pets OR dogs OR cats', limit = 20 } = req.query;
     
-    const externalResult = await fetchExternalNews(search, parseInt(limit));
+    const externalResult = await fetchPetNews(search, parseInt(limit));
     
     if (externalResult.success && externalResult.articles) {
       const formattedArticles = externalResult.articles.map(formatExternal);

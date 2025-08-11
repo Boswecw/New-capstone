@@ -1,12 +1,14 @@
-// server/models/User.js - ENHANCED WITH DEBUG LOGGING
+// server/models/User.js - User model with structured logging
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
+const { Logger } = require('../middleware/errorHandler');
 
 const userSchema = new mongoose.Schema({
   name: {
     type: String,
     required: [true, 'Name is required'],
     trim: true,
+<<<<<<< HEAD
     maxlength: [50, 'Name cannot exceed 50 characters'],
     alias: 'username'
   },
@@ -15,6 +17,24 @@ const userSchema = new mongoose.Schema({
     required: [true, 'Email is required'],
     unique: true,
     trim: true,
+=======
+    maxlength: [50, 'Name cannot exceed 50 characters']
+  },
+  username: {
+    type: String,
+    required: [true, 'Username is required'],
+    unique: true,
+    trim: true,
+    minlength: [3, 'Username must be at least 3 characters'],
+    maxlength: [30, 'Username cannot exceed 30 characters'],
+    match: [/^[a-zA-Z0-9_]+$/, 'Username can only contain letters, numbers, and underscores']
+  },
+  email: {
+    type: String,
+    required: [true, 'Email is required'],
+    unique: true,
+    trim: true,
+>>>>>>> 7147bbd10087f3d8c934a448e0fc622cfd9f09f1
     lowercase: true,
     match: [/^[^\s@]+@[^\s@]+\.[^\s@]+$/, 'Please provide a valid email']
   },
@@ -198,67 +218,41 @@ userSchema.virtual('displayName').get(function() {
   return this.name || this.email.split('@')[0];
 });
 
-// ✅ ENHANCED: Pre-save middleware to hash password with detailed logging
+// Pre-save middleware to hash password with structured logging
 userSchema.pre('save', async function(next) {
-  console.log('🔧 User pre-save middleware triggered');
-  console.log('🔍 Password modified:', this.isModified('password'));
-  console.log('🔍 Is new document:', this.isNew);
-  
-  // Only hash the password if it has been modified (or is new)
+  Logger.debug(
+    `User pre-save middleware triggered (isNew: ${this.isNew}, passwordModified: ${this.isModified('password')})`
+  );
+
   if (!this.isModified('password')) {
-    console.log('⏭️ Password not modified, skipping hash');
+    Logger.debug('Password not modified, skipping hash');
     return next();
   }
-  
+
   try {
-    console.log('🔐 Starting password hash process...');
-    console.log('📊 Original password length:', this.password?.length);
-    
-    // ✅ ENHANCED: Check if bcryptjs is available
-    if (!bcrypt) {
-      console.error('❌ bcryptjs not available!');
-      return next(new Error('bcryptjs dependency not found'));
-    }
-    
-    // Hash password with cost of 12
-    console.log('🧂 Generating salt...');
     const salt = await bcrypt.genSalt(12);
-    console.log('✅ Salt generated');
-    
-    console.log('🔒 Hashing password...');
     this.password = await bcrypt.hash(this.password, salt);
-    console.log('✅ Password hashed successfully');
-    console.log('📊 Hashed password length:', this.password?.length);
-    
+    Logger.debug('Password hashed successfully');
     next();
   } catch (error) {
-    console.error('❌ Password hashing error:', error);
-    console.error('Error details:', {
-      name: error.name,
-      message: error.message,
-      stack: error.stack
-    });
+    Logger.error('Password hashing error', error);
     next(error);
   }
 });
 
-// ✅ ENHANCED: Instance method to compare password with logging
+// Instance method to compare password with structured logging
 userSchema.methods.comparePassword = async function(candidatePassword) {
-  console.log('🔍 Comparing password...');
-  console.log('📊 Candidate password length:', candidatePassword?.length);
-  console.log('📊 Stored password exists:', !!this.password);
-  
   if (!this.password) {
-    console.log('❌ No stored password found');
+    Logger.warn('No stored password found during comparison');
     return false;
   }
-  
+
   try {
     const isMatch = await bcrypt.compare(candidatePassword, this.password);
-    console.log('🔍 Password match result:', isMatch);
+    Logger.debug(`Password comparison result: ${isMatch}`);
     return isMatch;
   } catch (error) {
-    console.error('❌ Password comparison error:', error);
+    Logger.error('Password comparison error', error);
     return false;
   }
 };

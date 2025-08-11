@@ -97,6 +97,13 @@ JWT_SECRET=your_secret
 NODE_ENV=development
 PORT=5000
 FRONTEND_URL=http://localhost:3000
+REACT_APP_API_URL=http://localhost:5000/api
+SMTP_HOST=your_smtp_host
+SMTP_PORT=587
+SMTP_USER=your_smtp_username
+SMTP_PASS=your_smtp_password
+SMTP_FROM=notifications@example.com
+ADMIN_EMAILS=admin1@example.com,admin2@example.com
 ```
 
 ### Start the App
@@ -167,6 +174,13 @@ furbabies-petstore/
 | NODE_ENV        | Environment              | ✅       |
 | PORT            | Backend server port      | ✅       |
 | FRONTEND_URL    | CORS origin              | ✅       |
+| REACT_APP_API_URL | Base URL for frontend API requests | ✅ (prod) |
+| SMTP_HOST       | SMTP server hostname     | ✅       |
+| SMTP_PORT       | SMTP server port         | ✅       |
+| SMTP_USER       | SMTP username            | ✅       |
+| SMTP_PASS       | SMTP password            | ✅       |
+| SMTP_FROM       | Sender email address     | ✅       |
+| ADMIN_EMAILS    | Admin notification emails (comma-separated) | ✅       |
 
 ---
 
@@ -195,12 +209,20 @@ curl http://localhost:5000/api/images/health
 - Build Command: `yarn install`
 - Start Command: `yarn start`
 - Set environment variables manually
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> 7147bbd10087f3d8c934a448e0fc622cfd9f09f1
 ### Frontend
 - Render Static Site
 - Root: `client`
 - Build Command: `yarn install && yarn build`
+<<<<<<< HEAD
 - Publish directory: `client/build`
+=======
+- Publish directory: `build`
+>>>>>>> 7147bbd10087f3d8c934a448e0fc622cfd9f09f1
 
 ---
 
