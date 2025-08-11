@@ -1,12 +1,9 @@
 // server/middleware/errorHandler.js - Enhanced error handling with logging
-const fs = require('fs');
+const fs = require('fs').promises;
 const path = require('path');
 
-// Create logs directory if it doesn't exist
+// Logs directory
 const logsDir = path.join(__dirname, '../logs');
-if (!fs.existsSync(logsDir)) {
-  fs.mkdirSync(logsDir, { recursive: true });
-}
 
 // Logger utility
 class Logger {
@@ -52,15 +49,20 @@ class Logger {
       console.log(`${colors[level]}Stack: ${error.stack}${colors.reset}`);
     }
 
-    // Write to log file
+    // Prepare log paths and message
     const logFile = path.join(logsDir, `${level}.log`);
-    const logLine = JSON.stringify(logEntry) + '\n';
-    
-    fs.appendFileSync(logFile, logLine);
-
-    // Also write all logs to general log file
     const generalLogFile = path.join(logsDir, 'application.log');
-    fs.appendFileSync(generalLogFile, logLine);
+    const logLine = JSON.stringify(logEntry) + '\n';
+
+    // Ensure log directory exists and write logs asynchronously
+    fs.mkdir(logsDir, { recursive: true })
+      .then(() =>
+        Promise.all([
+          fs.appendFile(logFile, logLine),
+          fs.appendFile(generalLogFile, logLine)
+        ])
+      )
+      .catch(err => console.error('Failed to write log file:', err));
   }
 
   static error(message, error = null, req = null) {
