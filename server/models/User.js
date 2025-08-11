@@ -7,7 +7,8 @@ const userSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Name is required'],
     trim: true,
-    maxlength: [50, 'Name cannot exceed 50 characters']
+    maxlength: [50, 'Name cannot exceed 50 characters'],
+    alias: 'username'
   },
   email: {
     type: String,
@@ -97,10 +98,10 @@ const userSchema = new mongoose.Schema({
       }
     }
   },
-  favorites: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Pet'
-  }],
+  favorites: {
+    type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Pet' }],
+    alias: 'favoritesPets'
+  },
   adoptedPets: [{
     pet: {
       type: mongoose.Schema.Types.ObjectId,

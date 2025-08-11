@@ -20,8 +20,8 @@ const router = express.Router();
 // ========================================
 router.post('/register', async (req, res) => {
   try {
-    const { username, email, password, firstName, lastName } = req.body;
-    const fullName = `${firstName} ${lastName}`.trim();
+    const { name, email, password, firstName, lastName } = req.body;
+    const fullName = (name || `${firstName} ${lastName}`.trim()).trim();
 
     const nameCheck = validateName(fullName);
     const emailCheck = validateEmail(email);
@@ -48,7 +48,6 @@ router.post('/register', async (req, res) => {
 
     const newUser = new User({
       name: fullName,
-      username,
       email,
       password: hashedPassword,
       isActive: true
