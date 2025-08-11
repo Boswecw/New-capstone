@@ -1,29 +1,50 @@
+// ===== server/routes/contact.js =====
 const express = require('express');
 const router = express.Router();
+const mongoose = require('mongoose');
 const Contact = require('../models/Contact');
 const { protect, admin } = require('../middleware/auth');
 const { validateContactSubmission, validateObjectId } = require('../middleware/validation');
 
-// POST /api/contact - Submit contact form
+// Helpers
+const toInt = (v, d) => {
+  const n = parseInt(v, 10);
+  return Number.isFinite(n) && n > 0 ? n : d;
+};
+const sanitize = (s) => (typeof s === 'string' ? s.trim() : s);
+const normalizeEmail = (e) => (typeof e === 'string' ? e.trim().toLowerCase() : e);
+const isObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
+const sendErr = (res, status, message, error) =>
+  res.status(status).json({ success: false, message, error: error ? String(error) : undefined });
+
+const VALID_STATUSES = ['new', 'read', 'responded', 'resolved'];
+
+// POST /api/contact - Submit contact form (public)
 router.post('/', validateContactSubmission, async (req, res) => {
   try {
-    const { name, email, subject, message } = req.body;
+    let { name, email, subject, message } = req.body || {};
+    name = sanitize(name);
+    email = normalizeEmail(email);
+    subject = sanitize(subject) || 'General Inquiry';
+    message = sanitize(message);
 
-    // Create new contact submission
+    if (!name || !email || !message) {
+      return sendErr(res, 400, 'Name, email, and message are required.');
+    }
+
     const contact = new Contact({
       name,
       email,
-      subject: subject || 'General Inquiry',
+      subject,
       message,
-      status: 'new'
+      status: 'new',
     });
 
     await contact.save();
 
-    // TODO: Send email notification to admin
-    // await sendContactNotification(contact);
+    // TODO: send admin notification email here
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       data: {
         id: contact._id,
@@ -32,52 +53,32 @@ router.post('/', validateContactSubmission, async (req, res) => {
         subject: contact.subject,
         message: contact.message,
         status: contact.status,
-        createdAt: contact.createdAt
+        createdAt: contact.createdAt,
       },
-      message: 'Contact message sent successfully'
+      message: 'Contact message sent successfully',
     });
   } catch (error) {
     console.error('Error submitting contact form:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error submitting contact form',
-      error: error.message
-    });
+    return sendErr(res, 500, 'Error submitting contact form', error.message);
   }
 });
 
-// GET /api/contact - Get all contact submissions (admin only)
+// GET /api/contact - List contacts (admin)
 router.get('/', protect, admin, async (req, res) => {
   try {
-    const {
-      status,
-      search,
-      limit = 20,
-      page = 1,
-      sort = 'createdAt'
-    } = req.query;
+    const { status, search, sort = 'createdAt', page = 1, limit = 20 } = req.query;
+    const pageNum = toInt(page, 1);
+    const limitNum = toInt(limit, 20);
+    const skip = (pageNum - 1) * limitNum;
 
-    // Build query object
     const query = {};
+    if (status && VALID_STATUSES.includes(status)) query.status = status;
 
-    if (status) {
-      query.status = status;
+    if (search && String(search).trim()) {
+      const rx = new RegExp(String(search).trim(), 'i');
+      query.$or = [{ name: rx }, { email: rx }, { subject: rx }, { message: rx }];
     }
 
-    if (search) {
-      query.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { email: { $regex: search, $options: 'i' } },
-        { subject: { $regex: search, $options: 'i' } },
-        { message: { $regex: search, $options: 'i' } }
-      ];
-    }
-
-    // Calculate pagination
-    const limitNum = parseInt(limit);
-    const skip = (parseInt(page) - 1) * limitNum;
-
-    // Sort options
     const sortOptions = {};
     switch (sort) {
       case 'name':
@@ -96,293 +97,200 @@ router.get('/', protect, admin, async (req, res) => {
         sortOptions.createdAt = -1;
     }
 
-    // Execute query
-    const contacts = await Contact.find(query)
-      .sort(sortOptions)
-      .limit(limitNum)
-      .skip(skip)
-      .populate('response.respondedBy', 'name email');
-
-    // Get total count for pagination
-    const totalContacts = await Contact.countDocuments(query);
-    const totalPages = Math.ceil(totalContacts / limitNum);
-
-    // Get status counts
-    const statusCounts = await Contact.aggregate([
-      {
-        $group: {
-          _id: '$status',
-          count: { $sum: 1 }
-        }
-      }
+    const [contacts, totalContacts, statusAgg] = await Promise.all([
+      Contact.find(query)
+        .sort(sortOptions)
+        .limit(limitNum)
+        .skip(skip)
+        .populate('response.respondedBy', 'name username email'),
+      Contact.countDocuments(query),
+      Contact.aggregate([{ $group: { _id: '$status', count: { $sum: 1 } } }]),
     ]);
 
-    res.json({
+    const totalPages = Math.max(1, Math.ceil(totalContacts / limitNum));
+    const statusCounts = statusAgg.reduce((acc, cur) => {
+      acc[cur._id] = cur.count;
+      return acc;
+    }, {});
+
+    return res.json({
       success: true,
       data: contacts,
       pagination: {
-        currentPage: parseInt(page),
+        currentPage: pageNum,
         totalPages,
         totalContacts,
-        hasNext: page < totalPages,
-        hasPrev: page > 1
+        hasNext: pageNum < totalPages,
+        hasPrev: pageNum > 1,
+        limit: limitNum,
       },
-      stats: {
-        statusCounts: statusCounts.reduce((acc, item) => {
-          acc[item._id] = item.count;
-          return acc;
-        }, {})
-      },
-      message: 'Contact submissions retrieved successfully'
+      stats: { statusCounts },
+      message: 'Contact submissions retrieved successfully',
     });
   } catch (error) {
     console.error('Error fetching contacts:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching contacts',
-      error: error.message
-    });
+    return sendErr(res, 500, 'Error fetching contacts', error.message);
   }
 });
 
-// GET /api/contact/:id - Get single contact submission
+// GET /api/contact/:id - Single contact (admin)
 router.get('/:id', protect, admin, validateObjectId, async (req, res) => {
   try {
-    const contact = await Contact.findById(req.params.id)
-      .populate('response.respondedBy', 'name email');
+    const { id } = req.params;
+    if (!isObjectId(id)) return sendErr(res, 400, 'Invalid contact ID');
 
-    if (!contact) {
-      return res.status(404).json({
-        success: false,
-        message: 'Contact submission not found'
-      });
-    }
+    const contact = await Contact.findById(id).populate(
+      'response.respondedBy',
+      'name username email'
+    );
+    if (!contact) return sendErr(res, 404, 'Contact submission not found');
 
-    // Mark as read if it's new
+    // Mark as read if it was new
     if (contact.status === 'new') {
       contact.status = 'read';
       await contact.save();
     }
 
-    res.json({
+    return res.json({
       success: true,
       data: contact,
-      message: 'Contact submission retrieved successfully'
+      message: 'Contact submission retrieved successfully',
     });
   } catch (error) {
     console.error('Error fetching contact:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching contact',
-      error: error.message
-    });
+    return sendErr(res, 500, 'Error fetching contact', error.message);
   }
 });
 
-// PUT /api/contact/:id/status - Update contact status
+// PUT /api/contact/:id/status - Update status (admin)
 router.put('/:id/status', protect, admin, validateObjectId, async (req, res) => {
   try {
-    const { status } = req.body;
-
-    // Validate status
-    const validStatuses = ['new', 'read', 'responded', 'resolved'];
-    if (!validStatuses.includes(status)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid status. Must be one of: new, read, responded, resolved'
-      });
+    const { id } = req.params;
+    const nextStatus = sanitize(req.body?.status);
+    if (!VALID_STATUSES.includes(nextStatus)) {
+      return sendErr(res, 400, 'Invalid status. Must be one of: new, read, responded, resolved');
     }
 
-    const contact = await Contact.findById(req.params.id);
+    const updated = await Contact.findByIdAndUpdate(
+      id,
+      { $set: { status: nextStatus } },
+      { new: true }
+    ).populate('response.respondedBy', 'name username email');
 
-    if (!contact) {
-      return res.status(404).json({
-        success: false,
-        message: 'Contact submission not found'
-      });
-    }
+    if (!updated) return sendErr(res, 404, 'Contact submission not found');
 
-    contact.status = status;
-    await contact.save();
-
-    res.json({
+    return res.json({
       success: true,
-      data: contact,
-      message: 'Contact status updated successfully'
+      data: updated,
+      message: 'Contact status updated successfully',
     });
   } catch (error) {
     console.error('Error updating contact status:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error updating contact status',
-      error: error.message
-    });
+    return sendErr(res, 500, 'Error updating contact status', error.message);
   }
 });
 
-// POST /api/contact/:id/respond - Add response to contact
-router.post('/:id/respond', protect, admin, validateObjectId, async (req, res) => {
+// PUT /api/contact/:id/respond - Add/Update response (admin)  <-- PUT to match frontend
+router.put('/:id/respond', protect, admin, validateObjectId, async (req, res) => {
   try {
-    const { message } = req.body;
+    let { message } = req.body || {};
+    message = sanitize(message);
+    if (!message) return sendErr(res, 400, 'Response message is required');
 
-    if (!message || !message.trim()) {
-      return res.status(400).json({
-        success: false,
-        message: 'Response message is required'
-      });
-    }
+    const { id } = req.params;
+    const contact = await Contact.findById(id);
+    if (!contact) return sendErr(res, 404, 'Contact submission not found');
 
-    const contact = await Contact.findById(req.params.id);
-
-    if (!contact) {
-      return res.status(404).json({
-        success: false,
-        message: 'Contact submission not found'
-      });
-    }
-
-    // Add response
     contact.response = {
-      message: message.trim(),
-      respondedBy: req.user._id,
-      respondedAt: new Date()
+      message,
+      respondedBy: req.user?._id,
+      respondedAt: new Date(),
     };
     contact.status = 'responded';
-
     await contact.save();
 
-    // Populate the response for return
-    await contact.populate('response.respondedBy', 'name email');
+    await contact.populate('response.respondedBy', 'name username email');
 
-    // TODO: Send email response to customer
-    // await sendContactResponse(contact);
+    // TODO: optionally send email to the customer with the response
 
-    res.json({
+    return res.json({
       success: true,
       data: contact,
-      message: 'Response added successfully'
+      message: 'Response added successfully',
     });
   } catch (error) {
     console.error('Error adding response:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error adding response',
-      error: error.message
-    });
+    return sendErr(res, 500, 'Error adding response', error.message);
   }
 });
 
-// DELETE /api/contact/:id - Delete contact submission
+// DELETE /api/contact/:id - Delete submission (admin)
 router.delete('/:id', protect, admin, validateObjectId, async (req, res) => {
   try {
-    const contact = await Contact.findById(req.params.id);
+    const { id } = req.params;
+    const deleted = await Contact.findByIdAndDelete(id);
+    if (!deleted) return sendErr(res, 404, 'Contact submission not found');
 
-    if (!contact) {
-      return res.status(404).json({
-        success: false,
-        message: 'Contact submission not found'
-      });
-    }
-
-    await Contact.findByIdAndDelete(req.params.id);
-
-    res.json({
+    return res.json({
       success: true,
-      message: 'Contact submission deleted successfully'
+      message: 'Contact submission deleted successfully',
     });
   } catch (error) {
     console.error('Error deleting contact:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error deleting contact',
-      error: error.message
-    });
+    return sendErr(res, 500, 'Error deleting contact', error.message);
   }
 });
 
-// GET /api/contact/stats/dashboard - Get contact statistics for dashboard
-router.get('/stats/dashboard', protect, admin, async (req, res) => {
+// GET /api/contact/stats/dashboard - Dashboard stats (admin)
+router.get('/stats/dashboard', protect, admin, async (_req, res) => {
   try {
-    // Get overall stats
-    const totalContacts = await Contact.countDocuments();
-    const newContacts = await Contact.countDocuments({ status: 'new' });
-    const pendingContacts = await Contact.countDocuments({ 
-      status: { $in: ['new', 'read'] } 
-    });
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now);
+    thirtyDaysAgo.setDate(now.getDate() - 30);
 
-    // Get contacts from last 30 days
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    
-    const recentContacts = await Contact.countDocuments({
-      createdAt: { $gte: thirtyDaysAgo }
-    });
-
-    // Get monthly trends
-    const monthlyTrends = await Contact.aggregate([
-      {
-        $match: {
-          createdAt: { $gte: thirtyDaysAgo }
-        }
-      },
-      {
-        $group: {
-          _id: {
-            year: { $year: '$createdAt' },
-            month: { $month: '$createdAt' },
-            day: { $dayOfMonth: '$createdAt' }
+    const [totalContacts, newContacts, pendingContacts, recentContacts, monthlyTrends, statusDistribution, recentUnread] =
+      await Promise.all([
+        Contact.countDocuments(),
+        Contact.countDocuments({ status: 'new' }),
+        Contact.countDocuments({ status: { $in: ['new', 'read'] } }),
+        Contact.countDocuments({ createdAt: { $gte: thirtyDaysAgo } }),
+        Contact.aggregate([
+          { $match: { createdAt: { $gte: thirtyDaysAgo } } },
+          {
+            $group: {
+              _id: {
+                year: { $year: '$createdAt' },
+                month: { $month: '$createdAt' },
+                day: { $dayOfMonth: '$createdAt' },
+              },
+              count: { $sum: 1 },
+            },
           },
-          count: { $sum: 1 }
-        }
-      },
-      {
-        $sort: { '_id.year': 1, '_id.month': 1, '_id.day': 1 }
-      }
-    ]);
+          { $sort: { '_id.year': 1, '_id.month': 1, '_id.day': 1 } },
+        ]),
+        Contact.aggregate([{ $group: { _id: '$status', count: { $sum: 1 } } }]),
+        Contact.find({ status: { $in: ['new', 'read'] } })
+          .sort({ createdAt: -1 })
+          .limit(5)
+          .select('name email subject createdAt status'),
+      ]);
 
-    // Get status distribution
-    const statusDistribution = await Contact.aggregate([
-      {
-        $group: {
-          _id: '$status',
-          count: { $sum: 1 }
-        }
-      }
-    ]);
-
-    // Get recent unread contacts
-    const recentUnreadContacts = await Contact.find({
-      status: { $in: ['new', 'read'] }
-    })
-      .sort({ createdAt: -1 })
-      .limit(5)
-      .select('name email subject createdAt status');
-
-    res.json({
+    return res.json({
       success: true,
       data: {
-        overview: {
-          totalContacts,
-          newContacts,
-          pendingContacts,
-          recentContacts
-        },
+        overview: { totalContacts, newContacts, pendingContacts, recentContacts },
         trends: monthlyTrends,
-        statusDistribution: statusDistribution.reduce((acc, item) => {
-          acc[item._id] = item.count;
+        statusDistribution: statusDistribution.reduce((acc, x) => {
+          acc[x._id] = x.count;
           return acc;
         }, {}),
-        recentUnread: recentUnreadContacts
+        recentUnread,
       },
-      message: 'Contact statistics retrieved successfully'
+      message: 'Contact statistics retrieved successfully',
     });
   } catch (error) {
     console.error('Error fetching contact stats:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching contact statistics',
-      error: error.message
-    });
+    return sendErr(res, 500, 'Error fetching contact statistics', error.message);
   }
 });
 
