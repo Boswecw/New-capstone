@@ -1,95 +1,107 @@
-// client/src/components/SafeImage.js - FIXED VERSION
+// client/src/components/SafeImage.js
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
+import performanceTracker from '../utils/performanceMonitor';
 
-const SafeImage = ({ 
-  item, 
+const GCS_BASE = 'https://storage.googleapis.com/furbabies-petstore';
+
+const SafeImage = ({
+  item,
   category = 'general',
   className = '',
   style = {},
   alt = '',
-  onContainerTypeChange, // ✅ Custom prop name that won't conflict with DOM
+  onContainerTypeChange, // custom callback (doesn't forward to <img/>)
   size = 'medium',
-  ...otherProps // ✅ Spread remaining props to img element
+  ...otherProps
 }) => {
   const [imageUrl, setImageUrl] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
-  // ✅ Build image URL based on item data
+  // for performance tracking
+  const loadStartTime = useRef(Date.now());
+
   useEffect(() => {
+    loadStartTime.current = Date.now(); // reset timer on item/category change
+
     if (!item) {
       setError(true);
       setLoading(false);
       return;
     }
 
-    // Try to get image URL from various sources
     let url = '';
-    
+
+    // 1) prefer server-supplied imageUrl
     if (item.imageUrl) {
       url = item.imageUrl;
-    } else if (item.image) {
-      // Handle Google Cloud Storage URLs
-      if (item.image.startsWith('http')) {
+    }
+    // 2) raw image field from DB
+    else if (item.image) {
+      if (typeof item.image === 'string' && item.image.startsWith('http')) {
         url = item.image;
-      } else {
-        url = `https://storage.googleapis.com/furbabies-petstore/${item.image}`;
+      } else if (typeof item.image === 'string') {
+        const clean = item.image.replace(/^\/+/, '');
+        url = `${GCS_BASE}/${clean}`;
       }
-    } else if (item.photos && item.photos.length > 0) {
-      url = item.photos[0].url || item.photos[0];
-    } else {
-      // ✅ Enhanced fallback logic for products
+    }
+    // 3) photos array (pets often)
+    else if (Array.isArray(item.photos) && item.photos.length > 0) {
+      url = item.photos[0]?.url || item.photos[0];
+    }
+    // 4) smart fallback
+    else {
       if (category === 'product' || item.category === 'product' || item.price !== undefined) {
-        // This is a product - try to construct a GCS URL based on product name
-        const productName = item.name || 'placeholder';
-        const cleanName = productName.toLowerCase().replace(/[^a-z0-9]/g, '-');
-        url = `https://storage.googleapis.com/furbabies-petstore/product/${cleanName}.jpg`;
+        const productName = (item.name || 'placeholder').toLowerCase().replace(/[^a-z0-9]/g, '-');
+        url = `${GCS_BASE}/product/${productName}.jpg`;
       } else {
-        // This is a pet - use pet placeholder
-        url = `https://storage.googleapis.com/furbabies-petstore/${category}/placeholder.png`;
+        const fallbackCategory = category || 'general';
+        url = `${GCS_BASE}/${fallbackCategory}/placeholder.png`;
       }
     }
 
-    console.log('🖼️ SafeImage URL for', item.name || 'item', ':', url);
+    // eslint-disable-next-line no-console
+    console.log('🖼️ SafeImage URL:', item?.name || 'item', '->', url);
+
     setImageUrl(url);
     setLoading(false);
+    setError(false);
   }, [item, category]);
 
-  // ✅ Detect container type based on image dimensions
   const handleImageLoad = (e) => {
+    // aspect ratio detection
     const img = e.target;
     const aspectRatio = img.naturalWidth / img.naturalHeight;
-    
+
     let detectedType = 'square';
-    
-    if (aspectRatio > 1.5) {
-      detectedType = 'landscape';
-    } else if (aspectRatio < 0.6) {
-      detectedType = 'tall';
-    } else if (aspectRatio < 0.8) {
-      detectedType = 'portrait';
-    }
-    
-    // ✅ Call the callback if provided
-    if (onContainerTypeChange) {
-      onContainerTypeChange(detectedType);
-    }
-    
+    if (aspectRatio > 1.5) detectedType = 'landscape';
+    else if (aspectRatio < 0.6) detectedType = 'tall';
+    else if (aspectRatio < 0.8) detectedType = 'portrait';
+
+    if (onContainerTypeChange) onContainerTypeChange(detectedType);
+
     setLoading(false);
     setError(false);
+
+    // performance tracking (success)
+    const loadTime = Date.now() - loadStartTime.current;
+    performanceTracker?.trackImageLoad?.(imageUrl, true, loadTime);
   };
 
   const handleImageError = () => {
     setError(true);
     setLoading(false);
+
+    // performance tracking (fail)
+    const loadTime = Date.now() - loadStartTime.current;
+    performanceTracker?.trackImageLoad?.(imageUrl, false, loadTime);
   };
 
-  // ✅ Loading state
   if (loading) {
     return (
-      <div 
+      <div
         className={`d-flex align-items-center justify-content-center bg-light ${className}`}
         style={{ ...style }}
       >
@@ -103,10 +115,9 @@ const SafeImage = ({
     );
   }
 
-  // ✅ Error state
   if (error || !imageUrl) {
     return (
-      <div 
+      <div
         className={`d-flex align-items-center justify-content-center bg-light ${className}`}
         style={{ ...style }}
       >
@@ -118,19 +129,19 @@ const SafeImage = ({
     );
   }
 
-  // ✅ Filter out ALL custom props before passing to img element
+  // Only forward valid <img> attributes (avoid React DOM warnings)
   const validImgProps = {};
-  const validHtmlProps = [
-    'alt', 'src', 'className', 'style', 'onLoad', 'onError', 'onClick',
-    'onMouseEnter', 'onMouseLeave', 'id', 'role', 'aria-label', 'title',
-    'width', 'height', 'loading', 'decoding', 'crossOrigin', 'referrerPolicy'
-  ];
+  const validHtmlProps = new Set([
+    'alt', 'src', 'className', 'style',
+    'onLoad', 'onError', 'onClick',
+    'onMouseEnter', 'onMouseLeave',
+    'id', 'role', 'aria-label', 'title',
+    'width', 'height', 'loading', 'decoding',
+    'crossOrigin', 'referrerPolicy', 'draggable'
+  ]);
 
-  // Only pass through valid HTML img attributes
-  Object.keys(otherProps).forEach(key => {
-    if (validHtmlProps.includes(key)) {
-      validImgProps[key] = otherProps[key];
-    }
+  Object.keys(otherProps).forEach((key) => {
+    if (validHtmlProps.has(key)) validImgProps[key] = otherProps[key];
   });
 
   return (
@@ -141,7 +152,9 @@ const SafeImage = ({
       style={style}
       onLoad={handleImageLoad}
       onError={handleImageError}
-      {...validImgProps} // ✅ Only valid img props
+      loading="lazy"
+      decoding="async"
+      {...validImgProps}
     />
   );
 };
@@ -152,7 +165,7 @@ SafeImage.propTypes = {
   className: PropTypes.string,
   style: PropTypes.object,
   alt: PropTypes.string,
-  onContainerTypeChange: PropTypes.func, // ✅ Custom callback for container type
+  onContainerTypeChange: PropTypes.func,
   size: PropTypes.string
 };
 

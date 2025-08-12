@@ -1,8 +1,9 @@
-// client/src/App.js - FINAL CLEAN VERSION with Performance Monitor
+// client/src/App.js - FINAL CLEAN VERSION w/ Cart integrated + Performance Monitor
 
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import { ToastProvider } from "./contexts/ToastContext";
+import { CartProvider } from "./contexts/CartContext";
 import ErrorBoundary from "./components/ErrorBoundary";
 
 // Layout Components
@@ -29,6 +30,7 @@ import { LoginForm } from "./components/Form/AuthForms";
 import Register from "./pages/Register";
 import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
+import Cart from "./pages/Cart"; // ✅ new
 
 // Admin Pages
 import AdminDashboard from "./pages/admin/AdminDashboard";
@@ -87,91 +89,94 @@ function App() {
     <ErrorBoundary>
       <AuthProvider>
         <ToastProvider>
-          <Router>
-            <ScrollToTop />
-            <div className="App d-flex flex-column min-vh-100">
-              {/* Navigation */}
-              <Navbar />
+          <CartProvider>
+            <Router>
+              <ScrollToTop />
+              <div className="App d-flex flex-column min-vh-100">
+                {/* Navigation */}
+                <Navbar />
 
-              {/* Toasts */}
-              <ToastContainer
-                position="top-right"
-                autoClose={3000}
-                hideProgressBar={false}
-                newestOnTop={false}
-                closeOnClick
-                rtl={false}
-                pauseOnFocusLoss
-                draggable
-                pauseOnHover
-              />
+                {/* Toasts */}
+                <ToastContainer
+                  position="top-right"
+                  autoClose={3000}
+                  hideProgressBar={false}
+                  newestOnTop={false}
+                  closeOnClick
+                  rtl={false}
+                  pauseOnFocusLoss
+                  draggable
+                  pauseOnHover
+                />
 
-              {/* Main Content */}
-              <main className="flex-grow-1">
-                <Routes>
-                  {/* Public Routes */}
-                  <Route path="/" element={<Home />} />
-                  <Route path="/home" element={<Home />} />
-                  <Route path="/pets" element={<Pets />} />
-                  <Route path="/browse" element={<Browse />} />
-                  <Route path="/pets/:id" element={<PetDetail />} />
-                  <Route path="/products" element={<Products />} />
-                  <Route path="/products/:id" element={<ProductDetail />} />
-                  <Route path="/news" element={<News />} />
-                  <Route path="/news/:id" element={<NewsDetail />} />
-                  <Route path="/about" element={<About />} />
-                  <Route path="/contact" element={<Contact />} />
-                  <Route path="/login" element={<LoginForm />} />
-                  <Route path="/register" element={<Register />} />
+                {/* Main Content */}
+                <main className="flex-grow-1">
+                  <Routes>
+                    {/* Public Routes */}
+                    <Route path="/" element={<Home />} />
+                    <Route path="/home" element={<Home />} />
+                    <Route path="/pets" element={<Pets />} />
+                    <Route path="/browse" element={<Browse />} />
+                    <Route path="/pets/:id" element={<PetDetail />} />
+                    <Route path="/products" element={<Products />} />
+                    <Route path="/products/:id" element={<ProductDetail />} />
+                    <Route path="/news" element={<News />} />
+                    <Route path="/news/:id" element={<NewsDetail />} />
+                    <Route path="/about" element={<About />} />
+                    <Route path="/contact" element={<Contact />} />
+                    <Route path="/login" element={<LoginForm />} />
+                    <Route path="/register" element={<Register />} />
+                    <Route path="/cart" element={<Cart />} /> {/* ✅ new */}
 
-                  {/* Protected User Route */}
-                  <Route
-                    path="/profile"
-                    element={
-                      <ProtectedRoute>
-                        <Profile />
-                      </ProtectedRoute>
-                    }
-                  />
+                    {/* Protected User Route */}
+                    <Route
+                      path="/profile"
+                      element={
+                        <ProtectedRoute>
+                          <Profile />
+                        </ProtectedRoute>
+                      }
+                    />
 
-                  {/* Admin Routes (Protected and Nested) */}
-                  <Route
-                    path="/admin"
-                    element={
-                      <AdminRoute>
-                        <AdminLayout />
-                      </AdminRoute>
-                    }
-                  >
-                    <Route index element={<AdminDashboard />} />
-                    <Route path="users" element={<AdminUsers />} />
-                    <Route path="pets" element={<AdminPets />} />
-                    <Route path="products" element={<AdminProducts />} />
-                    <Route path="contacts" element={<AdminContacts />} />
-                    <Route path="reports" element={<AdminReports />} />
-                    <Route path="analytics" element={<AdminAnalytics />} />
-                    <Route path="settings" element={<AdminSettings />} />
-                  </Route>
+                    {/* Admin Routes (Protected and Nested) */}
+                    <Route
+                      path="/admin"
+                      element={
+                        <AdminRoute>
+                          <AdminLayout />
+                        </AdminRoute>
+                      }
+                    >
+                      <Route index element={<AdminDashboard />} />
+                      <Route path="users" element={<AdminUsers />} />
+                      <Route path="pets" element={<AdminPets />} />
+                      <Route path="products" element={<AdminProducts />} />
+                      <Route path="contacts" element={<AdminContacts />} />
+                      <Route path="reports" element={<AdminReports />} />
+                      <Route path="analytics" element={<AdminAnalytics />} />
+                      <Route path="settings" element={<AdminSettings />} />
+                    </Route>
 
-                  {/* Admin News Page (also protected separately) */}
-                  <Route
-                    path="/admin/news"
-                    element={
-                      <ProtectedRoute adminOnly>
-                        <AdminNews />
-                      </ProtectedRoute>
-                    }
-                  />
+                    {/* Admin News Page (also protected separately) */}
+                    <Route
+                      path="/admin/news"
+                      element={
+                        <ProtectedRoute adminOnly>
+                          <AdminNews />
+                        </ProtectedRoute>
+                      }
+                    />
 
-                  {/* 404 Page */}
-                  <Route path="*" element={<NotFound />} />
-                </Routes>
-              </main>
+                    {/* 404 Page */}
+                    <Route path="*" element={<NotFound />} />
+                  </Routes>
+                </main>
 
-              {/* Footer */}
-              <Footer />
-            </div>
-          </Router>
+                {/* Footer */}
+                <Footer />
+              </div>
+            </Router>
+          </CartProvider>
         </ToastProvider>
       </AuthProvider>
     </ErrorBoundary>
