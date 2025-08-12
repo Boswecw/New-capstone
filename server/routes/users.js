@@ -1,237 +1,30 @@
-// server/routes/users.js - COMPLETE VERSION WITH REGISTER ENDPOINT
+// server/routes/users.js - User Management Routes
 const express = require('express');
-const mongoose = require('mongoose');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const User = require('../models/User');
-const Pet = require('../models/Pet');
-const { protect, admin } = require('../middleware/auth');
-const { 
-  validateUserProfile, 
-  validateObjectId,
-  handleValidationErrors 
-} = require('../middleware/validation');
-const { validateName, validateEmail, validatePassword } = require('../utils/validation');
-
 const router = express.Router();
-
-// ========================================
-// REGISTER USER
-// ========================================
-router.post('/register', async (req, res) => {
-  try {
-    const { name, email, password, firstName, lastName } = req.body;
-    const fullName = (name || `${firstName} ${lastName}`.trim()).trim();
-
-    const nameCheck = validateName(fullName);
-    const emailCheck = validateEmail(email);
-    const passwordCheck = validatePassword(password);
-
-    if (!nameCheck.isValid) {
-      return res.status(400).json({ success: false, message: nameCheck.errors.join(', ') });
-    }
-
-    if (!emailCheck.isValid) {
-      return res.status(400).json({ success: false, message: emailCheck.errors.join(', ') });
-    }
-
-    if (!passwordCheck.isValid) {
-      return res.status(400).json({ success: false, message: passwordCheck.errors.join(', ') });
-    }
-
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return res.status(400).json({ success: false, message: 'Email already in use' });
-    }
-
-    const hashedPassword = await bcrypt.hash(password, 12);
-
-    const newUser = new User({
-      name: fullName,
-      email,
-      password: hashedPassword,
-      isActive: true
-    });
-
-    await newUser.save();
-
-    const token = jwt.sign({ id: newUser._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
-
-    res.status(201).json({
-      success: true,
-      message: 'User registered successfully',
-      data: {
-        token,
-        user: {
-          id: newUser._id,
-          name: newUser.name,
-          email: newUser.email,
-          role: newUser.role
-        }
-      }
-    });
-
-  } catch (error) {
-    console.error('❌ Registration error:', error);
-    res.status(500).json({ success: false, message: 'Server error during registration' });
-  }
-});
-
-// ========================================
-// USER PROFILE MANAGEMENT ROUTES
-// ========================================
-
-router.get('/profile', protect, async (req, res) => {
-  try {
-    const user = await User.findById(req.user._id)
-      .select('-password -loginAttempts -lockUntil')
-      .populate('favorites', 'name type breed image status');
-
-    if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found' });
-    }
-
-    res.json({ success: true, data: user, message: 'Profile retrieved successfully' });
-
-  } catch (error) {
-    console.error('❌ Error fetching user profile:', error);
-    res.status(500).json({ success: false, message: 'Error fetching profile' });
-  }
-});
-
-router.put('/profile', protect, validateUserProfile, async (req, res) => {
-  try {
-    const allowedUpdates = ['name', 'email', 'profile'];
-    const updates = {};
-
-    Object.keys(req.body).forEach(key => {
-      if (allowedUpdates.includes(key)) {
-        updates[key] = req.body[key];
-      }
-    });
-
-    const user = await User.findByIdAndUpdate(
-      req.user._id,
-      { $set: updates },
-      { new: true, runValidators: true }
-    ).select('-password -loginAttempts -lockUntil');
-
-    if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found' });
-    }
-
-    res.json({ success: true, data: user, message: 'Profile updated successfully' });
-
-  } catch (error) {
-    console.error('❌ Error updating user profile:', error);
-    if (error.code === 11000) {
-      return res.status(400).json({ success: false, message: 'Email already exists' });
-    }
-    res.status(500).json({ success: false, message: 'Error updating profile' });
-  }
-});
-
-// ========================================
-// USER FAVORITES MANAGEMENT
-// ========================================
-
-router.get('/favorites', protect, async (req, res) => {
-  try {
-    const user = await User.findById(req.user._id)
-      .populate({
-        path: 'favorites',
-        select: 'name type breed age image status location price description',
-        match: { status: { $ne: 'deleted' } }
-      });
-
-    if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found' });
-    }
-
-    res.json({
-      success: true,
-      data: user.favorites || [],
-      count: user.favorites?.length || 0,
-      message: 'Favorites retrieved successfully'
-    });
-
-  } catch (error) {
-    console.error('❌ Error fetching favorites:', error);
-    res.status(500).json({ success: false, message: 'Error fetching favorites' });
-  }
-});
-
-router.post('/favorites/:petId', protect, validateObjectId, async (req, res) => {
-  try {
-    const { petId } = req.params;
-    const pet = await Pet.findById(petId);
-    if (!pet) return res.status(404).json({ success: false, message: 'Pet not found' });
-
-    const user = await User.findById(req.user._id);
-    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
-
-    if (user.favorites.includes(petId)) {
-      return res.status(400).json({ success: false, message: 'Pet already in favorites' });
-    }
-
-    await user.addToFavorites(petId);
-
-    res.json({
-      success: true,
-      message: 'Pet added to favorites',
-      data: { petId, petName: pet.name }
-    });
-
-  } catch (error) {
-    console.error('❌ Error adding to favorites:', error);
-    res.status(500).json({ success: false, message: 'Error adding to favorites' });
-  }
-});
-
-router.delete('/favorites/:petId', protect, validateObjectId, async (req, res) => {
-  try {
-    const { petId } = req.params;
-    const user = await User.findById(req.user._id);
-    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
-
-    if (!user.favorites.includes(petId)) {
-      return res.status(400).json({ success: false, message: 'Pet not in favorites' });
-    }
-
-    await user.removeFromFavorites(petId);
-
-    res.json({ success: true, message: 'Pet removed from favorites', data: { petId } });
-
-  } catch (error) {
-    console.error('❌ Error removing from favorites:', error);
-    res.status(500).json({ success: false, message: 'Error removing from favorites' });
-  }
-});
-
-// ========================================
-// ADMIN USER MANAGEMENT ROUTES
-// ========================================
+const bcrypt = require('bcryptjs');
+const User = require('../models/User');
+const { protect, admin } = require('../middleware/auth');
+const { validateObjectId } = require('../middleware/validation');
 
 // @route   GET /api/users
 // @desc    Get all users (Admin only)
 // @access  Private/Admin
 router.get('/', protect, admin, async (req, res) => {
   try {
-    const {
-      page = 1,
-      limit = 20,
-      search,
-      role,
-      status,
-      sortBy = 'createdAt',
-      sortOrder = 'desc'
+    console.log('👥 GET /api/users - Admin fetching all users');
+
+    const { 
+      search, 
+      role, 
+      isActive, 
+      limit = 20, 
+      page = 1, 
+      sort = 'createdAt' 
     } = req.query;
 
-    console.log('👥 GET /api/users - Admin fetching users');
-
-    // Build query
     const query = {};
 
+    // Add search functionality
     if (search) {
       query.$or = [
         { name: { $regex: search, $options: 'i' } },
@@ -239,27 +32,42 @@ router.get('/', protect, admin, async (req, res) => {
       ];
     }
 
-    if (role && role !== 'all') {
+    // Filter by role
+    if (role) {
       query.role = role;
     }
 
-    if (status === 'active') {
-      query.isActive = true;
-    } else if (status === 'inactive') {
-      query.isActive = false;
+    // Filter by active status
+    if (isActive !== undefined) {
+      query.isActive = isActive === 'true';
     }
 
-    // Build sort object
-    const sort = {};
-    sort[sortBy] = sortOrder === 'desc' ? -1 : 1;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    
+    // Define sort options
+    const sortOptions = {};
+    switch (sort) {
+      case 'name':
+        sortOptions.name = 1;
+        break;
+      case 'email':
+        sortOptions.email = 1;
+        break;
+      case 'role':
+        sortOptions.role = 1;
+        break;
+      case 'oldest':
+        sortOptions.createdAt = 1;
+        break;
+      default:
+        sortOptions.createdAt = -1;
+    }
 
-    // Execute query with pagination
     const users = await User.find(query)
-      .select('-password -loginAttempts -lockUntil')
-      .sort(sort)
-      .limit(limit * 1)
-      .skip((page - 1) * limit)
-      .populate('favorites', 'name type breed');
+      .select('-password')
+      .sort(sortOptions)
+      .limit(parseInt(limit))
+      .skip(skip);
 
     const total = await User.countDocuments(query);
 
@@ -268,10 +76,10 @@ router.get('/', protect, admin, async (req, res) => {
       data: users,
       pagination: {
         currentPage: parseInt(page),
-        totalPages: Math.ceil(total / limit),
+        totalPages: Math.ceil(total / parseInt(limit)),
         totalUsers: total,
-        hasNext: page * limit < total,
-        hasPrev: page > 1
+        hasNext: skip + parseInt(limit) < total,
+        hasPrev: parseInt(page) > 1
       },
       message: 'Users retrieved successfully'
     });
@@ -285,17 +93,161 @@ router.get('/', protect, admin, async (req, res) => {
   }
 });
 
+// @route   GET /api/users/profile
+// @desc    Get current user profile
+// @access  Private
+router.get('/profile', protect, async (req, res) => {
+  try {
+    console.log('👤 GET /api/users/profile - User fetching own profile');
+
+    const user = await User.findById(req.user.id).select('-password');
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: user,
+      message: 'Profile retrieved successfully'
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching profile:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching profile'
+    });
+  }
+});
+
+// @route   PUT /api/users/profile
+// @desc    Update current user profile
+// @access  Private
+router.put('/profile', protect, async (req, res) => {
+  try {
+    console.log('👤 PUT /api/users/profile - User updating profile');
+
+    const allowedUpdates = ['name', 'email', 'profile'];
+    const updates = {};
+    
+    Object.keys(req.body).forEach(key => {
+      if (allowedUpdates.includes(key) && req.body[key] !== undefined) {
+        updates[key] = req.body[key];
+      }
+    });
+
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      { $set: updates },
+      { new: true, runValidators: true }
+    ).select('-password');
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: user,
+      message: 'Profile updated successfully'
+    });
+
+  } catch (error) {
+    console.error('❌ Error updating profile:', error);
+    
+    if (error.code === 11000) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email already exists'
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: 'Error updating profile'
+    });
+  }
+});
+
+// @route   PUT /api/users/change-password
+// @desc    Change user password
+// @access  Private
+router.put('/change-password', protect, async (req, res) => {
+  try {
+    console.log('🔐 PUT /api/users/change-password - User changing password');
+
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Current password and new password are required'
+      });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'New password must be at least 6 characters long'
+      });
+    }
+
+    const user = await User.findById(req.user.id).select('+password');
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Check current password
+    const isMatch = await user.comparePassword(currentPassword);
+    if (!isMatch) {
+      return res.status(400).json({
+        success: false,
+        message: 'Current password is incorrect'
+      });
+    }
+
+    // Hash new password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+    // Update password
+    user.password = hashedPassword;
+    await user.save();
+
+    res.json({
+      success: true,
+      message: 'Password changed successfully'
+    });
+
+  } catch (error) {
+    console.error('❌ Error changing password:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error changing password'
+    });
+  }
+});
+
 // @route   GET /api/users/:id
-// @desc    Get user by ID (Admin only)
+// @desc    Get specific user (Admin only)
 // @access  Private/Admin
 router.get('/:id', protect, admin, validateObjectId, async (req, res) => {
   try {
     console.log('👤 GET /api/users/:id - Admin fetching user:', req.params.id);
 
-    const user = await User.findById(req.params.id)
-      .select('-password')
-      .populate('favorites', 'name type breed image status');
-
+    const user = await User.findById(req.params.id).select('-password');
+    
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -375,10 +327,10 @@ router.put('/:id', protect, admin, validateObjectId, async (req, res) => {
 // @access  Private/Admin
 router.delete('/:id', protect, admin, validateObjectId, async (req, res) => {
   try {
-    console.log('🗑️ DELETE /api/users/:id - Admin deleting user:', req.params.id);
+    console.log('👤 DELETE /api/users/:id - Admin deleting user:', req.params.id);
 
     // Prevent admin from deleting themselves
-    if (req.params.id === req.user._id.toString()) {
+    if (req.params.id === req.user.id) {
       return res.status(400).json({
         success: false,
         message: 'Cannot delete your own account'
@@ -396,8 +348,7 @@ router.delete('/:id', protect, admin, validateObjectId, async (req, res) => {
 
     res.json({
       success: true,
-      message: 'User deleted successfully',
-      data: { deletedUserId: req.params.id }
+      message: 'User deleted successfully'
     });
 
   } catch (error) {
@@ -409,83 +360,81 @@ router.delete('/:id', protect, admin, validateObjectId, async (req, res) => {
   }
 });
 
-// ========================================
-// USER STATISTICS (Admin)
-// ========================================
-
-// @route   GET /api/users/stats/overview
-// @desc    Get user statistics (Admin only)
-// @access  Private/Admin
-router.get('/stats/overview', protect, admin, async (req, res) => {
+// @route   POST /api/users/forgot-password
+// @desc    Send password reset email
+// @access  Public
+router.post('/forgot-password', async (req, res) => {
   try {
-    console.log('📊 GET /api/users/stats/overview - Admin fetching stats');
+    const { email } = req.body;
 
-    const [
-      totalUsers,
-      activeUsers,
-      adminUsers,
-      recentUsers
-    ] = await Promise.all([
-      User.countDocuments(),
-      User.countDocuments({ isActive: true }),
-      User.countDocuments({ role: 'admin' }),
-      User.countDocuments({
-        createdAt: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) }
-      })
-    ]);
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email is required'
+      });
+    }
 
-    const usersByRole = await User.aggregate([
-      { $group: { _id: '$role', count: { $sum: 1 } } }
-    ]);
+    const user = await User.findOne({ email });
+    
+    if (!user) {
+      // Don't reveal if email exists or not for security
+      return res.json({
+        success: true,
+        message: 'If that email address exists, a reset link has been sent'
+      });
+    }
 
+    // Here you would implement email sending logic
+    // For now, just return success message
     res.json({
       success: true,
-      data: {
-        totalUsers,
-        activeUsers,
-        inactiveUsers: totalUsers - activeUsers,
-        adminUsers,
-        recentUsers,
-        usersByRole
-      },
-      message: 'User statistics retrieved successfully'
+      message: 'Password reset functionality will be implemented soon'
     });
 
   } catch (error) {
-    console.error('❌ Error fetching user stats:', error);
+    console.error('❌ Error in forgot password:', error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching user statistics'
+      message: 'Error processing password reset request'
     });
   }
 });
 
-// ========================================
-// ERROR HANDLING MIDDLEWARE
-// ========================================
-router.use((err, req, res, next) => {
-  console.error('❌ Users route error:', err);
+// @route   POST /api/users/reset-password
+// @desc    Reset password with token
+// @access  Public
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { token, password } = req.body;
 
-  if (err.name === 'ValidationError') {
-    const errors = Object.values(err.errors).map(e => e.message);
-    return res.status(400).json({
+    if (!token || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Token and new password are required'
+      });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 6 characters long'
+      });
+    }
+
+    // Here you would implement token validation and password reset
+    // For now, just return success message
+    res.json({
+      success: true,
+      message: 'Password reset functionality will be implemented soon'
+    });
+
+  } catch (error) {
+    console.error('❌ Error resetting password:', error);
+    res.status(500).json({
       success: false,
-      message: 'Validation failed',
-      errors
+      message: 'Error resetting password'
     });
   }
-
-  if (err.name === 'CastError') {
-    return res.status(400).json({
-      success: false,
-      message: 'Invalid ID format'
-    });
-  }
-
-  res.status(500).json({
-    success: false,
-    message: 'Internal server error'
-  });
 });
 
 module.exports = router;

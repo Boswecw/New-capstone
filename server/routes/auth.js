@@ -1,9 +1,15 @@
-// server/routes/auth.js - ENHANCED WITH DEBUG LOGGING
+// server/routes/auth.js - Authentication Routes
 const express = require('express');
 const router = express.Router();
-const User = require('../models/User');
-const { generateToken } = require('../middleware/auth');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 const { body, validationResult } = require('express-validator');
+const User = require('../models/User');
+
+// Generate JWT Token
+const generateToken = (userId) => {
+  return jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: '30d' });
+};
 
 // =====================================
 // @route   POST /api/auth/register
@@ -15,16 +21,11 @@ router.post('/register', [
   body('email').isEmail().withMessage('Valid email required'),
   body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters')
 ], async (req, res) => {
-  console.log('🔍 Registration attempt started');
-  console.log('📝 Request body:', { 
-    name: req.body.name, 
-    email: req.body.email, 
-    passwordLength: req.body.password?.length 
-  });
+  console.log('🔍 Registration attempt for:', req.body.email);
 
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    console.log('❌ Validation errors:', errors.array());
+    console.log('❌ Registration validation errors:', errors.array());
     return res.status(400).json({ 
       success: false, 
       errors: errors.array() 
@@ -35,50 +36,40 @@ router.post('/register', [
 
   try {
     // Check if user already exists
-    console.log('🔍 Checking if user exists with email:', email);
-    const userExists = await User.findOne({ email });
-
-    if (userExists) {
-      console.log('❌ User already exists:', email);
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      console.log('❌ Registration failed - email already exists:', email);
       return res.status(409).json({ 
         success: false, 
         message: 'Email already registered' 
       });
     }
 
-    console.log('✅ Email is available, creating new user...');
-    
-    // ✅ ENHANCED: More detailed user creation with explicit error handling
-    const userData = { name, email, password };
-    console.log('📦 User data to create:', { 
-      name: userData.name, 
-      email: userData.email, 
-      passwordProvided: !!userData.password 
+    // Hash password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    // Create new user
+    const user = new User({
+      name,
+      email,
+      password: hashedPassword,
+      role: 'user',
+      isActive: true
     });
 
-    const user = new User(userData);
-    console.log('🔧 User instance created, saving to database...');
-    
     const savedUser = await user.save();
-    console.log('✅ User saved successfully!');
-    console.log('📊 Saved user details:', {
-      id: savedUser._id,
-      name: savedUser.name,
-      email: savedUser.email,
-      role: savedUser.role,
-      createdAt: savedUser.createdAt
-    });
+    console.log('✅ User created successfully:', savedUser.email);
 
-    // Generate token
+    // Generate JWT token
     const token = generateToken(savedUser._id);
-    console.log('🔑 JWT token generated');
-
-    // ✅ VERIFY: Double-check user was actually saved
-    const verifyUser = await User.findById(savedUser._id);
-    if (verifyUser) {
-      console.log('✅ VERIFICATION: User found in database after save');
-    } else {
-      console.error('❌ VERIFICATION FAILED: User not found in database after save!');
+    
+    if (!token) {
+      console.error('❌ Failed to generate JWT token');
+      return res.status(500).json({ 
+        success: false, 
+        message: 'Failed to generate authentication token' 
+      });
     }
 
     res.status(201).json({
@@ -233,31 +224,31 @@ if (process.env.NODE_ENV === 'development') {
           name: user.name,
           email: user.email,
           hasPassword: !!user.password,
-          passwordLength: user.password?.length,
-          passwordStartsWith: user.password?.substring(0, 10) + '...',
-          isActive: user.isActive
+          passwordLength: user.password?.length
         });
 
-        // Test password comparison manually
-        if (user.password && password) {
-          console.log('🔍 Testing password comparison...');
-          const bcrypt = require('bcryptjs');
-          const isMatch = await bcrypt.compare(password, user.password);
-          console.log('🔍 Manual bcrypt compare result:', isMatch);
+        // Test password comparison
+        const isMatch = await user.comparePassword(password);
+        console.log('🔐 Password match:', isMatch);
 
-          // Test using model method
-          if (user.comparePassword) {
-            const modelMatch = await user.comparePassword(password);
-            console.log('🔍 Model method compare result:', modelMatch);
+        res.json({
+          success: true,
+          userFound: true,
+          passwordMatch: isMatch,
+          userDetails: {
+            id: user._id,
+            name: user.name,
+            email: user.email,
+            isActive: user.isActive
           }
-        }
+        });
+      } else {
+        res.json({
+          success: false,
+          userFound: false,
+          message: 'User not found'
+        });
       }
-
-      res.json({
-        success: true,
-        userFound: !!user,
-        hasPassword: user ? !!user.password : false
-      });
     } catch (error) {
       console.error('❌ Debug login error:', error);
       res.status(500).json({ success: false, error: error.message });
