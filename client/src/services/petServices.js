@@ -1,8 +1,9 @@
+// client/src/services/petServices.js - FIXED WITH PROPER IMPORTS
 
 import { petAPI } from './api';
 import { PetFilterUtils, validateFilters } from '../config/petFilters';
 
-// ✅ UPDATED: Enhanced pet service functions
+// ✅ Enhanced pet service functions
 export const getAllPets = async (params = {}) => {
   try {
     return await petAPI.getAllPets(params);
@@ -12,7 +13,7 @@ export const getAllPets = async (params = {}) => {
   }
 };
 
-// ✅ NEW: Enhanced search with new filter system
+// ✅ Enhanced search with new filter system
 export const searchPetsWithFilters = async (filters = {}) => {
   try {
     // Validate filters first
@@ -22,23 +23,29 @@ export const searchPetsWithFilters = async (filters = {}) => {
     const queryParams = PetFilterUtils.filtersToQueryString(validatedFilters);
     
     console.log('🔍 Searching pets with filters:', validatedFilters);
-    console.log('📡 Query params:', queryParams);
+    console.log('📡 Query params:', queryParams.toString());
     
     const response = await petAPI.getAllPets(queryParams);
     
-    // Also apply client-side filtering for immediate response
+    // Apply client-side filtering for immediate response if needed
     if (response.data?.success && response.data.data) {
       const serverPets = response.data.data;
-      const clientFilteredPets = PetFilterUtils.filterPets(serverPets, validatedFilters);
       
-      return {
-        ...response,
-        data: {
-          ...response.data,
-          data: clientFilteredPets,
-          clientFiltered: true
-        }
-      };
+      // Only apply client-side filtering if we have additional filters not handled by server
+      const needsClientFiltering = validatedFilters.search && validatedFilters.search.length > 0;
+      
+      if (needsClientFiltering) {
+        const clientFilteredPets = PetFilterUtils.filterPets(serverPets, validatedFilters);
+        
+        return {
+          ...response,
+          data: {
+            ...response.data,
+            data: clientFilteredPets,
+            clientFiltered: true
+          }
+        };
+      }
     }
     
     return response;
@@ -48,18 +55,22 @@ export const searchPetsWithFilters = async (filters = {}) => {
   }
 };
 
-// ✅ UPDATED: Legacy search function with new system
+// ✅ Legacy search function with new system
 export const searchPets = async (params = {}) => {
   try {
     // Convert old params to new filter format
     const filters = {
       search: params.search || '',
       category: params.category || 'all',
-      type: params.breed || 'all',
+      type: params.breed || params.type || 'all',
       age: params.age || 'all',
       featured: params.featured || null,
       size: params.size || 'all',
-      gender: params.gender || 'all'
+      gender: params.gender || 'all',
+      status: params.status || 'available',
+      sort: params.sort || 'newest',
+      page: params.page || 1,
+      limit: params.limit || 20
     };
     
     return await searchPetsWithFilters(filters);
@@ -69,39 +80,50 @@ export const searchPets = async (params = {}) => {
   }
 };
 
-// ✅ ENHANCED: Get featured pets with category support
+// ✅ Enhanced: Get featured pets with category support
 export const getFeaturedPets = async (limit = 6, category = null) => {
   try {
-    const filters = { featured: true };
+    const filters = { 
+      featured: true,
+      status: 'available',
+      limit: limit
+    };
+    
     if (category && category !== 'all') {
       filters.category = category;
     }
     
-    const params = PetFilterUtils.filtersToQueryString(filters);
-    if (limit) params.append('limit', limit);
+    const queryParams = PetFilterUtils.filtersToQueryString(filters);
     
-    return await petAPI.getAllPets(params);
+    return await petAPI.getAllPets(queryParams);
   } catch (error) {
     console.error('Error fetching featured pets:', error);
     throw error;
   }
 };
 
-// ✅ NEW: Get pets by new category system
+// ✅ Get pets by new category system
 export const getPetsByCategory = async (category, limit = null) => {
   try {
-    const filters = { category };
-    const params = PetFilterUtils.filtersToQueryString(filters);
-    if (limit) params.append('limit', limit);
+    const filters = { 
+      category,
+      status: 'available'
+    };
     
-    return await petAPI.getAllPets(params);
+    if (limit) {
+      filters.limit = limit;
+    }
+    
+    const queryParams = PetFilterUtils.filtersToQueryString(filters);
+    
+    return await petAPI.getAllPets(queryParams);
   } catch (error) {
     console.error('Error fetching pets by category:', error);
     throw error;
   }
 };
 
-// ✅ NEW: Get filter counts for UI
+// ✅ Get filter counts for UI
 export const getFilterCounts = async () => {
   try {
     // Get all pets to calculate counts
@@ -119,7 +141,35 @@ export const getFilterCounts = async () => {
   }
 };
 
-// ✅ EXISTING: Keep existing functions
+// ✅ Get popular filter combinations
+export const getPopularFilterCombinations = async () => {
+  try {
+    const combinations = PetFilterUtils.getPopularCombinations();
+    
+    // Get counts for each combination
+    const combinationsWithCounts = await Promise.all(
+      combinations.map(async (combo) => {
+        try {
+          const response = await searchPetsWithFilters(combo.filters);
+          return {
+            ...combo,
+            count: response.data?.pagination?.total || 0
+          };
+        } catch (error) {
+          console.error('Error getting count for combination:', combo.label, error);
+          return { ...combo, count: 0 };
+        }
+      })
+    );
+    
+    return { success: true, data: combinationsWithCounts };
+  } catch (error) {
+    console.error('Error getting popular combinations:', error);
+    return { success: false, data: [] };
+  }
+};
+
+// ✅ Existing functions - keep as is
 export const getPetById = async (id) => {
   try {
     return await petAPI.getPetById(id);
@@ -175,17 +225,25 @@ export const deletePet = async (id) => {
   }
 };
 
-// ✅ UPDATED: Enhanced service object
+// ✅ Enhanced service object with all new functions
 const petService = {
+  // Core functions
   getAllPets,
   searchPets,
-  searchPetsWithFilters, // NEW
+  searchPetsWithFilters,
   getFeaturedPets,
   getPetById,
   getPetsByCategory,
-  getFilterCounts, // NEW
+  
+  // Filter utilities
+  getFilterCounts,
+  getPopularFilterCombinations,
+  
+  // User functions
   addToFavorites,
   removeFromFavorites,
+  
+  // Admin functions
   createPet,
   updatePet,
   deletePet

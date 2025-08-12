@@ -10,13 +10,13 @@ This document outlines the environment variables required by the backend server 
 |----------|-------------|
 | `MONGODB_URI` | MongoDB connection string. |
 | `JWT_SECRET` | Secret key used to sign JSON Web Tokens. |
+| `GCS_BUCKET` | Name of the Google Cloud Storage bucket for pet images. |
 
 ### Optional
 
 | Variable | Description |
 |----------|-------------|
 | `GOOGLE_CLOUD_PROJECT_ID` | Google Cloud project identifier used for accessing Google Cloud Storage. |
-| `GCS_BUCKET` | Name of the Google Cloud Storage bucket for pet images. |
 | `FRONTEND_URL` | URL of the frontend application used for CORS checks. |
 
 ## Configure on Render

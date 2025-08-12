@@ -20,7 +20,7 @@ const enrichPetData = (pet) => {
   return {
     ...petObj,
     imageUrl: petObj.image ?
-      `https://storage.googleapis.com/furbabies-petstore/${petObj.image}` : null,
+      `https://storage.googleapis.com/furbabies-petstore/${encodeURIComponent(petObj.image)}` : null,
     hasImage: !!petObj.image,
     displayName: petObj.name || 'Unnamed Pet',
     isAvailable: petObj.status === 'available',

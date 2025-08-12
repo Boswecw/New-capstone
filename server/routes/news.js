@@ -1,18 +1,4 @@
 // server/routes/news.js - CLEANED UP VERSION (No problematic imports)
-<<<<<<< HEAD
-const express = require('express');
-const router = express.Router();
-const NewsArticle = require('../models/NewsArticle'); // ✅ Use your existing model
-const { protect, admin } = require('../middleware/auth');
-const {
-  formatExternal,
-  fetchExternalNews,
-  getFallbackExternalNews,
-  getNewsServiceHealth
-} = require('../services/newsService');
-
-// ===== MAIN ROUTES =====
-=======
 const express = require('express');
 const router = express.Router();
 const crypto = require('crypto');
@@ -52,9 +38,7 @@ const formatExternal = (article) => ({
   type: 'external'
 });
 
-
 // ===== MAIN ROUTES =====
->>>>>>> 7147bbd10087f3d8c934a448e0fc622cfd9f09f1
 
 // GET /api/news/health - Health check
 router.get('/health', (req, res) => {

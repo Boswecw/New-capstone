@@ -17,7 +17,7 @@ export const bucketFolders = {
  * @returns {string} Public URL
  */
 export const getPublicImageUrl = (fileName) => {
-  return `${BUCKET_BASE_URL}/${fileName}`;
+  return `${BUCKET_BASE_URL}/${encodeURIComponent(fileName)}`;
 };
 
 /**

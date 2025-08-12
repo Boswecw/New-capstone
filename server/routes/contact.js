@@ -1,12 +1,7 @@
 // ===== server/routes/contact.js =====
 const express = require('express');
 const router = express.Router();
-<<<<<<< HEAD
 const mongoose = require('mongoose');
-const Contact = require('../models/Contact');
-const { protect, admin } = require('../middleware/auth');
-const { validateContactSubmission, validateObjectId } = require('../middleware/validation');
-=======
 const Contact = require('../models/Contact');
 const { protect, admin } = require('../middleware/auth');
 const { validateContactSubmission, validateObjectId } = require('../middleware/validation');
@@ -25,7 +20,7 @@ const {
 let transporter = null;
 
 if (SMTP_HOST && SMTP_PORT && SMTP_USER && SMTP_PASS) {
-  transporter = nodemailer.createTransport({
+  transporter = nodemailer.createTransporter({
     host: SMTP_HOST,
     port: parseInt(SMTP_PORT),
     secure: Number(SMTP_PORT) === 465,
@@ -70,7 +65,6 @@ const sendContactResponse = async (contact) => {
     console.error('Error sending contact response email:', err);
   }
 };
->>>>>>> 7147bbd10087f3d8c934a448e0fc622cfd9f09f1
 
 // Helpers
 const toInt = (v, d) => {
@@ -108,12 +102,8 @@ router.post('/', validateContactSubmission, async (req, res) => {
 
     await contact.save();
 
-<<<<<<< HEAD
-    // TODO: send admin notification email here
-=======
     // Notify administrators of the new submission
     await sendContactNotification(contact);
->>>>>>> 7147bbd10087f3d8c934a448e0fc622cfd9f09f1
 
     return res.status(201).json({
       success: true,
@@ -282,12 +272,8 @@ router.put('/:id/respond', protect, admin, validateObjectId, async (req, res) =>
 
     await contact.populate('response.respondedBy', 'name username email');
 
-<<<<<<< HEAD
-    // TODO: optionally send email to the customer with the response
-=======
     // Send a response email to the customer
     await sendContactResponse(contact);
->>>>>>> 7147bbd10087f3d8c934a448e0fc622cfd9f09f1
 
     return res.json({
       success: true,

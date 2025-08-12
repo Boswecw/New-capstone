@@ -116,7 +116,7 @@ const Profile = () => {
                         <div style={{ height: '200px', overflow: 'hidden' }}>
                           <Card.Img
                             variant="top"
-                            src={`https://storage.googleapis.com/furbabies-petstore/${pet.image}`}
+                            src={`https://storage.googleapis.com/furbabies-petstore/${encodeURIComponent(pet.image)}`}
                             alt={pet.name}
                             style={{ 
                               height: '100%', 

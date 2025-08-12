@@ -1,140 +1,72 @@
-// client/src/utils/imageUtils.js - CORRECTED VERSION
-
+// client/src/utils/imageUtils.js - FIXED VERSION (NO URL ENCODING)
 const BUCKET_NAME = 'furbabies-petstore';
 const GCS_BASE_URL = `https://storage.googleapis.com/${BUCKET_NAME}`;
 
-// ✅ UPDATED FALLBACK IMAGES - Using reliable CDN sources
-const DEFAULT_IMAGES = {
+// Enhanced fallback images for both pets and products
+const FALLBACK_IMAGES = {
+  // Pet fallbacks
   pet: 'https://images.unsplash.com/photo-1601758228041-f3b2795255f1?w=400&h=300&fit=crop&q=80&auto=format',
   dog: 'https://images.unsplash.com/photo-1583337130417-3346a1be7dee?w=400&h=300&fit=crop&q=80&auto=format',
   cat: 'https://images.unsplash.com/photo-1574144611937-0df059b5ef3e?w=400&h=300&fit=crop&q=80&auto=format',
-  aquatic: 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400&h=300&fit=crop&q=80&auto=format',
   fish: 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400&h=300&fit=crop&q=80&auto=format',
+  aquatic: 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400&h=300&fit=crop&q=80&auto=format',
   bird: 'https://images.unsplash.com/photo-1520637836862-4d197d17c448?w=400&h=300&fit=crop&q=80&auto=format',
-  other: 'https://images.unsplash.com/photo-1585110396000-c9ffd4e4b308?w=400&h=300&fit=crop&q=80&auto=format',
+  
+  // Product fallbacks - category specific
+  'dog care': 'https://images.unsplash.com/photo-1552053831-71594a27632d?w=400&h=300&fit=crop&q=80&auto=format',
+  'cat care': 'https://images.unsplash.com/photo-1574144611937-0df059b5ef3e?w=400&h=300&fit=crop&q=80&auto=format',
+  'aquarium & fish care': 'https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=400&h=300&fit=crop&q=80&auto=format',
+  'grooming & health': 'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400&h=300&fit=crop&q=80&auto=format',
+  'training & behavior': 'https://images.unsplash.com/photo-1601758228041-f3b2795255f1?w=400&h=300&fit=crop&q=80&auto=format',
+  
+  // Generic fallbacks
   product: 'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400&h=300&fit=crop&q=80&auto=format',
+  other: 'https://images.unsplash.com/photo-1585110396000-c9ffd4e4b308?w=400&h=300&fit=crop&q=80&auto=format',
   default: 'https://images.unsplash.com/photo-1548767797-d8c844163c4c?w=400&h=300&fit=crop&q=80&auto=format'
 };
 
 /**
- * Get proxy base URL for CORS handling
+ * Clean image path - remove prefixes and normalize
  */
-const getProxyBaseUrl = () => {
-  if (process.env.NODE_ENV === 'production') {
-    // ✅ UPDATE THIS TO YOUR ACTUAL BACKEND URL
-    return 'https://furbabies-backend.onrender.com/api/images/gcs';
-  }
-  return 'http://localhost:5000/api/images/gcs';
-};
-
-/**
- * Clean image path - remove leading slashes, fix double slashes
- */
-const cleanImagePath = (imagePath) => {
-  if (!imagePath || typeof imagePath !== 'string') {
-    return '';
-  }
+export const cleanImagePath = (imagePath) => {
+  if (!imagePath || typeof imagePath !== 'string') return '';
   
-  return imagePath.trim()
-    .replace(/^\/+/, '')    // Remove leading slashes
-    .replace(/\/+/g, '/');  // Fix double slashes
+  let cleanPath = imagePath.trim();
+  
+  // Remove leading slashes
+  cleanPath = cleanPath.replace(/^\/+/, '');
+  
+  // Remove 'images/' prefix if present
+  cleanPath = cleanPath.replace(/^images\//, '');
+  
+  // Remove bucket name if accidentally included
+  cleanPath = cleanPath.replace(/^furbabies-petstore\//, '');
+  
+  return cleanPath;
 };
 
 /**
  * Get fallback image based on category/type
  */
-const getFallbackImage = (category, type) => {
-  // Try specific type first
-  if (type && DEFAULT_IMAGES[type.toLowerCase()]) {
-    return DEFAULT_IMAGES[type.toLowerCase()];
+export const getFallbackImage = (category = null, type = null) => {
+  // Try to match by type first (for pets)
+  if (type && FALLBACK_IMAGES[type.toLowerCase()]) {
+    return FALLBACK_IMAGES[type.toLowerCase()];
   }
   
-  // Try category
-  if (category && DEFAULT_IMAGES[category.toLowerCase()]) {
-    return DEFAULT_IMAGES[category.toLowerCase()];
+  // Then try by category (for products)
+  if (category && FALLBACK_IMAGES[category.toLowerCase()]) {
+    return FALLBACK_IMAGES[category.toLowerCase()];
   }
   
-  return DEFAULT_IMAGES.default;
+  // Default fallback
+  return FALLBACK_IMAGES.default;
 };
 
 /**
- * Build Google Cloud Storage URL with multiple fallback strategies
+ * 🚨 CRITICAL FIX: Build direct GCS URL (NO ENCODING!)
  */
 export const getImageUrl = (imagePath, category = null, type = null) => {
-  // If already a full URL, return it
-  if (imagePath && (imagePath.startsWith('http://') || imagePath.startsWith('https://'))) {
-    return imagePath;
-  }
-
-  // If no image path, return fallback immediately
-  if (!imagePath || typeof imagePath !== 'string' || imagePath.trim() === '') {
-    return getFallbackImage(category, type);
-  }
-
-  const cleanPath = cleanImagePath(imagePath);
-  if (!cleanPath) {
-    return getFallbackImage(category, type);
-  }
-
-  // Build direct GCS URL
-  const gcsUrl = `${GCS_BASE_URL}/${cleanPath}`;
-  
-  console.log('🖼️ Building image URL:', {
-    input: imagePath,
-    cleaned: cleanPath,
-    final: gcsUrl,
-    fallback: getFallbackImage(category, type)
-  });
-
-  return gcsUrl;
-};
-
-/**
- * Enhanced image component with error handling
- */
-export const ImageWithFallback = ({ 
-  src, 
-  alt, 
-  category = null, 
-  type = null, 
-  className = '', 
-  style = {},
-  ...props 
-}) => {
-  const [currentSrc, setCurrentSrc] = React.useState(() => getImageUrl(src, category, type));
-  const [hasError, setHasError] = React.useState(false);
-
-  const handleError = () => {
-    if (!hasError) {
-      console.log('🔄 Image failed, switching to fallback:', currentSrc);
-      setHasError(true);
-      setCurrentSrc(getFallbackImage(category, type));
-    }
-  };
-
-  // Reset error state when src changes
-  React.useEffect(() => {
-    setHasError(false);
-    setCurrentSrc(getImageUrl(src, category, type));
-  }, [src, category, type]);
-
-  return (
-    <img 
-      src={currentSrc}
-      alt={alt}
-      className={className}
-      style={style}
-      onError={handleError}
-      loading="lazy"
-      {...props}
-    />
-  );
-};
-
-/**
- * Build image URL using proxy (for CORS handling)
- */
-export const getProxyImageUrl = (imagePath, category = null, type = null) => {
   if (!imagePath || typeof imagePath !== 'string' || imagePath.trim() === '') {
     return getFallbackImage(category, type);
   }
@@ -149,12 +81,47 @@ export const getProxyImageUrl = (imagePath, category = null, type = null) => {
     return getFallbackImage(category, type);
   }
 
+  // ✅ CRITICAL FIX: Don't encode the path - just build URL properly
+  const gcsUrl = `${GCS_BASE_URL}/${cleanPath}`;
+  
+  console.log('🖼️ Building GCS URL:', {
+    input: imagePath,
+    cleaned: cleanPath,
+    final: gcsUrl
+  });
+
+  return gcsUrl;
+};
+
+/**
+ * 🚨 CRITICAL FIX: Build proxy URL (NO ENCODING!)
+ */
+export const getProxyImageUrl = (imagePath, category = null, type = null) => {
+  if (!imagePath || typeof imagePath !== 'string' || imagePath.trim() === '') {
+    return getFallbackImage(category, type);
+  }
+
+  const cleanPath = cleanImagePath(imagePath);
+  if (!cleanPath) {
+    return getFallbackImage(category, type);
+  }
+
+  const getProxyBaseUrl = () => {
+    if (process.env.NODE_ENV === 'production') {
+      return process.env.REACT_APP_IMAGE_PROXY_URL || 
+             (process.env.REACT_APP_API_URL?.replace('/api', '') + '/api/images/gcs') ||
+             'https://new-capstone.onrender.com/api/images/gcs';
+    }
+    return 'http://localhost:5000/api/images/gcs';
+  };
+
+  // ✅ CRITICAL FIX: Don't encode the path
   const proxyUrl = `${getProxyBaseUrl()}/${cleanPath}`;
   
   console.log('🛡️ Building proxy URL:', {
     input: imagePath,
     cleaned: cleanPath,
-    proxy: proxyUrl
+    final: proxyUrl
   });
 
   return proxyUrl;
@@ -163,12 +130,15 @@ export const getProxyImageUrl = (imagePath, category = null, type = null) => {
 /**
  * Check if an image URL is accessible
  */
-export const checkImageExists = async (url) => {
+export const validateImageUrl = (url) => {
   return new Promise((resolve) => {
     const img = new Image();
     img.onload = () => resolve(true);
     img.onerror = () => resolve(false);
     img.src = url;
+    
+    // Timeout after 10 seconds
+    setTimeout(() => resolve(false), 10000);
   });
 };
 
@@ -178,16 +148,24 @@ export const checkImageExists = async (url) => {
 export const getBestImageUrl = async (imagePath, category = null, type = null) => {
   // Try direct GCS URL first
   const gcsUrl = getImageUrl(imagePath, category, type);
-  const gcsWorks = await checkImageExists(gcsUrl);
-  if (gcsWorks) return gcsUrl;
+  const gcsWorks = await validateImageUrl(gcsUrl);
+  if (gcsWorks) {
+    console.log('✅ Direct GCS URL works:', gcsUrl);
+    return gcsUrl;
+  }
 
   // Try proxy URL
   const proxyUrl = getProxyImageUrl(imagePath, category, type);
-  const proxyWorks = await checkImageExists(proxyUrl);
-  if (proxyWorks) return proxyUrl;
+  const proxyWorks = await validateImageUrl(proxyUrl);
+  if (proxyWorks) {
+    console.log('✅ Proxy URL works:', proxyUrl);
+    return proxyUrl;
+  }
 
   // Return fallback
-  return getFallbackImage(category, type);
+  const fallbackUrl = getFallbackImage(category, type);
+  console.log('🔄 Using fallback URL:', fallbackUrl);
+  return fallbackUrl;
 };
 
 /**
@@ -202,19 +180,16 @@ export const preloadImages = (imageUrls) => {
   });
 };
 
-// Export the React import for ImageWithFallback
-export const React = require('react');
-
+// Default export with all utilities
 const imageUtils = {
   getImageUrl,
   getProxyImageUrl,
   getBestImageUrl,
-  checkImageExists,
+  validateImageUrl,
   preloadImages,
-  ImageWithFallback,
   cleanImagePath,
   getFallbackImage,
-  DEFAULT_IMAGES
+  FALLBACK_IMAGES
 };
 
 export default imageUtils;

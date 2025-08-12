@@ -12,7 +12,9 @@ const storage = new Storage({
 // different buckets without code changes
 const bucketName = process.env.GCS_BUCKET;
 if (!bucketName) {
-  console.warn('GCS_BUCKET environment variable is not set');
+  const message = 'GCS_BUCKET environment variable is not set';
+  console.warn(message);
+  throw new Error(message);
 }
 const bucket = storage.bucket(bucketName);
 
@@ -34,12 +36,43 @@ router.use((req, res, next) => {
 
 // ===== HEALTH CHECK =====
 router.get('/health', (req, res) => {
-  res.json({ 
-    status: 'ok', 
+  res.json({
+    status: 'ok',
     service: 'image-proxy',
     bucket: bucketName,
     timestamp: new Date().toISOString()
   });
+});
+
+// ===== LIST IMAGES IN BUCKET =====
+// Example: GET /api/images/gcs?prefix=product/&public=true
+router.get('/gcs', async (req, res) => {
+  try {
+    const { prefix = '' } = req.query;
+    console.log(`\uD83D\uDCF8 Listing images with prefix: "${prefix}"`);
+
+    const [files] = await bucket.getFiles({ prefix });
+
+    const images = files.map(file => ({
+      name: file.name,
+      fileName: file.name.split('/').pop(),
+      folder: file.name.split('/')[0],
+      contentType: file.metadata?.contentType,
+      size: file.metadata?.size,
+      updated: file.metadata?.updated,
+      created: file.metadata?.timeCreated,
+      publicUrl: `https://storage.googleapis.com/${bucketName}/${file.name}`
+    }));
+
+    res.json({ success: true, data: images });
+  } catch (error) {
+    console.error('\u274C Error listing images:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to list images',
+      error: error.message
+    });
+  }
 });
 
 // ===== MAIN IMAGE SERVING ROUTE =====

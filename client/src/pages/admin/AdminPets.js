@@ -1,5 +1,6 @@
 // client/src/pages/admin/AdminPets.js - SHOW ALL PETS VERSION
 import React, { useState, useEffect, useCallback, useMemo } from "react";
+import axios from "axios";
 import {
   Row,
   Col,
@@ -14,28 +15,36 @@ import {
   Pagination
 } from "react-bootstrap";
 import DataTable from "../../components/DataTable";
-import axios from 'axios';
+import { usePetFilters } from "../../hooks/usePetFilters";
 
 const AdminPets = () => {
-  const [pets, setPets] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [pagination, setPagination] = useState({});
-  const [currentPage, setCurrentPage] = useState(1);
-  const [viewMode, setViewMode] = useState('paginated'); // 'paginated' or 'all'
-  const [itemsPerPage, setItemsPerPage] = useState(20); // Increased default
-  
-  const [filters, setFilters] = useState({
-    search: "",
-    category: "",
-    type: "",
-    status: "",
-    available: "",
-  });
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [editingPet, setEditingPet] = useState(null);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [deletingPet, setDeletingPet] = useState(null);
+  const {
+    filters,
+    results: pets,
+    loading: hookLoading,
+    pagination,
+    setFilter,
+    clearFilters,
+    setPage
+  } = usePetFilters();
+
+  // Local state for UI management
+  const [loading, setLoading] = useState(false);
   const [alert, setAlert] = useState({ show: false, message: "", variant: "" });
+  const [editingPet, setEditingPet] = useState(null);
+  const [deletingPet, setDeletingPet] = useState(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [viewMode, setViewMode] = useState('paginated');
+  const [itemsPerPage, setItemsPerPage] = useState(20);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [localPets, setLocalPets] = useState([]);
+  const [localPagination, setLocalPagination] = useState({});
+
+  // Use either hook data or local state based on context
+  const displayPets = pets || localPets;
+  const displayLoading = hookLoading || loading;
+  const displayPagination = pagination || localPagination;
 
   // ✅ Stable API instance
   const adminAPI = useMemo(() => {
@@ -91,8 +100,8 @@ const AdminPets = () => {
         const response = await adminAPI.get(`/admin/pets?${params.toString()}`);
         
         if (response.data.success) {
-          setPets(response.data.data || []);
-          setPagination(response.data.pagination || {});
+          setLocalPets(response.data.data || []);
+          setLocalPagination(response.data.pagination || {});
           console.log(`✅ Admin pets loaded: ${response.data.data?.length || 0} pets (Total: ${response.data.pagination?.totalPets || 0})`);
         } else {
           throw new Error(response.data.message || 'Failed to fetch pets');
@@ -209,13 +218,25 @@ const AdminPets = () => {
     }
   };
 
-  const handleFilterChange = (newFilters) => {
-    setFilters(prev => ({ ...prev, ...newFilters }));
+  // ✅ FIXED: Single handleFilterChange function
+  const handleFilterChange = (filterUpdates) => {
+    // If using the hook's setFilter, update individual filters
+    if (setFilter && typeof filterUpdates === 'object') {
+      Object.entries(filterUpdates).forEach(([key, value]) => {
+        setFilter(key, value);
+      });
+    }
   };
 
   const handleRefresh = () => {
     console.log('🔄 Manual refresh');
     fetchPets(currentPage);
+  };
+
+  const handleClearFilters = () => {
+    if (clearFilters) {
+      clearFilters();
+    }
   };
 
   const columns = [
@@ -279,7 +300,7 @@ const AdminPets = () => {
     }
   ];
 
-  if (loading) {
+  if (displayLoading) {
     return (
       <div className="d-flex flex-column justify-content-center align-items-center" style={{ height: '50vh' }}>
         <Spinner animation="border" variant="primary" />
@@ -299,8 +320,8 @@ const AdminPets = () => {
                 Manage pet listings and information
                 <Badge bg="success" className="ms-2">
                   {viewMode === 'all' 
-                    ? `${pets.length} pets total` 
-                    : `${pets.length} of ${pagination.totalPets || 0} pets`
+                    ? `${displayPets.length} pets total` 
+                    : `${displayPets.length} of ${displayPagination.totalPets || 0} pets`
                   }
                 </Badge>
               </p>
@@ -386,13 +407,13 @@ const AdminPets = () => {
             <Col md={3}>
               <Form.Control
                 placeholder="Search pets..."
-                value={filters.search}
+                value={filters.search || ''}
                 onChange={(e) => handleFilterChange({ search: e.target.value })}
               />
             </Col>
             <Col md={2}>
               <Form.Select
-                value={filters.type}
+                value={filters.type || ''}
                 onChange={(e) => handleFilterChange({ type: e.target.value })}
               >
                 <option value="">All Types</option>
@@ -405,7 +426,7 @@ const AdminPets = () => {
             </Col>
             <Col md={2}>
               <Form.Select
-                value={filters.status}
+                value={filters.status || ''}
                 onChange={(e) => handleFilterChange({ status: e.target.value })}
               >
                 <option value="">All Status</option>
@@ -418,7 +439,7 @@ const AdminPets = () => {
               <Button 
                 variant="outline-secondary" 
                 size="sm" 
-                onClick={() => setFilters({ search: "", category: "", type: "", status: "", available: "" })}
+                onClick={handleClearFilters}
               >
                 Clear Filters
               </Button>
@@ -427,15 +448,15 @@ const AdminPets = () => {
 
           {/* ✅ DATA TABLE */}
           <DataTable
-            data={pets}
+            data={displayPets}
             columns={columns}
-            loading={loading}
-            pagination={viewMode === 'paginated' ? pagination : null}
+            loading={displayLoading}
+            pagination={viewMode === 'paginated' ? displayPagination : null}
             onPageChange={viewMode === 'paginated' ? handlePageChange : null}
           />
 
           {/* ✅ PAGINATION CONTROLS (only show in paginated mode) */}
-          {viewMode === 'paginated' && pagination.totalPages > 1 && (
+          {viewMode === 'paginated' && displayPagination.totalPages > 1 && (
             <div className="d-flex justify-content-center mt-4">
               <Pagination>
                 <Pagination.First 
@@ -448,9 +469,9 @@ const AdminPets = () => {
                 />
                 
                 {/* Show page numbers */}
-                {[...Array(Math.min(pagination.totalPages, 5))].map((_, index) => {
+                {[...Array(Math.min(displayPagination.totalPages, 5))].map((_, index) => {
                   const pageNum = currentPage <= 3 ? index + 1 : currentPage - 2 + index;
-                  if (pageNum > pagination.totalPages) return null;
+                  if (pageNum > displayPagination.totalPages) return null;
                   
                   return (
                     <Pagination.Item
@@ -464,12 +485,12 @@ const AdminPets = () => {
                 })}
                 
                 <Pagination.Next 
-                  disabled={currentPage === pagination.totalPages}
+                  disabled={currentPage === displayPagination.totalPages}
                   onClick={() => handlePageChange(currentPage + 1)}
                 />
                 <Pagination.Last 
-                  disabled={currentPage === pagination.totalPages}
-                  onClick={() => handlePageChange(pagination.totalPages)}
+                  disabled={currentPage === displayPagination.totalPages}
+                  onClick={() => handlePageChange(displayPagination.totalPages)}
                 />
               </Pagination>
             </div>

@@ -249,8 +249,8 @@ articleSchema.virtual('imageUrl').get(function() {
     return this.image;
   }
   
-  // Construct Google Cloud Storage URL
-  return `https://storage.googleapis.com/furbabies-petstore/${this.image}`;
+  // Construct Google Cloud Storage URL with encoded object name
+  return `https://storage.googleapis.com/furbabies-petstore/${encodeURIComponent(this.image)}`;
 });
 
 // Virtual for reading statistics

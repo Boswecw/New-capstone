@@ -1,4 +1,5 @@
-// client/src/App.js - FINAL CLEAN VERSION
+// client/src/App.js - FINAL CLEAN VERSION with Performance Monitor
+
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import { ToastProvider } from "./contexts/ToastContext";
@@ -47,9 +48,39 @@ import AdminLayout from "./components/admin/AdminLayout";
 // Protected Route
 import ProtectedRoute from "./components/ProtectedRoute";
 
-// Bootstrap & Custom Styles
+// Styles
 import "bootstrap/dist/css/bootstrap.min.css";
-import './styles/globals.css';
+import "./styles/globals.css";
+
+// ============================================
+// Performance Monitoring (kept in this file, outside JSX)
+// ============================================
+export const performanceMonitor = {
+  logFilterPerformance: (filterName, startTime) => {
+    const endTime = Date.now();
+    const duration = endTime - startTime;
+    // eslint-disable-next-line no-console
+    console.log(`⚡ ${filterName} completed in ${duration}ms`);
+    if (duration > 1000) {
+      // eslint-disable-next-line no-console
+      console.warn(`🐌 Slow filter detected: ${filterName} took ${duration}ms`);
+    }
+  },
+
+  logImageLoadPerformance: (imageSrc, startTime, success) => {
+    const endTime = Date.now();
+    const duration = endTime - startTime;
+    const status = success ? "✅" : "❌";
+    // eslint-disable-next-line no-console
+    console.log(`🖼️ ${status} Image load: ${imageSrc} (${duration}ms)`);
+  },
+};
+
+// Expose globally in dev for quick console access (optional)
+if (process.env.NODE_ENV !== "production") {
+  // eslint-disable-next-line no-undef
+  window.performanceMonitor = performanceMonitor;
+}
 
 function App() {
   return (
@@ -148,4 +179,3 @@ function App() {
 }
 
 export default App;
-
