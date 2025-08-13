@@ -1,226 +1,138 @@
-// client/src/components/PetCard.js - UPDATED FOR IMPROVED SAFEIMAGE
-
-import React from 'react';
-import { Card, Badge, Button } from 'react-bootstrap';
+// client/src/components/PetCard.js
+import React, { useState } from 'react';
+import { Card, Badge } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
-import SafeImage from './SafeImage';
+import { normalizeImageUrl } from '../utils/image';
 import styles from './Card.module.css';
 
-// Helper function to safely pick the best image URL
-const pickImage = (pet) => {
-  const raw = pet.imageUrl || pet.image || (Array.isArray(pet.images) && pet.images.length ? pet.images[0] : "");
-  if (!raw) return "";
+const PetCard = ({ pet }) => {
+  const [containerType, setContainerType] = useState('square');
+  const [imageLoaded, setImageLoaded] = useState(false);
   
-  const isAbsolute = /^https?:\/\//i.test(raw);
-  return isAbsolute ? raw : `/api/images/resolve?src=${encodeURIComponent(raw)}`;
-};
+  const imageSrc = normalizeImageUrl(pet?.image) || 
+                   'https://images.unsplash.com/photo-1601758228041-f3b2795255f1?w=300&h=200&fit=crop&q=80';
 
-const PetCard = ({ 
-  pet, 
-  showFavoriteButton = false,
-  showAdoptionStatus = true,
-  onClick = null,
-  className = ""
-}) => {
-  // ✅ DEFENSIVE CHECK: Return early if pet is undefined or null
-  if (!pet) {
-    console.warn('⚠️ PetCard: pet prop is undefined or null');
-    return (
-      <Card className={`h-100 ${styles.enhancedCard} ${className}`}>
-        <Card.Body className="d-flex align-items-center justify-content-center">
-          <div className="text-center text-muted">
-            <i className="fas fa-exclamation-triangle fa-2x mb-2"></i>
-            <div>Pet data unavailable</div>
-          </div>
-        </Card.Body>
-      </Card>
-    );
-  }
-
-  // Create safe pet object with proper field mapping
-  const safePet = {
-    _id: pet._id || 'unknown',
-    name: pet.name || 'Unknown Pet',
-    type: pet.type || 'pet',
-    breed: pet.breed || '',
-    age: pet.age || '',
-    gender: pet.gender || '',
-    size: pet.size || '',
-    description: pet.description || pet.bio || 'Adorable pet looking for a loving home!',
-    location: pet.location || 'FurBabies',
-    adopted: pet.adopted || false,
-    featured: pet.featured || false,
-    status: pet.status || '',
-    image: pet.image || pet.imageUrl || null,
-    ...pet
-  };
-
-  // Handle click event if onClick is provided, otherwise use Link
-  const handleCardClick = (e) => {
-    if (onClick) {
-      e.preventDefault();
-      onClick(safePet._id);
+  const handleImageLoad = (e) => {
+    const img = e.target;
+    if (img.naturalWidth && img.naturalHeight) {
+      const aspectRatio = img.naturalWidth / img.naturalHeight;
+      
+      let detectedType = 'square';
+      if (aspectRatio > 1.5) {
+        detectedType = 'landscape';
+      } else if (aspectRatio < 0.6) {
+        detectedType = 'tall';
+      } else if (aspectRatio < 0.8) {
+        detectedType = 'portrait';
+      }
+      
+      setContainerType(detectedType);
+      console.log(`🖼️ Pet "${pet?.name}" - Aspect ratio: ${aspectRatio.toFixed(2)}, Container: ${detectedType}`);
     }
+    setImageLoaded(true);
   };
 
-  const CardContent = () => (
-    <>
-      {/* Image container with normalized URL */}
-      <div className={`${styles.petImgContainer} position-relative`}>
-        <SafeImage
-          alt={safePet.name}
-          src={pickImage(safePet)}
-          size="large"
-          className={`${styles.petImg} w-100 rounded`}
-        />
-        
-        {/* Status Badges Overlay */}
-        {showAdoptionStatus && (
-          <div className="position-absolute top-0 start-0 p-2">
-            {safePet.featured && (
-              <Badge bg="warning" className="me-1">
-                <i className="fas fa-star me-1"></i>
-                Featured
-              </Badge>
-            )}
-            {safePet.status && (
-              <Badge 
-                bg={safePet.status === 'available' ? 'success' : 
-                    safePet.status === 'adopted' ? 'info' : 
-                    safePet.status === 'pending' ? 'warning' : 'secondary'}
-                className="text-capitalize"
-              >
-                {safePet.status}
-              </Badge>
-            )}
-          </div>
-        )}
+  const handleImageError = (e) => {
+    e.currentTarget.src = 'https://images.unsplash.com/photo-1601758228041-f3b2795255f1?w=300&h=200&fit=crop&q=80';
+    setImageLoaded(true);
+  };
 
-        {/* Favorite Button Overlay */}
-        {showFavoriteButton && (
-          <div className="position-absolute top-0 end-0 p-2">
-            <Button
-              variant="outline-light"
-              size="sm"
-              className="rounded-circle"
-              style={{ width: '35px', height: '35px' }}
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                // Handle favorite logic here
-                console.log('Favorited:', safePet.name);
-              }}
-            >
-              <i className="fas fa-heart"></i>
-            </Button>
+  return (
+    <Card className={`${styles.enhancedCard} h-100`}>
+      <div className={`${styles.petImgContainer} ${styles[containerType]}`}>
+        <img
+          src={imageSrc}
+          alt={pet?.name || 'Pet'}
+          className={`${styles.petImg} ${!imageLoaded ? styles.loading : ''}`}
+          onLoad={handleImageLoad}
+          onError={handleImageError}
+        />
+        {!imageLoaded && (
+          <div className={styles.imageError}>
+            <i className="fas fa-paw"></i>
+            <span>Loading...</span>
           </div>
         )}
       </div>
-
-      <Card.Body className={`${styles.enhancedCardBody} d-flex flex-column`}>
-        {/* Pet Header */}
-        <div className="d-flex justify-content-between align-items-start mb-2">
-          <Card.Title className={`${styles.enhancedCardTitle} mb-0 flex-grow-1`}>
-            {safePet.name}
-          </Card.Title>
-          {safePet.age && (
-            <Badge bg="light" text="dark" className="ms-2">
-              {safePet.age}
+      
+      <Card.Body className={styles.enhancedCardBody}>
+        <Card.Title className={styles.enhancedCardTitle}>
+          {pet?.name || 'Unnamed Pet'}
+        </Card.Title>
+        
+        <div className={styles.enhancedBadges}>
+          <Badge className={styles.enhancedBadge} bg="info">
+            {pet?.type || 'Pet'}
+          </Badge>
+          {pet?.breed && (
+            <Badge className={styles.enhancedBadge} bg="secondary">
+              {pet.breed}
+            </Badge>
+          )}
+          {pet?.featured && (
+            <Badge className={styles.enhancedBadge} bg="warning" text="dark">
+              <i className="fas fa-star me-1"></i>Featured
+            </Badge>
+          )}
+          {pet?.status && (
+            <Badge 
+              className={styles.enhancedBadge} 
+              bg={pet.status === 'available' ? 'success' : 'secondary'}
+            >
+              {pet.status}
             </Badge>
           )}
         </div>
-
-        {/* Pet Details */}
-        <div className="text-muted small mb-2">
-          <span className="text-capitalize">{safePet.type}</span>
-          {safePet.breed && (
-            <>
-              <span className="mx-1">•</span>
-              <span>{safePet.breed}</span>
-            </>
-          )}
-          {safePet.gender && (
-            <>
-              <span className="mx-1">•</span>
-              <span className="text-capitalize">{safePet.gender}</span>
-            </>
-          )}
-        </div>
-
-        {/* Description */}
-        <Card.Text className={`${styles.enhancedCardText} flex-grow-1`}>
-          {safePet.description.length > 100 
-            ? `${safePet.description.substring(0, 100)}...`
-            : safePet.description
-          }
-        </Card.Text>
-
-        {/* Location */}
-        {safePet.location && (
-          <div className="text-muted small mb-2">
-            <i className="fas fa-map-marker-alt me-1"></i>
-            {typeof safePet.location === 'string' 
-              ? safePet.location 
-              : `${safePet.location.city || ''}, ${safePet.location.state || ''}`.replace(/^,\s*/, '')
-            }
+        
+        {pet?.age && (
+          <div className="mb-2">
+            <small className="text-muted">
+              <i className="fas fa-birthday-cake me-1"></i>
+              Age: {pet.age}
+            </small>
           </div>
         )}
-
-        {/* Adoption Fee */}
-        {safePet.adoptionFee && safePet.adoptionFee > 0 && (
-          <div className="d-flex justify-content-between align-items-center mb-2">
-            <span className="text-muted small">Adoption Fee:</span>
-            <Badge bg="success">${safePet.adoptionFee}</Badge>
+        
+        {pet?.size && (
+          <div className="mb-2">
+            <small className="text-muted">
+              <i className="fas fa-ruler-combined me-1"></i>
+              Size: {pet.size}
+            </small>
           </div>
         )}
-
-        {/* Action Buttons */}
-        <div className="mt-auto pt-2">
-          <div className="d-grid gap-2">
-            <Button 
-              variant="primary" 
-              size="sm"
-              as={!onClick ? Link : 'button'}
-              to={!onClick ? `/pets/${safePet._id}` : undefined}
-              onClick={onClick ? handleCardClick : undefined}
-            >
-              <i className="fas fa-info-circle me-1"></i>
-              Learn More
-            </Button>
-            
-            {safePet.status === 'available' && (
-              <Button 
-                variant="outline-success" 
-                size="sm"
-                as={Link}
-                to={`/adopt/${safePet._id}`}
-              >
-                <i className="fas fa-heart me-1"></i>
-                Adopt Me
-              </Button>
-            )}
+        
+        {pet?.gender && (
+          <div className="mb-2">
+            <small className="text-muted">
+              <i className={`fas ${pet.gender === 'male' ? 'fa-mars' : 'fa-venus'} me-1`}></i>
+              {pet.gender}
+            </small>
           </div>
+        )}
+        
+        {pet?.description && (
+          <Card.Text className={styles.enhancedCardText}>
+            {pet.description.length > 120 
+              ? `${pet.description.substring(0, 120)}...` 
+              : pet.description}
+          </Card.Text>
+        )}
+        
+        <div className="text-center mb-3">
+          <span className="text-success fw-bold fs-5">
+            {pet?.price ? `$${pet.price}` : 'Adoption Fee Varies'}
+          </span>
         </div>
+        
+        <Link 
+          to={`/pets/${pet?._id}`} 
+          className={`btn btn-primary ${styles.enhancedButton} w-100`}
+        >
+          <i className="fas fa-heart me-2"></i>
+          Learn More
+        </Link>
       </Card.Body>
-    </>
-  );
-
-  // Render with or without Link wrapper based on onClick prop
-  if (onClick) {
-    return (
-      <Card 
-        className={`h-100 ${styles.enhancedCard} ${className}`}
-        style={{ cursor: 'pointer' }}
-        onClick={handleCardClick}
-      >
-        <CardContent />
-      </Card>
-    );
-  }
-
-  return (
-    <Card className={`h-100 ${styles.enhancedCard} ${className}`}>
-      <CardContent />
     </Card>
   );
 };

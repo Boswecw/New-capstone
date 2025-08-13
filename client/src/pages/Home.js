@@ -1,247 +1,191 @@
-// client/src/pages/Home.js - FIXED VERSION WITH SHARED PRODUCTCARD
-
+// client/src/pages/Home.js
 import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, Button, Spinner, Alert, Placeholder } from 'react-bootstrap';
+import { Container, Row, Col, Spinner, Alert, Button } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
-
-import HeroBanner from '../components/HeroBanner';
+import { petAPI, productAPI } from '../services/api';
 import PetCard from '../components/PetCard';
-import ProductCard from '../components/ProductCard'; // ✅ ADDED: Import shared ProductCard
-import { usePetFilters } from '../hooks/usePetFilters';
-import api from '../services/api';
+import ProductCard from '../components/ProductCard';
 
 const Home = () => {
-  // ✅ Use usePetFilters for featured pets
-  const {
-    results: featuredPets,
-    loading: loadingPets,
-    error: petsError,
-    setFilter: setPetFilter,
-    totalResults: totalFeaturedPets
-  } = usePetFilters();
-
-  // Set up filters for featured pets on mount
-  useEffect(() => {
-    setPetFilter('featured', true);
-    setPetFilter('status', 'available');
-    setPetFilter('limit', 6);
-    setPetFilter('sort', 'newest');
-  }, [setPetFilter]);
-
-  // Products state - simplified since SafeImage handles image logic
+  const [featuredPets, setFeaturedPets] = useState([]);
   const [featuredProducts, setFeaturedProducts] = useState([]);
-  const [loadingProducts, setLoadingProducts] = useState(true);
-  const [productsError, setProductsError] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    loadFeaturedProducts();
+    const fetchFeaturedContent = async () => {
+      try {
+        setLoading(true);
+        setError('');
+        
+        const [petsResponse, productsResponse] = await Promise.all([
+          petAPI.get('/featured?limit=6'),
+          productAPI.get('/featured?limit=6')
+        ]);
+
+        console.log('Featured pets response:', petsResponse.data);
+        console.log('Featured products response:', productsResponse.data);
+
+        setFeaturedPets(petsResponse.data?.data || []);
+        setFeaturedProducts(productsResponse.data?.data || []);
+        
+      } catch (error) {
+        console.error('Error fetching featured content:', error);
+        setError('Failed to load featured content. Please try again later.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchFeaturedContent();
   }, []);
 
-  // ✅ SIMPLIFIED: Just fetch products, let SafeImage handle images
-  const loadFeaturedProducts = async () => {
-    try {
-      setLoadingProducts(true);
-      setProductsError('');
+  if (loading) {
+    return (
+      <Container className="py-5 text-center">
+        <Spinner animation="border" variant="primary" size="lg" />
+        <p className="mt-3 text-muted">Loading featured content...</p>
+      </Container>
+    );
+  }
 
-      const prodRes = await api.get('/products/featured?limit=3');
-      const products = prodRes?.data?.success ? (prodRes.data.data || []) : [];
-      setFeaturedProducts(products);
-      
-      console.log('🛍️ Loaded', products.length, 'featured products');
-
-    } catch (err) {
-      console.error('Error loading featured products:', err);
-      setFeaturedProducts([]);
-      setProductsError('Failed to load featured products. Please try again later.');
-    } finally {
-      setLoadingProducts(false);
-    }
-  };
-
-  const testimonials = [
-    { name: "Jessica R.", text: "FurBabies has everything I need for my pup. The staff is friendly and the quality is top-notch!", icon: "fa-dog", rating: 5.0 },
-    { name: "Marcus D.", text: "My cat LOVES the toys I got here. Fast delivery and great prices!", icon: "fa-cat", rating: 4.8 },
-    { name: "Linda M.", text: "Excellent customer service and a wide variety of pet products. Highly recommended!", icon: "fa-heart", rating: 5.0 }
-  ];
-
-  // --- Skeletons ---
-  const ProductSkeleton = () => (
-    <Card className="h-100 shadow-sm">
-      <div className="bg-light" style={{ height: '200px' }} />
-      <Card.Body className="d-flex flex-column">
-        <Placeholder as={Card.Title} animation="glow" className="mb-2">
-          <Placeholder xs={6} />
-        </Placeholder>
-        <Placeholder as={Card.Text} animation="glow" className="flex-grow-1">
-          <Placeholder xs={12} /> <Placeholder xs={10} /> <Placeholder xs={8} />
-        </Placeholder>
-        <div className="d-flex justify-content-between align-items-center">
-          <Placeholder animation="glow">
-            <Placeholder xs={3} />
-          </Placeholder>
-          <Placeholder.Button variant="outline-primary" xs={4} />
-        </div>
-      </Card.Body>
-    </Card>
-  );
-
-  // ✅ REMOVED: Inline ProductCard component - now using shared component
+  if (error) {
+    return (
+      <Container className="py-5">
+        <Alert variant="danger" className="text-center">
+          <Alert.Heading>Oops! Something went wrong</Alert.Heading>
+          <p>{error}</p>
+          <Button variant="outline-danger" onClick={() => window.location.reload()}>
+            Try Again
+          </Button>
+        </Alert>
+      </Container>
+    );
+  }
 
   return (
-    <div className="home-page">
-      <HeroBanner />
-
-      <Container className="py-5">
-        {/* Featured Pets - Using SafeImage via PetCard */}
-        <section className="featured-pets mb-5">
-          <h2 className="text-center mb-4">
-            <i className="fas fa-paw text-primary me-2"></i>
-            Featured Pets
-          </h2>
-
-          {loadingPets ? (
-            <div className="text-center">
-              <Spinner animation="border" variant="primary" />
-              <p className="mt-2">Loading featured pets...</p>
-            </div>
-          ) : petsError ? (
-            <Alert variant="danger" className="text-center">
-              <i className="fas fa-exclamation-triangle me-2"></i>
-              {petsError}
-            </Alert>
-          ) : featuredPets && featuredPets.length > 0 ? (
-            <>
-              <Row className="g-4">
-                {featuredPets.slice(0, 3).map(pet =>
-                  pet && pet._id ? (
-                    <Col key={pet._id} md={4}>
-                      <PetCard pet={pet} />
-                    </Col>
-                  ) : null
-                )}
-              </Row>
-              
-              <div className="text-center mt-3">
-                <small className="text-muted">
-                  Showing 3 of {totalFeaturedPets || featuredPets.length} featured pets
-                  {totalFeaturedPets > 3 && (
-                    <span className="ms-2">
-                      • <Link to="/browse" className="text-decoration-none">View all featured pets</Link>
-                    </span>
-                  )}
-                </small>
-              </div>
-            </>
-          ) : (
-            <Alert variant="info" className="text-center">
-              <i className="fas fa-info-circle me-2"></i>
-              No featured pets available at the moment.
-              <div className="mt-2">
-                <Link to="/browse">
-                  <Button variant="outline-primary" size="sm">
-                    Browse All Available Pets
-                  </Button>
+    <div>
+      <div 
+        className="hero-section bg-primary text-white py-5 mb-5"
+        style={{
+          background: 'linear-gradient(135deg, #007bff 0%, #6f42c1 100%)',
+          minHeight: '400px'
+        }}
+      >
+        <Container className="h-100 d-flex align-items-center">
+          <Row className="w-100">
+            <Col lg={6}>
+              <h1 className="display-4 fw-bold mb-4">
+                Find Your Perfect Companion
+              </h1>
+              <p className="lead mb-4">
+                Discover loving pets looking for their forever homes and find everything 
+                you need to keep them happy and healthy.
+              </p>
+              <div className="d-flex gap-3">
+                <Link to="/pets" className="btn btn-light btn-lg">
+                  <i className="fas fa-paw me-2"></i>
+                  Browse Pets
+                </Link>
+                <Link to="/products" className="btn btn-outline-light btn-lg">
+                  <i className="fas fa-shopping-bag me-2"></i>
+                  Shop Supplies
                 </Link>
               </div>
-            </Alert>
-          )}
-
-          <div className="text-center mt-4">
-            <Link to="/browse">
-              <Button variant="primary" size="lg">
-                <i className="fas fa-search me-2"></i>
-                Browse All Pets
-              </Button>
-            </Link>
-          </div>
-        </section>
-
-        {/* Featured Products - Using shared ProductCard component */}
-        <section className="featured-products mb-5">
-          <h2 className="text-center mb-4">
-            <i className="fas fa-shopping-bag text-primary me-2"></i>
-            Featured Products
-          </h2>
-
-          {loadingProducts ? (
-            <Row className="g-4">
-              {[1, 2, 3].map((k) => (
-                <Col md={4} key={k}><ProductSkeleton /></Col>
-              ))}
-            </Row>
-          ) : productsError ? (
-            <Alert variant="danger" className="text-center">
-              <i className="fas fa-exclamation-triangle me-2"></i>
-              {productsError}
-            </Alert>
-          ) : featuredProducts && featuredProducts.length > 0 ? (
-            <>
-              <Row className="g-4">
-                {featuredProducts.map(product =>
-                  product && product._id ? (
-                    <Col key={product._id} md={4}>
-                      {/* ✅ FIXED: Using shared ProductCard component */}
-                      <ProductCard product={product} />
-                    </Col>
-                  ) : null
-                )}
-              </Row>
-              
-              <div className="text-center mt-3">
-                <small className="text-muted">
-                  Showing {featuredProducts.length} featured products
-                </small>
-              </div>
-            </>
-          ) : (
-            <Alert variant="info" className="text-center">
-              <i className="fas fa-info-circle me-2"></i>
-              No featured products available at the moment.
-              <div className="mt-2">
-                <Link to="/products">
-                  <Button variant="outline-primary" size="sm">
-                    Browse All Products
-                  </Button>
-                </Link>
-              </div>
-            </Alert>
-          )}
-
-          <div className="text-center mt-4">
-            <Link to="/products">
-              <Button variant="outline-secondary" size="lg">
-                <i className="fas fa-box-open me-2"></i>
-                View All Products
-              </Button>
-            </Link>
-          </div>
-        </section>
-
-        {/* Testimonials */}
-        <section className="testimonials">
-          <h2 className="text-center mb-4">
-            <i className="fas fa-comments text-primary me-2"></i>
-            What Our Customers Say
-          </h2>
-          <Row className="g-4">
-            {testimonials.map((t, i) => (
-              <Col key={i} md={4}>
-                <Card className="h-100 text-center shadow-sm border-0">
-                  <Card.Body>
-                    <i className={`fas ${t.icon} fa-3x text-primary mb-3`}></i>
-                    <Card.Text className="fst-italic">"{t.text}"</Card.Text>
-                    <Card.Title className="h6 mb-1">{t.name}</Card.Title>
-                    <div className="text-warning">
-                      {'★'.repeat(Math.floor(t.rating))}
-                      {t.rating % 1 !== 0 && '☆'}
-                      <span className="ms-2 text-muted">({t.rating})</span>
-                    </div>
-                  </Card.Body>
-                </Card>
-              </Col>
-            ))}
+            </Col>
           </Row>
-        </section>
+        </Container>
+      </div>
+
+      <Container fluid className="px-4">
+        <Row className="mb-5">
+          <Col>
+            <div className="text-center mb-5">
+              <h2 className="display-5 fw-bold text-dark">
+                <i className="fas fa-star text-warning me-3"></i>
+                Featured Pets
+              </h2>
+              <p className="lead text-muted">
+                Meet some of our special friends waiting for their forever homes
+              </p>
+            </div>
+            
+            {featuredPets.length > 0 ? (
+              <Row className="g-4">
+                {featuredPets.slice(0, 6).map(pet => (
+                  <Col key={pet._id} xl={4} lg={6} md={6} className="d-flex">
+                    <PetCard pet={pet} />
+                  </Col>
+                ))}
+              </Row>
+            ) : (
+              <Alert variant="info" className="text-center">
+                <i className="fas fa-info-circle me-2"></i>
+                No featured pets available at the moment. Check back soon!
+              </Alert>
+            )}
+            
+            <div className="text-center mt-5">
+              <Link to="/pets" className="btn btn-primary btn-lg px-5">
+                <i className="fas fa-paw me-2"></i>
+                View All Pets
+              </Link>
+            </div>
+          </Col>
+        </Row>
+
+        <Row className="mb-5">
+          <Col>
+            <div className="text-center mb-5">
+              <h2 className="display-5 fw-bold text-dark">
+                <i className="fas fa-star text-warning me-3"></i>
+                Featured Products
+              </h2>
+              <p className="lead text-muted">
+                Everything your furry friend needs to live their best life
+              </p>
+            </div>
+            
+            {featuredProducts.length > 0 ? (
+              <Row className="g-4">
+                {featuredProducts.slice(0, 6).map(product => (
+                  <Col key={product._id} xl={4} lg={6} md={6} className="d-flex">
+                    <ProductCard product={product} />
+                  </Col>
+                ))}
+              </Row>
+            ) : (
+              <Alert variant="info" className="text-center">
+                <i className="fas fa-info-circle me-2"></i>
+                No featured products available at the moment. Check back soon!
+              </Alert>
+            )}
+            
+            <div className="text-center mt-5">
+              <Link to="/products" className="btn btn-success btn-lg px-5">
+                <i className="fas fa-shopping-bag me-2"></i>
+                Shop All Products
+              </Link>
+            </div>
+          </Col>
+        </Row>
+
+        <Row className="my-5 py-5 bg-light rounded">
+          <Col className="text-center">
+            <h3 className="fw-bold mb-3">Ready to Make a Difference?</h3>
+            <p className="lead text-muted mb-4">
+              Every pet deserves a loving home. Start your adoption journey today!
+            </p>
+            <Link to="/pets" className="btn btn-primary btn-lg me-3">
+              <i className="fas fa-heart me-2"></i>
+              Adopt a Pet
+            </Link>
+            <Link to="/contact" className="btn btn-outline-primary btn-lg">
+              <i className="fas fa-envelope me-2"></i>
+              Contact Us
+            </Link>
+          </Col>
+        </Row>
       </Container>
     </div>
   );

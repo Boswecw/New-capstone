@@ -1,253 +1,131 @@
-// client/src/components/ProductCard.js - UPDATED FOR IMPROVED SAFEIMAGE
-
-import React from 'react';
-import { Card, Badge, Button } from 'react-bootstrap';
+// client/src/components/ProductCard.js
+import React, { useState } from 'react';
+import { Card, Badge } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
-import PropTypes from 'prop-types';
-import SafeImage from './SafeImage';
-import { useCart } from '../contexts/CartContext';
+import { normalizeImageUrl } from '../utils/image';
 import styles from './Card.module.css';
 
-// Helper function to safely pick the best image URL
-const pickImage = (product) => {
-  const raw = product.imageUrl || product.image || (Array.isArray(product.images) && product.images.length ? product.images[0] : "");
-  if (!raw) return "";
+const ProductCard = ({ product }) => {
+  const [containerType, setContainerType] = useState('square');
+  const [imageLoaded, setImageLoaded] = useState(false);
   
-  const isAbsolute = /^https?:\/\//i.test(raw);
-  return isAbsolute ? raw : `/api/images/resolve?src=${encodeURIComponent(raw)}`;
-};
+  const imageSrc = normalizeImageUrl(product?.image || product?.imageUrl) || 
+                   'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=300&h=200&fit=crop&q=80';
 
-const ProductCard = ({
-  product,
-  showFullDescription = false,
-  className = '',
-  onAddToWishlist,
-  showActions = true
-}) => {
-  const { addToCart } = useCart();
-
-  if (!product) {
-    console.warn('⚠️ ProductCard: product prop is undefined or null');
-    return (
-      <Card className={`h-100 ${className}`}>
-        <Card.Body className="d-flex align-items-center justify-content-center">
-          <div className="text-center text-muted">
-            <i className="fas fa-exclamation-triangle fa-2x mb-2"></i>
-            <div>Product data unavailable</div>
-          </div>
-        </Card.Body>
-      </Card>
-    );
-  }
-
-  const safeProduct = {
-    ...product,
-    _id: product?._id ?? 'unknown',
-    name: product?.name ?? 'Unknown Product',
-    description: product?.description ?? 'Quality product for your beloved pet!',
-    price: product?.price ?? 0,
-    category: product?.category ?? 'product',
-    brand: product?.brand ?? '',
-    inStock: product?.inStock !== false,
-    image: product?.image || product?.imageUrl || null
-  };
-
-  const formatPrice = (price) =>
-    typeof price === 'number' ? `$${price.toFixed(2)}` : (price ? String(price) : 'Price unavailable');
-
-  const handleAddToCart = async (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!safeProduct.inStock) return;
-    await addToCart(safeProduct._id, 1);
-  };
-
-  const handleAddToWishlist = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (onAddToWishlist) {
-      onAddToWishlist(safeProduct);
+  const handleImageLoad = (e) => {
+    const img = e.target;
+    if (img.naturalWidth && img.naturalHeight) {
+      const aspectRatio = img.naturalWidth / img.naturalHeight;
+      
+      let detectedType = 'square';
+      if (aspectRatio > 1.5) {
+        detectedType = 'landscape';
+      } else if (aspectRatio < 0.6) {
+        detectedType = 'tall';
+      } else if (aspectRatio < 0.8) {
+        detectedType = 'portrait';
+      }
+      
+      setContainerType(detectedType);
+      console.log(`🛍️ Product "${product?.name}" - Aspect ratio: ${aspectRatio.toFixed(2)}, Container: ${detectedType}`);
     }
+    setImageLoaded(true);
+  };
+
+  const handleImageError = (e) => {
+    e.currentTarget.src = 'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=300&h=200&fit=crop&q=80';
+    setImageLoaded(true);
   };
 
   return (
-    <Card
-      className={`h-100 shadow-sm ${styles.enhancedCard} ${className}`}
-      data-testid={`product-card-${safeProduct._id}`}
-      style={{ transition: 'transform 0.2s ease-in-out' }}
-      onMouseEnter={(e) => (e.currentTarget.style.transform = 'translateY(-2px)')}
-      onMouseLeave={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
-    >
-      {/* Product image with normalized URL */}
-      <div className={`${styles.productImgContainer} position-relative`}>
-        <SafeImage
-          alt={safeProduct.name}
-          src={pickImage(safeProduct)}
-          size="large"
-          className={`${styles.productImg} w-100`}
+    <Card className={`${styles.enhancedCard} h-100`}>
+      <div className={`${styles.productImgContainer} ${styles[containerType]}`}>
+        <img
+          src={imageSrc}
+          alt={product?.name || product?.title || 'Product'}
+          className={`${styles.productImg} ${!imageLoaded ? styles.loading : ''}`}
+          onLoad={handleImageLoad}
+          onError={handleImageError}
         />
-
-        {/* Featured Badge */}
-        {safeProduct.featured && (
-          <Badge bg="warning" className="position-absolute top-0 start-0 m-2">
-            <i className="fas fa-star me-1"></i>
-            Featured
-          </Badge>
-        )}
-
-        {/* Stock Status Badge */}
-        <div className="position-absolute top-0 end-0 m-2">
-          {safeProduct.inStock ? (
-            <Badge bg="success">In Stock</Badge>
-          ) : (
-            <Badge bg="danger">Out of Stock</Badge>
-          )}
-        </div>
-
-        {/* Quick Action Overlay (shows on hover) */}
-        {showActions && (
-          <div className="position-absolute bottom-0 start-0 end-0 p-2 opacity-0 bg-dark bg-opacity-75 transition-opacity"
-               style={{ transition: 'opacity 0.2s ease' }}
-               onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
-               onMouseLeave={(e) => e.currentTarget.style.opacity = '0'}>
-            <div className="d-flex gap-1 justify-content-center">
-              <Button
-                variant="light"
-                size="sm"
-                onClick={handleAddToCart}
-                disabled={!safeProduct.inStock}
-                title="Add to Cart"
-              >
-                <i className="fas fa-shopping-cart"></i>
-              </Button>
-              <Button
-                variant="light"
-                size="sm"
-                onClick={handleAddToWishlist}
-                title="Add to Wishlist"
-              >
-                <i className="fas fa-heart"></i>
-              </Button>
-              <Button
-                variant="light"
-                size="sm"
-                as={Link}
-                to={`/products/${safeProduct._id}`}
-                title="View Details"
-              >
-                <i className="fas fa-eye"></i>
-              </Button>
-            </div>
+        {!imageLoaded && (
+          <div className={styles.imageError}>
+            <i className="fas fa-box"></i>
+            <span>Loading...</span>
           </div>
         )}
       </div>
-
-      <Card.Body className={`${styles.enhancedCardBody} d-flex flex-column`}>
-        {/* Header with name and price */}
-        <div className="d-flex justify-content-between align-items-start mb-2">
-          <Card.Title className={`${styles.enhancedCardTitle} mb-0 flex-grow-1`}>
-            <Link 
-              to={`/products/${safeProduct._id}`} 
-              className="text-decoration-none text-dark"
+      
+      <Card.Body className={styles.enhancedCardBody}>
+        <Card.Title className={styles.enhancedCardTitle}>
+          {product?.name || product?.title || 'Unnamed Product'}
+        </Card.Title>
+        
+        <div className={styles.enhancedBadges}>
+          <Badge className={styles.enhancedBadge} bg="info">
+            {product?.category || 'Product'}
+          </Badge>
+          {product?.brand && (
+            <Badge className={styles.enhancedBadge} bg="secondary">
+              {product.brand}
+            </Badge>
+          )}
+          {product?.featured && (
+            <Badge className={styles.enhancedBadge} bg="warning" text="dark">
+              <i className="fas fa-star me-1"></i>Featured
+            </Badge>
+          )}
+          {product?.inStock !== undefined && (
+            <Badge 
+              className={styles.enhancedBadge} 
+              bg={product.inStock ? 'success' : 'danger'}
             >
-              {safeProduct.name}
-            </Link>
-          </Card.Title>
-          {safeProduct.price > 0 && (
-            <Badge bg="success" className="ms-2 fs-6">
-              {formatPrice(safeProduct.price)}
+              {product.inStock ? 'In Stock' : 'Out of Stock'}
             </Badge>
           )}
         </div>
-
-        {/* Brand and Category */}
-        <div className="text-muted small mb-2">
-          {safeProduct.brand && (
-            <>
-              <span className="fw-semibold">{safeProduct.brand}</span>
-              <span className="mx-1">•</span>
-            </>
-          )}
-          <span className="text-capitalize">{safeProduct.category}</span>
-        </div>
-
-        {/* Description */}
-        <Card.Text className={`${styles.enhancedCardText} flex-grow-1`}>
-          {showFullDescription
-            ? safeProduct.description
-            : safeProduct.description.length > 100 
-            ? `${safeProduct.description.substring(0, 100)}...`
-            : safeProduct.description
-          }
-        </Card.Text>
-
-        {/* Rating (if available) */}
-        {safeProduct.rating && safeProduct.rating > 0 && (
+        
+        {product?.category && (
           <div className="mb-2">
-            <div className="d-flex align-items-center">
-              <div className="text-warning me-1">
-                {[...Array(5)].map((_, i) => (
-                  <i 
-                    key={i} 
-                    className={`fas fa-star ${i < Math.floor(safeProduct.rating) ? '' : 'text-muted'}`}
-                  ></i>
-                ))}
-              </div>
-              <small className="text-muted">
-                ({safeProduct.reviewCount || 0} reviews)
-              </small>
-            </div>
+            <small className="text-muted">
+              <i className="fas fa-tag me-1"></i>
+              Category: {product.category}
+            </small>
           </div>
         )}
-
-        {/* Action Buttons */}
-        {showActions && (
-          <div className="mt-auto pt-2">
-            <div className="d-grid gap-2">
-              <Button
-                variant={safeProduct.inStock ? "primary" : "secondary"}
-                size="sm"
-                onClick={handleAddToCart}
-                disabled={!safeProduct.inStock}
-              >
-                <i className="fas fa-shopping-cart me-1"></i>
-                {safeProduct.inStock ? 'Add to Cart' : 'Out of Stock'}
-              </Button>
-              
-              <div className="d-flex gap-1">
-                <Button 
-                  variant="outline-secondary" 
-                  size="sm"
-                  className="flex-grow-1"
-                  as={Link}
-                  to={`/products/${safeProduct._id}`}
-                >
-                  <i className="fas fa-info-circle me-1"></i>
-                  Details
-                </Button>
-                <Button
-                  variant="outline-secondary"
-                  size="sm"
-                  onClick={handleAddToWishlist}
-                  title="Add to Wishlist"
-                >
-                  <i className="fas fa-heart"></i>
-                </Button>
-              </div>
-            </div>
+        
+        {product?.brand && (
+          <div className="mb-2">
+            <small className="text-muted">
+              <i className="fas fa-building me-1"></i>
+              Brand: {product.brand}
+            </small>
           </div>
         )}
+        
+        {product?.description && (
+          <Card.Text className={styles.enhancedCardText}>
+            {product.description.length > 100 
+              ? `${product.description.substring(0, 100)}...` 
+              : product.description}
+          </Card.Text>
+        )}
+        
+        <div className="text-center mb-3">
+          <span className="text-success fw-bold fs-4">
+            ${product?.price || '0.00'}
+          </span>
+        </div>
+        
+        <Link 
+          to={`/products/${product?._id}`} 
+          className={`btn btn-success ${styles.enhancedButton} w-100`}
+        >
+          <i className="fas fa-shopping-cart me-2"></i>
+          View Details
+        </Link>
       </Card.Body>
     </Card>
   );
-};
-
-ProductCard.propTypes = {
-  product: PropTypes.object.isRequired,
-  showFullDescription: PropTypes.bool,
-  className: PropTypes.string,
-  onAddToWishlist: PropTypes.func,
-  showActions: PropTypes.bool
 };
 
 export default ProductCard;
