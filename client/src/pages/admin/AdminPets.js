@@ -132,7 +132,7 @@ const AdminPets = () => {
                     <tr key={pet._id}>
                       <td>
                         <img
-                          src={normalizeImageUrl(pet.image) || 'https://images.unsplash.com/photo-1601758228041-f3b2795255f1?w=60&h=60&fit=crop&q=80'}
+                          src={normalizeImageUrl(pet.image || pet.imageUrl) || 'https://images.unsplash.com/photo-1601758228041-f3b2795255f1?w=60&h=60&fit=crop&q=80'}
                           alt={pet.name}
                           className="rounded"
                           style={{ 

@@ -9,7 +9,7 @@ const PetCard = ({ pet }) => {
   const [containerType, setContainerType] = useState('square');
   const [imageLoaded, setImageLoaded] = useState(false);
   
-  const imageSrc = normalizeImageUrl(pet?.image) || 
+  const imageSrc = normalizeImageUrl(pet?.image || pet?.imageUrl) ||
                    'https://images.unsplash.com/photo-1601758228041-f3b2795255f1?w=300&h=200&fit=crop&q=80';
 
   const handleImageLoad = (e) => {
