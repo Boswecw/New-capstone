@@ -160,6 +160,30 @@ router.get('/fallback/product', (req, res) => {
   res.redirect('https://via.placeholder.com/300x250/CCCCCC/666666?text=Product+Image');
 });
 
+// ===== SUPPORT normalizeImageUrl HELPER =====
+// Redirect /api/images/pet/filename.jpg -> /api/images/gcs/pet/filename.jpg
+router.get('/:category/:filename', (req, res) => {
+  const { category, filename } = req.params;
+  console.log(`🔄 Image redirect: /${category}/${filename} -> /gcs/${category}/${filename}`);
+  return res.redirect(302, `/api/images/gcs/${category}/${filename}`);
+});
+
+// Support deeper nested paths like /api/images/pet/subfolder/file.jpg
+router.get('/*', (req, res) => {
+  const fullPath = req.path.replace('/api/images/', '');
+  const pathParts = fullPath.split('/');
+
+  if (pathParts.length < 2) {
+    return res.status(400).json({ error: 'Invalid image path format' });
+  }
+
+  const [category, ...filenameParts] = pathParts;
+  const filename = filenameParts.join('/');
+
+  console.log(`🔄 Deep image redirect: ${fullPath} -> /gcs/${category}/${filename}`);
+  return res.redirect(302, `/api/images/gcs/${category}/${filename}`);
+});
+
 // ===== UTILITY FUNCTION =====
 function getContentType(filename) {
   const ext = filename.toLowerCase().split('.').pop();
