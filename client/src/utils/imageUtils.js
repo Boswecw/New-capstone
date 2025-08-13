@@ -4,15 +4,19 @@ const GCS_BASE_URL = `https://storage.googleapis.com/${BUCKET_NAME}`;
 
 // Enhanced fallback images for both pets and products
 const FALLBACK_IMAGES = {
-  // Pet fallbacks
+  // Pet fallbacks by type
   pet: 'https://images.unsplash.com/photo-1601758228041-f3b2795255f1?w=400&h=300&fit=crop&q=80&auto=format',
   dog: 'https://images.unsplash.com/photo-1583337130417-3346a1be7dee?w=400&h=300&fit=crop&q=80&auto=format',
   cat: 'https://images.unsplash.com/photo-1574144611937-0df059b5ef3e?w=400&h=300&fit=crop&q=80&auto=format',
   fish: 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400&h=300&fit=crop&q=80&auto=format',
   aquatic: 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400&h=300&fit=crop&q=80&auto=format',
   bird: 'https://images.unsplash.com/photo-1520637836862-4d197d17c448?w=400&h=300&fit=crop&q=80&auto=format',
+  rabbit: 'https://images.unsplash.com/photo-1585110396000-c9ffd4e4b308?w=400&h=300&fit=crop&q=80&auto=format',
+  hamster: 'https://images.unsplash.com/photo-1548767797-d8c844163c4c?w=400&h=300&fit=crop&q=80&auto=format',
+  'small-pet': 'https://images.unsplash.com/photo-1548767797-d8c844163c4c?w=400&h=300&fit=crop&q=80&auto=format',
+  other: 'https://images.unsplash.com/photo-1585110396000-c9ffd4e4b308?w=400&h=300&fit=crop&q=80&auto=format',
   
-  // Product fallbacks - category specific
+  // Product fallbacks by category
   'dog care': 'https://images.unsplash.com/photo-1552053831-71594a27632d?w=400&h=300&fit=crop&q=80&auto=format',
   'cat care': 'https://images.unsplash.com/photo-1574144611937-0df059b5ef3e?w=400&h=300&fit=crop&q=80&auto=format',
   'aquarium & fish care': 'https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=400&h=300&fit=crop&q=80&auto=format',
@@ -21,7 +25,6 @@ const FALLBACK_IMAGES = {
   
   // Generic fallbacks
   product: 'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400&h=300&fit=crop&q=80&auto=format',
-  other: 'https://images.unsplash.com/photo-1585110396000-c9ffd4e4b308?w=400&h=300&fit=crop&q=80&auto=format',
   default: 'https://images.unsplash.com/photo-1548767797-d8c844163c4c?w=400&h=300&fit=crop&q=80&auto=format'
 };
 
@@ -101,24 +104,20 @@ export const getProxyImageUrl = (imagePath, category = null, type = null) => {
     return getFallbackImage(category, type);
   }
 
+  // If already a full URL, return it
+  if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+    return imagePath;
+  }
+
   const cleanPath = cleanImagePath(imagePath);
   if (!cleanPath) {
     return getFallbackImage(category, type);
   }
 
-  const getProxyBaseUrl = () => {
-    if (process.env.NODE_ENV === 'production') {
-      return process.env.REACT_APP_IMAGE_PROXY_URL || 
-             (process.env.REACT_APP_API_URL?.replace('/api', '') + '/api/images/gcs') ||
-             'https://new-capstone.onrender.com/api/images/gcs';
-    }
-    return 'http://localhost:5000/api/images/gcs';
-  };
-
-  // ✅ CRITICAL FIX: Don't encode the path
-  const proxyUrl = `${getProxyBaseUrl()}/${cleanPath}`;
+  // ✅ FIXED: No encoding for proxy path either
+  const proxyUrl = `/api/images/gcs/${cleanPath}`;
   
-  console.log('🛡️ Building proxy URL:', {
+  console.log('🔄 Building proxy URL:', {
     input: imagePath,
     cleaned: cleanPath,
     final: proxyUrl
@@ -128,68 +127,88 @@ export const getProxyImageUrl = (imagePath, category = null, type = null) => {
 };
 
 /**
- * Check if an image URL is accessible
+ * Validate if an image URL is accessible
  */
-export const validateImageUrl = (url) => {
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.onload = () => resolve(true);
-    img.onerror = () => resolve(false);
-    img.src = url;
-    
-    // Timeout after 10 seconds
-    setTimeout(() => resolve(false), 10000);
-  });
+export const validateImageUrl = async (url) => {
+  if (!url) return false;
+  
+  try {
+    const response = await fetch(url, { method: 'HEAD' });
+    return response.ok;
+  } catch (error) {
+    console.warn('🖼️ Image validation failed:', url, error);
+    return false;
+  }
 };
 
 /**
- * Get best available image URL with fallback chain
+ * Get optimized image URL with size parameters
  */
-export const getBestImageUrl = async (imagePath, category = null, type = null) => {
-  // Try direct GCS URL first
-  const gcsUrl = getImageUrl(imagePath, category, type);
-  const gcsWorks = await validateImageUrl(gcsUrl);
-  if (gcsWorks) {
-    console.log('✅ Direct GCS URL works:', gcsUrl);
-    return gcsUrl;
+export const getOptimizedImageUrl = (imagePath, size = 'medium', category = null, type = null) => {
+  const baseUrl = getImageUrl(imagePath, category, type);
+  
+  if (!baseUrl || baseUrl.includes('unsplash.com')) {
+    // Already optimized or fallback
+    return baseUrl;
   }
-
-  // Try proxy URL
-  const proxyUrl = getProxyImageUrl(imagePath, category, type);
-  const proxyWorks = await validateImageUrl(proxyUrl);
-  if (proxyWorks) {
-    console.log('✅ Proxy URL works:', proxyUrl);
-    return proxyUrl;
-  }
-
-  // Return fallback
-  const fallbackUrl = getFallbackImage(category, type);
-  console.log('🔄 Using fallback URL:', fallbackUrl);
-  return fallbackUrl;
+  
+  // Add size optimization for GCS images if needed
+  const sizeParams = {
+    small: '?w=200&h=150',
+    medium: '?w=400&h=300', 
+    large: '?w=800&h=600',
+    xl: '?w=1200&h=900'
+  };
+  
+  return baseUrl + (sizeParams[size] || '');
 };
 
 /**
- * Preload images for better performance
+ * Extract file extension from image path
  */
-export const preloadImages = (imageUrls) => {
-  imageUrls.forEach(url => {
-    if (url) {
-      const img = new Image();
-      img.src = url;
-    }
-  });
+export const getImageExtension = (imagePath) => {
+  if (!imagePath || typeof imagePath !== 'string') return '';
+  
+  const cleanPath = cleanImagePath(imagePath);
+  const parts = cleanPath.split('.');
+  return parts.length > 1 ? parts.pop().toLowerCase() : '';
 };
 
-// Default export with all utilities
-const imageUtils = {
+/**
+ * Check if image format is supported
+ */
+export const isSupportedImageFormat = (imagePath) => {
+  const supportedFormats = ['jpg', 'jpeg', 'png', 'webp', 'svg', 'gif'];
+  const extension = getImageExtension(imagePath);
+  return supportedFormats.includes(extension);
+};
+
+/**
+ * Generate image alt text from item data
+ */
+export const generateAltText = (item, fallback = 'Image') => {
+  if (!item) return fallback;
+  
+  const name = item.name || item.title || '';
+  const type = item.type || item.category || '';
+  
+  if (name && type) {
+    return `${name} - ${type}`;
+  }
+  
+  return name || type || fallback;
+};
+
+// Default export object for easier importing
+const imageUtilsDefault = {
   getImageUrl,
   getProxyImageUrl,
-  getBestImageUrl,
-  validateImageUrl,
-  preloadImages,
-  cleanImagePath,
   getFallbackImage,
-  FALLBACK_IMAGES
+  cleanImagePath,
+  validateImageUrl,
+  getOptimizedImageUrl,
+  generateAltText,
+  isSupportedImageFormat
 };
 
-export default imageUtils;
+export default imageUtilsDefault;

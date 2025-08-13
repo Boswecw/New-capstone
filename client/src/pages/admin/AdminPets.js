@@ -1,505 +1,528 @@
-// client/src/pages/admin/AdminPets.js - SHOW ALL PETS VERSION
-import React, { useState, useEffect, useCallback, useMemo } from "react";
-import axios from "axios";
-import {
-  Row,
-  Col,
-  Card,
-  Form,
-  Button,
-  Modal,
+// AdminPets.js - UPDATED VERSION USING SAFEIMAGE
+
+import React, { useState, useEffect } from 'react';
+import { 
+  Container, 
+  Row, 
+  Col, 
+  Card, 
+  Table, 
+  Button, 
+  Badge, 
+  Modal, 
+  Form, 
   Alert,
-  Badge,
   Spinner,
-  ButtonGroup,
-  Pagination
-} from "react-bootstrap";
-import DataTable from "../../components/DataTable";
-import { usePetFilters } from "../../hooks/usePetFilters";
+  Dropdown
+} from 'react-bootstrap';
+import { Link } from 'react-router-dom';
+import SafeImage from '../../components/SafeImage';
+import api from '../../services/api';
 
 const AdminPets = () => {
-  const {
-    filters,
-    results: pets,
-    loading: hookLoading,
-    pagination,
-    setFilter,
-    clearFilters,
-    setPage
-  } = usePetFilters();
+  // State management
+  const [pets, setPets] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [showModal, setShowModal] = useState(false);
+  const [selectedPet, setSelectedPet] = useState(null);
+  const [filter, setFilter] = useState({
+    status: 'all',
+    type: 'all',
+    featured: 'all'
+  });
 
-  // Local state for UI management
-  const [loading, setLoading] = useState(false);
-  const [alert, setAlert] = useState({ show: false, message: "", variant: "" });
-  const [editingPet, setEditingPet] = useState(null);
-  const [deletingPet, setDeletingPet] = useState(null);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [viewMode, setViewMode] = useState('paginated');
-  const [itemsPerPage, setItemsPerPage] = useState(20);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [localPets, setLocalPets] = useState([]);
-  const [localPagination, setLocalPagination] = useState({});
+  // Helper function to safely pick the best image URL
+  const getPetImageUrl = (pet) => {
+    // prefer explicit CDN url, else single string, else first of array
+    const raw = pet.imageUrl || pet.image || (Array.isArray(pet.images) && pet.images.length ? pet.images[0] : "");
+    if (!raw) return ""; // SafeImage will show placeholder
+    
+    // If server already sends absolute, use it; otherwise hand it to the images resolver
+    const isAbsolute = /^https?:\/\//i.test(raw);
+    return isAbsolute ? raw : `/api/images/resolve?src=${encodeURIComponent(raw)}`;
+  };
 
-  // Use either hook data or local state based on context
-  const displayPets = pets || localPets;
-  const displayLoading = hookLoading || loading;
-  const displayPagination = pagination || localPagination;
-
-  // ✅ Stable API instance
-  const adminAPI = useMemo(() => {
-    const api = axios.create({
-      baseURL: process.env.NODE_ENV === 'production' 
-        ? 'https://furbabies-backend.onrender.com/api'
-        : 'http://localhost:5000/api',
-      timeout: 45000,
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      }
-    });
-
-    api.interceptors.request.use((config) => {
-      const token = localStorage.getItem('token');
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-      }
-      console.log(`📡 Admin Request: ${config.method?.toUpperCase()} ${config.url}`);
-      return config;
-    });
-
-    api.interceptors.response.use(
-      (response) => {
-        console.log(`✅ Admin Response: ${response.status} ${response.config.url}`);
-        return response;
-      },
-      (error) => {
-        console.error('❌ Admin Error:', error.response?.status, error.response?.data || error.message);
-        return Promise.reject(error);
-      }
-    );
-
-    return api;
-  }, []);
-
-  const fetchPets = useCallback(
-    async (page = 1) => {
-      setLoading(true);
+  // Load pets on component mount and when filter changes
+  useEffect(() => {
+    const loadPetsData = async () => {
       try {
-        console.log(`🐾 Fetching admin pets - Page: ${page}, ViewMode: ${viewMode}`);
-        
-        const params = new URLSearchParams({
-          page,
-          // ✅ KEY CHANGE: Dynamic limit based on view mode
-          limit: viewMode === 'all' ? 10000 : itemsPerPage, // Use high number for "show all"
-          ...Object.fromEntries(
-            Object.entries(filters).filter(([_, value]) => value !== "")
-          )
-        });
+        setLoading(true);
+        setError('');
 
-        const response = await adminAPI.get(`/admin/pets?${params.toString()}`);
+        // Build query parameters
+        const params = new URLSearchParams();
+        if (filter.status !== 'all') params.append('status', filter.status);
+        if (filter.type !== 'all') params.append('type', filter.type);
+        if (filter.featured !== 'all') params.append('featured', filter.featured === 'true');
+        
+        const response = await api.get(`/api/pets?${params.toString()}`);
         
         if (response.data.success) {
-          setLocalPets(response.data.data || []);
-          setLocalPagination(response.data.pagination || {});
-          console.log(`✅ Admin pets loaded: ${response.data.data?.length || 0} pets (Total: ${response.data.pagination?.totalPets || 0})`);
+          setPets(response.data.data || []);
+          console.log('✅ Loaded', response.data.data.length, 'pets for admin');
         } else {
-          throw new Error(response.data.message || 'Failed to fetch pets');
+          throw new Error(response.data.message || 'Failed to load pets');
         }
-        
-      } catch (error) {
-        console.error("❌ Error fetching pets:", error);
-        
-        let errorMessage = "Error fetching pets";
-        if (error.code === 'ECONNABORTED') {
-          errorMessage = "Request timed out. Please try again in a moment.";
-        } else if (error.response?.data?.message) {
-          errorMessage = error.response.data.message;
-        } else if (error.message) {
-          errorMessage = error.message;
-        }
-        
-        showAlert(errorMessage, error.code === 'ECONNABORTED' ? "warning" : "danger");
+      } catch (err) {
+        console.error('❌ Admin pets load error:', err);
+        setError(err.message || 'Failed to load pets');
+        setPets([]);
       } finally {
         setLoading(false);
       }
-    },
-    [filters, adminAPI, viewMode, itemsPerPage]
-  );
+    };
 
-  // ✅ Load pets on mount
-  useEffect(() => {
-    console.log('🔄 AdminPets: Loading initial data');
-    fetchPets(currentPage);
-  }, []);
+    loadPetsData();
+  }, [filter]);
 
-  // ✅ Refetch when filters, view mode, or items per page change
-  useEffect(() => {
-    console.log('🔍 AdminPets: Filters/ViewMode changed, refetching');
-    setCurrentPage(1); // Reset to first page when filters change
-    fetchPets(1);
-  }, [filters, viewMode, itemsPerPage]);
-
-  // ✅ Handle page changes
-  const handlePageChange = (page) => {
-    setCurrentPage(page);
-    fetchPets(page);
-  };
-
-  // ✅ Handle view mode toggle
-  const handleViewModeChange = (mode) => {
-    console.log(`🔄 Switching view mode to: ${mode}`);
-    setViewMode(mode);
-    setCurrentPage(1);
-  };
-
-  const showAlert = (message, variant) => {
-    setAlert({ show: true, message, variant });
-    setTimeout(() => {
-      setAlert({ show: false, message: "", variant: "" });
-    }, 5000);
-  };
-
-  const handleEditPet = (pet) => {
-    setEditingPet(pet);
-    setShowEditModal(true);
-  };
-
-  const handleDeletePet = (pet) => {
-    setDeletingPet(pet);
-    setShowDeleteModal(true);
-  };
-
-  const confirmDeletePet = async () => {
-    if (!deletingPet) return;
-
+  // Separate loadPets function for manual refresh
+  const loadPets = async () => {
     try {
-      console.log('🗑️ Deleting pet:', deletingPet._id);
+      setLoading(true);
+      setError('');
+
+      // Build query parameters
+      const params = new URLSearchParams();
+      if (filter.status !== 'all') params.append('status', filter.status);
+      if (filter.type !== 'all') params.append('type', filter.type);
+      if (filter.featured !== 'all') params.append('featured', filter.featured === 'true');
       
-      const response = await adminAPI.delete(`/admin/pets/${deletingPet._id}`);
+      const response = await api.get(`/api/pets?${params.toString()}`);
       
       if (response.data.success) {
-        showAlert("Pet deleted successfully", "success");
-        fetchPets(currentPage);
+        setPets(response.data.data || []);
+        console.log('✅ Manually refreshed', response.data.data.length, 'pets for admin');
+      } else {
+        throw new Error(response.data.message || 'Failed to load pets');
+      }
+    } catch (err) {
+      console.error('❌ Admin pets manual refresh error:', err);
+      setError(err.message || 'Failed to load pets');
+      setPets([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleStatusChange = async (petId, newStatus) => {
+    try {
+      const response = await api.patch(`/api/pets/${petId}`, { status: newStatus });
+      
+      if (response.data.success) {
+        // Update local state
+        setPets(pets.map(pet => 
+          pet._id === petId ? { ...pet, status: newStatus } : pet
+        ));
+        console.log('✅ Pet status updated:', petId, newStatus);
+      } else {
+        throw new Error(response.data.message || 'Failed to update status');
+      }
+    } catch (err) {
+      console.error('❌ Status update error:', err);
+      setError(`Failed to update pet status: ${err.message}`);
+    }
+  };
+
+  const handleFeaturedToggle = async (petId, currentFeatured) => {
+    try {
+      const newFeatured = !currentFeatured;
+      const response = await api.patch(`/api/pets/${petId}`, { featured: newFeatured });
+      
+      if (response.data.success) {
+        setPets(pets.map(pet => 
+          pet._id === petId ? { ...pet, featured: newFeatured } : pet
+        ));
+        console.log('✅ Pet featured status updated:', petId, newFeatured);
+      } else {
+        throw new Error(response.data.message || 'Failed to update featured status');
+      }
+    } catch (err) {
+      console.error('❌ Featured update error:', err);
+      setError(`Failed to update featured status: ${err.message}`);
+    }
+  };
+
+  const handleViewDetails = (pet) => {
+    setSelectedPet(pet);
+    setShowModal(true);
+  };
+
+  const handleDeletePet = async (petId) => {
+    if (!window.confirm('Are you sure you want to delete this pet? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const response = await api.delete(`/api/pets/${petId}`);
+      
+      if (response.data.success) {
+        setPets(pets.filter(pet => pet._id !== petId));
+        console.log('✅ Pet deleted:', petId);
       } else {
         throw new Error(response.data.message || 'Failed to delete pet');
       }
-      
-    } catch (error) {
-      console.error("❌ Error deleting pet:", error);
-      showAlert(error.response?.data?.message || error.message || "Error deleting pet", "danger");
-    } finally {
-      setShowDeleteModal(false);
-      setDeletingPet(null);
+    } catch (err) {
+      console.error('❌ Delete error:', err);
+      setError(`Failed to delete pet: ${err.message}`);
     }
   };
 
-  const handleSaveEdit = async (updatedPetData) => {
-    if (!editingPet) return;
-
-    try {
-      console.log('✏️ Updating pet:', editingPet._id);
-      
-      const response = await adminAPI.put(`/admin/pets/${editingPet._id}`, updatedPetData);
-      
-      if (response.data.success) {
-        showAlert("Pet updated successfully", "success");
-        fetchPets(currentPage);
-      } else {
-        throw new Error(response.data.message || 'Failed to update pet');
-      }
-      
-    } catch (error) {
-      console.error("❌ Error updating pet:", error);
-      showAlert(error.response?.data?.message || error.message || "Error updating pet", "danger");
-    } finally {
-      setShowEditModal(false);
-      setEditingPet(null);
+  // Helper functions
+  const getStatusBadgeVariant = (status) => {
+    switch (status) {
+      case 'available': return 'success';
+      case 'pending': return 'warning';
+      case 'adopted': return 'info';
+      case 'not-available': return 'secondary';
+      default: return 'secondary';
     }
   };
 
-  // ✅ FIXED: Single handleFilterChange function
-  const handleFilterChange = (filterUpdates) => {
-    // If using the hook's setFilter, update individual filters
-    if (setFilter && typeof filterUpdates === 'object') {
-      Object.entries(filterUpdates).forEach(([key, value]) => {
-        setFilter(key, value);
-      });
-    }
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    return new Date(dateString).toLocaleDateString();
   };
 
-  const handleRefresh = () => {
-    console.log('🔄 Manual refresh');
-    fetchPets(currentPage);
-  };
-
-  const handleClearFilters = () => {
-    if (clearFilters) {
-      clearFilters();
-    }
-  };
-
-  const columns = [
-    {
-      key: 'name',
-      label: 'Name',
-      render: (pet) => (
-        <div>
-          <strong>{pet.name}</strong>
-          <br />
-          <small className="text-muted">{pet.breed}</small>
-        </div>
-      )
-    },
-    {
-      key: 'category',
-      label: 'Type',
-      render: (pet) => (
-        <Badge bg="primary">{pet.category || pet.species || pet.type}</Badge>
-      )
-    },
-    {
-      key: 'age',
-      label: 'Age',
-      render: (pet) => `${pet.age || 'Unknown'}`
-    },
-    {
-      key: 'status',
-      label: 'Status',
-      render: (pet) => (
-        <Badge 
-          bg={pet.status === 'available' ? 'success' : 
-              pet.status === 'adopted' ? 'info' : 'warning'}
-        >
-          {pet.status || 'available'}
-        </Badge>
-      )
-    },
-    {
-      key: 'actions',
-      label: 'Actions',
-      render: (pet) => (
-        <div>
-          <Button 
-            variant="outline-primary" 
-            size="sm" 
-            className="me-2"
-            onClick={() => handleEditPet(pet)}
-          >
-            Edit
-          </Button>
-          <Button 
-            variant="outline-danger" 
-            size="sm"
-            onClick={() => handleDeletePet(pet)}
-          >
-            Delete
-          </Button>
-        </div>
-      )
-    }
-  ];
-
-  if (displayLoading) {
+  if (loading) {
     return (
-      <div className="d-flex flex-column justify-content-center align-items-center" style={{ height: '50vh' }}>
-        <Spinner animation="border" variant="primary" />
-        <span className="ms-2 mt-3">Loading pets...</span>
-      </div>
+      <Container className="py-4">
+        <div className="text-center">
+          <Spinner animation="border" variant="primary" />
+          <p className="mt-2">Loading pets...</p>
+        </div>
+      </Container>
     );
   }
 
   return (
-    <div className="admin-pets">
-      <Row className="mb-4">
+    <Container fluid className="py-4">
+      <Row>
         <Col>
-          <div className="d-flex justify-content-between align-items-center">
-            <div>
-              <h2>Pets Management</h2>
-              <p className="text-muted mb-0">
-                Manage pet listings and information
-                <Badge bg="success" className="ms-2">
-                  {viewMode === 'all' 
-                    ? `${displayPets.length} pets total` 
-                    : `${displayPets.length} of ${displayPagination.totalPets || 0} pets`
-                  }
-                </Badge>
-              </p>
-            </div>
-            
-            {/* ✅ VIEW MODE CONTROLS */}
-            <div className="d-flex gap-3 align-items-center">
+          <Card>
+            <Card.Header className="d-flex justify-content-between align-items-center">
               <div>
-                <Form.Label className="me-2 mb-0">View:</Form.Label>
-                <ButtonGroup size="sm">
-                  <Button 
-                    variant={viewMode === 'paginated' ? 'primary' : 'outline-primary'}
-                    onClick={() => handleViewModeChange('paginated')}
-                  >
-                    Paginated
-                  </Button>
-                  <Button 
-                    variant={viewMode === 'all' ? 'primary' : 'outline-primary'}
-                    onClick={() => handleViewModeChange('all')}
-                  >
-                    Show All
-                  </Button>
-                </ButtonGroup>
+                <h4 className="mb-0">
+                  <i className="fas fa-paw me-2 text-primary"></i>
+                  Pet Management
+                </h4>
+                <small className="text-muted">
+                  {pets.length} pet{pets.length !== 1 ? 's' : ''} found
+                </small>
               </div>
-              
-              {viewMode === 'paginated' && (
-                <div>
-                  <Form.Label className="me-2 mb-0">Per Page:</Form.Label>
-                  <Form.Select 
-                    size="sm" 
-                    value={itemsPerPage} 
-                    onChange={(e) => setItemsPerPage(parseInt(e.target.value))}
-                    style={{width: 'auto'}}
+              <div className="d-flex gap-2">
+                <Button 
+                  variant="primary" 
+                  as={Link} 
+                  to="/admin/pets/add"
+                  size="sm"
+                >
+                  <i className="fas fa-plus me-1"></i>
+                  Add Pet
+                </Button>
+                <Button 
+                  variant="outline-secondary" 
+                  onClick={loadPets}
+                  size="sm"
+                >
+                  <i className="fas fa-sync-alt me-1"></i>
+                  Refresh
+                </Button>
+              </div>
+            </Card.Header>
+
+            <Card.Body>
+              {/* Filters */}
+              <Row className="mb-3">
+                <Col md={3}>
+                  <Form.Select
+                    size="sm"
+                    value={filter.status}
+                    onChange={(e) => setFilter({...filter, status: e.target.value})}
                   >
-                    <option value={10}>10</option>
-                    <option value={20}>20</option>
-                    <option value={50}>50</option>
-                    <option value={100}>100</option>
+                    <option value="all">All Status</option>
+                    <option value="available">Available</option>
+                    <option value="pending">Pending</option>
+                    <option value="adopted">Adopted</option>
+                    <option value="not-available">Not Available</option>
                   </Form.Select>
+                </Col>
+                <Col md={3}>
+                  <Form.Select
+                    size="sm"
+                    value={filter.type}
+                    onChange={(e) => setFilter({...filter, type: e.target.value})}
+                  >
+                    <option value="all">All Types</option>
+                    <option value="dog">Dogs</option>
+                    <option value="cat">Cats</option>
+                    <option value="bird">Birds</option>
+                    <option value="fish">Fish</option>
+                    <option value="rabbit">Rabbits</option>
+                    <option value="hamster">Hamsters</option>
+                    <option value="other">Other</option>
+                  </Form.Select>
+                </Col>
+                <Col md={3}>
+                  <Form.Select
+                    size="sm"
+                    value={filter.featured}
+                    onChange={(e) => setFilter({...filter, featured: e.target.value})}
+                  >
+                    <option value="all">All Pets</option>
+                    <option value="true">Featured Only</option>
+                    <option value="false">Not Featured</option>
+                  </Form.Select>
+                </Col>
+              </Row>
+
+              {/* Error Alert */}
+              {error && (
+                <Alert variant="danger" className="mb-3">
+                  <i className="fas fa-exclamation-triangle me-2"></i>
+                  {error}
+                </Alert>
+              )}
+
+              {/* Pets Table */}
+              {pets.length === 0 ? (
+                <div className="text-center py-5">
+                  <i className="fas fa-search fa-3x text-muted mb-3"></i>
+                  <h5 className="text-muted">No pets found</h5>
+                  <p className="text-muted">Try adjusting your filters or add a new pet.</p>
+                </div>
+              ) : (
+                <div className="table-responsive">
+                  <Table hover className="mb-0">
+                    <thead className="bg-light">
+                      <tr>
+                        <th style={{ width: '80px' }}>Image</th>
+                        <th>Name</th>
+                        <th>Type</th>
+                        <th>Breed</th>
+                        <th>Age</th>
+                        <th>Status</th>
+                        <th>Featured</th>
+                        <th>Created</th>
+                        <th style={{ width: '140px' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pets.map((pet) => (
+                        <tr key={pet._id}>
+                          {/* Use SafeImage instead of raw img */}
+                          <td>
+                            <div style={{ width: 60, height: 60 }}>
+                              <SafeImage
+                                alt={pet.name}
+                                src={getPetImageUrl(pet)}
+                                size="small"
+                                className="rounded"
+                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                              />
+                            </div>
+                          </td>
+                          <td>
+                            <div>
+                              <strong>{pet.name}</strong>
+                              {pet._id && (
+                                <div className="small text-muted">
+                                  ID: {pet._id.slice(-6)}
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                          <td>
+                            <Badge bg="secondary" className="text-capitalize">
+                              {pet.type}
+                            </Badge>
+                          </td>
+                          <td>{pet.breed || 'N/A'}</td>
+                          <td>{pet.age || 'N/A'}</td>
+                          <td>
+                            <Dropdown>
+                              <Dropdown.Toggle
+                                variant={getStatusBadgeVariant(pet.status)}
+                                size="sm"
+                                className="text-capitalize"
+                              >
+                                {pet.status}
+                              </Dropdown.Toggle>
+                              <Dropdown.Menu>
+                                <Dropdown.Item 
+                                  onClick={() => handleStatusChange(pet._id, 'available')}
+                                >
+                                  Available
+                                </Dropdown.Item>
+                                <Dropdown.Item 
+                                  onClick={() => handleStatusChange(pet._id, 'pending')}
+                                >
+                                  Pending
+                                </Dropdown.Item>
+                                <Dropdown.Item 
+                                  onClick={() => handleStatusChange(pet._id, 'adopted')}
+                                >
+                                  Adopted
+                                </Dropdown.Item>
+                                <Dropdown.Item 
+                                  onClick={() => handleStatusChange(pet._id, 'not-available')}
+                                >
+                                  Not Available
+                                </Dropdown.Item>
+                              </Dropdown.Menu>
+                            </Dropdown>
+                          </td>
+                          <td>
+                            <Form.Check
+                              type="switch"
+                              checked={pet.featured || false}
+                              onChange={() => handleFeaturedToggle(pet._id, pet.featured)}
+                            />
+                          </td>
+                          <td>{formatDate(pet.createdAt)}</td>
+                          <td>
+                            <div className="d-flex gap-1">
+                              <Button
+                                variant="outline-primary"
+                                size="sm"
+                                onClick={() => handleViewDetails(pet)}
+                                title="View Details"
+                              >
+                                <i className="fas fa-eye"></i>
+                              </Button>
+                              <Button
+                                variant="outline-secondary"
+                                size="sm"
+                                as={Link}
+                                to={`/admin/pets/edit/${pet._id}`}
+                                title="Edit"
+                              >
+                                <i className="fas fa-edit"></i>
+                              </Button>
+                              <Button
+                                variant="outline-danger"
+                                size="sm"
+                                onClick={() => handleDeletePet(pet._id)}
+                                title="Delete"
+                              >
+                                <i className="fas fa-trash"></i>
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </Table>
                 </div>
               )}
-              
-              <Button variant="outline-secondary" size="sm" onClick={handleRefresh}>
-                <i className="fas fa-sync-alt me-2"></i>
-                Refresh
-              </Button>
-            </div>
-          </div>
+            </Card.Body>
+          </Card>
         </Col>
       </Row>
 
-      {alert.show && (
-        <Alert variant={alert.variant} className="mb-4">
-          {alert.message}
-        </Alert>
-      )}
-
-      <Card>
-        <Card.Header>
-          <div className="d-flex justify-content-between align-items-center">
-            <h5 className="mb-0">
-              All Pets 
-              {viewMode === 'all' && (
-                <Badge bg="info" className="ms-2">Showing All</Badge>
-              )}
-            </h5>
-            <div className="d-flex gap-2">
-              <Button variant="success" size="sm">
-                <i className="fas fa-plus me-2"></i>
-                Add Pet
-              </Button>
-              <Button variant="outline-primary" size="sm">
-                <i className="fas fa-download me-2"></i>
-                Export
-              </Button>
-            </div>
-          </div>
-        </Card.Header>
-        
-        <Card.Body>
-          {/* ✅ FILTERS ROW */}
-          <Row className="mb-3">
-            <Col md={3}>
-              <Form.Control
-                placeholder="Search pets..."
-                value={filters.search || ''}
-                onChange={(e) => handleFilterChange({ search: e.target.value })}
-              />
-            </Col>
-            <Col md={2}>
-              <Form.Select
-                value={filters.type || ''}
-                onChange={(e) => handleFilterChange({ type: e.target.value })}
-              >
-                <option value="">All Types</option>
-                <option value="dog">Dogs</option>
-                <option value="cat">Cats</option>
-                <option value="bird">Birds</option>
-                <option value="fish">Fish</option>
-                <option value="small-pet">Small Pets</option>
-              </Form.Select>
-            </Col>
-            <Col md={2}>
-              <Form.Select
-                value={filters.status || ''}
-                onChange={(e) => handleFilterChange({ status: e.target.value })}
-              >
-                <option value="">All Status</option>
-                <option value="available">Available</option>
-                <option value="adopted">Adopted</option>
-                <option value="pending">Pending</option>
-              </Form.Select>
-            </Col>
-            <Col md={2}>
-              <Button 
-                variant="outline-secondary" 
-                size="sm" 
-                onClick={handleClearFilters}
-              >
-                Clear Filters
-              </Button>
-            </Col>
-          </Row>
-
-          {/* ✅ DATA TABLE */}
-          <DataTable
-            data={displayPets}
-            columns={columns}
-            loading={displayLoading}
-            pagination={viewMode === 'paginated' ? displayPagination : null}
-            onPageChange={viewMode === 'paginated' ? handlePageChange : null}
-          />
-
-          {/* ✅ PAGINATION CONTROLS (only show in paginated mode) */}
-          {viewMode === 'paginated' && displayPagination.totalPages > 1 && (
-            <div className="d-flex justify-content-center mt-4">
-              <Pagination>
-                <Pagination.First 
-                  disabled={currentPage === 1}
-                  onClick={() => handlePageChange(1)}
+      {/* Pet Details Modal */}
+      <Modal 
+        show={showModal} 
+        onHide={() => setShowModal(false)} 
+        size="lg"
+        centered
+      >
+        <Modal.Header closeButton>
+          <Modal.Title>
+            <i className="fas fa-paw me-2 text-primary"></i>
+            Pet Details
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {selectedPet && (
+            <Row>
+              <Col md={4}>
+                {/* Use SafeImage with helper function in modal */}
+                <SafeImage
+                  alt={selectedPet.name}
+                  src={getPetImageUrl(selectedPet)}
+                  size="large"
+                  className="rounded w-100"
+                  style={{ objectFit: 'cover' }}
                 />
-                <Pagination.Prev 
-                  disabled={currentPage === 1}
-                  onClick={() => handlePageChange(currentPage - 1)}
-                />
+              </Col>
+              <Col md={8}>
+                <h5>{selectedPet.name}</h5>
+                <div className="mb-3">
+                  <Badge bg={getStatusBadgeVariant(selectedPet.status)} className="me-2">
+                    {selectedPet.status}
+                  </Badge>
+                  {selectedPet.featured && (
+                    <Badge bg="warning">
+                      <i className="fas fa-star me-1"></i>
+                      Featured
+                    </Badge>
+                  )}
+                </div>
                 
-                {/* Show page numbers */}
-                {[...Array(Math.min(displayPagination.totalPages, 5))].map((_, index) => {
-                  const pageNum = currentPage <= 3 ? index + 1 : currentPage - 2 + index;
-                  if (pageNum > displayPagination.totalPages) return null;
-                  
-                  return (
-                    <Pagination.Item
-                      key={pageNum}
-                      active={pageNum === currentPage}
-                      onClick={() => handlePageChange(pageNum)}
-                    >
-                      {pageNum}
-                    </Pagination.Item>
-                  );
-                })}
-                
-                <Pagination.Next 
-                  disabled={currentPage === displayPagination.totalPages}
-                  onClick={() => handlePageChange(currentPage + 1)}
-                />
-                <Pagination.Last 
-                  disabled={currentPage === displayPagination.totalPages}
-                  onClick={() => handlePageChange(displayPagination.totalPages)}
-                />
-              </Pagination>
-            </div>
+                <Row className="mb-3">
+                  <Col sm={6}>
+                    <strong>Type:</strong> {selectedPet.type}
+                  </Col>
+                  <Col sm={6}>
+                    <strong>Breed:</strong> {selectedPet.breed || 'N/A'}
+                  </Col>
+                  <Col sm={6}>
+                    <strong>Age:</strong> {selectedPet.age || 'N/A'}
+                  </Col>
+                  <Col sm={6}>
+                    <strong>Gender:</strong> {selectedPet.gender || 'N/A'}
+                  </Col>
+                  <Col sm={6}>
+                    <strong>Size:</strong> {selectedPet.size || 'N/A'}
+                  </Col>
+                  <Col sm={6}>
+                    <strong>Color:</strong> {selectedPet.color || 'N/A'}
+                  </Col>
+                </Row>
+
+                <div className="mb-3">
+                  <strong>Description:</strong>
+                  <p className="mt-1">{selectedPet.description || 'No description available.'}</p>
+                </div>
+
+                {selectedPet.personalityTraits && selectedPet.personalityTraits.length > 0 && (
+                  <div className="mb-3">
+                    <strong>Personality Traits:</strong>
+                    <div className="mt-1">
+                      {selectedPet.personalityTraits.map((trait, index) => (
+                        <Badge key={index} bg="light" text="dark" className="me-1 mb-1">
+                          {trait}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="small text-muted">
+                  <div><strong>Created:</strong> {formatDate(selectedPet.createdAt)}</div>
+                  <div><strong>Updated:</strong> {formatDate(selectedPet.updatedAt)}</div>
+                  <div><strong>ID:</strong> {selectedPet._id}</div>
+                </div>
+              </Col>
+            </Row>
           )}
-        </Card.Body>
-      </Card>
-
-      {/* Edit and Delete Modals would go here */}
-    </div>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowModal(false)}>
+            Close
+          </Button>
+          <Button 
+            variant="primary" 
+            as={Link} 
+            to={`/admin/pets/edit/${selectedPet?._id}`}
+            onClick={() => setShowModal(false)}
+          >
+            Edit Pet
+          </Button>
+        </Modal.Footer>
+      </Modal>
+    </Container>
   );
 };
 

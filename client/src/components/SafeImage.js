@@ -1,218 +1,162 @@
-// client/src/components/SafeImage.js - FIXED VERSION
+// client/src/components/SafeImage.js - IMPROVED VERSION WITH WATCHDOG AND BETTER UX
 
-import React, { useState, useEffect, useRef } from 'react';
-import PropTypes from 'prop-types';
-import performanceTracker from '../utils/performanceMonitor';
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import PropTypes from "prop-types";
+import classNames from "classnames";
 
-const GCS_BASE = 'https://storage.googleapis.com/furbabies-petstore';
+const BUCKET_BASE = "https://storage.googleapis.com/furbabies-petstore/";
 
-// 🎯 FIX: Normalize any non-HTTP URL to absolute GCS URL
-const normalizeToAbsolute = (src) => {
-  if (!src) return '';
-  if (typeof src !== 'string') return '';
-  if (src.startsWith('http://') || src.startsWith('https://')) return src;
-  const clean = src.replace(/^\/+/, '');
-  return `${GCS_BASE}/${clean}`;
+function normalizeUrl(src) {
+  if (!src) return null;
+  if (/^https?:\/\//i.test(src)) return src;
+  // Support raw keys like "pet/dachshund-pup.png" or "product/leash.png"
+  if (src.startsWith("pet/") || src.startsWith("product/")) {
+    return BUCKET_BASE + src;
+  }
+  // If backend ever returns `/api/images?...` just pass it through
+  if (src.startsWith("/api/images")) return src;
+  // Fallback: treat as bucket key
+  return BUCKET_BASE + src.replace(/^\//, "");
+}
+
+const SIZE_MAP = {
+  small: { w: 120, h: 120 },
+  medium: { w: 240, h: 240 },
+  large: { w: 360, h: 360 },
+  xl: { w: 480, h: 480 },
 };
 
-const SafeImage = ({
-  item,
-  category = 'general',
-  className = '',
-  style = {},
-  alt = '',
-  onContainerTypeChange, // custom callback (doesn't forward to <img/>)
-  size = 'medium',
-  ...otherProps
-}) => {
-  const [imageUrl, setImageUrl] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+// Accept "card" from existing callers (map to medium)
+function normalizeSize(size) {
+  if (size === "card") return "medium";
+  return SIZE_MAP[size] ? size : "medium";
+}
 
-  // for performance tracking
-  const loadStartTime = useRef(Date.now());
+export default function SafeImage({
+  src,
+  alt,
+  size = "medium",
+  className,
+  style,
+  rounded = true,
+  fallback = "/images/placeholders/pet.png",
+  ...imgProps
+}) {
+  const normalizedSrc = useMemo(() => normalizeUrl(src), [src]);
+  const [loaded, setLoaded] = useState(false);
+  const [errored, setErrored] = useState(false);
+  const [currentSrc, setCurrentSrc] = useState(normalizedSrc);
+  const watchdogRef = useRef(null);
+  const sizeKey = normalizeSize(size);
+  const dims = SIZE_MAP[sizeKey];
 
+  // Reset states when src changes
   useEffect(() => {
-    loadStartTime.current = Date.now(); // reset timer on item/category change
+    setLoaded(false);
+    setErrored(false);
+    setCurrentSrc(normalizedSrc);
+  }, [normalizedSrc]);
 
-    if (!item) {
-      console.log('🖼️ SafeImage: No item provided');
-      setError(true);
-      setLoading(false);
-      return;
-    }
-
-    let url = '';
-
-    // 1) First priority: server-supplied imageUrl (normalize it)
-    if (item.imageUrl && typeof item.imageUrl === 'string') {
-      url = item.imageUrl;
-      console.log('🖼️ SafeImage: Using server imageUrl (will be normalized):', url);
-    }
-    // 2) Second priority: raw image field from DB
-    else if (item.image && typeof item.image === 'string') {
-      url = item.image;
-      console.log('🖼️ SafeImage: Using image field (will be normalized):', url);
-    }
-    // 3) Third priority: photos array (mainly for pets)
-    else if (Array.isArray(item.photos) && item.photos.length > 0) {
-      const photo = item.photos[0];
-      url = (typeof photo === 'object' ? photo.url : photo) || '';
-      console.log('🖼️ SafeImage: Using photos array (will be normalized):', url);
-    }
-    // 4) No image found
-    else {
-      console.log('🖼️ SafeImage: No image found for:', item.name || 'unnamed item');
-      setImageUrl('');
-      setLoading(false);
-      setError(true);
-      return;
-    }
-
-    // 🎯 CRITICAL FIX: Normalize to absolute URL
-    const finalUrl = normalizeToAbsolute(url);
-    console.log('🖼️ SafeImage Final URL:', item?.name || 'item', '->', finalUrl);
-    
-    if (!finalUrl || finalUrl.trim() === '') {
-      console.log('🖼️ SafeImage: Empty URL after normalization');
-      setImageUrl('');
-      setLoading(false);
-      setError(true);
-      return;
-    }
-
-    setImageUrl(finalUrl);
-    setLoading(false);
-    setError(false);
-  }, [item, category]);
-
-  const handleImageLoad = (e) => {
-    console.log('✅ SafeImage: Image loaded successfully:', imageUrl);
-    
-    // aspect ratio detection for container type
-    const img = e.target;
-    if (img.naturalWidth && img.naturalHeight) {
-      const aspectRatio = img.naturalWidth / img.naturalHeight;
-
-      let detectedType = 'square';
-      if (aspectRatio > 1.5) detectedType = 'landscape';
-      else if (aspectRatio < 0.6) detectedType = 'tall';
-      else if (aspectRatio < 0.8) detectedType = 'portrait';
-
-      if (onContainerTypeChange) {
-        onContainerTypeChange(detectedType);
+  // Watchdog to avoid infinite spinner (network stall, decode never firing, etc.)
+  useEffect(() => {
+    if (!currentSrc) return;
+    clearTimeout(watchdogRef.current);
+    watchdogRef.current = setTimeout(() => {
+      if (!loaded && !errored) {
+        // Fail closed -> show fallback
+        setErrored(true);
       }
+    }, 4000);
+    return () => clearTimeout(watchdogRef.current);
+  }, [currentSrc, loaded, errored]);
+
+  const onLoad = () => setLoaded(true);
+  const onError = () => {
+    if (currentSrc !== fallback) {
+      setCurrentSrc(normalizeUrl(fallback));
+      setErrored(true);
+      // Let fallback load (don't set loaded=true here)
+    } else {
+      setErrored(true);
     }
-
-    setLoading(false);
-    setError(false);
-
-    // performance tracking (success)
-    const loadTime = Date.now() - loadStartTime.current;
-    performanceTracker?.trackImageLoad?.(imageUrl, true, loadTime);
   };
 
-  const handleImageError = (e) => {
-    console.log('❌ SafeImage: Image failed to load:', imageUrl);
-    console.log('❌ SafeImage: Error details:', e.target.src);
-    
-    setError(true);
-    setLoading(false);
+  const wrapperClasses = classNames(
+    "position-relative d-inline-block bg-light",
+    className
+  );
 
-    // performance tracking (fail)
-    const loadTime = Date.now() - loadStartTime.current;
-    performanceTracker?.trackImageLoad?.(imageUrl, false, loadTime);
-  };
-
-  // Loading state
-  if (loading) {
-    return (
-      <div
-        className={`d-flex align-items-center justify-content-center bg-light ${className}`}
-        style={{ ...style }}
-        data-testid="safe-image-loading"
-      >
-        <div className="text-center text-muted">
-          <div className="spinner-border spinner-border-sm mb-2" role="status">
-            <span className="visually-hidden">Loading...</span>
-          </div>
-          <div style={{ fontSize: '0.875rem' }}>Loading image...</div>
-        </div>
-      </div>
-    );
-  }
-
-  // Error state - show fallback UI
-  if (error || !imageUrl) {
-    const entityType = category || (item?.price !== undefined ? 'product' : 'pet') || 'general';
-    const entityName = item?.name || item?.title || 'item';
-    
-    return (
-      <div
-        className={`d-flex align-items-center justify-content-center bg-light ${className}`}
-        style={{ ...style }}
-        data-testid="safe-image-fallback"
-      >
-        <div className="text-center text-muted">
-          <i 
-            className={`fas ${entityType === 'product' ? 'fa-box' : entityType === 'pet' ? 'fa-paw' : 'fa-image'} fa-2x mb-2 opacity-50`}
-            aria-hidden="true"
-          ></i>
-          <div style={{ fontSize: '0.875rem' }}>
-            {entityType === 'product' ? 'Product image' : 
-             entityType === 'pet' ? 'Pet photo' : 'Image'} unavailable
-          </div>
-          {process.env.NODE_ENV === 'development' && (
-            <div style={{ fontSize: '0.75rem', opacity: 0.7 }}>
-              {entityName}
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  // Only forward valid <img> attributes (avoid React DOM warnings)
-  const validImgProps = {};
-  const validHtmlProps = new Set([
-    'alt', 'src', 'className', 'style',
-    'onLoad', 'onError', 'onClick',
-    'onMouseEnter', 'onMouseLeave',
-    'id', 'role', 'aria-label', 'title',
-    'width', 'height', 'loading', 'decoding',
-    'crossOrigin', 'referrerPolicy', 'draggable'
-  ]);
-
-  Object.keys(otherProps).forEach((key) => {
-    if (validHtmlProps.has(key)) {
-      validImgProps[key] = otherProps[key];
-    }
+  const imgClasses = classNames("object-fit-cover", {
+    "rounded": rounded,
   });
 
+  const spinner =
+    !loaded && !errored ? (
+      <div
+        className="position-absolute top-50 start-50 translate-middle"
+        style={{ pointerEvents: "none" }}
+        aria-hidden="true"
+      >
+        <div className="spinner-border text-secondary" role="status" />
+      </div>
+    ) : null;
+
+  // Always render <img> so load/error can fire
   return (
-    <img
-      src={imageUrl}
-      alt={alt || item?.name || item?.title || 'Image'}
-      className={className}
-      style={style}
-      onLoad={handleImageLoad}
-      onError={handleImageError}
-      loading="lazy"
-      decoding="async"
-      data-testid="safe-image-loaded"
-      {...validImgProps}
-    />
+    <div
+      className={wrapperClasses}
+      style={{
+        width: dims.w,
+        height: dims.h,
+        overflow: "hidden",
+        ...style,
+      }}
+    >
+      {spinner}
+      {currentSrc ? (
+        <img
+          src={currentSrc}
+          alt={alt || ""}
+          width={dims.w}
+          height={dims.h}
+          loading="lazy"
+          className={imgClasses}
+          style={{
+            width: "100%",
+            height: "100%",
+            display: loaded ? "block" : "block", // keep it in DOM so events fire
+            opacity: loaded && !errored ? 1 : 0.01, // hide while spinner shows
+            transition: "opacity 180ms ease",
+          }}
+          onLoad={onLoad}
+          onError={onError}
+          {...imgProps}
+        />
+      ) : (
+        // If we have no src at all, show fallback immediately
+        <img
+          src={normalizeUrl(fallback)}
+          alt={alt || ""}
+          width={dims.w}
+          height={dims.h}
+          className={imgClasses}
+          style={{ width: "100%", height: "100%" }}
+          onLoad={() => setLoaded(true)}
+          onError={() => setErrored(true)}
+          loading="lazy"
+          {...imgProps}
+        />
+      )}
+    </div>
   );
-};
+}
 
 SafeImage.propTypes = {
-  item: PropTypes.object.isRequired,
-  category: PropTypes.string,
+  src: PropTypes.string,
+  alt: PropTypes.string,
+  size: PropTypes.oneOf(["small", "medium", "large", "xl", "card"]),
   className: PropTypes.string,
   style: PropTypes.object,
-  alt: PropTypes.string,
-  onContainerTypeChange: PropTypes.func,
-  size: PropTypes.string
+  rounded: PropTypes.bool,
+  fallback: PropTypes.string,
 };
-
-export default SafeImage;

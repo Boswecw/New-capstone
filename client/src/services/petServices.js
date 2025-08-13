@@ -1,252 +1,241 @@
-// client/src/services/petServices.js - FIXED WITH PROPER IMPORTS
+// client/src/services/petServices.js - FIXED QUERY BUILDER WITH STATUS MAPPING
 
-import { petAPI } from './api';
-import { PetFilterUtils, validateFilters } from '../config/petFilters';
+import api from './api';
 
-// ✅ Enhanced pet service functions
-export const getAllPets = async (params = {}) => {
+/**
+ * Build query string for pet API with proper parameter mapping
+ * @param {Object} filters - Filter object from UI
+ * @returns {string} - URL query string
+ */
+export function buildPetQuery(filters) {
+  const q = new URLSearchParams();
+
+  // Text search
+  if (filters.search && filters.search.trim()) {
+    q.set('search', filters.search.trim());
+  }
+
+  // Facet filters
+  if (filters.type && filters.type !== 'all') {
+    q.set('type', filters.type);
+  }
+  if (filters.category && filters.category !== 'all') {
+    q.set('category', filters.category);
+  }
+  if (filters.size && filters.size !== 'all') {
+    q.set('size', filters.size);
+  }
+  if (filters.gender && filters.gender !== 'all') {
+    q.set('gender', filters.gender);
+  }
+  if (filters.age && filters.age !== 'all') {
+    q.set('age', filters.age);
+  }
+  if (filters.breed && filters.breed !== 'all') {
+    q.set('breed', filters.breed);
+  }
+
+  // Featured filter
+  if (typeof filters.featured === 'boolean') {
+    q.set('featured', String(filters.featured));
+  }
+
+  // ✅ CRITICAL FIX: Status ↔ Available mapping (match your backend!)
+  if (filters.status === 'available') {
+    q.set('available', 'true');
+  } else if (filters.status && filters.status !== 'all') {
+    // If your backend supports explicit statuses:
+    q.set('status', filters.status);
+  }
+
+  // Sorting and pagination
+  q.set('sort', filters.sort || 'newest');
+  q.set('page', String(filters.page || 1));
+  q.set('limit', String(filters.limit || 20));
+
+  return q.toString();
+}
+
+/**
+ * Search pets with filters - main API call
+ * @param {Object} filters - Filter object
+ * @returns {Promise<Object>} - API response with pets, pagination, etc.
+ */
+export async function searchPetsWithFilters(filters) {
   try {
-    return await petAPI.getAllPets(params);
+    const queryString = buildPetQuery(filters);
+    console.log('🔍 Pet search query:', queryString);
+    
+    // axios instance already has baseURL = http://localhost:5000/api
+    const response = await api.get(`/pets?${queryString}`);
+    
+    // ✅ CRITICAL: Normalize image field for consistency
+    if (response.data.success && response.data.data) {
+      response.data.data = response.data.data.map(pet => ({
+        ...pet,
+        imageUrl: pet.image || pet.imageUrl || null, // ✅ now both work
+      }));
+    }
+    
+    console.log('✅ Pet search response:', {
+      success: response.data.success,
+      count: response.data.data?.length || 0,
+      pagination: response.data.pagination,
+      total: response.data.total || response.data.pagination?.totalCount
+    });
+
+    return response.data; // { success, data, pagination, total }
   } catch (error) {
-    console.error('Error fetching all pets:', error);
+    console.error('❌ Pet search error:', error);
     throw error;
   }
-};
+}
 
-// ✅ Enhanced search with new filter system
-export const searchPetsWithFilters = async (filters = {}) => {
+/**
+ * Get featured pets
+ * @param {number} limit - Number of pets to fetch
+ * @returns {Promise<Object>} - API response
+ */
+export async function getFeaturedPets(limit = 6) {
   try {
-    // Validate filters first
-    const validatedFilters = validateFilters(filters);
+    const response = await api.get(`/pets/featured?limit=${limit}`);
     
-    // Convert to query parameters for backend
-    const queryParams = PetFilterUtils.filtersToQueryString(validatedFilters);
+    // ✅ CRITICAL: Normalize image field for consistency
+    if (response.data.success && response.data.data) {
+      response.data.data = response.data.data.map(pet => ({
+        ...pet,
+        imageUrl: pet.image || pet.imageUrl || null, // ✅ now both work
+      }));
+    }
     
-    console.log('🔍 Searching pets with filters:', validatedFilters);
-    console.log('📡 Query params:', queryParams.toString());
+    return response.data;
+  } catch (error) {
+    console.error('❌ Featured pets error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get single pet by ID
+ * @param {string} petId - Pet ID
+ * @returns {Promise<Object>} - API response
+ */
+export async function getPetById(petId) {
+  try {
+    const response = await api.get(`/pets/${petId}`);
     
-    const response = await petAPI.getAllPets(queryParams);
+    // ✅ CRITICAL: Normalize image field for consistency
+    if (response.data.success && response.data.data) {
+      response.data.data = {
+        ...response.data.data,
+        imageUrl: response.data.data.image || response.data.data.imageUrl || null,
+      };
+    }
     
-    // Apply client-side filtering for immediate response if needed
-    if (response.data?.success && response.data.data) {
-      const serverPets = response.data.data;
-      
-      // Only apply client-side filtering if we have additional filters not handled by server
-      const needsClientFiltering = validatedFilters.search && validatedFilters.search.length > 0;
-      
-      if (needsClientFiltering) {
-        const clientFilteredPets = PetFilterUtils.filterPets(serverPets, validatedFilters);
-        
-        return {
-          ...response,
-          data: {
-            ...response.data,
-            data: clientFilteredPets,
-            clientFiltered: true
-          }
-        };
+    return response.data;
+  } catch (error) {
+    console.error('❌ Get pet error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get pet statistics for admin dashboard
+ * @returns {Promise<Object>} - Stats object
+ */
+export async function getPetStats() {
+  try {
+    const response = await api.get('/pets/stats/summary');
+    return response.data;
+  } catch (error) {
+    console.error('❌ Pet stats error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Create new pet (admin)
+ * @param {Object} petData - Pet data
+ * @returns {Promise<Object>} - Created pet
+ */
+export async function createPet(petData) {
+  try {
+    const response = await api.post('/pets', petData);
+    return response.data;
+  } catch (error) {
+    console.error('❌ Create pet error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Update pet (admin)
+ * @param {string} petId - Pet ID
+ * @param {Object} updateData - Fields to update
+ * @returns {Promise<Object>} - Updated pet
+ */
+export async function updatePet(petId, updateData) {
+  try {
+    const response = await api.patch(`/pets/${petId}`, updateData);
+    return response.data;
+  } catch (error) {
+    console.error('❌ Update pet error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Delete pet (admin)
+ * @param {string} petId - Pet ID
+ * @returns {Promise<Object>} - Deletion result
+ */
+export async function deletePet(petId) {
+  try {
+    const response = await api.delete(`/pets/${petId}`);
+    return response.data;
+  } catch (error) {
+    console.error('❌ Delete pet error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get available filter options (breeds, etc.)
+ * @returns {Promise<Object>} - Filter options
+ */
+export async function getPetFilterOptions() {
+  try {
+    // This would call an endpoint that returns available breeds, etc.
+    // For now, return static options
+    const filterOptions = {
+      success: true,
+      data: {
+        types: ['dog', 'cat', 'bird', 'fish', 'rabbit', 'hamster', 'small-pet', 'other'],
+        sizes: ['small', 'medium', 'large', 'extra-large'],
+        genders: ['male', 'female', 'unknown'],
+        ageGroups: ['young', 'adult', 'senior'],
+        statuses: ['available', 'pending', 'adopted', 'not-available']
       }
-    }
-    
-    return response;
-  } catch (error) {
-    console.error('Error searching pets with filters:', error);
-    throw error;
-  }
-};
-
-// ✅ Legacy search function with new system
-export const searchPets = async (params = {}) => {
-  try {
-    // Convert old params to new filter format
-    const filters = {
-      search: params.search || '',
-      category: params.category || 'all',
-      type: params.breed || params.type || 'all',
-      age: params.age || 'all',
-      featured: params.featured || null,
-      size: params.size || 'all',
-      gender: params.gender || 'all',
-      status: params.status || 'available',
-      sort: params.sort || 'newest',
-      page: params.page || 1,
-      limit: params.limit || 20
     };
     
-    return await searchPetsWithFilters(filters);
+    return filterOptions;
   } catch (error) {
-    console.error('Error in legacy search pets:', error);
+    console.error('❌ Pet filter options error:', error);
     throw error;
   }
-};
+}
 
-// ✅ Enhanced: Get featured pets with category support
-export const getFeaturedPets = async (limit = 6, category = null) => {
-  try {
-    const filters = { 
-      featured: true,
-      status: 'available',
-      limit: limit
-    };
-    
-    if (category && category !== 'all') {
-      filters.category = category;
-    }
-    
-    const queryParams = PetFilterUtils.filtersToQueryString(filters);
-    
-    return await petAPI.getAllPets(queryParams);
-  } catch (error) {
-    console.error('Error fetching featured pets:', error);
-    throw error;
-  }
-};
-
-// ✅ Get pets by new category system
-export const getPetsByCategory = async (category, limit = null) => {
-  try {
-    const filters = { 
-      category,
-      status: 'available'
-    };
-    
-    if (limit) {
-      filters.limit = limit;
-    }
-    
-    const queryParams = PetFilterUtils.filtersToQueryString(filters);
-    
-    return await petAPI.getAllPets(queryParams);
-  } catch (error) {
-    console.error('Error fetching pets by category:', error);
-    throw error;
-  }
-};
-
-// ✅ Get filter counts for UI
-export const getFilterCounts = async () => {
-  try {
-    // Get all pets to calculate counts
-    const response = await petAPI.getAllPets({ limit: 1000 });
-    
-    if (response.data?.success && response.data.data) {
-      const counts = PetFilterUtils.countPetsForFilters(response.data.data);
-      return { success: true, data: counts };
-    }
-    
-    return { success: false, data: {} };
-  } catch (error) {
-    console.error('Error getting filter counts:', error);
-    return { success: false, data: {} };
-  }
-};
-
-// ✅ Get popular filter combinations
-export const getPopularFilterCombinations = async () => {
-  try {
-    const combinations = PetFilterUtils.getPopularCombinations();
-    
-    // Get counts for each combination
-    const combinationsWithCounts = await Promise.all(
-      combinations.map(async (combo) => {
-        try {
-          const response = await searchPetsWithFilters(combo.filters);
-          return {
-            ...combo,
-            count: response.data?.pagination?.total || 0
-          };
-        } catch (error) {
-          console.error('Error getting count for combination:', combo.label, error);
-          return { ...combo, count: 0 };
-        }
-      })
-    );
-    
-    return { success: true, data: combinationsWithCounts };
-  } catch (error) {
-    console.error('Error getting popular combinations:', error);
-    return { success: false, data: [] };
-  }
-};
-
-// ✅ Existing functions - keep as is
-export const getPetById = async (id) => {
-  try {
-    return await petAPI.getPetById(id);
-  } catch (error) {
-    console.error('Error fetching pet by ID:', error);
-    throw error;
-  }
-};
-
-export const addToFavorites = async (petId) => {
-  try {
-    return await petAPI.addToFavorites(petId);
-  } catch (error) {
-    console.error('Error adding to favorites:', error);
-    throw error;
-  }
-};
-
-export const removeFromFavorites = async (petId) => {
-  try {
-    return await petAPI.removeFromFavorites(petId);
-  } catch (error) {
-    console.error('Error removing from favorites:', error);
-    throw error;
-  }
-};
-
-// Admin functions
-export const createPet = async (petData) => {
-  try {
-    return await petAPI.createPet(petData);
-  } catch (error) {
-    console.error('Error creating pet:', error);
-    throw error;
-  }
-};
-
-export const updatePet = async (id, petData) => {
-  try {
-    return await petAPI.updatePet(id, petData);
-  } catch (error) {
-    console.error('Error updating pet:', error);
-    throw error;
-  }
-};
-
-export const deletePet = async (id) => {
-  try {
-    return await petAPI.deletePet(id);
-  } catch (error) {
-    console.error('Error deleting pet:', error);
-    throw error;
-  }
-};
-
-// ✅ Enhanced service object with all new functions
-const petService = {
-  // Core functions
-  getAllPets,
-  searchPets,
+// Export default object for easier importing - moved to end of file
+const petServicesDefault = {
+  buildPetQuery,
   searchPetsWithFilters,
   getFeaturedPets,
   getPetById,
-  getPetsByCategory,
-  
-  // Filter utilities
-  getFilterCounts,
-  getPopularFilterCombinations,
-  
-  // User functions
-  addToFavorites,
-  removeFromFavorites,
-  
-  // Admin functions
+  getPetStats,
   createPet,
   updatePet,
-  deletePet
+  deletePet,
+  getPetFilterOptions
 };
 
-export default petService;
+export default petServicesDefault;
