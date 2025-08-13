@@ -1,4 +1,4 @@
-// client/src/App.js - FINAL CLEAN VERSION w/ Cart integrated + Performance Monitor
+// client/src/App.js - FINAL CLEAN VERSION w/ Cart integrated + Performance Monitor + Dev Filter Debug
 
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
@@ -82,6 +82,11 @@ export const performanceMonitor = {
 if (process.env.NODE_ENV !== "production") {
   // eslint-disable-next-line no-undef
   window.performanceMonitor = performanceMonitor;
+}
+
+// 🔧 Dev-only: install global /api/pets fetch monitor + test runners
+if (process.env.NODE_ENV !== "production") {
+  import("./dev/filterDebug").then((m) => m?.setupFilterDebug?.());
 }
 
 function App() {

@@ -1,4 +1,4 @@
-// client/src/services/api.js - COMPLETE with all Product API methods
+// client/src/services/api.js - COMPLETE with all API exports (FULLY FIXED)
 import axios from 'axios';
 
 // ✅ Environment-based API URL configuration
@@ -14,8 +14,11 @@ const getBaseURL = () => {
   return process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 };
 
+// ✅ Get the base URL and export it
+export const API_BASE_URL = getBaseURL();
+
 const api = axios.create({
-  baseURL: getBaseURL(),
+  baseURL: API_BASE_URL,
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
@@ -42,6 +45,14 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+// ✅ Expose to window AFTER api is created
+if (process.env.NODE_ENV === 'development') {
+  window.__API_BASE_URL__ = API_BASE_URL;
+  window.__api = api;
+  console.log('🔧 API Base URL exposed for debugging:', API_BASE_URL);
+  console.log('🔧 API instance exposed as window.__api');
+}
 
 // ===== PET API =====
 export const petAPI = {
@@ -96,12 +107,17 @@ export const petAPI = {
   // Remove from favorites
   removeFromFavorites: (petId) => {
     return api.delete(`/pets/${petId}/favorite`);
+  },
+
+  // Get filtered pets
+  getFilteredPets: (queryString) => {
+    return api.get(`/pets?${queryString}`);
   }
 };
 
-// ===== PRODUCT API - COMPLETE =====
+// ===== PRODUCT API =====
 export const productAPI = {
-  // ✅ FIXED: Get all products
+  // Get all products
   getAllProducts: (params = {}) => {
     const searchParams = new URLSearchParams();
     Object.keys(params).forEach(key => {
@@ -111,136 +127,83 @@ export const productAPI = {
     });
     const queryString = searchParams.toString();
     const url = queryString ? `/products?${queryString}` : '/products';
-    console.log('🛍️ ProductAPI getAllProducts URL:', url);
     return api.get(url);
   },
 
-  // ✅ FIXED: Get featured products
+  // Get featured products
   getFeaturedProducts: (limit = 6) => {
-    console.log('🛍️ ProductAPI getFeaturedProducts limit:', limit);
     return api.get(`/products?featured=true&limit=${limit}`);
   },
 
-  // ✅ FIXED: Get product by ID
+  // Get product by ID
   getProductById: (id) => {
-    console.log('🛍️ ProductAPI getProductById:', id);
     return api.get(`/products/${id}`);
   },
 
-  // ✅ FIXED: Get product categories
+  // Get product categories
   getProductCategories: () => {
-    console.log('🛍️ ProductAPI getProductCategories');
     return api.get('/products/categories');
   },
 
-  // ✅ FIXED: Get product brands
+  // Get product brands
   getProductBrands: () => {
-    console.log('🛍️ ProductAPI getProductBrands');
     return api.get('/products/brands');
   },
 
-  // ✅ ADDED: Search products
+  // Search products
   searchProducts: (query, params = {}) => {
     const searchParams = new URLSearchParams({ search: query, ...params });
-    console.log('🛍️ ProductAPI searchProducts:', query);
     return api.get(`/products?${searchParams.toString()}`);
   },
 
-  // ✅ ADDED: Get products by category
+  // Get products by category
   getProductsByCategory: (category, params = {}) => {
     const searchParams = new URLSearchParams({ category, ...params });
-    console.log('🛍️ ProductAPI getProductsByCategory:', category);
     return api.get(`/products?${searchParams.toString()}`);
   },
 
-  // ✅ ADDED: Get products by brand
+  // Get products by brand
   getProductsByBrand: (brand, params = {}) => {
     const searchParams = new URLSearchParams({ brand, ...params });
-    console.log('🛍️ ProductAPI getProductsByBrand:', brand);
     return api.get(`/products?${searchParams.toString()}`);
   },
 
-  // ✅ ADDED: Get products in price range
+  // Get products in price range
   getProductsByPriceRange: (minPrice, maxPrice, params = {}) => {
     const searchParams = new URLSearchParams({ 
       minPrice: minPrice.toString(), 
       maxPrice: maxPrice.toString(), 
       ...params 
     });
-    console.log('🛍️ ProductAPI getProductsByPriceRange:', minPrice, '-', maxPrice);
     return api.get(`/products?${searchParams.toString()}`);
   },
 
   // Admin functions
   createProduct: (productData) => {
-    console.log('🛍️ ProductAPI createProduct');
     return api.post('/products', productData);
   },
 
   updateProduct: (id, productData) => {
-    console.log('🛍️ ProductAPI updateProduct:', id);
     return api.put(`/products/${id}`, productData);
   },
 
   deleteProduct: (id) => {
-    console.log('🛍️ ProductAPI deleteProduct:', id);
     return api.delete(`/products/${id}`);
   },
 
-  // ✅ ADDED: Rate product
+  // Rate product
   rateProduct: (id, rating) => {
-    console.log('🛍️ ProductAPI rateProduct:', id, rating);
     return api.post(`/products/${id}/rate`, { rating });
   },
 
-  // ✅ ADDED: Add to wishlist
+  // Add to wishlist
   addToWishlist: (productId) => {
-    console.log('🛍️ ProductAPI addToWishlist:', productId);
     return api.post(`/products/${productId}/wishlist`);
   },
 
-  // ✅ ADDED: Remove from wishlist
+  // Remove from wishlist
   removeFromWishlist: (productId) => {
-    console.log('🛍️ ProductAPI removeFromWishlist:', productId);
     return api.delete(`/products/${productId}/wishlist`);
-  }
-};
-
-// ===== USER API =====
-export const userAPI = {
-  // Register
-  register: (userData) => {
-    return api.post('/auth/register', userData);
-  },
-
-  // Login
-  login: (credentials) => {
-    return api.post('/auth/login', credentials);
-  },
-
-  // Get profile
-  getProfile: () => {
-    return api.get('/users/profile');
-  },
-
-  // Update profile
-  updateProfile: (profileData) => {
-    return api.put('/users/profile', profileData);
-  },
-
-  // Change password
-  changePassword: (passwordData) => {
-    return api.put('/users/change-password', passwordData);
-  },
-
-  // Forgot password
-  forgotPassword: (email) => {
-    return api.post('/users/forgot-password', { email });
-  },
-
-  // Reset password
-  resetPassword: (token, newPassword) => {
-    return api.post('/users/reset-password', { token, password: newPassword });
   }
 };
 
@@ -284,17 +247,54 @@ export const newsAPI = {
     return api.delete(`/news/${id}`);
   },
 
-  // ✅ NEW: Get distinct news categories (for filters)
+  // Get distinct news categories
   getCategories: () => {
     return api.get('/news/categories');
   },
 
-  // ✅ NEW: Get custom news (admin dashboard)
+  // Get custom news (admin dashboard)
   getCustomNews: () => {
     return api.get('/news/custom');
   }
 };
 
+// ===== USER API =====
+export const userAPI = {
+  // Register
+  register: (userData) => {
+    return api.post('/auth/register', userData);
+  },
+
+  // Login
+  login: (credentials) => {
+    return api.post('/auth/login', credentials);
+  },
+
+  // Get profile
+  getProfile: () => {
+    return api.get('/users/profile');
+  },
+
+  // Update profile
+  updateProfile: (profileData) => {
+    return api.put('/users/profile', profileData);
+  },
+
+  // Change password
+  changePassword: (passwordData) => {
+    return api.put('/users/change-password', passwordData);
+  },
+
+  // Forgot password
+  forgotPassword: (email) => {
+    return api.post('/users/forgot-password', { email });
+  },
+
+  // Reset password
+  resetPassword: (token, newPassword) => {
+    return api.post('/users/reset-password', { token, password: newPassword });
+  }
+};
 
 // ===== CONTACT API =====
 export const contactAPI = {

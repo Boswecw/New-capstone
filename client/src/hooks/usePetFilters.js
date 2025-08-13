@@ -1,5 +1,5 @@
-// client/src/hooks/usePetFilters.js
-import { useReducer, useEffect, useCallback, useState, useRef } from "react";
+// client/src/hooks/usePetFilters.js - ENHANCED with stable dependencies (FIXED)
+import { useReducer, useEffect, useCallback, useState, useRef, useMemo } from "react";
 import { searchPetsWithFilters } from "../services/petServices";
 import { debounce } from "lodash";
 
@@ -17,6 +17,17 @@ const initialFilterState = {
   sort: "newest",
   page: 1,
   limit: 20
+};
+
+// ✅ Clean filters function to remove empty/default values
+const cleanFilters = (filters) => {
+  const cleaned = {};
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value !== null && value !== undefined && value !== '' && value !== 'all') {
+      cleaned[key] = value;
+    }
+  });
+  return cleaned;
 };
 
 // ✅ Default pagination structure
@@ -73,63 +84,90 @@ export const usePetFilters = () => {
   const [filterCounts, setFilterCounts] = useState({});
   const [lastSearchTime, setLastSearchTime] = useState(0);
 
-  // ✅ Enhanced pagination normalization
-  const normalizePagination = useCallback((paginationData) => {
-    if (!paginationData || typeof paginationData !== 'object') {
-      return defaultPagination;
-    }
+  // ✅ Stable query string to prevent unnecessary re-renders
+  const stableQuery = useMemo(() => {
+    const cleaned = cleanFilters(filters);
+    return JSON.stringify(cleaned);
+  }, [filters]);
 
-    return {
-      currentPage: Math.max(1, parseInt(paginationData.currentPage || paginationData.page || 1)),
-      totalPages: Math.max(1, parseInt(paginationData.totalPages || 1)),
-      totalPets: Math.max(0, parseInt(paginationData.totalPets || paginationData.total || 0)),
-      hasNext: Boolean(paginationData.hasNext),
-      hasPrev: Boolean(paginationData.hasPrev),
-      total: Math.max(0, parseInt(paginationData.total || paginationData.totalPets || 0))
-    };
-  }, []);
+  // ✅ Request cancellation ref
+  const cancelRef = useRef(null);
 
-  // ✅ Search function without debounce 
+  // ✅ Search function with cancellation support
   const executeSearch = useCallback(async (searchFilters) => {
     const searchStartTime = Date.now();
-    setLoading(true);
-    setError(null);
-
+    
+    console.log("🔍 Fetching pets with params:", new URLSearchParams(searchFilters).toString());
+    
+    // Cancel previous request if it's still running
+    if (cancelRef.current) {
+      cancelRef.current.cancelled = true;
+    }
+    
+    // Create new cancellation token
+    const currentRequest = { cancelled: false };
+    cancelRef.current = currentRequest;
+    
     try {
-      console.log("🔍 Executing filter search:", searchFilters);
-
       const response = await searchPetsWithFilters(searchFilters);
+      
+      // Check if request was cancelled
+      if (currentRequest.cancelled) {
+        console.log('🚫 Request cancelled');
+        return false;
+      }
 
       if (response.data?.success) {
-        setResults(response.data.data || []);
-        
-        // ✅ Normalize pagination data
-        const normalizedPagination = normalizePagination(response.data.pagination);
-        setPagination(normalizedPagination);
-        
-        setFilterCounts(response.data.filterCounts || {});
-        setLastSearchTime(Date.now() - searchStartTime);
-        console.log(`✅ Filter search completed in ${Date.now() - searchStartTime}ms`);
+        const newResults = response.data.data || [];
+        const newPagination = {
+          currentPage: Math.max(1, parseInt(response.data.pagination?.currentPage || response.data.pagination?.page || 1)),
+          totalPages: Math.max(1, parseInt(response.data.pagination?.totalPages || 1)),
+          totalPets: Math.max(0, parseInt(response.data.pagination?.totalPets || response.data.pagination?.total || 0)),
+          hasNext: Boolean(response.data.pagination?.hasNext),
+          hasPrev: Boolean(response.data.pagination?.hasPrev),
+          total: Math.max(0, parseInt(response.data.pagination?.total || response.data.pagination?.totalPets || 0))
+        };
+        const newFilterCounts = response.data.filterCounts || {};
+        const searchDuration = Date.now() - searchStartTime;
+
+        // Check again before updating state
+        if (!currentRequest.cancelled) {
+          setLoading(false);
+          setError(null);
+          setResults(newResults);
+          setPagination(newPagination);
+          setFilterCounts(newFilterCounts);
+          setLastSearchTime(searchDuration);
+
+          console.log(`✅ Filter search completed in ${searchDuration}ms`);
+        }
+        return true;
       } else {
         throw new Error(response.data?.message || "Search failed");
       }
     } catch (err) {
       console.error("❌ Filter search error:", err);
-      setError(err.message);
-      setResults([]);
-      setPagination(defaultPagination);
-      setFilterCounts({});
-    } finally {
-      setLoading(false);
+      
+      // Only update state if request wasn't cancelled
+      if (!currentRequest.cancelled) {
+        setLoading(false);
+        setError(err.message);
+        setResults([]);
+        setPagination(defaultPagination);
+        setFilterCounts({});
+      }
+      return false;
     }
-  }, [normalizePagination]);
+  }, []);
 
-  // ✅ Create debounced version using useRef
+  // ✅ Debounced search with cancellation cleanup
   const debouncedSearchRef = useRef(null);
   
-  // ✅ Initialize debounced function
   useEffect(() => {
-    debouncedSearchRef.current = debounce(executeSearch, 300);
+    debouncedSearchRef.current = debounce((searchFilters) => {
+      setLoading(true);
+      executeSearch(searchFilters);
+    }, 300);
     
     return () => {
       if (debouncedSearchRef.current) {
@@ -138,13 +176,22 @@ export const usePetFilters = () => {
     };
   }, [executeSearch]);
 
-  // ✅ Trigger search when filters change
+  // ✅ Trigger search when stable query changes
   useEffect(() => {
     if (debouncedSearchRef.current) {
+      console.log("🔍 Triggering search due to filter change:", filters);
       debouncedSearchRef.current(filters);
     }
-  }, [filters]);
+    
+    // Cleanup function to cancel requests
+    return () => {
+      if (cancelRef.current) {
+        cancelRef.current.cancelled = true;
+      }
+    };
+  }, [stableQuery, filters]); // Use stable query for memoization
 
+  // ✅ Stable action creators
   const setFilter = useCallback((key, value) => {
     dispatch({ type: "SET_FILTER", key, value });
   }, []);
@@ -166,6 +213,7 @@ export const usePetFilters = () => {
     dispatch({ type: "SET_SORT", sort });
   }, []);
 
+  // ✅ Computed values
   const activeFilterCount = Object.entries(filters).filter(([key, value]) => {
     return (
       key !== "page" &&

@@ -1,4 +1,4 @@
-// client/src/pages/Home.js - CONSISTENT SAFEIMAGE APPROACH
+// client/src/pages/Home.js - FIXED VERSION WITH SHARED PRODUCTCARD
 
 import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, Button, Spinner, Alert, Placeholder } from 'react-bootstrap';
@@ -6,7 +6,7 @@ import { Link } from 'react-router-dom';
 
 import HeroBanner from '../components/HeroBanner';
 import PetCard from '../components/PetCard';
-import SafeImage from '../components/SafeImage';
+import ProductCard from '../components/ProductCard'; // ✅ ADDED: Import shared ProductCard
 import { usePetFilters } from '../hooks/usePetFilters';
 import api from '../services/api';
 
@@ -85,46 +85,7 @@ const Home = () => {
     </Card>
   );
 
-  // ✅ CONSISTENT: ProductCard using SafeImage (same as PetCard approach)
-  const ProductCard = ({ product }) => (
-    <Card className="h-100 shadow-sm">
-      <div style={{ height: '200px', overflow: 'hidden' }}>
-        <SafeImage
-          item={product}
-          category="product"
-          className="w-100 h-100"
-          style={{ objectFit: 'cover' }}
-          alt={product?.name || 'Product'}
-        />
-      </div>
-      
-      <Card.Body className="d-flex flex-column">
-        <Card.Title className="d-flex align-items-center">
-          <i className="fas fa-box-open me-2 text-primary"></i>
-          {product?.name || 'Unknown Product'}
-        </Card.Title>
-        <Card.Text className="text-muted flex-grow-1">
-          {product?.description?.length > 100 
-            ? `${product.description.substring(0, 100)}...`
-            : product?.description || 'No description available'
-          }
-        </Card.Text>
-        <div className="d-flex justify-content-between align-items-center">
-          <span className="h5 text-primary mb-0">
-            ${product?.price ? product.price.toFixed(2) : '0.00'}
-          </span>
-          <Button 
-            variant="outline-primary" 
-            size="sm"
-            as={Link}
-            to={`/products/${product?._id || ''}`}
-          >
-            View Details
-          </Button>
-        </div>
-      </Card.Body>
-    </Card>
-  );
+  // ✅ REMOVED: Inline ProductCard component - now using shared component
 
   return (
     <div className="home-page">
@@ -195,7 +156,7 @@ const Home = () => {
           </div>
         </section>
 
-        {/* Featured Products - Using SafeImage consistently */}
+        {/* Featured Products - Using shared ProductCard component */}
         <section className="featured-products mb-5">
           <h2 className="text-center mb-4">
             <i className="fas fa-shopping-bag text-primary me-2"></i>
@@ -219,6 +180,7 @@ const Home = () => {
                 {featuredProducts.map(product =>
                   product && product._id ? (
                     <Col key={product._id} md={4}>
+                      {/* ✅ FIXED: Using shared ProductCard component */}
                       <ProductCard product={product} />
                     </Col>
                   ) : null

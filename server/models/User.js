@@ -1,4 +1,4 @@
-// server/models/User.js - User model with structured logging
+// server/models/User.js - User model with structured logging (RESOLVED)
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const { Logger } = require('../middleware/errorHandler');
@@ -8,16 +8,6 @@ const userSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Name is required'],
     trim: true,
-<<<<<<< HEAD
-    maxlength: [50, 'Name cannot exceed 50 characters'],
-    alias: 'username'
-  },
-  email: {
-    type: String,
-    required: [true, 'Email is required'],
-    unique: true,
-    trim: true,
-=======
     maxlength: [50, 'Name cannot exceed 50 characters']
   },
   username: {
@@ -34,7 +24,6 @@ const userSchema = new mongoose.Schema({
     required: [true, 'Email is required'],
     unique: true,
     trim: true,
->>>>>>> 7147bbd10087f3d8c934a448e0fc622cfd9f09f1
     lowercase: true,
     match: [/^[^\s@]+@[^\s@]+\.[^\s@]+$/, 'Please provide a valid email']
   },
@@ -199,6 +188,8 @@ const userSchema = new mongoose.Schema({
 });
 
 // Indexes for better query performance
+userSchema.index({ email: 1 }, { unique: true });
+userSchema.index({ username: 1 }, { unique: true });
 userSchema.index({ role: 1 });
 userSchema.index({ isActive: 1 });
 userSchema.index({ createdAt: -1 });
@@ -215,7 +206,7 @@ userSchema.virtual('isLocked').get(function() {
 
 // Virtual for full name display
 userSchema.virtual('displayName').get(function() {
-  return this.name || this.email.split('@')[0];
+  return this.name || this.username || this.email.split('@')[0];
 });
 
 // Pre-save middleware to hash password with structured logging
@@ -314,6 +305,22 @@ userSchema.methods.updateLastLogin = function() {
 // Static method to find by email
 userSchema.statics.findByEmail = function(email) {
   return this.findOne({ email: email.toLowerCase() });
+};
+
+// Static method to find by username
+userSchema.statics.findByUsername = function(username) {
+  return this.findOne({ username: username.toLowerCase() });
+};
+
+// Static method to find by email or username
+userSchema.statics.findByEmailOrUsername = function(identifier) {
+  const lowercaseIdentifier = identifier.toLowerCase();
+  return this.findOne({
+    $or: [
+      { email: lowercaseIdentifier },
+      { username: lowercaseIdentifier }
+    ]
+  });
 };
 
 // Static method to get users with role

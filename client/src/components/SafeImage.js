@@ -1,10 +1,19 @@
-// client/src/components/SafeImage.js
+// client/src/components/SafeImage.js - FIXED VERSION
 
 import React, { useState, useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
 import performanceTracker from '../utils/performanceMonitor';
 
 const GCS_BASE = 'https://storage.googleapis.com/furbabies-petstore';
+
+// 🎯 FIX: Normalize any non-HTTP URL to absolute GCS URL
+const normalizeToAbsolute = (src) => {
+  if (!src) return '';
+  if (typeof src !== 'string') return '';
+  if (src.startsWith('http://') || src.startsWith('https://')) return src;
+  const clean = src.replace(/^\/+/, '');
+  return `${GCS_BASE}/${clean}`;
+};
 
 const SafeImage = ({
   item,
@@ -27,6 +36,7 @@ const SafeImage = ({
     loadStartTime.current = Date.now(); // reset timer on item/category change
 
     if (!item) {
+      console.log('🖼️ SafeImage: No item provided');
       setError(true);
       setLoading(false);
       return;
@@ -34,53 +44,65 @@ const SafeImage = ({
 
     let url = '';
 
-    // 1) prefer server-supplied imageUrl
-    if (item.imageUrl) {
+    // 1) First priority: server-supplied imageUrl (normalize it)
+    if (item.imageUrl && typeof item.imageUrl === 'string') {
       url = item.imageUrl;
+      console.log('🖼️ SafeImage: Using server imageUrl (will be normalized):', url);
     }
-    // 2) raw image field from DB
-    else if (item.image) {
-      if (typeof item.image === 'string' && item.image.startsWith('http')) {
-        url = item.image;
-      } else if (typeof item.image === 'string') {
-        const clean = item.image.replace(/^\/+/, '');
-        url = `${GCS_BASE}/${clean}`;
-      }
+    // 2) Second priority: raw image field from DB
+    else if (item.image && typeof item.image === 'string') {
+      url = item.image;
+      console.log('🖼️ SafeImage: Using image field (will be normalized):', url);
     }
-    // 3) photos array (pets often)
+    // 3) Third priority: photos array (mainly for pets)
     else if (Array.isArray(item.photos) && item.photos.length > 0) {
-      url = item.photos[0]?.url || item.photos[0];
+      const photo = item.photos[0];
+      url = (typeof photo === 'object' ? photo.url : photo) || '';
+      console.log('🖼️ SafeImage: Using photos array (will be normalized):', url);
     }
-    // 4) smart fallback
+    // 4) No image found
     else {
-      if (category === 'product' || item.category === 'product' || item.price !== undefined) {
-        const productName = (item.name || 'placeholder').toLowerCase().replace(/[^a-z0-9]/g, '-');
-        url = `${GCS_BASE}/product/${productName}.jpg`;
-      } else {
-        const fallbackCategory = category || 'general';
-        url = `${GCS_BASE}/${fallbackCategory}/placeholder.png`;
-      }
+      console.log('🖼️ SafeImage: No image found for:', item.name || 'unnamed item');
+      setImageUrl('');
+      setLoading(false);
+      setError(true);
+      return;
     }
 
-    // eslint-disable-next-line no-console
-    console.log('🖼️ SafeImage URL:', item?.name || 'item', '->', url);
+    // 🎯 CRITICAL FIX: Normalize to absolute URL
+    const finalUrl = normalizeToAbsolute(url);
+    console.log('🖼️ SafeImage Final URL:', item?.name || 'item', '->', finalUrl);
+    
+    if (!finalUrl || finalUrl.trim() === '') {
+      console.log('🖼️ SafeImage: Empty URL after normalization');
+      setImageUrl('');
+      setLoading(false);
+      setError(true);
+      return;
+    }
 
-    setImageUrl(url);
+    setImageUrl(finalUrl);
     setLoading(false);
     setError(false);
   }, [item, category]);
 
   const handleImageLoad = (e) => {
-    // aspect ratio detection
+    console.log('✅ SafeImage: Image loaded successfully:', imageUrl);
+    
+    // aspect ratio detection for container type
     const img = e.target;
-    const aspectRatio = img.naturalWidth / img.naturalHeight;
+    if (img.naturalWidth && img.naturalHeight) {
+      const aspectRatio = img.naturalWidth / img.naturalHeight;
 
-    let detectedType = 'square';
-    if (aspectRatio > 1.5) detectedType = 'landscape';
-    else if (aspectRatio < 0.6) detectedType = 'tall';
-    else if (aspectRatio < 0.8) detectedType = 'portrait';
+      let detectedType = 'square';
+      if (aspectRatio > 1.5) detectedType = 'landscape';
+      else if (aspectRatio < 0.6) detectedType = 'tall';
+      else if (aspectRatio < 0.8) detectedType = 'portrait';
 
-    if (onContainerTypeChange) onContainerTypeChange(detectedType);
+      if (onContainerTypeChange) {
+        onContainerTypeChange(detectedType);
+      }
+    }
 
     setLoading(false);
     setError(false);
@@ -90,7 +112,10 @@ const SafeImage = ({
     performanceTracker?.trackImageLoad?.(imageUrl, true, loadTime);
   };
 
-  const handleImageError = () => {
+  const handleImageError = (e) => {
+    console.log('❌ SafeImage: Image failed to load:', imageUrl);
+    console.log('❌ SafeImage: Error details:', e.target.src);
+    
     setError(true);
     setLoading(false);
 
@@ -99,31 +124,49 @@ const SafeImage = ({
     performanceTracker?.trackImageLoad?.(imageUrl, false, loadTime);
   };
 
+  // Loading state
   if (loading) {
     return (
       <div
         className={`d-flex align-items-center justify-content-center bg-light ${className}`}
         style={{ ...style }}
+        data-testid="safe-image-loading"
       >
         <div className="text-center text-muted">
           <div className="spinner-border spinner-border-sm mb-2" role="status">
             <span className="visually-hidden">Loading...</span>
           </div>
-          <div>Loading...</div>
+          <div style={{ fontSize: '0.875rem' }}>Loading image...</div>
         </div>
       </div>
     );
   }
 
+  // Error state - show fallback UI
   if (error || !imageUrl) {
+    const entityType = category || (item?.price !== undefined ? 'product' : 'pet') || 'general';
+    const entityName = item?.name || item?.title || 'item';
+    
     return (
       <div
         className={`d-flex align-items-center justify-content-center bg-light ${className}`}
         style={{ ...style }}
+        data-testid="safe-image-fallback"
       >
         <div className="text-center text-muted">
-          <i className="fas fa-image fa-2x mb-2 opacity-50"></i>
-          <div>No image available</div>
+          <i 
+            className={`fas ${entityType === 'product' ? 'fa-box' : entityType === 'pet' ? 'fa-paw' : 'fa-image'} fa-2x mb-2 opacity-50`}
+            aria-hidden="true"
+          ></i>
+          <div style={{ fontSize: '0.875rem' }}>
+            {entityType === 'product' ? 'Product image' : 
+             entityType === 'pet' ? 'Pet photo' : 'Image'} unavailable
+          </div>
+          {process.env.NODE_ENV === 'development' && (
+            <div style={{ fontSize: '0.75rem', opacity: 0.7 }}>
+              {entityName}
+            </div>
+          )}
         </div>
       </div>
     );
@@ -141,19 +184,22 @@ const SafeImage = ({
   ]);
 
   Object.keys(otherProps).forEach((key) => {
-    if (validHtmlProps.has(key)) validImgProps[key] = otherProps[key];
+    if (validHtmlProps.has(key)) {
+      validImgProps[key] = otherProps[key];
+    }
   });
 
   return (
     <img
       src={imageUrl}
-      alt={alt || item?.name || 'Image'}
+      alt={alt || item?.name || item?.title || 'Image'}
       className={className}
       style={style}
       onLoad={handleImageLoad}
       onError={handleImageError}
       loading="lazy"
       decoding="async"
+      data-testid="safe-image-loaded"
       {...validImgProps}
     />
   );
