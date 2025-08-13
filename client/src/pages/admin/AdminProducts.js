@@ -134,7 +134,7 @@ const AdminProducts = () => {
                     <tr key={product._id}>
                       <td>
                         <img
-                          src={normalizeImageUrl(product.image) || 'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=60&h=60&fit=crop&q=80'}
+                          src={normalizeImageUrl(product.image || product.imageUrl) || 'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=60&h=60&fit=crop&q=80'}
                           alt={product.name}
                           className="rounded"
                           style={{ 

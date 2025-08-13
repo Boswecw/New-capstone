@@ -158,7 +158,7 @@ const AdminDashboard = () => {
                       <tr key={pet._id}>
                         <td style={{ width: '60px' }}>
                           <img
-                            src={normalizeImageUrl(pet.image) || 'https://images.unsplash.com/photo-1601758228041-f3b2795255f1?w=40&h=40&fit=crop&q=80'}
+                            src={normalizeImageUrl(pet.image || pet.imageUrl) || 'https://images.unsplash.com/photo-1601758228041-f3b2795255f1?w=40&h=40&fit=crop&q=80'}
                             alt={pet.name}
                             className="rounded-circle"
                             style={{ 
@@ -224,7 +224,7 @@ const AdminDashboard = () => {
                       <tr key={product._id}>
                         <td style={{ width: '60px' }}>
                           <img
-                            src={normalizeImageUrl(product.image) || 'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=40&h=40&fit=crop&q=80'}
+                            src={normalizeImageUrl(product.image || product.imageUrl) || 'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=40&h=40&fit=crop&q=80'}
                             alt={product.name}
                             className="rounded"
                             style={{ 
