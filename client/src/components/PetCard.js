@@ -1,231 +1,110 @@
-// client/src/components/PetCard.js - UPDATED WITH CONSOLIDATED IMAGE UTILITY
-import React, { useState } from 'react';
-import { Card, Badge } from 'react-bootstrap';
+// client/src/components/PetCard.js
+import React from 'react';
+import PropTypes from 'prop-types';
+import { Card, Button, Badge } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
-import { getImageUrl, generateAltText } from '../utils/imageUtils';
-import styles from './Card.module.css';
+import SafeImage from './SafeImage';
 
 const PetCard = ({ pet }) => {
-  const [containerType, setContainerType] = useState('square');
-  const [imageLoaded, setImageLoaded] = useState(false);
-  const [imageError, setImageError] = useState(false);
+  if (!pet) return null;
 
-  // ✅ FIXED: Use consolidated image utility with proper fallbacks
-  const imageSrc = getImageUrl(
-    pet?.image || pet?.imageUrl || pet?.photo, 
-    'pet', 
-    pet?.type
-  );
+  const {
+    _id,
+    name,
+    type,
+    breed,
+    age,
+    gender,
+    size,
+    available,
+    featured,
+    description,
+    category,
+    image,
+    imageUrl,
+    imagePath,
+  } = pet;
 
-  // Generate proper alt text
-  const altText = generateAltText(pet, `Photo of ${pet?.name || 'pet'}`);
-
-  const handleImageLoad = (e) => {
-    const img = e.target;
-    if (img.naturalWidth && img.naturalHeight) {
-      const aspectRatio = img.naturalWidth / img.naturalHeight;
-
-      let detectedType = 'square';
-      if (aspectRatio > 1.5) {
-        detectedType = 'landscape';
-      } else if (aspectRatio < 0.6) {
-        detectedType = 'tall';
-      } else if (aspectRatio < 0.8) {
-        detectedType = 'portrait';
-      }
-
-      setContainerType(detectedType);
-      console.log(
-        `🖼️ Pet "${pet?.name}" - Aspect ratio: ${aspectRatio.toFixed(2)}, Container: ${detectedType}`
-      );
-    }
-    setImageLoaded(true);
-    setImageError(false);
-  };
-
-  const handleImageError = (e) => {
-    console.warn(`🖼️ Pet image failed to load for ${pet?.name}:`, imageSrc);
-    setImageError(true);
-    setImageLoaded(true);
-    
-    // Set fallback image
-    const fallbackSrc = getImageUrl(null, 'pet', pet?.type);
-    if (e.currentTarget.src !== fallbackSrc) {
-      e.currentTarget.src = fallbackSrc;
-    }
-  };
-
-  // Status badge configuration
-  const getStatusInfo = (status) => {
-    switch (status?.toLowerCase()) {
-      case 'available':
-        return { variant: 'success', icon: 'check-circle', text: 'Available' };
-      case 'pending':
-        return { variant: 'warning', icon: 'clock', text: 'Pending' };
-      case 'adopted':
-        return { variant: 'secondary', icon: 'heart', text: 'Adopted' };
-      case 'hold':
-        return { variant: 'info', icon: 'pause-circle', text: 'On Hold' };
-      default:
-        return { variant: 'primary', icon: 'info-circle', text: status || 'Unknown' };
-    }
-  };
-
-  const statusInfo = getStatusInfo(pet?.status);
+  const shortDesc =
+    (description && description.length > 120
+      ? `${description.slice(0, 117)}...`
+      : description) || '';
 
   return (
-    <Card className={`${styles.enhancedCard} h-100`}>
-      <div className={`${styles.petImgContainer} ${styles[containerType]}`}>
-        <img
-          src={imageSrc}
-          alt={altText}
-          className={`${styles.petImg} ${!imageLoaded ? styles.loading : ''}`}
-          onLoad={handleImageLoad}
-          onError={handleImageError}
-          loading="lazy"
-          decoding="async"
-          draggable={false}
+    <Card className="h-100 shadow-sm">
+      <div className="ratio ratio-4x3">
+        <SafeImage
+          className="card-img-top object-fit-cover"
+          src={imageUrl || imagePath || image}
+          item={pet}
+          entityType={type || 'pet'}
+          category={category}
+          alt={`${name || 'Pet'} - ${breed || type || ''}`}
+          imgProps={{ referrerPolicy: 'no-referrer' }}
+          showLoader
         />
-        {!imageLoaded && (
-          <div className={styles.imageError} aria-live="polite">
-            <i className="fas fa-paw" aria-hidden="true"></i>
-            <span>Loading...</span>
-          </div>
-        )}
-        {imageError && imageLoaded && (
-          <div className={styles.imageError} aria-live="polite">
-            <i className="fas fa-exclamation-triangle" aria-hidden="true"></i>
-            <span>Using fallback image</span>
-          </div>
-        )}
       </div>
 
-      <Card.Body className={styles.enhancedCardBody}>
-        <Card.Title className={styles.enhancedCardTitle}>
-          {pet?.name || 'Unnamed Pet'}
-        </Card.Title>
-
-        <div className={styles.enhancedBadges}>
-          <Badge className={styles.enhancedBadge} bg="info">
-            {pet?.type || 'Pet'}
-          </Badge>
-          {pet?.breed && (
-            <Badge className={styles.enhancedBadge} bg="secondary">
-              {pet.breed}
-            </Badge>
-          )}
-          {pet?.featured && (
-            <Badge className={styles.enhancedBadge} bg="warning" text="dark">
-              <i className="fas fa-star me-1" aria-hidden="true"></i>
-              Featured
-            </Badge>
-          )}
-          {pet?.status && (
-            <Badge
-              className={styles.enhancedBadge}
-              bg={statusInfo.variant}
-            >
-              <i className={`fas fa-${statusInfo.icon} me-1`} aria-hidden="true"></i>
-              {statusInfo.text}
-            </Badge>
+      <Card.Body className="d-flex flex-column">
+        <div className="d-flex justify-content-between align-items-start mb-2">
+          <Card.Title className="mb-0">
+            {name || 'Unnamed'}
+            {featured ? (
+              <Badge bg="warning" text="dark" className="ms-2">
+                ⭐ Featured
+              </Badge>
+            ) : null}
+          </Card.Title>
+          {available === false ? (
+            <Badge bg="secondary">Adopted</Badge>
+          ) : (
+            <Badge bg="success">Available</Badge>
           )}
         </div>
 
-        {/* Pet Details */}
-        {pet?.breed && (
-          <div className="mb-2">
-            <small className="text-muted">
-              <i className="fas fa-dna me-1"></i>
-              Breed: {pet.breed}
-            </small>
-          </div>
-        )}
+        <Card.Subtitle className="text-muted mb-2">
+          {[type, breed].filter(Boolean).join(' • ')}
+        </Card.Subtitle>
 
-        {pet?.age && (
-          <div className="mb-2">
-            <small className="text-muted">
-              <i className="fas fa-birthday-cake me-1"></i>
-              Age: {pet.age}
-            </small>
-          </div>
-        )}
+        <div className="small text-muted mb-3">
+          {[age, gender, size].filter(Boolean).join(' • ')}
+        </div>
 
-        {pet?.size && (
-          <div className="mb-2">
-            <small className="text-muted">
-              <i className="fas fa-ruler me-1"></i>
-              Size: {pet.size}
-            </small>
-          </div>
-        )}
+        {shortDesc ? <Card.Text className="flex-grow-1">{shortDesc}</Card.Text> : null}
 
-        {pet?.gender && (
-          <div className="mb-2">
-            <small className="text-muted">
-              <i className="fas fa-venus-mars me-1"></i>
-              Gender: {pet.gender}
-            </small>
-          </div>
-        )}
-
-        {pet?.description && (
-          <Card.Text className={styles.enhancedCardText}>
-            {pet.description.length > 100 
-              ? `${pet.description.substring(0, 100)}...` 
-              : pet.description}
-          </Card.Text>
-        )}
-
-        {/* Personality Traits */}
-        {pet?.personalityTraits && pet.personalityTraits.length > 0 && (
-          <div className="mb-3">
-            <small className="text-muted d-block mb-1">Personality:</small>
-            <div className="d-flex flex-wrap gap-1">
-              {pet.personalityTraits.slice(0, 3).map((trait, index) => (
-                <Badge 
-                  key={index} 
-                  bg="light" 
-                  text="dark" 
-                  className="text-capitalize"
-                  style={{ fontSize: '0.75rem' }}
-                >
-                  {trait}
-                </Badge>
-              ))}
-              {pet.personalityTraits.length > 3 && (
-                <Badge bg="light" text="muted" style={{ fontSize: '0.75rem' }}>
-                  +{pet.personalityTraits.length - 3} more
-                </Badge>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Heart Rating Display */}
-        {pet?.hearts && pet.hearts > 0 && (
-          <div className="mb-3 text-center">
-            <small className="text-muted d-block">Community Rating</small>
-            <div className="text-warning">
-              {[...Array(Math.min(5, pet.hearts))].map((_, i) => (
-                <i key={i} className="fas fa-heart me-1"></i>
-              ))}
-              {pet.hearts > 5 && (
-                <span className="text-muted ms-1">({pet.hearts})</span>
-              )}
-            </div>
-          </div>
-        )}
-
-        <Link 
-          to={`/pets/${pet?._id}`} 
-          className={`btn btn-primary ${styles.enhancedButton} w-100`}
-        >
-          <i className="fas fa-heart me-2"></i>
-          Meet {pet?.name || 'Pet'}
-        </Link>
+        <div className="mt-auto d-flex gap-2">
+          <Button
+            as={Link}
+            to={`/pets/${_id}`}
+            variant="primary"
+            size="sm"
+            className="w-100"
+          >
+            View Details
+          </Button>
+        </div>
       </Card.Body>
     </Card>
   );
+};
+
+PetCard.propTypes = {
+  pet: PropTypes.shape({
+    _id: PropTypes.oneOfType([PropTypes.string, PropTypes.object]).isRequired,
+    name: PropTypes.string,
+    type: PropTypes.string,
+    breed: PropTypes.string,
+    age: PropTypes.string,
+    gender: PropTypes.string,
+    size: PropTypes.string,
+    available: PropTypes.bool,
+    featured: PropTypes.bool,
+    description: PropTypes.string,
+    category: PropTypes.string,
+    image: PropTypes.string,
+    imageUrl: PropTypes.string,
+    imagePath: PropTypes.string,
+  }),
 };
 
 export default PetCard;
