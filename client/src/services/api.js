@@ -1,4 +1,5 @@
-// client/src/services/api.js - COMPLETE with all API exports (FULLY FIXED)
+// client/src/services/api.js - FIXED ENDPOINTS
+
 import axios from 'axios';
 
 // ✅ Environment-based API URL configuration
@@ -69,9 +70,9 @@ export const petAPI = {
     return api.get(url);
   },
 
-  // Get featured pets
+  // ✅ FIXED: Get featured pets - using correct endpoint
   getFeaturedPets: (limit = 6) => {
-    return api.get(`/pets?featured=true&limit=${limit}`);
+    return api.get(`/pets/featured?limit=${limit}`);
   },
 
   // Get pet by ID
@@ -130,9 +131,9 @@ export const productAPI = {
     return api.get(url);
   },
 
-  // Get featured products
+  // ✅ FIXED: Get featured products - using correct endpoint
   getFeaturedProducts: (limit = 6) => {
-    return api.get(`/products?featured=true&limit=${limit}`);
+    return api.get(`/products/featured?limit=${limit}`);
   },
 
   // Get product by ID
@@ -222,9 +223,9 @@ export const newsAPI = {
     return api.get(url);
   },
 
-  // Get featured news
+  // ✅ FIXED: Get featured news - using correct endpoint
   getFeaturedNews: (limit = 3) => {
-    return api.get(`/news?featured=true&limit=${limit}`);
+    return api.get(`/news/featured?limit=${limit}`);
   },
 
   // Get news by ID
@@ -232,122 +233,43 @@ export const newsAPI = {
     return api.get(`/news/${id}`);
   },
 
-  // Create news (admin)
-  createNews: (newsData) => {
-    return api.post('/news', newsData);
-  },
-
-  // Update news (admin)
-  updateNews: (id, newsData) => {
-    return api.put(`/news/${id}`, newsData);
-  },
-
-  // Delete news (admin)
-  deleteNews: (id) => {
-    return api.delete(`/news/${id}`);
-  },
-
-  // Get distinct news categories
-  getCategories: () => {
-    return api.get('/news/categories');
-  },
-
-  // Get custom news (admin dashboard)
-  getCustomNews: () => {
-    return api.get('/news/custom');
+  // Search news
+  searchNews: (query, params = {}) => {
+    const searchParams = new URLSearchParams({ search: query, ...params });
+    return api.get(`/news?${searchParams.toString()}`);
   }
 };
 
 // ===== USER API =====
 export const userAPI = {
-  // Register
-  register: (userData) => {
-    return api.post('/auth/register', userData);
-  },
-
-  // Login
+  // Auth
   login: (credentials) => {
     return api.post('/auth/login', credentials);
   },
 
-  // Get profile
+  register: (userData) => {
+    return api.post('/auth/register', userData);
+  },
+
+  logout: () => {
+    return api.post('/auth/logout');
+  },
+
+  // Profile
   getProfile: () => {
-    return api.get('/users/profile');
+    return api.get('/auth/profile');
   },
 
-  // Update profile
   updateProfile: (profileData) => {
-    return api.put('/users/profile', profileData);
+    return api.put('/auth/profile', profileData);
   },
 
-  // Change password
+  // Password
   changePassword: (passwordData) => {
-    return api.put('/users/change-password', passwordData);
+    return api.put('/auth/password', passwordData);
   },
 
-  // Forgot password
-  forgotPassword: (email) => {
-    return api.post('/users/forgot-password', { email });
-  },
-
-  // Reset password
-  resetPassword: (token, newPassword) => {
-    return api.post('/users/reset-password', { token, password: newPassword });
-  }
-};
-
-// ===== CONTACT API =====
-export const contactAPI = {
-  // Send contact message
-  sendMessage: (messageData) => {
-    return api.post('/contact', messageData);
-  },
-
-  // Get contact messages (admin)
-  getMessages: (params = {}) => {
-    const searchParams = new URLSearchParams();
-    Object.keys(params).forEach(key => {
-      if (params[key] !== undefined && params[key] !== '') {
-        searchParams.append(key, params[key]);
-      }
-    });
-    const queryString = searchParams.toString();
-    const url = queryString ? `/contact?${queryString}` : '/contact';
-    return api.get(url);
-  },
-
-  // Mark message as read (admin)
-  markAsRead: (id) => {
-    return api.patch(`/contact/${id}/read`);
-  },
-
-  // Delete message (admin)
-  deleteMessage: (id) => {
-    return api.delete(`/contact/${id}`);
-  }
-};
-
-// ===== ADMIN API =====
-export const adminAPI = {
-  // Dashboard stats
-  getDashboardStats: () => {
-    return api.get('/admin/dashboard');
-  },
-
-  // Analytics
-  getAnalytics: (params = {}) => {
-    const searchParams = new URLSearchParams();
-    Object.keys(params).forEach(key => {
-      if (params[key] !== undefined && params[key] !== '') {
-        searchParams.append(key, params[key]);
-      }
-    });
-    const queryString = searchParams.toString();
-    const url = queryString ? `/admin/analytics?${queryString}` : '/admin/analytics';
-    return api.get(url);
-  },
-
-  // User management
+  // Admin user management
   getAllUsers: (params = {}) => {
     const searchParams = new URLSearchParams();
     Object.keys(params).forEach(key => {
@@ -356,27 +278,53 @@ export const adminAPI = {
       }
     });
     const queryString = searchParams.toString();
-    const url = queryString ? `/admin/users?${queryString}` : '/admin/users';
+    const url = queryString ? `/users?${queryString}` : '/users';
     return api.get(url);
   },
 
+  getUserById: (id) => {
+    return api.get(`/users/${id}`);
+  },
+
   updateUser: (id, userData) => {
-    return api.put(`/admin/users/${id}`, userData);
+    return api.put(`/users/${id}`, userData);
   },
 
   deleteUser: (id) => {
-    return api.delete(`/admin/users/${id}`);
-  },
-
-  // System settings
-  getSettings: () => {
-    return api.get('/admin/settings');
-  },
-
-  updateSettings: (settings) => {
-    return api.put('/admin/settings', settings);
+    return api.delete(`/users/${id}`);
   }
 };
 
-// Default export
+// ===== CONTACT API =====
+export const contactAPI = {
+  submitContact: (contactData) => {
+    return api.post('/contact', contactData);
+  },
+
+  getAllContacts: (params = {}) => {
+    const searchParams = new URLSearchParams();
+    Object.keys(params).forEach(key => {
+      if (params[key] !== undefined && params[key] !== '') {
+        searchParams.append(key, params[key]);
+      }
+    });
+    const queryString = searchParams.toString();
+    const url = queryString ? `/contacts?${queryString}` : '/contacts';
+    return api.get(url);
+  },
+
+  getContactById: (id) => {
+    return api.get(`/contacts/${id}`);
+  },
+
+  updateContact: (id, contactData) => {
+    return api.put(`/contacts/${id}`, contactData);
+  },
+
+  deleteContact: (id) => {
+    return api.delete(`/contacts/${id}`);
+  }
+};
+
+// Export default api instance for direct use
 export default api;

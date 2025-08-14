@@ -1,162 +1,272 @@
-// client/src/components/SafeImage.js - IMPROVED VERSION WITH WATCHDOG AND BETTER UX
+// client/src/components/SafeImage.js - UPDATED WITH CONSOLIDATED IMAGE UTILITY
+import React, { useState, useCallback, useEffect } from 'react';
+import { getImageUrl, generateAltText } from '../utils/imageUtils';
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import PropTypes from "prop-types";
-import classNames from "classnames";
-
-const BUCKET_BASE = "https://storage.googleapis.com/furbabies-petstore/";
-
-function normalizeUrl(src) {
-  if (!src) return null;
-  if (/^https?:\/\//i.test(src)) return src;
-  // Support raw keys like "pet/dachshund-pup.png" or "product/leash.png"
-  if (src.startsWith("pet/") || src.startsWith("product/")) {
-    return BUCKET_BASE + src;
-  }
-  // If backend ever returns `/api/images?...` just pass it through
-  if (src.startsWith("/api/images")) return src;
-  // Fallback: treat as bucket key
-  return BUCKET_BASE + src.replace(/^\//, "");
-}
-
-const SIZE_MAP = {
-  small: { w: 120, h: 120 },
-  medium: { w: 240, h: 240 },
-  large: { w: 360, h: 360 },
-  xl: { w: 480, h: 480 },
-};
-
-// Accept "card" from existing callers (map to medium)
-function normalizeSize(size) {
-  if (size === "card") return "medium";
-  return SIZE_MAP[size] ? size : "medium";
-}
-
-export default function SafeImage({
+const SafeImage = ({ 
+  // Image source options
   src,
+  item,
+  entityType = 'default',
+  category = null,
+  
+  // Display options
+  size = 'medium',
+  showLoader = true,
+  showErrorMessage = false,
+  
+  // Styling
+  className = '',
+  style = {},
+  
+  // Events
+  onLoad,
+  onError,
+  onLoadStart,
+  
+  // Image props
   alt,
-  size = "medium",
-  className,
-  style,
-  rounded = true,
-  fallback = "/images/placeholders/pet.png",
-  ...imgProps
-}) {
-  const normalizedSrc = useMemo(() => normalizeUrl(src), [src]);
-  const [loaded, setLoaded] = useState(false);
-  const [errored, setErrored] = useState(false);
-  const [currentSrc, setCurrentSrc] = useState(normalizedSrc);
-  const watchdogRef = useRef(null);
-  const sizeKey = normalizeSize(size);
-  const dims = SIZE_MAP[sizeKey];
+  ...imgProps 
+}) => {
+  const [loading, setLoading] = useState(showLoader);
+  const [error, setError] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+  const maxRetries = 2;
 
-  // Reset states when src changes
-  useEffect(() => {
-    setLoaded(false);
-    setErrored(false);
-    setCurrentSrc(normalizedSrc);
-  }, [normalizedSrc]);
-
-  // Watchdog to avoid infinite spinner (network stall, decode never firing, etc.)
-  useEffect(() => {
-    if (!currentSrc) return;
-    clearTimeout(watchdogRef.current);
-    watchdogRef.current = setTimeout(() => {
-      if (!loaded && !errored) {
-        // Fail closed -> show fallback
-        setErrored(true);
-      }
-    }, 4000);
-    return () => clearTimeout(watchdogRef.current);
-  }, [currentSrc, loaded, errored]);
-
-  const onLoad = () => setLoaded(true);
-  const onError = () => {
-    if (currentSrc !== fallback) {
-      setCurrentSrc(normalizeUrl(fallback));
-      setErrored(true);
-      // Let fallback load (don't set loaded=true here)
+  // Determine the image source
+  const getImageSource = useCallback(() => {
+    if (src) {
+      // Direct src provided
+      return getImageUrl(src, entityType, category);
+    } else if (item) {
+      // Extract from item object  
+      const itemImagePath = item.image || item.imageUrl || item.photo || item.picture;
+      const itemEntityType = entityType || item.type || 'default';
+      const itemCategory = category || item.category;
+      return getImageUrl(itemImagePath, itemEntityType, itemCategory);
     } else {
-      setErrored(true);
+      // No source, use fallback
+      return getImageUrl(null, entityType, category);
     }
+  }, [src, item, entityType, category]);
+
+  // Generate alt text
+  const getAltText = useCallback(() => {
+    if (alt) return alt;
+    if (item) return generateAltText(item);
+    return 'Image';
+  }, [alt, item]);
+
+  const [currentSrc, setCurrentSrc] = useState(getImageSource());
+  const altText = getAltText();
+
+  // Update source when props change
+  useEffect(() => {
+    const newSrc = getImageSource();
+    if (newSrc !== currentSrc) {
+      setCurrentSrc(newSrc);
+      setLoading(showLoader);
+      setError(false);
+      setRetryCount(0);
+    }
+  }, [getImageSource, currentSrc, showLoader]);
+
+  const handleLoadStart = useCallback(() => {
+    setLoading(true);
+    setError(false);
+    onLoadStart?.();
+  }, [onLoadStart]);
+
+  const handleLoad = useCallback((event) => {
+    setLoading(false);
+    setError(false);
+    setRetryCount(0);
+    onLoad?.(event);
+    
+    console.log('🖼️ SafeImage loaded successfully:', {
+      src: currentSrc,
+      entityType,
+      category,
+      naturalWidth: event.target.naturalWidth,
+      naturalHeight: event.target.naturalHeight
+    });
+  }, [onLoad, currentSrc, entityType, category]);
+
+  const handleError = useCallback((event) => {
+    console.warn('🖼️ SafeImage failed to load:', {
+      src: currentSrc,
+      entityType,
+      category,
+      retryCount,
+      maxRetries
+    });
+
+    setLoading(false);
+    
+    if (retryCount < maxRetries) {
+      // Try to get a fallback image
+      setTimeout(() => {
+        const fallbackSrc = getImageUrl(null, entityType, category);
+        if (fallbackSrc !== currentSrc) {
+          setCurrentSrc(fallbackSrc);
+          setRetryCount(prev => prev + 1);
+          setLoading(showLoader);
+        } else {
+          setError(true);
+        }
+      }, 500 * (retryCount + 1)); // Exponential backoff
+    } else {
+      setError(true);
+    }
+    
+    onError?.(event);
+  }, [currentSrc, entityType, category, retryCount, maxRetries, onError, showLoader]);
+
+  // Size-based styling
+  const getSizeStyles = () => {
+    const sizeMap = {
+      small: { maxWidth: '200px', maxHeight: '150px' },
+      medium: { maxWidth: '400px', maxHeight: '300px' },
+      large: { maxWidth: '800px', maxHeight: '600px' },
+      xl: { maxWidth: '1200px', maxHeight: '900px' },
+      responsive: { width: '100%', height: 'auto' }
+    };
+    return sizeMap[size] || sizeMap.medium;
   };
 
-  const wrapperClasses = classNames(
-    "position-relative d-inline-block bg-light",
-    className
-  );
+  const sizeStyles = getSizeStyles();
 
-  const imgClasses = classNames("object-fit-cover", {
-    "rounded": rounded,
-  });
-
-  const spinner =
-    !loaded && !errored ? (
-      <div
-        className="position-absolute top-50 start-50 translate-middle"
-        style={{ pointerEvents: "none" }}
-        aria-hidden="true"
-      >
-        <div className="spinner-border text-secondary" role="status" />
-      </div>
-    ) : null;
-
-  // Always render <img> so load/error can fire
   return (
-    <div
-      className={wrapperClasses}
-      style={{
-        width: dims.w,
-        height: dims.h,
-        overflow: "hidden",
-        ...style,
+    <div 
+      className={`safe-image-container ${className}`} 
+      style={{ 
+        position: 'relative', 
+        display: 'inline-block',
+        ...sizeStyles,
+        ...style 
       }}
     >
-      {spinner}
-      {currentSrc ? (
-        <img
-          src={currentSrc}
-          alt={alt || ""}
-          width={dims.w}
-          height={dims.h}
-          loading="lazy"
-          className={imgClasses}
+      {/* Loading Indicator */}
+      {loading && showLoader && (
+        <div 
+          className="safe-image-loader"
           style={{
-            width: "100%",
-            height: "100%",
-            display: loaded ? "block" : "block", // keep it in DOM so events fire
-            opacity: loaded && !errored ? 1 : 0.01, // hide while spinner shows
-            transition: "opacity 180ms ease",
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            zIndex: 2,
+            background: 'rgba(255, 255, 255, 0.9)',
+            padding: '10px',
+            borderRadius: '8px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            fontSize: '0.9rem',
+            color: '#666'
           }}
-          onLoad={onLoad}
-          onError={onError}
-          {...imgProps}
-        />
-      ) : (
-        // If we have no src at all, show fallback immediately
-        <img
-          src={normalizeUrl(fallback)}
-          alt={alt || ""}
-          width={dims.w}
-          height={dims.h}
-          className={imgClasses}
-          style={{ width: "100%", height: "100%" }}
-          onLoad={() => setLoaded(true)}
-          onError={() => setErrored(true)}
-          loading="lazy"
-          {...imgProps}
-        />
+          aria-live="polite"
+        >
+          <div
+            style={{
+              width: '16px',
+              height: '16px',
+              border: '2px solid #f3f3f3',
+              borderTop: '2px solid #007bff',
+              borderRadius: '50%',
+              animation: 'spin 1s linear infinite'
+            }}
+          ></div>
+          <span>Loading...</span>
+        </div>
       )}
+
+      {/* Error Indicator */}
+      {error && showErrorMessage && (
+        <div 
+          className="safe-image-error"
+          style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            zIndex: 2,
+            background: 'rgba(220, 53, 69, 0.1)',
+            border: '1px solid rgba(220, 53, 69, 0.3)',
+            color: '#dc3545',
+            padding: '10px',
+            borderRadius: '8px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            fontSize: '0.9rem'
+          }}
+          aria-live="assertive"
+        >
+          <i className="fas fa-exclamation-triangle"></i>
+          <span>Image unavailable</span>
+        </div>
+      )}
+
+      {/* Main Image */}
+      <img
+        {...imgProps}
+        src={currentSrc}
+        alt={altText}
+        className={`safe-image ${loading ? 'safe-image-loading' : ''} ${error ? 'safe-image-error' : ''}`}
+        style={{
+          width: '100%',
+          height: '100%',
+          objectFit: 'cover',
+          objectPosition: 'center',
+          borderRadius: '8px',
+          transition: 'opacity 0.3s ease-in-out',
+          opacity: loading ? 0.3 : 1,
+          ...imgProps.style
+        }}
+        onLoadStart={handleLoadStart}
+        onLoad={handleLoad}
+        onError={handleError}
+        loading={imgProps.loading || 'lazy'}
+        decoding={imgProps.decoding || 'async'}
+      />
+
+      {/* CSS Animation for loading spinner */}
+      <style jsx>{`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+        
+        .safe-image-loading {
+          opacity: 0.5;
+        }
+        
+        .safe-image-error {
+          opacity: 0.7;
+          filter: grayscale(50%);
+        }
+        
+        .safe-image-container:hover .safe-image {
+          transition: transform 0.3s ease-in-out;
+        }
+        
+        .safe-image-container:hover .safe-image:not(.safe-image-error) {
+          transform: scale(1.02);
+        }
+      `}</style>
     </div>
   );
-}
-
-SafeImage.propTypes = {
-  src: PropTypes.string,
-  alt: PropTypes.string,
-  size: PropTypes.oneOf(["small", "medium", "large", "xl", "card"]),
-  className: PropTypes.string,
-  style: PropTypes.object,
-  rounded: PropTypes.bool,
-  fallback: PropTypes.string,
 };
+
+// Predefined size variants for common use cases
+SafeImage.Small = (props) => <SafeImage {...props} size="small" />;
+SafeImage.Medium = (props) => <SafeImage {...props} size="medium" />;
+SafeImage.Large = (props) => <SafeImage {...props} size="large" />;
+SafeImage.XL = (props) => <SafeImage {...props} size="xl" />;
+SafeImage.Responsive = (props) => <SafeImage {...props} size="responsive" />;
+
+// Predefined entity variants
+SafeImage.Pet = (props) => <SafeImage {...props} entityType="pet" />;
+SafeImage.Product = (props) => <SafeImage {...props} entityType="product" />;
+
+export default SafeImage;

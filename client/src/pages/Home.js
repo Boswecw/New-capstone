@@ -1,16 +1,20 @@
-// client/src/pages/Home.js
+// client/src/pages/Home.js - UPDATED to use HeroBanner component
+
 import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Spinner, Alert, Button } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 import { petAPI, productAPI } from '../services/api';
 import PetCard from '../components/PetCard';
 import ProductCard from '../components/ProductCard';
+import HeroBanner from '../components/HeroBanner';
+import NewsSection from '../components/NewsSection';
 
 const Home = () => {
   const [featuredPets, setFeaturedPets] = useState([]);
   const [featuredProducts, setFeaturedProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [stats, setStats] = useState({ pets: 0, products: 0, adoptions: 247 });
 
   useEffect(() => {
     const fetchFeaturedContent = async () => {
@@ -19,15 +23,25 @@ const Home = () => {
         setError('');
         
         const [petsResponse, productsResponse] = await Promise.all([
-          petAPI.get('/featured?limit=6'),
-          productAPI.get('/featured?limit=6')
+          petAPI.getFeaturedPets(6),
+          productAPI.getFeaturedProducts(6)
         ]);
 
         console.log('Featured pets response:', petsResponse.data);
         console.log('Featured products response:', productsResponse.data);
 
-        setFeaturedPets(petsResponse.data?.data || []);
-        setFeaturedProducts(productsResponse.data?.data || []);
+        const pets = petsResponse.data?.data || [];
+        const products = productsResponse.data?.data || [];
+
+        setFeaturedPets(pets);
+        setFeaturedProducts(products);
+        
+        // Update stats for hero banner
+        setStats(prev => ({
+          ...prev,
+          pets: pets.length,
+          products: products.length
+        }));
         
       } catch (error) {
         console.error('Error fetching featured content:', error);
@@ -42,151 +56,175 @@ const Home = () => {
 
   if (loading) {
     return (
-      <Container className="py-5 text-center">
-        <Spinner animation="border" variant="primary" size="lg" />
-        <p className="mt-3 text-muted">Loading featured content...</p>
-      </Container>
+      <>
+        {/* Show hero banner even while loading */}
+        <HeroBanner
+          variant="home"
+          showStats={false}
+          title="Find Your Perfect Companion"
+          subtitle="Discover loving pets looking for their forever homes and find everything you need to keep them happy and healthy."
+        />
+        <Container className="py-5 text-center">
+          <Spinner animation="border" variant="primary" size="lg" />
+          <p className="mt-3 text-muted">Loading featured content...</p>
+        </Container>
+      </>
     );
   }
 
   if (error) {
     return (
-      <Container className="py-5">
-        <Alert variant="danger" className="text-center">
-          <Alert.Heading>Oops! Something went wrong</Alert.Heading>
-          <p>{error}</p>
-          <Button variant="outline-danger" onClick={() => window.location.reload()}>
-            Try Again
-          </Button>
-        </Alert>
-      </Container>
+      <>
+        <HeroBanner
+          variant="home"
+          showStats={false}
+          title="Find Your Perfect Companion"
+          subtitle="Something went wrong, but we're still here to help you find your perfect pet!"
+        />
+        <Container className="py-5">
+          <Alert variant="danger" className="text-center">
+            <Alert.Heading>Oops! Something went wrong</Alert.Heading>
+            <p>{error}</p>
+            <Button variant="outline-danger" onClick={() => window.location.reload()}>
+              Try Again
+            </Button>
+          </Alert>
+        </Container>
+      </>
     );
   }
 
   return (
     <div>
-      <div 
-        className="hero-section bg-primary text-white py-5 mb-5"
-        style={{
-          background: 'linear-gradient(135deg, #007bff 0%, #6f42c1 100%)',
-          minHeight: '400px'
-        }}
-      >
-        <Container className="h-100 d-flex align-items-center">
-          <Row className="w-100">
-            <Col lg={6}>
-              <h1 className="display-4 fw-bold mb-4">
-                Find Your Perfect Companion
-              </h1>
+      {/* Hero Banner with updated design */}
+      <HeroBanner
+        variant="home"
+        title="Find Your Perfect Companion"
+        subtitle="Discover loving pets looking for their forever homes and find everything you need to keep them happy and healthy."
+        primaryButtonText="Find a Pet"
+        primaryButtonLink="/browse"
+        primaryButtonIcon="fas fa-search"
+        secondaryButtonText="Shop Products"
+        secondaryButtonLink="/products"
+        secondaryButtonIcon="fas fa-shopping-cart"
+        showStats={true}
+        stats={stats}
+        backgroundGradient="linear-gradient(135deg, #007bff 0%, #6f42c1 70%, #fd7e14 100%)"
+        minHeight="500px"
+      />
+
+      {/* Featured Pets Section */}
+      {featuredPets.length > 0 && (
+        <Container className="py-5">
+          <Row className="mb-4">
+            <Col>
+              <div className="text-center">
+                <h2 className="display-5 fw-bold mb-3">
+                  <i className="fas fa-heart text-danger me-3"></i>
+                  Featured Pets
+                </h2>
+                <p className="lead text-muted mb-4">
+                  These adorable companions are ready to find their forever homes
+                </p>
+              </div>
+            </Col>
+          </Row>
+
+          <Row className="g-4 mb-4">
+            {featuredPets.map((pet) => (
+              <Col key={pet._id} md={6} lg={4} className="d-flex">
+                <PetCard 
+                  pet={pet} 
+                  showFavoriteButton={true}
+                  showAdoptionStatus={true}
+                  className="h-100"
+                />
+              </Col>
+            ))}
+          </Row>
+
+          <div className="text-center">
+            <Link to="/pets" className="btn btn-primary btn-lg px-4">
+              <i className="fas fa-paw me-2"></i>
+              View All Pets
+            </Link>
+          </div>
+        </Container>
+      )}
+
+      {/* Featured Products Section */}
+      {featuredProducts.length > 0 && (
+        <div className="bg-light py-5">
+          <Container>
+            <Row className="mb-4">
+              <Col>
+                <div className="text-center">
+                  <h2 className="display-5 fw-bold mb-3">
+                    <i className="fas fa-shopping-bag text-primary me-3"></i>
+                    Featured Products
+                  </h2>
+                  <p className="lead text-muted mb-4">
+                    Everything your pet needs to stay happy and healthy
+                  </p>
+                </div>
+              </Col>
+            </Row>
+
+            <Row className="g-4 mb-4">
+              {featuredProducts.map((product) => (
+                <Col key={product._id} md={6} lg={4} className="d-flex">
+                  <ProductCard 
+                    product={product}
+                    showAddToCart={true}
+                    className="h-100"
+                  />
+                </Col>
+              ))}
+            </Row>
+
+            <div className="text-center">
+              <Link to="/products" className="btn btn-success btn-lg px-4">
+                <i className="fas fa-store me-2"></i>
+                Browse All Products
+              </Link>
+            </div>
+          </Container>
+        </div>
+      )}
+
+      {/* News Section */}
+      <Container className="py-5">
+        <NewsSection 
+          limit={3}
+          showHeader={true}
+          title="Latest Pet News & Tips"
+          subtitle="Stay updated with the latest in pet care and adoption stories"
+        />
+      </Container>
+
+      {/* Call to Action Section */}
+      <div className="bg-primary text-white py-5">
+        <Container>
+          <Row className="text-center">
+            <Col>
+              <h2 className="display-5 fw-bold mb-3">Ready to Start Your Journey?</h2>
               <p className="lead mb-4">
-                Discover loving pets looking for their forever homes and find everything 
-                you need to keep them happy and healthy.
+                Join thousands of families who have found their perfect companions through FurBabies
               </p>
-              <div className="d-flex gap-3">
-                <Link to="/pets" className="btn btn-light btn-lg">
-                  <i className="fas fa-paw me-2"></i>
-                  Browse Pets
+              <div className="d-flex gap-3 justify-content-center flex-wrap">
+                <Link to="/browse" className="btn btn-light btn-lg px-4">
+                  <i className="fas fa-search me-2"></i>
+                  Start Browsing Pets
                 </Link>
-                <Link to="/products" className="btn btn-outline-light btn-lg">
-                  <i className="fas fa-shopping-bag me-2"></i>
-                  Shop Supplies
+                <Link to="/about" className="btn btn-outline-light btn-lg px-4">
+                  <i className="fas fa-info-circle me-2"></i>
+                  Learn More About Us
                 </Link>
               </div>
             </Col>
           </Row>
         </Container>
       </div>
-
-      <Container fluid className="px-4">
-        <Row className="mb-5">
-          <Col>
-            <div className="text-center mb-5">
-              <h2 className="display-5 fw-bold text-dark">
-                <i className="fas fa-star text-warning me-3"></i>
-                Featured Pets
-              </h2>
-              <p className="lead text-muted">
-                Meet some of our special friends waiting for their forever homes
-              </p>
-            </div>
-            
-            {featuredPets.length > 0 ? (
-              <Row className="g-4">
-                {featuredPets.slice(0, 6).map(pet => (
-                  <Col key={pet._id} xl={4} lg={6} md={6} className="d-flex">
-                    <PetCard pet={pet} />
-                  </Col>
-                ))}
-              </Row>
-            ) : (
-              <Alert variant="info" className="text-center">
-                <i className="fas fa-info-circle me-2"></i>
-                No featured pets available at the moment. Check back soon!
-              </Alert>
-            )}
-            
-            <div className="text-center mt-5">
-              <Link to="/pets" className="btn btn-primary btn-lg px-5">
-                <i className="fas fa-paw me-2"></i>
-                View All Pets
-              </Link>
-            </div>
-          </Col>
-        </Row>
-
-        <Row className="mb-5">
-          <Col>
-            <div className="text-center mb-5">
-              <h2 className="display-5 fw-bold text-dark">
-                <i className="fas fa-star text-warning me-3"></i>
-                Featured Products
-              </h2>
-              <p className="lead text-muted">
-                Everything your furry friend needs to live their best life
-              </p>
-            </div>
-            
-            {featuredProducts.length > 0 ? (
-              <Row className="g-4">
-                {featuredProducts.slice(0, 6).map(product => (
-                  <Col key={product._id} xl={4} lg={6} md={6} className="d-flex">
-                    <ProductCard product={product} />
-                  </Col>
-                ))}
-              </Row>
-            ) : (
-              <Alert variant="info" className="text-center">
-                <i className="fas fa-info-circle me-2"></i>
-                No featured products available at the moment. Check back soon!
-              </Alert>
-            )}
-            
-            <div className="text-center mt-5">
-              <Link to="/products" className="btn btn-success btn-lg px-5">
-                <i className="fas fa-shopping-bag me-2"></i>
-                Shop All Products
-              </Link>
-            </div>
-          </Col>
-        </Row>
-
-        <Row className="my-5 py-5 bg-light rounded">
-          <Col className="text-center">
-            <h3 className="fw-bold mb-3">Ready to Make a Difference?</h3>
-            <p className="lead text-muted mb-4">
-              Every pet deserves a loving home. Start your adoption journey today!
-            </p>
-            <Link to="/pets" className="btn btn-primary btn-lg me-3">
-              <i className="fas fa-heart me-2"></i>
-              Adopt a Pet
-            </Link>
-            <Link to="/contact" className="btn btn-outline-primary btn-lg">
-              <i className="fas fa-envelope me-2"></i>
-              Contact Us
-            </Link>
-          </Col>
-        </Row>
-      </Container>
     </div>
   );
 };
