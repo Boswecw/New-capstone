@@ -1,185 +1,131 @@
 // server/routes/pets.js
 const express = require('express');
-const mongoose = require('mongoose');
-const Pet = require('../models/Pet');
-const { optionalAuth, protect, admin } = require('../middleware/auth');
-
 const router = express.Router();
+const Pet = require('../models/Pet');
 
-// Constants for image URL construction
-const GCS_BASE_URL = 'https://storage.googleapis.com/furbabies-petstore';
+const GCS_BASE_URL =
+  process.env.GCS_BASE_URL || 'https://storage.googleapis.com/furbabies-petstore';
 
-// ==== Helpers ====
+// Build a full image URL from a stored path like "pet/black-gold-fish.png"
+function buildImageUrl(path) {
+  if (!path || typeof path !== 'string') return null;
+  if (path.startsWith('http://') || path.startsWith('https://')) return path;
+  const cleaned = String(path).replace(/^\/+/, '').replace(/^images\//, '');
+  return `${GCS_BASE_URL}/${cleaned}`;
+}
+
+// Add derived image fields without mutating the original mongo doc
+function enrichPet(doc) {
+  const p = doc && typeof doc.toObject === 'function' ? doc.toObject() : (doc || {});
+  const imagePath = p.image || p.imagePath || null;
+  return {
+    ...p,
+    imagePath,
+    imageUrl: buildImageUrl(imagePath),
+  };
+}
 
 /**
- * Enrich pet with computed image URLs
- * Backend provides both the path and full URL for flexibility
+ * GET /api/pets
+ * Supports filters + pagination:
+ *  - search (name/breed/description)
+ *  - type, size, gender, age, status
+ *  - featured=true
+ *  - available=true  // maps to adopted !== true
+ *  - page, limit, sort(newest|oldest|name|type|featured)
  */
-const enrichPetResponse = (petDoc) => {
-  const pet = petDoc?.toObject ? petDoc.toObject() : petDoc;
-
-  return {
-    ...pet,
-    imagePath: pet.image || pet.imagePath || null, // original relative path from DB
-    imageUrl: pet.image ? `${GCS_BASE_URL}/${pet.image}` : pet.imageUrl || null, // absolute URL
-    fallbackType: pet.type || 'pet',
-  };
-};
-
-const buildSearchQuery = (queryParams) => {
-  const {
-    type,
-    breed,
-    age,
-    category,
-    available,
-    gender,
-    size,
-    search,
-    featured,
-  } = queryParams;
-
-  const query = {};
-
-  if (type && type !== 'all') query.type = type;
-  if (category && category !== 'all') query.category = category;
-  if (gender && gender !== 'all') query.gender = gender;
-  if (size && size !== 'all') query.size = size;
-  if (featured === 'true') query.featured = true;
-
-  if (typeof available !== 'undefined') {
-    query.available = String(available) === 'true';
-  }
-
-  if (breed) {
-    query.breed = { $regex: breed, $options: 'i' };
-  }
-
-  if (age) {
-    query.age = { $regex: age, $options: 'i' };
-  }
-
-  if (search) {
-    const s = String(search).trim();
-    if (s) {
-      query.$or = [
-        { name: { $regex: s, $options: 'i' } },
-        { type: { $regex: s, $options: 'i' } },
-        { breed: { $regex: s, $options: 'i' } },
-        { description: { $regex: s, $options: 'i' } },
-      ];
-    }
-  }
-
-  return query;
-};
-
-const buildSort = (sortParam) => {
-  switch (sortParam) {
-    case 'newest':
-      return { createdAt: -1 };
-    case 'oldest':
-      return { createdAt: 1 };
-    case 'name_asc':
-      return { name: 1 };
-    case 'name_desc':
-      return { name: -1 };
-    default:
-      // Featured first, then newest
-      return { featured: -1, createdAt: -1 };
-  }
-};
-
-// ===== ROUTES =====
-
-// @route   GET /api/pets
-// @desc    Get all pets with optional filters, pagination, and image enrichment
-// @access  Public (auth optional for personalization later)
-router.get('/', optionalAuth, async (req, res) => {
+router.get('/', async (req, res) => {
   try {
-    // Pagination
-    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
-    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 20, 1), 100);
-    const skip = (page - 1) * limit;
+    const {
+      search,
+      type,
+      size,
+      gender,
+      age,
+      status,
+      featured,
+      available,
+      page = 1,
+      limit = 12,
+      sort = 'newest',
+    } = req.query;
 
-    // Filters & sort
-    const query = buildSearchQuery(req.query);
-    const sort = buildSort(req.query.sort);
+    const query = {};
 
-    const [total, pets] = await Promise.all([
+    if (search) {
+      const re = new RegExp(String(search), 'i');
+      query.$or = [{ name: re }, { breed: re }, { description: re }];
+    }
+    if (type && type !== 'all') query.type = type;
+    if (size && size !== 'all') query.size = size;
+    if (gender && gender !== 'all') query.gender = gender;
+    if (age && age !== 'all') query.age = age;
+    if (status && status !== 'all') query.status = status;
+    if (String(featured) === 'true') query.featured = true;
+    if (String(available) === 'true') query.adopted = { $ne: true };
+
+    const sortMap = {
+      newest: { createdAt: -1 },
+      oldest: { createdAt: 1 },
+      name: { name: 1 },
+      type: { type: 1, name: 1 },
+      featured: { featured: -1, createdAt: -1 },
+    };
+    const sortOptions = sortMap[sort] || sortMap.newest;
+
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = Math.max(1, Math.min(50, parseInt(limit, 10) || 12));
+    const skipNum = (pageNum - 1) * limitNum;
+
+    const [rows, total] = await Promise.all([
+      Pet.find(query).sort(sortOptions).skip(skipNum).limit(limitNum),
       Pet.countDocuments(query),
-      Pet.find(query).sort(sort).limit(limit).skip(skip),
     ]);
-
-    const enrichedPets = pets.map(enrichPetResponse);
 
     res.json({
       success: true,
-      data: enrichedPets,
+      data: rows.map(enrichPet),
       pagination: {
-        total,
-        page,
-        limit,
-        pages: Math.ceil(total / limit),
+        currentPage: pageNum,
+        totalPages: Math.max(1, Math.ceil(total / limitNum)),
       },
+      totalResults: total,
     });
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('GET /api/pets error:', err);
-    res.status(500).json({ success: false, message: 'Server error' });
+    console.error('GET /pets error:', err);
+    res.status(500).json({ success: false, error: 'Server error' });
   }
 });
 
-// @route   GET /api/pets/featured
-// @desc    Get featured pets, default limit 4 for homepage sections
-// @access  Public
+/**
+ * GET /api/pets/featured
+ * Optional pretty route for legacy clients.
+ */
 router.get('/featured', async (req, res) => {
   try {
-    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 4, 1), 24);
-    const pets = await Pet.find({ featured: true, available: true })
+    const limitNum = Math.max(1, Math.min(50, parseInt(req.query.limit, 10) || 6));
+    const rows = await Pet.find({ featured: true })
       .sort({ createdAt: -1 })
-      .limit(limit);
-
-    const data = pets.map(enrichPetResponse);
-
-    res.json({ success: true, data });
+      .limit(limitNum);
+    res.json({ success: true, data: rows.map(enrichPet) });
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('GET /api/pets/featured error:', err);
-    res.status(500).json({ success: false, message: 'Server error' });
+    console.error('GET /pets/featured error:', err);
+    res.status(500).json({ success: false, error: 'Server error' });
   }
 });
 
-// @route   GET /api/pets/:id
-// @desc    Get single pet by ID (ObjectId or string ID field)
-// @access  Public
+/**
+ * GET /api/pets/:id
+ */
 router.get('/:id', async (req, res) => {
   try {
-    const { id } = req.params;
-
-    let pet = null;
-
-    if (mongoose.Types.ObjectId.isValid(id)) {
-      pet = await Pet.findById(id);
-    }
-
-    // If not found by ObjectId, try a string-based lookup (e.g., slug)
-    if (!pet) {
-      pet = await Pet.findOne({ _id: id }).catch(() => null);
-    }
-
-    if (!pet) {
-      return res.status(404).json({ success: false, message: 'Pet not found' });
-    }
-
-    return res.json({ success: true, data: enrichPetResponse(pet) });
+    const pet = await Pet.findById(req.params.id);
+    if (!pet) return res.status(404).json({ success: false, error: 'Not found' });
+    res.json({ success: true, data: enrichPet(pet) });
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('GET /api/pets/:id error:', err);
-    return res.status(500).json({ success: false, message: 'Server error' });
+    console.error('GET /pets/:id error:', err);
+    res.status(500).json({ success: false, error: 'Server error' });
   }
 });
-
-// (Optional) Admin create/update/delete endpoints can be added below with protect/admin middleware
 
 module.exports = router;

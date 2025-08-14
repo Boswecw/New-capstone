@@ -1,244 +1,223 @@
-// client/src/hooks/usePetFilters.js - FIXED VERSION WITH PAGE RESET & URL SYNC
+// client/src/hooks/usePetFilters.js
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { petAPI } from '../services/api';
+import { buildImageUrl, getFallbackUrl } from '../utils/imageBuilder';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { searchPetsWithFilters } from '../services/petServices';
+// Map URL params -> initial filters
+function parseInitialFilters(search) {
+  const params = new URLSearchParams(search);
+  const filters = {
+    search: params.get('search') || '',
+    type: params.get('type') || 'all',
+    size: params.get('size') || 'all',
+    gender: params.get('gender') || 'all',
+    age: params.get('age') || 'all',
+    sort: params.get('sort') || 'newest',
+    // booleans
+    featured: params.get('featured') === 'true' ? true : undefined,
+    available:
+      params.get('status') === 'adopted'
+        ? false
+        : params.get('status') === 'all'
+          ? undefined
+          : true, // default "available"
+  };
+  return filters;
+}
 
-/**
- * Enhanced pet filters hook with proper URL sync and page reset
- */
-export const usePetFilters = () => {
-  const [searchParams, setSearchParams] = useSearchParams();
-  
-  // State management
+// Build API params from filters
+function toApiParams(filters, page, limit) {
+  const p = { page, limit, sort: filters.sort || 'newest' };
+
+  if (filters.search) p.search = filters.search;
+  if (filters.type && filters.type !== 'all') p.type = filters.type;
+  if (filters.size && filters.size !== 'all') p.size = filters.size;
+  if (filters.gender && filters.gender !== 'all') p.gender = filters.gender;
+  if (filters.age && filters.age !== 'all') p.age = filters.age;
+  if (typeof filters.available === 'boolean') p.available = filters.available;
+  if (typeof filters.featured === 'boolean') p.featured = filters.featured;
+
+  return p;
+}
+
+// Ensure every pet has a usable imageUrl client-side
+function normalizePetImage(pet) {
+  // Respect server-enriched URLs if present
+  if (pet?.imageUrl && (pet.imageUrl.startsWith('http://') || pet.imageUrl.startsWith('https://'))) {
+    return { ...pet };
+  }
+
+  const path =
+    pet?.image ||
+    pet?.imagePath ||
+    pet?.photo ||
+    pet?.picture ||
+    (Array.isArray(pet?.images) && pet.images[0]) ||
+    (Array.isArray(pet?.photos) && pet.photos[0]) ||
+    null;
+
+  const entityType = pet?.type || 'pet';
+  const category = pet?.category;
+
+  const computed = buildImageUrl(path, { entityType, category });
+  return {
+    ...pet,
+    imageUrl: computed || getFallbackUrl(entityType, category),
+    // keep original if present so PetCard's src chain also works
+    imagePath: pet?.imagePath || pet?.image || null,
+  };
+}
+
+export function usePetFilters() {
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const [filters, setFilters] = useState(() => parseInitialFilters(location.search));
   const [results, setResults] = useState([]);
+  const [totalResults, setTotalResults] = useState(0);
+  const [pagination, setPagination] = useState({ currentPage: 1, totalPages: 1, limit: 12 });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [pagination, setPagination] = useState({
-    currentPage: 1,
-    totalPages: 1,
-    totalCount: 0,
-    limit: 20,
-    hasNextPage: false,
-    hasPrevPage: false
-  });
 
-  // ✅ IMPROVED: Parse filters from URL with proper defaults
-  const filters = useMemo(() => {
-    const urlFilters = {
-      search: searchParams.get('search') || '',
-      type: searchParams.get('type') || 'all',
-      category: searchParams.get('category') || 'all', 
-      size: searchParams.get('size') || 'all',
-      gender: searchParams.get('gender') || 'all',
-      age: searchParams.get('age') || 'all',
-      breed: searchParams.get('breed') || 'all',
-      status: searchParams.get('status') || 'available', // Default to available
-      featured: searchParams.get('featured') === 'true' ? true : 
-                searchParams.get('featured') === 'false' ? false : null,
-      sort: searchParams.get('sort') || 'newest',
-      page: parseInt(searchParams.get('page')) || 1,
-      limit: parseInt(searchParams.get('limit')) || 20
-    };
+  // Keep page/limit internal; reset page=1 on filter/sort changes
+  const pageRef = useRef(1);
+  const limitRef = useRef(12);
 
-    return urlFilters;
-  }, [searchParams]);
+  const hasResults = results.length > 0;
 
-  // ✅ IMPROVED: URL sync with shallow comparison to prevent loops
-  const updateURL = useCallback((newFilters) => {
-    const params = new URLSearchParams();
-    
-    // Only add non-default values to URL
-    Object.entries(newFilters).forEach(([key, value]) => {
-      if (value !== null && value !== undefined && value !== '' && value !== 'all') {
-        if (key === 'featured' && typeof value === 'boolean') {
-          params.set(key, String(value));
-        } else if (key === 'page' && value !== 1) {
-          params.set(key, String(value));
-        } else if (key === 'limit' && value !== 20) {
-          params.set(key, String(value));
-        } else if (key === 'sort' && value !== 'newest') {
-          params.set(key, value);
-        } else if (key === 'status' && value !== 'available') {
-          params.set(key, value);
-        } else if (!['page', 'limit', 'sort', 'status', 'featured'].includes(key)) {
-          params.set(key, value);
-        }
-      }
-    });
+  // URL sync (optional, keeps parity with products)
+  const syncUrl = useCallback(
+    (nextFilters) => {
+      const params = new URLSearchParams();
 
-    // Only update URL if params actually changed
-    const newParamsString = params.toString();
-    const currentParamsString = searchParams.toString();
-    
-    if (newParamsString !== currentParamsString) {
-      setSearchParams(params, { replace: true });
-    }
-  }, [searchParams, setSearchParams]);
+      if (nextFilters.search) params.set('search', nextFilters.search);
+      if (nextFilters.type && nextFilters.type !== 'all') params.set('type', nextFilters.type);
+      if (nextFilters.size && nextFilters.size !== 'all') params.set('size', nextFilters.size);
+      if (nextFilters.gender && nextFilters.gender !== 'all') params.set('gender', nextFilters.gender);
+      if (nextFilters.age && nextFilters.age !== 'all') params.set('age', nextFilters.age);
+      if (nextFilters.sort && nextFilters.sort !== 'newest') params.set('sort', nextFilters.sort);
+      if (typeof nextFilters.featured === 'boolean') params.set('featured', String(nextFilters.featured));
 
-  // ✅ CRITICAL FIX: Filter handlers that reset page to 1
-  const setFilter = useCallback((key, value) => {
-    const normalized = 
-      ['category', 'type', 'size', 'gender', 'age', 'breed'].includes(key)
-        ? (value === 'all' ? null : value)
-        : key === 'search'
-          ? (value?.trim() ? value.trim() : null)
-          : key === 'featured'
-            ? (value === 'true' ? true : value === 'false' ? false : null)
-            : value;
-
-    const newFilters = {
-      ...filters,
-      [key]: normalized,
-      page: 1 // ✅ CRITICAL: Reset page when filter changes
-    };
-
-    updateURL(newFilters);
-  }, [filters, updateURL]);
-
-  // ✅ CRITICAL FIX: Sort handler that resets page to 1
-  const setSort = useCallback((sortValue) => {
-    const newFilters = {
-      ...filters,
-      sort: sortValue,
-      page: 1 // ✅ CRITICAL: Reset page when sort changes
-    };
-
-    updateURL(newFilters);
-  }, [filters, updateURL]);
-
-  // ✅ IMPROVED: Page handler with bounds checking
-  const setPage = useCallback((pageNumber) => {
-    const safePage = Math.max(1, Math.min(pageNumber, pagination.totalPages || 1));
-    
-    if (safePage !== filters.page) {
-      const newFilters = {
-        ...filters,
-        page: safePage
-      };
-
-      updateURL(newFilters);
-    }
-  }, [filters, pagination.totalPages, updateURL]);
-
-  // ✅ IMPROVED: Clear filters handler
-  const clearFilters = useCallback(() => {
-    const defaultFilters = {
-      search: '',
-      type: 'all',
-      category: 'all',
-      size: 'all',
-      gender: 'all', 
-      age: 'all',
-      breed: 'all',
-      status: 'available',
-      featured: null,
-      sort: 'newest',
-      page: 1,
-      limit: 20
-    };
-
-    updateURL(defaultFilters);
-  }, [updateURL]);
-
-  // ✅ IMPROVED: Fetch pets with better error handling
-  const fetchPets = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError('');
-
-      console.log('🔄 Fetching pets with filters:', filters);
-
-      const response = await searchPetsWithFilters(filters);
-
-      if (response.success) {
-        setResults(response.data || []);
-        
-        // ✅ CRITICAL: Guard against undefined pagination with safe defaults
-        const paginationData = response.pagination || {};
-        setPagination({
-          currentPage: Number(paginationData.currentPage || filters.page || 1),
-          totalPages: Number(paginationData.totalPages || 1),
-          totalCount: Number(response.total || paginationData.totalCount || 0),
-          limit: Number(paginationData.limit || filters.limit || 20),
-          hasNextPage: Boolean(paginationData.hasNextPage),
-          hasPrevPage: Boolean(paginationData.hasPrevPage)
-        });
-
-        console.log('✅ Pets fetched successfully:', {
-          count: response.data?.length || 0,
-          pagination: paginationData
-        });
+      // status for human-readable URL: available/adopted/all
+      if (typeof nextFilters.available === 'boolean') {
+        params.set('status', nextFilters.available ? 'available' : 'adopted');
       } else {
-        throw new Error(response.message || 'Failed to fetch pets');
+        params.set('status', 'all');
       }
-    } catch (err) {
-      console.error('❌ Fetch pets error:', err);
-      setError(err.message || 'Failed to load pets');
-      setResults([]);
+
+      navigate({ pathname: '/browse', search: params.toString() }, { replace: true });
+    },
+    [navigate],
+  );
+
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (filters.search) count += 1;
+    if (filters.type && filters.type !== 'all') count += 1;
+    if (filters.size && filters.size !== 'all') count += 1;
+    if (filters.gender && filters.gender !== 'all') count += 1;
+    if (filters.age && filters.age !== 'all') count += 1;
+    if (typeof filters.available === 'boolean') count += 1;
+    if (typeof filters.featured === 'boolean') count += 1;
+    return count;
+  }, [filters]);
+
+  const fetchPets = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const params = toApiParams(filters, pageRef.current, limitRef.current);
+      // If your server supports it, you can also pass a hint:
+      // params.withImage = true;
+
+      const res = await petAPI.getAllPets(params);
+      const payload = res?.data || {};
+
+      const list = Array.isArray(payload.data) ? payload.data : [];
+      const normalized = list.map(normalizePetImage);
+
+      setResults(normalized);
+
+      // Support both your new pagination and legacy
+      const p = payload.pagination || {};
+      const total = typeof p.total === 'number' ? p.total : normalized.length;
+
+      setTotalResults(total);
       setPagination({
-        currentPage: 1,
-        totalPages: 1,
-        totalCount: 0,
-        limit: 20,
-        hasNextPage: false,
-        hasPrevPage: false
+        currentPage: Number(p.page || pageRef.current),
+        totalPages: Number(p.pages || Math.ceil(total / limitRef.current) || 1),
+        limit: Number(p.limit || limitRef.current),
       });
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error('usePetFilters fetch error:', e);
+      setError('Unable to load pets. Please try again.');
+      setResults([]);
+      setTotalResults(0);
+      setPagination({ currentPage: 1, totalPages: 1, limit: limitRef.current });
     } finally {
       setLoading(false);
     }
   }, [filters]);
 
-  // ✅ IMPROVED: Effect with dependency on filters
+  // Initial + when filters change -> reset page and fetch
   useEffect(() => {
+    pageRef.current = 1;
+    fetchPets();
+    syncUrl(filters);
+  }, [filters, fetchPets, syncUrl]);
+
+  // Public API expected by Browse.js
+  const setFilter = useCallback((key, value) => {
+    setFilters((prev) => {
+      const next = { ...prev, [key]: value };
+      // normalizations
+      if (key === 'featured' && typeof value !== 'boolean') next.featured = undefined;
+      if (key === 'available' && typeof value !== 'boolean') next.available = undefined;
+      return next;
+    });
+  }, []);
+
+  const setSort = useCallback((sort) => {
+    setFilters((prev) => ({ ...prev, sort: sort || 'newest' }));
+  }, []);
+
+  const setPage = useCallback((pageNum) => {
+    pageRef.current = Number(pageNum) || 1;
     fetchPets();
   }, [fetchPets]);
 
-  // ✅ IMPROVED: Computed values with safe defaults
-  const totalResults = pagination.totalCount || 0;
-  const hasResults = results.length > 0;
-  const isFirstPage = pagination.currentPage <= 1;
-  const isLastPage = pagination.currentPage >= pagination.totalPages;
+  const clearFilters = useCallback(() => {
+    setFilters({
+      search: '',
+      type: 'all',
+      size: 'all',
+      gender: 'all',
+      age: 'all',
+      sort: 'newest',
+      available: true, // default like products list
+      featured: undefined,
+    });
+  }, []);
 
-  // ✅ IMPROVED: Active filters count for UI
-  const activeFiltersCount = useMemo(() => {
-    let count = 0;
-    if (filters.search) count++;
-    if (filters.type && filters.type !== 'all') count++;
-    if (filters.category && filters.category !== 'all') count++;
-    if (filters.size && filters.size !== 'all') count++;
-    if (filters.gender && filters.gender !== 'all') count++;
-    if (filters.age && filters.age !== 'all') count++;
-    if (filters.breed && filters.breed !== 'all') count++;
-    if (filters.status && filters.status !== 'available') count++;
-    if (typeof filters.featured === 'boolean') count++;
-    return count;
-  }, [filters]);
+  const refetch = useCallback(() => {
+    fetchPets();
+  }, [fetchPets]);
 
   return {
-    // Data
     results,
     loading,
     error,
     pagination,
     totalResults,
     hasResults,
-    
-    // Current filter state
     filters,
     activeFiltersCount,
-    
-    // Navigation helpers
-    isFirstPage,
-    isLastPage,
-    
-    // Actions
     setFilter,
     setSort,
     setPage,
     clearFilters,
-    refetch: fetchPets
+    refetch,
   };
-};
-
-export default usePetFilters;
+}

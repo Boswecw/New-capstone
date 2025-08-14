@@ -1,10 +1,40 @@
-// client/src/pages/Pets.js - Updated to use PetCard and card.module.css
+// client/src/pages/Pets.js - Updated to use PetCard and card.module.css with image normalization
 import React, { useState, useEffect, useCallback } from 'react';
 import { Container, Row, Col, Card, Button, Form, Spinner, Alert } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 import { petAPI } from '../services/api';
 import PetCard from '../components/PetCard';
 import styles from '../components/Card.module.css';
+import { buildImageUrl, getFallbackUrl } from '../utils/imageBuilder';
+
+// Ensure every pet has a usable imageUrl client-side
+const normalizePetImage = (pet) => {
+  if (!pet) return pet;
+
+  // If server provided a full URL, keep it
+  if (pet.imageUrl && (pet.imageUrl.startsWith('http://') || pet.imageUrl.startsWith('https://'))) {
+    return pet;
+  }
+
+  const path =
+    pet.image ||
+    pet.imagePath ||
+    pet.photo ||
+    pet.picture ||
+    (Array.isArray(pet.images) && pet.images[0]) ||
+    (Array.isArray(pet.photos) && pet.photos[0]) ||
+    null;
+
+  const entityType = pet.type || 'pet';
+  const category = pet.category;
+  const computed = buildImageUrl(path, { entityType, category });
+
+  return {
+    ...pet,
+    imagePath: pet.imagePath || pet.image || null,
+    imageUrl: computed || getFallbackUrl(entityType, category),
+  };
+};
 
 const Pets = () => {
   const [featuredPets, setFeaturedPets] = useState([]);
@@ -19,9 +49,11 @@ const Pets = () => {
     try {
       const response = await petAPI.getFeaturedPets(6);
       if (response.data?.success) {
-        setFeaturedPets(response.data.data || []);
+        const list = response.data.data || [];
+        setFeaturedPets(list.map(normalizePetImage));
       }
     } catch (err) {
+      // eslint-disable-next-line no-console
       console.error('❌ Error fetching featured pets:', err);
     }
   }, []);
@@ -35,17 +67,19 @@ const Pets = () => {
       const response = await petAPI.getAllPets(queryParams);
 
       if (response.data?.success) {
-        const pets = response.data.data || [];
+        const pets = (response.data.data || []).map(normalizePetImage);
         setAllPets(pets);
 
         const totalPets = pets.length;
-        const availablePets = pets.filter(pet => !pet.adopted).length;
-        const adoptedPets = pets.filter(pet => pet.adopted).length;
-        const featuredPets = pets.filter(pet => pet.featured).length;
+        // Use `available` boolean (matches API/Browse/products logic)
+        const availablePets = pets.filter((p) => p.available !== false).length;
+        const adoptedPets = pets.filter((p) => p.available === false).length;
+        const featuredPets = pets.filter((p) => p.featured).length;
 
         setStats({ totalPets, availablePets, adoptedPets, featuredPets });
       }
     } catch (err) {
+      // eslint-disable-next-line no-console
       console.error('❌ Error fetching pets:', err);
       setError('Unable to load pets. Please try again.');
     }
@@ -77,7 +111,7 @@ const Pets = () => {
     <Container className="py-4">
       <div className="text-center mb-5">
         <h1 className="display-3 mb-3">
-          <i className="fas fa-heart text-danger me-3"></i>
+          <i className="fas fa-heart text-danger me-3" />
           Find Your Perfect Companion
         </h1>
         <p className="lead text-muted mb-4">
@@ -117,12 +151,14 @@ const Pets = () => {
                 </Col>
                 <Col md={2} className="mb-2">
                   <Button type="submit" variant="primary" className="w-100">
-                    <i className="fas fa-search me-2"></i>Search
+                    <i className="fas fa-search me-2" />
+                    Search
                   </Button>
                 </Col>
                 <Col md={2} className="mb-2">
                   <Button as={Link} to="/browse" variant="outline-secondary" className="w-100">
-                    <i className="fas fa-filter me-2"></i>Advanced
+                    <i className="fas fa-filter me-2" />
+                    Advanced
                   </Button>
                 </Col>
               </Row>
@@ -132,20 +168,17 @@ const Pets = () => {
       </div>
 
       <Row className="mb-5">
-        {[{
-          icon: 'paw', color: 'primary', label: 'Total Pets', value: stats.totalPets
-        }, {
-          icon: 'home', color: 'success', label: 'Available', value: stats.availablePets
-        }, {
-          icon: 'heart', color: 'info', label: 'Happy Homes', value: stats.adoptedPets
-        }, {
-          icon: 'star', color: 'warning', label: 'Featured', value: stats.featuredPets
-        }].map((stat, idx) => (
-          <Col md={3} key={idx} className="mb-3">
+        {[
+          { icon: 'paw', color: 'primary', label: 'Total Pets', value: stats.totalPets },
+          { icon: 'home', color: 'success', label: 'Available', value: stats.availablePets },
+          { icon: 'heart', color: 'info', label: 'Happy Homes', value: stats.adoptedPets },
+          { icon: 'star', color: 'warning', label: 'Featured', value: stats.featuredPets },
+        ].map((stat, idx) => (
+          <Col md={3} key={String(idx)} className="mb-3">
             <Card className="text-center h-100 shadow-sm">
               <Card.Body>
                 <div className={`text-${stat.color} mb-2`}>
-                  <i className={`fas fa-${stat.icon} fa-2x`}></i>
+                  <i className={`fas fa-${stat.icon} fa-2x`} />
                 </div>
                 <h4 className={`text-${stat.color}`}>{loading ? '...' : stat.value}</h4>
                 <p className="text-muted mb-0">{stat.label}</p>
@@ -155,7 +188,12 @@ const Pets = () => {
         ))}
       </Row>
 
-      {error && <Alert variant="danger" className="mb-4"><i className="fas fa-exclamation-triangle me-2"></i>{error}</Alert>}
+      {error && (
+        <Alert variant="danger" className="mb-4">
+          <i className="fas fa-exclamation-triangle me-2" />
+          {error}
+        </Alert>
+      )}
 
       {loading && (
         <div className="text-center py-5">
@@ -169,8 +207,13 @@ const Pets = () => {
       {!loading && featuredPets.length > 0 && (
         <div className="mb-5">
           <div className="d-flex justify-content-between align-items-center mb-4">
-            <h2><i className="fas fa-star text-warning me-2"></i>Featured Pets</h2>
-            <Button as={Link} to="/browse?featured=true" variant="outline-primary">View All Featured</Button>
+            <h2>
+              <i className="fas fa-star text-warning me-2" />
+              Featured Pets
+            </h2>
+            <Button as={Link} to="/browse?featured=true" variant="outline-primary">
+              View All Featured
+            </Button>
           </div>
           <Row>
             {featuredPets.map((pet) => (
@@ -185,9 +228,13 @@ const Pets = () => {
       {!loading && allPets.length > 0 && (
         <div className="mb-5">
           <div className="d-flex justify-content-between align-items-center mb-4">
-            <h2><i className="fas fa-clock text-info me-2"></i>
-              {searchTerm || selectedType !== 'all' ? 'Search Results' : 'Recent Additions'}</h2>
-            <Button as={Link} to="/browse" variant="outline-primary">Browse All Pets</Button>
+            <h2>
+              <i className="fas fa-clock text-info me-2" />
+              {searchTerm || selectedType !== 'all' ? 'Search Results' : 'Recent Additions'}
+            </h2>
+            <Button as={Link} to="/browse" variant="outline-primary">
+              Browse All Pets
+            </Button>
           </div>
           <Row>
             {allPets.slice(0, 8).map((pet) => (
@@ -208,13 +255,16 @@ const Pets = () => {
             </p>
             <div className="d-flex gap-3 justify-content-center flex-wrap">
               <Button as={Link} to="/browse" variant="primary" size="lg">
-                <i className="fas fa-search me-2"></i>Browse All Pets
+                <i className="fas fa-search me-2" />
+                Browse All Pets
               </Button>
               <Button as={Link} to="/about" variant="outline-primary" size="lg">
-                <i className="fas fa-info-circle me-2"></i>Adoption Process
+                <i className="fas fa-info-circle me-2" />
+                Adoption Process
               </Button>
               <Button as={Link} to="/contact" variant="outline-secondary" size="lg">
-                <i className="fas fa-envelope me-2"></i>Contact Us
+                <i className="fas fa-envelope me-2" />
+                Contact Us
               </Button>
             </div>
           </Card.Body>

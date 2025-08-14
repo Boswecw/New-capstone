@@ -1,18 +1,18 @@
-// client/src/pages/Browse.js - FIXED VERSION WITH PROPER SYNTAX (no unused vars)
+// client/src/pages/Browse.js
 
-import React, { useCallback } from 'react';
-import { 
-  Container, 
-  Row, 
-  Col, 
-  Card, 
-  Form, 
-  Button, 
-  Badge, 
-  Spinner, 
+import React, { useCallback, useMemo } from 'react';
+import {
+  Container,
+  Row,
+  Col,
+  Card,
+  Form,
+  Button,
+  Badge,
+  Spinner,
   Alert,
   Pagination,
-  Dropdown
+  Dropdown,
 } from 'react-bootstrap';
 import PetCard from '../components/PetCard';
 import { usePetFilters } from '../hooks/usePetFilters';
@@ -31,71 +31,113 @@ const Browse = () => {
     setSort,
     setPage,
     clearFilters,
-    refetch
+    refetch,
   } = usePetFilters();
 
-  // ✅ FIXED: Filter handlers that reset page to 1 (handled in hook)
-  const handleFilterChange = useCallback((key, value) => {
-    setFilter(key, value);
-    // Page reset is handled automatically in usePetFilters
-  }, [setFilter]);
+  // ===== Helpers to keep parity with products logic =====
 
-  // ✅ FIXED: Sort handler that resets page to 1 (handled in hook)
-  const handleSortChange = useCallback((sortValue) => {
-    setSort(sortValue);
-    // Page reset is handled automatically in usePetFilters
-  }, [setSort]);
+  // Map server-supported sorts
+  // Server supports: newest, oldest, name_asc, name_desc (see pets route)
+  const getSortDisplayText = useCallback((sortValue) => {
+    switch (sortValue) {
+      case 'newest':
+        return 'Newest First';
+      case 'oldest':
+        return 'Oldest First';
+      case 'name_asc':
+        return 'Name A–Z';
+      case 'name_desc':
+        return 'Name Z–A';
+      default:
+        return 'Newest First';
+    }
+  }, []);
 
-  // ✅ IMPROVED: Page change with bounds checking
-  const handlePageChange = useCallback((pageNumber) => {
-    const total = Number(pagination?.totalPages || 1);
-    const safePage = Math.max(1, Math.min(pageNumber, total));
-    setPage(safePage);
-  }, [setPage, pagination?.totalPages]);
+  // Featured toggle should be boolean, not "true"/"false" strings
+  const featuredChecked = Boolean(filters?.featured);
 
-  // ✅ IMPROVED: Safe pagination values with defaults
+  // Products use a boolean `available` filter — mirror that for pets
+  // UI uses "Status" selector but we map it to `available` boolean for the API
+  const statusValue = useMemo(() => {
+    if (filters?.available === true) return 'available';
+    if (filters?.available === false) return 'adopted';
+    return 'all';
+  }, [filters?.available]);
+
+  // ===== Event handlers =====
+
+  // Filter change — page reset is handled inside the hook
+  const handleFilterChange = useCallback(
+    (key, value) => {
+      setFilter(key, value);
+    },
+    [setFilter],
+  );
+
+  // Status selector → map to boolean `available` or undefined for "all"
+  const handleStatusChange = useCallback(
+    (val) => {
+      if (val === 'available') setFilter('available', true);
+      else if (val === 'adopted') setFilter('available', false);
+      else setFilter('available', undefined);
+    },
+    [setFilter],
+  );
+
+  // Featured toggle → boolean or undefined to clear
+  const handleFeaturedToggle = useCallback(
+    (checked) => {
+      setFilter('featured', checked || undefined);
+    },
+    [setFilter],
+  );
+
+  // Sort handler — use server-supported keys
+  const handleSortChange = useCallback(
+    (sortValue) => {
+      setSort(sortValue || 'newest');
+    },
+    [setSort],
+  );
+
+  // Pagination + bounds checking
   const currentPage = Number(pagination?.currentPage || 1);
   const totalPages = Number(pagination?.totalPages || 1);
 
-  // Helper function to get sort display text
-  const getSortDisplayText = (sortValue) => {
-    switch (sortValue) {
-      case 'newest': return 'Newest First';
-      case 'oldest': return 'Oldest First';
-      case 'name': return 'Name A-Z';
-      case 'type': return 'Pet Type';
-      case 'featured': return 'Featured First';
-      default: return 'Newest First';
-    }
-  };
+  const handlePageChange = useCallback(
+    (pageNumber) => {
+      const safePage = Math.max(1, Math.min(pageNumber, totalPages));
+      setPage(safePage);
+    },
+    [setPage, totalPages],
+  );
 
-  // Render pagination items with safe bounds
-  const renderPaginationItems = () => {
+  // Render numbered page items
+  const renderPaginationItems = useCallback(() => {
     const items = [];
     const maxVisible = 5;
-    
+
     let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
     let endPage = Math.min(totalPages, startPage + maxVisible - 1);
-    
-    // Adjust start if we're near the end
+
     if (endPage - startPage + 1 < maxVisible) {
       startPage = Math.max(1, endPage - maxVisible + 1);
     }
 
-    for (let i = startPage; i <= endPage; i++) {
+    for (let i = startPage; i <= endPage; i += 1) {
       items.push(
         <Pagination.Item
           key={i}
           active={i === currentPage}
-          onClick={() => i !== currentPage && handlePageChange(i)} // ✅ No-op if same page
+          onClick={() => i !== currentPage && handlePageChange(i)}
         >
           {i}
-        </Pagination.Item>
+        </Pagination.Item>,
       );
     }
 
     return items;
-  };
+  }, [currentPage, totalPages, handlePageChange]);
 
   return (
     <Container className="py-4">
@@ -105,15 +147,11 @@ const Browse = () => {
           <Card>
             <Card.Header className="d-flex justify-content-between align-items-center">
               <h5 className="mb-0">
-                <i className="fas fa-filter me-2"></i>
+                <i className="fas fa-filter me-2" />
                 Filters
               </h5>
               {activeFiltersCount > 0 && (
-                <Button
-                  variant="outline-secondary"
-                  size="sm"
-                  onClick={clearFilters}
-                >
+                <Button variant="outline-secondary" size="sm" onClick={clearFilters}>
                   Clear All ({activeFiltersCount})
                 </Button>
               )}
@@ -130,7 +168,7 @@ const Browse = () => {
                 />
               </div>
 
-              {/* Type Filter */}
+              {/* Type */}
               <div className="mb-3">
                 <Form.Label>Pet Type</Form.Label>
                 <Form.Select
@@ -149,7 +187,7 @@ const Browse = () => {
                 </Form.Select>
               </div>
 
-              {/* Size Filter */}
+              {/* Size */}
               <div className="mb-3">
                 <Form.Label>Size</Form.Label>
                 <Form.Select
@@ -164,7 +202,7 @@ const Browse = () => {
                 </Form.Select>
               </div>
 
-              {/* Gender Filter */}
+              {/* Gender */}
               <div className="mb-3">
                 <Form.Label>Gender</Form.Label>
                 <Form.Select
@@ -178,7 +216,7 @@ const Browse = () => {
                 </Form.Select>
               </div>
 
-              {/* Age Filter */}
+              {/* Age */}
               <div className="mb-3">
                 <Form.Label>Age Group</Form.Label>
                 <Form.Select
@@ -192,28 +230,27 @@ const Browse = () => {
                 </Form.Select>
               </div>
 
-              {/* Status Filter */}
+              {/* Status (maps to boolean `available`) */}
               <div className="mb-3">
                 <Form.Label>Status</Form.Label>
                 <Form.Select
-                  value={filters.status || 'available'}
-                  onChange={(e) => handleFilterChange('status', e.target.value)}
+                  value={statusValue}
+                  onChange={(e) => handleStatusChange(e.target.value)}
                 >
                   <option value="available">Available</option>
-                  <option value="pending">Pending</option>
                   <option value="adopted">Adopted</option>
                   <option value="all">All Statuses</option>
                 </Form.Select>
               </div>
 
-              {/* Featured Toggle */}
+              {/* Featured (boolean) */}
               <div className="mb-3">
                 <Form.Check
                   type="switch"
                   id="featured-toggle"
                   label="Featured Pets Only"
-                  checked={filters.featured === true}
-                  onChange={(e) => handleFilterChange('featured', e.target.checked ? 'true' : null)}
+                  checked={featuredChecked}
+                  onChange={(e) => handleFeaturedToggle(e.target.checked)}
                 />
               </div>
             </Card.Body>
@@ -226,7 +263,7 @@ const Browse = () => {
           <div className="d-flex justify-content-between align-items-center mb-4">
             <div>
               <h2>
-                <i className="fas fa-paw me-2 text-primary"></i>
+                <i className="fas fa-paw me-2 text-primary" />
                 Browse Pets
               </h2>
               <div className="text-muted">
@@ -247,10 +284,10 @@ const Browse = () => {
               </div>
             </div>
 
-            {/* Sort Dropdown */}
+            {/* Sort Dropdown (server-supported keys) */}
             <Dropdown>
               <Dropdown.Toggle variant="outline-secondary" size="sm">
-                <i className="fas fa-sort me-1"></i>
+                <i className="fas fa-sort me-1" />
                 Sort: {getSortDisplayText(filters.sort)}
               </Dropdown.Toggle>
               <Dropdown.Menu>
@@ -260,34 +297,31 @@ const Browse = () => {
                 <Dropdown.Item onClick={() => handleSortChange('oldest')}>
                   Oldest First
                 </Dropdown.Item>
-                <Dropdown.Item onClick={() => handleSortChange('name')}>
-                  Name A-Z
+                <Dropdown.Item onClick={() => handleSortChange('name_asc')}>
+                  Name A–Z
                 </Dropdown.Item>
-                <Dropdown.Item onClick={() => handleSortChange('type')}>
-                  Pet Type
-                </Dropdown.Item>
-                <Dropdown.Item onClick={() => handleSortChange('featured')}>
-                  Featured First
+                <Dropdown.Item onClick={() => handleSortChange('name_desc')}>
+                  Name Z–A
                 </Dropdown.Item>
               </Dropdown.Menu>
             </Dropdown>
           </div>
 
-          {/* Error State */}
+          {/* Error */}
           {error && (
             <Alert variant="danger" className="mb-4">
-              <i className="fas fa-exclamation-triangle me-2"></i>
+              <i className="fas fa-exclamation-triangle me-2" />
               {error}
               <div className="mt-2">
                 <Button variant="outline-danger" size="sm" onClick={refetch}>
-                  <i className="fas fa-redo me-1"></i>
+                  <i className="fas fa-redo me-1" />
                   Try Again
                 </Button>
               </div>
             </Alert>
           )}
 
-          {/* Loading State */}
+          {/* Loading */}
           {loading && (
             <div className="text-center py-5">
               <Spinner animation="border" variant="primary" className="mb-3" />
@@ -298,36 +332,30 @@ const Browse = () => {
           {/* No Results */}
           {!loading && !error && !hasResults && (
             <div className="text-center py-5">
-              <i className="fas fa-search fa-3x text-muted mb-3"></i>
+              <i className="fas fa-search fa-3x text-muted mb-3" />
               <h4 className="text-muted">No pets found</h4>
-              <p className="text-muted mb-4">
-                Try adjusting your search criteria or clearing filters.
-              </p>
+              <p className="text-muted mb-4">Try adjusting your search criteria or clearing filters.</p>
               {activeFiltersCount > 0 && (
                 <Button variant="primary" onClick={clearFilters}>
-                  <i className="fas fa-times me-1"></i>
+                  <i className="fas fa-times me-1" />
                   Clear All Filters
                 </Button>
               )}
             </div>
           )}
 
-          {/* Pet Results Grid */}
+          {/* Results */}
           {!loading && !error && hasResults && (
             <>
               <Row className="g-4 mb-4">
                 {pets.map((pet) => (
                   <Col key={pet._id} sm={6} lg={4}>
-                    <PetCard
-                      pet={pet}
-                      showFavoriteButton={true}
-                      showAdoptionStatus={true}
-                    />
+                    <PetCard pet={pet} showFavoriteButton showAdoptionStatus />
                   </Col>
                 ))}
               </Row>
 
-              {/* ✅ FIXED: Pagination with safe defaults and proper bounds checking */}
+              {/* Pagination */}
               {totalPages > 1 && (
                 <div className="d-flex justify-content-center">
                   <Pagination>
@@ -339,9 +367,7 @@ const Browse = () => {
                       disabled={currentPage <= 1}
                       onClick={() => handlePageChange(Math.max(currentPage - 1, 1))}
                     />
-                    
                     {renderPaginationItems()}
-                    
                     <Pagination.Next
                       disabled={currentPage >= totalPages}
                       onClick={() => handlePageChange(Math.min(currentPage + 1, totalPages))}
@@ -357,9 +383,7 @@ const Browse = () => {
               {/* Results Summary */}
               <div className="text-center text-muted mt-3">
                 Showing {pets.length} of {totalResults} pets
-                {totalPages > 1 && (
-                  <span> (Page {currentPage} of {totalPages})</span>
-                )}
+                {totalPages > 1 && <span> (Page {currentPage} of {totalPages})</span>}
               </div>
             </>
           )}
