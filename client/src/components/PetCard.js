@@ -18,9 +18,7 @@ const PetCard = ({ pet, showDetails = true }) => {
       {/* Image Section */}
       <div style={{ height: 250, overflow: 'hidden' }}>
         <SafeImage
-          item={pet}                    // Pass the entire pet object
-          entityType="pet"              // Specify entity type
-          category={pet.category}       // Pass category for better fallback
+          src={pet.image || pet.imageUrl}
           alt={`${pet.name} - ${pet.breed}`}
           className="card-img-top"
           style={{
@@ -28,9 +26,8 @@ const PetCard = ({ pet, showDetails = true }) => {
             height: '100%',
             objectFit: 'cover'
           }}
-          imgProps={{
-            loading: 'lazy'
-          }}
+          loading="lazy"
+          isPet
         />
       </div>
       
