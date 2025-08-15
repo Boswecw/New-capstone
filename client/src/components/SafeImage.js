@@ -1,119 +1,193 @@
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
+// client/src/components/SafeImage.js
+import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
-import imageBuilder from '../utils/imageBuilder';
+import { buildImageUrl, getFallbackUrl } from '../utils/imageUrlBuilder';
 
-const { buildImageUrl, getFallbackUrl } = imageBuilder;
-
-const SafeImage = ({
-  src,
-  item,
-  entityType,
-  category,
-  cacheKey,
-  alt,
-  className,
-  style,
-  imgProps = {},     // <-- only this object will be spread onto <img>
-  showLoader = true,
-  showErrorMessage = false,
-  onLoad,
-  onError,
+/**
+ * SafeImage Component - Handles image loading with fallbacks
+ * Uses the unified image URL builder for consistent URL construction
+ */
+const SafeImage = ({ 
+  src, 
+  alt = 'Image', 
+  item = null,
+  entityType = 'default',
+  category = null,
+  className = '',
+  style = {},
+  imgProps = {},
+  showLoading = true,
+  retryCount = 2,
+  onLoad = null,
+  onError = null
 }) => {
-  const inferredType = entityType || item?.type || (category ? 'product' : 'default');
-  const inferredCategory = category || item?.category || null;
-  const derivedCacheKey =
-    cacheKey ??
-    item?.updatedAt?.$date ??
-    item?.updatedAt ??
-    item?._id ??
-    undefined;
+  const [imageSrc, setImageSrc] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasError, setHasError] = useState(false);
+  const [retries, setRetries] = useState(0);
 
-  const builtSrc = useMemo(() => {
-    const raw = src ?? item?.image ?? item?.imageUrl ?? item?.imagePath ?? null;
-    const url = buildImageUrl(raw, {
-      entityType: inferredType,
-      category: inferredCategory,
-      cacheKey: derivedCacheKey,
-    });
-    // eslint-disable-next-line no-console
-    console.debug('SafeImage →', { raw, url, inferredType, inferredCategory });
-    return url;
-  }, [src, item, inferredType, inferredCategory, derivedCacheKey]);
-
-  const [currentSrc, setCurrentSrc] = useState(builtSrc);
-  const [loading, setLoading] = useState(Boolean(showLoader));
-  const [errored, setErrored] = useState(false);
-
+  // Determine the image source
   useEffect(() => {
-    setCurrentSrc(builtSrc);
-    setErrored(false);
-    setLoading(Boolean(showLoader));
-  }, [builtSrc, showLoader]);
+    // Extract image path from various sources
+    const imagePath = src || 
+                     item?.image || 
+                     item?.imagePath || 
+                     item?.imageUrl || 
+                     item?.photo || 
+                     item?.picture;
+    
+    // Determine entity type and category from item if not provided
+    const finalEntityType = entityType || item?.type || 'default';
+    const finalCategory = category || item?.category || null;
+    
+    // Build the image URL using our unified builder
+    const url = buildImageUrl(imagePath, {
+      entityType: finalEntityType,
+      category: finalCategory
+    });
+    
+    console.log('SafeImage: Building URL', {
+      imagePath,
+      finalEntityType,
+      finalCategory,
+      resultUrl: url
+    });
+    
+    setImageSrc(url);
+    setIsLoading(true);
+    setHasError(false);
+  }, [src, item, entityType, category]);
 
-  const handleLoad = useCallback((e) => {
-    setLoading(false);
-    onLoad?.(e);
-  }, [onLoad]);
-
-  const handleError = useCallback((e) => {
-    const fallback = getFallbackUrl(inferredType, inferredCategory);
-    if (currentSrc !== fallback) {
-      setCurrentSrc(fallback);
-      setLoading(false);
-      setErrored(false);
-    } else {
-      setErrored(true);
-      setLoading(false);
+  // Handle image load success
+  const handleLoad = (e) => {
+    setIsLoading(false);
+    setHasError(false);
+    setRetries(0);
+    
+    if (onLoad) {
+      onLoad(e);
     }
-    onError?.(e);
-  }, [currentSrc, inferredType, inferredCategory, onError]);
+  };
 
-  return (
-    <div className={className || ''} style={style}>
-      {loading && showLoader && (
-        <div className="safe-image__loader">
-          <div className="spinner" />
-          <span>Loading...</span>
-        </div>
-      )}
-      <img
-        {...imgProps}
-        src={currentSrc}
-        alt={alt || 'Image'}
-        onLoad={handleLoad}
-        onError={handleError}
-        loading={imgProps.loading || 'lazy'}
-        crossOrigin="anonymous"
-        referrerPolicy="no-referrer"
+  // Handle image load error
+  const handleError = (e) => {
+    console.warn('SafeImage: Load error', {
+      src: imageSrc,
+      retries,
+      maxRetries: retryCount
+    });
+    
+    // Try retry if we haven't exceeded the retry count
+    if (retries < retryCount) {
+      setRetries(retries + 1);
+      
+      // Add a cache buster to retry
+      const url = new URL(imageSrc);
+      url.searchParams.set('retry', retries + 1);
+      setImageSrc(url.toString());
+      
+      return;
+    }
+    
+    // All retries failed, use fallback
+    setIsLoading(false);
+    setHasError(true);
+    
+    // Determine fallback URL
+    const finalEntityType = entityType || item?.type || 'default';
+    const finalCategory = category || item?.category || null;
+    const fallbackUrl = getFallbackUrl(finalEntityType, finalCategory);
+    
+    // Set fallback image
+    if (imageSrc !== fallbackUrl) {
+      console.log('SafeImage: Using fallback', fallbackUrl);
+      setImageSrc(fallbackUrl);
+      setHasError(false); // Reset error for fallback attempt
+    }
+    
+    if (onError) {
+      onError(e);
+    }
+  };
+
+  // Loading placeholder
+  if (isLoading && showLoading) {
+    return (
+      <div 
+        className={`safe-image-loading ${className}`}
         style={{
-          opacity: loading ? 0.3 : 1,
-          transition: 'opacity 0.25s ease',
-          ...(imgProps.style || {}),
+          ...style,
+          backgroundColor: '#f0f0f0',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: style.height || 200,
+          borderRadius: style.borderRadius || 0
         }}
-      />
-      {errored && showErrorMessage && (
-        <div className="safe-image__error">
-          <i className="fas fa-exclamation-triangle" /> Image unavailable
+      >
+        <div className="spinner-border text-secondary" role="status">
+          <span className="visually-hidden">Loading...</span>
         </div>
-      )}
-    </div>
+      </div>
+    );
+  }
+
+  // Error placeholder (only shown if fallback also fails)
+  if (hasError && !imageSrc) {
+    return (
+      <div 
+        className={`safe-image-error ${className}`}
+        style={{
+          ...style,
+          backgroundColor: '#e0e0e0',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: style.height || 200,
+          borderRadius: style.borderRadius || 0,
+          color: '#666'
+        }}
+      >
+        <div className="text-center">
+          <i className="bi bi-image" style={{ fontSize: '2rem' }}></i>
+          <div className="small mt-2">Image unavailable</div>
+        </div>
+      </div>
+    );
+  }
+
+  // Render the image
+  return (
+    <img
+      src={imageSrc}
+      alt={alt}
+      className={className}
+      style={{
+        ...style,
+        opacity: isLoading ? 0 : 1,
+        transition: 'opacity 0.3s ease-in-out'
+      }}
+      onLoad={handleLoad}
+      onError={handleError}
+      loading="lazy"
+      {...imgProps}
+    />
   );
 };
 
 SafeImage.propTypes = {
   src: PropTypes.string,
+  alt: PropTypes.string,
   item: PropTypes.object,
   entityType: PropTypes.string,
   category: PropTypes.string,
-  cacheKey: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
-  alt: PropTypes.string,
   className: PropTypes.string,
   style: PropTypes.object,
   imgProps: PropTypes.object,
-  showLoader: PropTypes.bool,
-  showErrorMessage: PropTypes.bool,
+  showLoading: PropTypes.bool,
+  retryCount: PropTypes.number,
   onLoad: PropTypes.func,
-  onError: PropTypes.func,
+  onError: PropTypes.func
 };
 
 export default SafeImage;
