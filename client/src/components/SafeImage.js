@@ -1,11 +1,12 @@
 // src/components/SafeImage.js
 
 import React, { useState, useEffect } from 'react';
-import { 
-  buildImageUrl, 
-  buildPetImageUrl, 
-  validateImageUrl, 
-  DEFAULT_PET_IMAGE 
+import {
+  buildPetImageUrl,
+  buildProductImageUrl,
+  validateImageUrl,
+  DEFAULT_PET_IMAGE,
+  DEFAULT_PRODUCT_IMAGE
 } from '../utils/imageUtils';
 
 /**
@@ -18,31 +19,39 @@ import {
  * @param {Object} props.style - Inline styles
  * @param {Function} props.onLoad - Callback when image loads successfully
  * @param {Function} props.onError - Callback when image fails to load
- * @param {boolean} props.isPet - Whether this is a pet image (uses pet-specific URL building)
+ * @param {string} props.entityType - Type of entity the image represents ('pet' | 'product')
+ * @param {Object} props.item - Entity item that may contain image information
  * @param {Object} props.optimization - Image optimization options
- */
+*/
 const SafeImage = ({
   src,
   alt = '',
-  fallback = DEFAULT_PET_IMAGE,
+  fallback,
   className = '',
   style = {},
   onLoad,
   onError,
-  isPet = false,
+  entityType = 'pet',
+  item,
   optimization = {},
-  ...props
+  ...imgProps
 }) => {
   const [imageSrc, setImageSrc] = useState('');
   const [imageError, setImageError] = useState(false);
   const [loading, setLoading] = useState(true);
+  const resolvedFallback = fallback || (entityType === 'product' ? DEFAULT_PRODUCT_IMAGE : DEFAULT_PET_IMAGE);
 
   useEffect(() => {
     let isMounted = true;
 
     const loadImage = async () => {
-      if (!src) {
-        setImageSrc(fallback);
+      let source = src;
+      if (!source && item) {
+        source = entityType === 'product' ? item?.imageUrl : item?.image;
+      }
+
+      if (!source) {
+        setImageSrc(resolvedFallback);
         setLoading(false);
         return;
       }
@@ -51,17 +60,16 @@ const SafeImage = ({
       setImageError(false);
 
       try {
-        // Build the image URL based on type
-        const imageUrl = isPet ? buildPetImageUrl(src, fallback) : buildImageUrl(src);
-        
-        // Validate the image URL
+        const builder = entityType === 'product' ? buildProductImageUrl : buildPetImageUrl;
+        const imageUrl = builder(source, resolvedFallback);
+
         const isValid = await validateImageUrl(imageUrl);
-        
+
         if (isMounted) {
           if (isValid) {
             setImageSrc(imageUrl);
           } else {
-            setImageSrc(fallback);
+            setImageSrc(resolvedFallback);
             setImageError(true);
             if (onError) {
               onError(new Error(`Failed to load image: ${imageUrl}`));
@@ -71,7 +79,7 @@ const SafeImage = ({
         }
       } catch (error) {
         if (isMounted) {
-          setImageSrc(fallback);
+          setImageSrc(resolvedFallback);
           setImageError(true);
           setLoading(false);
           if (onError) {
@@ -86,7 +94,7 @@ const SafeImage = ({
     return () => {
       isMounted = false;
     };
-  }, [src, fallback, isPet, onError]);
+  }, [src, item, fallback, entityType, onError]);
 
   const handleLoad = (event) => {
     setLoading(false);
@@ -97,7 +105,7 @@ const SafeImage = ({
 
   const handleError = (event) => {
     if (!imageError) {
-      setImageSrc(fallback);
+      setImageSrc(resolvedFallback);
       setImageError(true);
       if (onError) {
         onError(new Error(`Image failed to load: ${src}`));
@@ -139,7 +147,7 @@ const SafeImage = ({
         style={imageStyle}
         onLoad={handleLoad}
         onError={handleError}
-        {...props}
+        {...imgProps}
       />
       {imageError && (
         <div 
