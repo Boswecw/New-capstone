@@ -9,13 +9,8 @@ const ProductCard = ({ product, showAddToCart = true, className }) => {
     <Card className={className || ''}>
       <div style={{ height: 220, overflow: 'hidden' }}>
         <SafeImage
-          // products JSON has product.image = "product/<filename>"
-          item={product}
           src={product.image || product.imagePath || product.imageUrl}
           entityType="product"
-          category={product.category}
-          alt={`${product.name || 'Product'} image`}
-          imgProps={{ style: { objectFit: 'cover', width: '100%', height: '100%' } }}
         />
       </div>
       <Card.Body>
