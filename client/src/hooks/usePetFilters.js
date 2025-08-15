@@ -1,223 +1,258 @@
-// client/src/hooks/usePetFilters.js
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
-import { petAPI } from '../services/api';
-import { buildImageUrl, getFallbackUrl } from '../utils/imageBuilder';
+// src/hooks/usePetFilters.js
 
-// Map URL params -> initial filters
-function parseInitialFilters(search) {
-  const params = new URLSearchParams(search);
-  const filters = {
-    search: params.get('search') || '',
-    type: params.get('type') || 'all',
-    size: params.get('size') || 'all',
-    gender: params.get('gender') || 'all',
-    age: params.get('age') || 'all',
-    sort: params.get('sort') || 'newest',
-    // booleans
-    featured: params.get('featured') === 'true' ? true : undefined,
-    available:
-      params.get('status') === 'adopted'
-        ? false
-        : params.get('status') === 'all'
-          ? undefined
-          : true, // default "available"
-  };
-  return filters;
-}
+import { useState, useMemo, useCallback } from 'react';
+import { buildPetImageUrl, hasValidImageExtension } from '../utils/imageUtils';
 
-// Build API params from filters
-function toApiParams(filters, page, limit) {
-  const p = { page, limit, sort: filters.sort || 'newest' };
+/**
+ * Custom hook for filtering and managing pet data
+ * @param {Array} pets - Array of pet objects
+ * @param {Object} initialFilters - Initial filter state
+ * @returns {Object} Filter state and methods
+ */
+const usePetFilters = (pets = [], initialFilters = {}) => {
+  const [filters, setFilters] = useState({
+    species: '',
+    breed: '',
+    age: '',
+    size: '',
+    gender: '',
+    status: 'available',
+    search: '',
+    location: '',
+    hasImages: false,
+    ...initialFilters
+  });
 
-  if (filters.search) p.search = filters.search;
-  if (filters.type && filters.type !== 'all') p.type = filters.type;
-  if (filters.size && filters.size !== 'all') p.size = filters.size;
-  if (filters.gender && filters.gender !== 'all') p.gender = filters.gender;
-  if (filters.age && filters.age !== 'all') p.age = filters.age;
-  if (typeof filters.available === 'boolean') p.available = filters.available;
-  if (typeof filters.featured === 'boolean') p.featured = filters.featured;
+  const [sortBy, setSortBy] = useState('newest');
+  const [sortOrder, setSortOrder] = useState('desc');
 
-  return p;
-}
+  // Update specific filter
+  const updateFilter = useCallback((key, value) => {
+    setFilters(prev => ({
+      ...prev,
+      [key]: value
+    }));
+  }, []);
 
-// Ensure every pet has a usable imageUrl client-side
-function normalizePetImage(pet) {
-  // Respect server-enriched URLs if present
-  if (pet?.imageUrl && (pet.imageUrl.startsWith('http://') || pet.imageUrl.startsWith('https://'))) {
-    return { ...pet };
-  }
+  // Update multiple filters at once
+  const updateFilters = useCallback((newFilters) => {
+    setFilters(prev => ({
+      ...prev,
+      ...newFilters
+    }));
+  }, []);
 
-  const path =
-    pet?.image ||
-    pet?.imagePath ||
-    pet?.photo ||
-    pet?.picture ||
-    (Array.isArray(pet?.images) && pet.images[0]) ||
-    (Array.isArray(pet?.photos) && pet.photos[0]) ||
-    null;
+  // Reset all filters
+  const resetFilters = useCallback(() => {
+    setFilters({
+      species: '',
+      breed: '',
+      age: '',
+      size: '',
+      gender: '',
+      status: 'available',
+      search: '',
+      location: '',
+      hasImages: false,
+      ...initialFilters
+    });
+  }, [initialFilters]);
 
-  const entityType = pet?.type || 'pet';
-  const category = pet?.category;
+  // Get unique values for filter options
+  const filterOptions = useMemo(() => {
+    if (!pets || pets.length === 0) {
+      return {
+        species: [],
+        breeds: [],
+        ages: [],
+        sizes: [],
+        genders: [],
+        statuses: [],
+        locations: []
+      };
+    }
 
-  const computed = buildImageUrl(path, { entityType, category });
-  return {
-    ...pet,
-    imageUrl: computed || getFallbackUrl(entityType, category),
-    // keep original if present so PetCard's src chain also works
-    imagePath: pet?.imagePath || pet?.image || null,
-  };
-}
+    const species = [...new Set(pets.map(pet => pet.species).filter(Boolean))];
+    const breeds = [...new Set(pets.map(pet => pet.breed).filter(Boolean))];
+    const ages = [...new Set(pets.map(pet => pet.age).filter(Boolean))];
+    const sizes = [...new Set(pets.map(pet => pet.size).filter(Boolean))];
+    const genders = [...new Set(pets.map(pet => pet.gender).filter(Boolean))];
+    const statuses = [...new Set(pets.map(pet => pet.status).filter(Boolean))];
+    const locations = [...new Set(pets.map(pet => pet.location).filter(Boolean))];
 
-export function usePetFilters() {
-  const location = useLocation();
-  const navigate = useNavigate();
+    return {
+      species: species.sort(),
+      breeds: breeds.sort(),
+      ages: ages.sort(),
+      sizes: sizes.sort(),
+      genders: genders.sort(),
+      statuses: statuses.sort(),
+      locations: locations.sort()
+    };
+  }, [pets]);
 
-  const [filters, setFilters] = useState(() => parseInitialFilters(location.search));
-  const [results, setResults] = useState([]);
-  const [totalResults, setTotalResults] = useState(0);
-  const [pagination, setPagination] = useState({ currentPage: 1, totalPages: 1, limit: 12 });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  // Filter pets based on current filters
+  const filteredPets = useMemo(() => {
+    if (!pets || pets.length === 0) return [];
 
-  // Keep page/limit internal; reset page=1 on filter/sort changes
-  const pageRef = useRef(1);
-  const limitRef = useRef(12);
-
-  const hasResults = results.length > 0;
-
-  // URL sync (optional, keeps parity with products)
-  const syncUrl = useCallback(
-    (nextFilters) => {
-      const params = new URLSearchParams();
-
-      if (nextFilters.search) params.set('search', nextFilters.search);
-      if (nextFilters.type && nextFilters.type !== 'all') params.set('type', nextFilters.type);
-      if (nextFilters.size && nextFilters.size !== 'all') params.set('size', nextFilters.size);
-      if (nextFilters.gender && nextFilters.gender !== 'all') params.set('gender', nextFilters.gender);
-      if (nextFilters.age && nextFilters.age !== 'all') params.set('age', nextFilters.age);
-      if (nextFilters.sort && nextFilters.sort !== 'newest') params.set('sort', nextFilters.sort);
-      if (typeof nextFilters.featured === 'boolean') params.set('featured', String(nextFilters.featured));
-
-      // status for human-readable URL: available/adopted/all
-      if (typeof nextFilters.available === 'boolean') {
-        params.set('status', nextFilters.available ? 'available' : 'adopted');
-      } else {
-        params.set('status', 'all');
+    let filtered = pets.filter(pet => {
+      // Species filter
+      if (filters.species && pet.species !== filters.species) {
+        return false;
       }
 
-      navigate({ pathname: '/browse', search: params.toString() }, { replace: true });
-    },
-    [navigate],
-  );
+      // Breed filter
+      if (filters.breed && pet.breed !== filters.breed) {
+        return false;
+      }
 
-  const activeFiltersCount = useMemo(() => {
-    let count = 0;
-    if (filters.search) count += 1;
-    if (filters.type && filters.type !== 'all') count += 1;
-    if (filters.size && filters.size !== 'all') count += 1;
-    if (filters.gender && filters.gender !== 'all') count += 1;
-    if (filters.age && filters.age !== 'all') count += 1;
-    if (typeof filters.available === 'boolean') count += 1;
-    if (typeof filters.featured === 'boolean') count += 1;
-    return count;
-  }, [filters]);
+      // Age filter
+      if (filters.age && pet.age !== filters.age) {
+        return false;
+      }
 
-  const fetchPets = useCallback(async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const params = toApiParams(filters, pageRef.current, limitRef.current);
-      // If your server supports it, you can also pass a hint:
-      // params.withImage = true;
+      // Size filter
+      if (filters.size && pet.size !== filters.size) {
+        return false;
+      }
 
-      const res = await petAPI.getAllPets(params);
-      const payload = res?.data || {};
+      // Gender filter
+      if (filters.gender && pet.gender !== filters.gender) {
+        return false;
+      }
 
-      const list = Array.isArray(payload.data) ? payload.data : [];
-      const normalized = list.map(normalizePetImage);
+      // Status filter
+      if (filters.status && pet.status !== filters.status) {
+        return false;
+      }
 
-      setResults(normalized);
+      // Location filter
+      if (filters.location && pet.location !== filters.location) {
+        return false;
+      }
 
-      // Support both your new pagination and legacy
-      const p = payload.pagination || {};
-      const total = typeof p.total === 'number' ? p.total : normalized.length;
+      // Search filter (searches name, description, breed, species)
+      if (filters.search) {
+        const searchTerm = filters.search.toLowerCase();
+        const searchableText = [
+          pet.name,
+          pet.description,
+          pet.breed,
+          pet.species,
+          pet.location
+        ].join(' ').toLowerCase();
+        
+        if (!searchableText.includes(searchTerm)) {
+          return false;
+        }
+      }
 
-      setTotalResults(total);
-      setPagination({
-        currentPage: Number(p.page || pageRef.current),
-        totalPages: Number(p.pages || Math.ceil(total / limitRef.current) || 1),
-        limit: Number(p.limit || limitRef.current),
-      });
-    } catch (e) {
-      // eslint-disable-next-line no-console
-      console.error('usePetFilters fetch error:', e);
-      setError('Unable to load pets. Please try again.');
-      setResults([]);
-      setTotalResults(0);
-      setPagination({ currentPage: 1, totalPages: 1, limit: limitRef.current });
-    } finally {
-      setLoading(false);
-    }
-  }, [filters]);
+      // Has images filter
+      if (filters.hasImages) {
+        const hasValidImage = pet.image && hasValidImageExtension(pet.image);
+        const hasImages = pet.images && Array.isArray(pet.images) && pet.images.length > 0;
+        
+        if (!hasValidImage && !hasImages) {
+          return false;
+        }
+      }
 
-  // Initial + when filters change -> reset page and fetch
-  useEffect(() => {
-    pageRef.current = 1;
-    fetchPets();
-    syncUrl(filters);
-  }, [filters, fetchPets, syncUrl]);
-
-  // Public API expected by Browse.js
-  const setFilter = useCallback((key, value) => {
-    setFilters((prev) => {
-      const next = { ...prev, [key]: value };
-      // normalizations
-      if (key === 'featured' && typeof value !== 'boolean') next.featured = undefined;
-      if (key === 'available' && typeof value !== 'boolean') next.available = undefined;
-      return next;
+      return true;
     });
-  }, []);
 
-  const setSort = useCallback((sort) => {
-    setFilters((prev) => ({ ...prev, sort: sort || 'newest' }));
-  }, []);
+    // Sort the filtered results
+    filtered.sort((a, b) => {
+      let comparison = 0;
 
-  const setPage = useCallback((pageNum) => {
-    pageRef.current = Number(pageNum) || 1;
-    fetchPets();
-  }, [fetchPets]);
+      switch (sortBy) {
+        case 'name':
+          comparison = (a.name || '').localeCompare(b.name || '');
+          break;
+        case 'age':
+          comparison = (a.age || '').localeCompare(b.age || '');
+          break;
+        case 'species':
+          comparison = (a.species || '').localeCompare(b.species || '');
+          break;
+        case 'breed':
+          comparison = (a.breed || '').localeCompare(b.breed || '');
+          break;
+        case 'newest':
+          comparison = new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+          break;
+        case 'oldest':
+          comparison = new Date(a.createdAt || 0) - new Date(b.createdAt || 0);
+          break;
+        case 'updated':
+          comparison = new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0);
+          break;
+        default:
+          comparison = 0;
+      }
 
-  const clearFilters = useCallback(() => {
-    setFilters({
+      return sortOrder === 'desc' ? -comparison : comparison;
+    });
+
+    return filtered;
+  }, [pets, filters, sortBy, sortOrder]);
+
+  // Enhance pets with proper image URLs
+  const enhancedPets = useMemo(() => {
+    return filteredPets.map(pet => ({
+      ...pet,
+      imageUrl: buildPetImageUrl(pet.image),
+      imageUrls: pet.images ? pet.images.map(img => buildPetImageUrl(img)) : []
+    }));
+  }, [filteredPets]);
+
+  // Get filter statistics
+  const filterStats = useMemo(() => {
+    return {
+      total: pets.length,
+      filtered: filteredPets.length,
+      available: filteredPets.filter(pet => pet.status === 'available').length,
+      adopted: filteredPets.filter(pet => pet.status === 'adopted').length,
+      pending: filteredPets.filter(pet => pet.status === 'pending').length,
+      withImages: filteredPets.filter(pet => 
+        hasValidImageExtension(pet.image) || 
+        (pet.images && pet.images.length > 0)
+      ).length
+    };
+  }, [pets, filteredPets]);
+
+  // Check if any filters are active
+  const hasActiveFilters = useMemo(() => {
+    const defaultFilters = {
+      species: '',
+      breed: '',
+      age: '',
+      size: '',
+      gender: '',
+      status: 'available',
       search: '',
-      type: 'all',
-      size: 'all',
-      gender: 'all',
-      age: 'all',
-      sort: 'newest',
-      available: true, // default like products list
-      featured: undefined,
-    });
-  }, []);
+      location: '',
+      hasImages: false
+    };
 
-  const refetch = useCallback(() => {
-    fetchPets();
-  }, [fetchPets]);
+    return Object.keys(filters).some(key => 
+      filters[key] !== defaultFilters[key]
+    );
+  }, [filters]);
 
   return {
-    results,
-    loading,
-    error,
-    pagination,
-    totalResults,
-    hasResults,
     filters,
-    activeFiltersCount,
-    setFilter,
-    setSort,
-    setPage,
-    clearFilters,
-    refetch,
+    sortBy,
+    sortOrder,
+    filteredPets: enhancedPets,
+    filterOptions,
+    filterStats,
+    hasActiveFilters,
+    updateFilter,
+    updateFilters,
+    resetFilters,
+    setSortBy,
+    setSortOrder
   };
-}
+};
+
+export default usePetFilters;

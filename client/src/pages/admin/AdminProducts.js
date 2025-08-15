@@ -1,403 +1,567 @@
-// client/src/pages/admin/AdminProducts.js - FIXED IMAGE IMPORTS
+// src/pages/admin/AdminProducts.js
+
 import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Table, Button, Badge, Alert, Spinner, Form, Modal } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
-import { productAPI } from '../../services/api';
-import { getImageUrl } from '../../utils/imageUtils'; // ✅ FIXED: Use consolidated utility
+import SafeImage from '../../components/SafeImage';
+import { 
+  buildProductImageUrl, 
+  hasValidImageExtension
+} from '../../utils/imageUtils';
+import './AdminProducts.css';
 
 const AdminProducts = () => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState('all');
-  const [deleteModal, setDeleteModal] = useState({ show: false, product: null });
-  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState(null);
+  const [selectedProducts, setSelectedProducts] = useState([]);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [filters, setFilters] = useState({
+    search: '',
+    category: '',
+    status: '',
+    inStock: false
+  });
+  const [sortBy, setSortBy] = useState('newest');
 
+  // Fetch products data
   useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch('/api/admin/products', {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+          }
+        });
+        if (!response.ok) {
+          throw new Error('Failed to fetch products');
+        }
+        const data = await response.json();
+        setProducts(data);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
     fetchProducts();
   }, []);
 
-  const fetchProducts = async () => {
-    try {
-      setLoading(true);
-      setError('');
-      const response = await productAPI.get('/', {
-        params: {
-          limit: 50,
-          sort: 'newest'
+  // Filter and sort products
+  const filteredProducts = React.useMemo(() => {
+    let filtered = products.filter(product => {
+      // Search filter
+      if (filters.search) {
+        const searchTerm = filters.search.toLowerCase();
+        const searchableText = [
+          product.name,
+          product.description,
+          product.category,
+          product.brand
+        ].filter(Boolean).join(' ').toLowerCase();
+        
+        if (!searchableText.includes(searchTerm)) {
+          return false;
         }
+      }
+
+      // Category filter
+      if (filters.category && product.category !== filters.category) {
+        return false;
+      }
+
+      // Status filter
+      if (filters.status && product.status !== filters.status) {
+        return false;
+      }
+
+      // In stock filter
+      if (filters.inStock && (!product.stock || product.stock <= 0)) {
+        return false;
+      }
+
+      return true;
+    });
+
+    // Sort products
+    filtered.sort((a, b) => {
+      let comparison = 0;
+
+      switch (sortBy) {
+        case 'name':
+          comparison = (a.name || '').localeCompare(b.name || '');
+          break;
+        case 'price':
+          comparison = (a.price || 0) - (b.price || 0);
+          break;
+        case 'stock':
+          comparison = (a.stock || 0) - (b.stock || 0);
+          break;
+        case 'category':
+          comparison = (a.category || '').localeCompare(b.category || '');
+          break;
+        case 'newest':
+          comparison = new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+          break;
+        case 'oldest':
+          comparison = new Date(a.createdAt || 0) - new Date(b.createdAt || 0);
+          break;
+        default:
+          comparison = 0;
+      }
+
+      return comparison;
+    });
+
+    return filtered;
+  }, [products, filters, sortBy]);
+
+  // Get unique categories for filter
+  const categories = React.useMemo(() => {
+    return [...new Set(products.map(product => product.category).filter(Boolean))].sort();
+  }, [products]);
+
+  // Get unique statuses for filter
+  const statuses = React.useMemo(() => {
+    return [...new Set(products.map(product => product.status).filter(Boolean))].sort();
+  }, [products]);
+
+  // Handle product selection for bulk actions
+  const handleProductSelection = (productId, isSelected) => {
+    setSelectedProducts(prev => 
+      isSelected 
+        ? [...prev, productId]
+        : prev.filter(id => id !== productId)
+    );
+  };
+
+  // Handle select all products
+  const handleSelectAll = (isSelected) => {
+    setSelectedProducts(isSelected ? filteredProducts.map(product => product.id) : []);
+  };
+
+  // Handle bulk status update
+  const handleBulkStatusUpdate = async (newStatus) => {
+    if (selectedProducts.length === 0) return;
+
+    try {
+      setActionLoading(true);
+      const response = await fetch('/api/admin/products/bulk-update', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+        },
+        body: JSON.stringify({
+          productIds: selectedProducts,
+          updates: { status: newStatus }
+        })
       });
 
-      const productData = response.data?.data || [];
-      setProducts(productData);
-      console.log('✅ Loaded products for admin:', productData.length);
-    } catch (error) {
-      console.error('Error fetching products:', error);
-      setError('Failed to load products. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDelete = async (product) => {
-    setDeleteModal({ show: true, product });
-  };
-
-  const confirmDelete = async () => {
-    if (!deleteModal.product) return;
-    
-    try {
-      setDeleting(true);
-      await productAPI.delete(`/${deleteModal.product._id}`);
-      
-      // Remove from local state
-      setProducts(products.filter(p => p._id !== deleteModal.product._id));
-      setDeleteModal({ show: false, product: null });
-      
-      console.log('✅ Product deleted successfully');
-    } catch (error) {
-      console.error('Error deleting product:', error);
-      setError('Failed to delete product. Please try again.');
-    } finally {
-      setDeleting(false);
-    }
-  };
-
-  const handleStockToggle = async (product) => {
-    try {
-      const response = await productAPI.patch(`/${product._id}/toggle-stock`);
-
-      if (response.data?.success) {
-        // Update local state
-        setProducts(products.map(p => 
-          p._id === product._id ? { ...p, inStock: !p.inStock } : p
-        ));
-        console.log(`✅ Product stock updated: ${product.name}`);
+      if (!response.ok) {
+        throw new Error('Failed to update products');
       }
-    } catch (error) {
-      console.error('Error updating product stock:', error);
-      setError('Failed to update product stock.');
+
+      // Refresh products data
+      const updatedResponse = await fetch('/api/admin/products', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+        }
+      });
+      
+      if (updatedResponse.ok) {
+        const updatedData = await updatedResponse.json();
+        setProducts(updatedData);
+      }
+      
+      setSelectedProducts([]);
+      alert(`Successfully updated ${selectedProducts.length} product(s) to ${newStatus}`);
+    } catch (err) {
+      console.error('Error updating products:', err);
+      alert(`Error updating products: ${err.message}`);
+    } finally {
+      setActionLoading(false);
     }
   };
 
-  // Filter products based on search and filter criteria
-  const filteredProducts = products.filter(product => {
-    const matchesSearch = search === '' || 
-      product.name?.toLowerCase().includes(search.toLowerCase()) ||
-      product.brand?.toLowerCase().includes(search.toLowerCase()) ||
-      product.category?.toLowerCase().includes(search.toLowerCase());
+  // Handle bulk delete
+  const handleBulkDelete = async () => {
+    if (selectedProducts.length === 0) return;
 
-    const matchesFilter = filter === 'all' ||
-      (filter === 'inStock' && product.inStock) ||
-      (filter === 'outOfStock' && !product.inStock) ||
-      (filter === 'featured' && product.featured);
+    const confirmed = window.confirm(
+      `Are you sure you want to delete ${selectedProducts.length} product(s)? This action cannot be undone.`
+    );
 
-    return matchesSearch && matchesFilter;
-  });
+    if (!confirmed) return;
+
+    try {
+      setActionLoading(true);
+      const response = await fetch('/api/admin/products/bulk-delete', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+        },
+        body: JSON.stringify({ productIds: selectedProducts })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete products');
+      }
+
+      // Remove deleted products from state
+      setProducts(prev => prev.filter(product => !selectedProducts.includes(product.id)));
+      setSelectedProducts([]);
+      
+      alert(`Successfully deleted ${selectedProducts.length} product(s)`);
+    } catch (err) {
+      console.error('Error deleting products:', err);
+      alert(`Error deleting products: ${err.message}`);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Update filter
+  const updateFilter = (key, value) => {
+    setFilters(prev => ({
+      ...prev,
+      [key]: value
+    }));
+  };
+
+  // Reset filters
+  const resetFilters = () => {
+    setFilters({
+      search: '',
+      category: '',
+      status: '',
+      inStock: false
+    });
+  };
+
+  const hasActiveFilters = Object.values(filters).some(value => 
+    typeof value === 'boolean' ? value : Boolean(value)
+  );
 
   if (loading) {
     return (
-      <Container fluid className="py-4">
-        <div className="text-center">
-          <Spinner animation="border" role="status" size="lg">
-            <span className="visually-hidden">Loading products...</span>
-          </Spinner>
-          <p className="mt-2">Loading products...</p>
+      <div className="admin-products loading">
+        <div className="loading-spinner">Loading products...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="admin-products error">
+        <div className="error-message">
+          <h2>Error Loading Products</h2>
+          <p>{error}</p>
+          <button onClick={() => window.location.reload()}>
+            Try Again
+          </button>
         </div>
-      </Container>
+      </div>
     );
   }
 
   return (
-    <Container fluid className="py-4">
-      {/* Header */}
-      <Row className="mb-4">
-        <Col>
-          <div className="d-flex justify-content-between align-items-center">
-            <div>
-              <h2 className="fw-bold">
-                <i className="fas fa-box me-2 text-success"></i>
-                Manage Products ({products.length})
-              </h2>
-              <p className="text-muted">Manage product catalog and inventory</p>
-            </div>
-            <Link to="/admin/products/new" className="btn btn-success">
-              <i className="fas fa-plus me-2"></i>
+    <div className="admin-products">
+      <div className="admin-products-header">
+        <div className="header-content">
+          <h1>Manage Products</h1>
+          <p>Add, edit, and manage all products in the store</p>
+        </div>
+        <div className="header-actions">
+          <Link to="/admin/products/new" className="btn btn-primary">
+            ➕ Add New Product
+          </Link>
+        </div>
+      </div>
+
+      {/* Filter Section */}
+      <div className="admin-filters">
+        <div className="filters-row">
+          {/* Search */}
+          <div className="filter-group">
+            <label htmlFor="product-search">Search</label>
+            <input
+              id="product-search"
+              type="text"
+              placeholder="Search products..."
+              value={filters.search}
+              onChange={(e) => updateFilter('search', e.target.value)}
+            />
+          </div>
+
+          {/* Category Filter */}
+          <div className="filter-group">
+            <label htmlFor="category-filter">Category</label>
+            <select
+              id="category-filter"
+              value={filters.category}
+              onChange={(e) => updateFilter('category', e.target.value)}
+            >
+              <option value="">All Categories</option>
+              {categories.map(category => (
+                <option key={category} value={category}>{category}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Status Filter */}
+          <div className="filter-group">
+            <label htmlFor="status-filter">Status</label>
+            <select
+              id="status-filter"
+              value={filters.status}
+              onChange={(e) => updateFilter('status', e.target.value)}
+            >
+              <option value="">All Statuses</option>
+              {statuses.map(status => (
+                <option key={status} value={status}>
+                  {status.charAt(0).toUpperCase() + status.slice(1)}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* In Stock Filter */}
+          <div className="filter-group checkbox-group">
+            <label>
+              <input
+                type="checkbox"
+                checked={filters.inStock}
+                onChange={(e) => updateFilter('inStock', e.target.checked)}
+              />
+              <span>In Stock Only</span>
+            </label>
+          </div>
+
+          {/* Sort Controls */}
+          <div className="filter-group">
+            <label htmlFor="sort-by">Sort by</label>
+            <select
+              id="sort-by"
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+            >
+              <option value="newest">Newest First</option>
+              <option value="oldest">Oldest First</option>
+              <option value="name">Name</option>
+              <option value="price">Price</option>
+              <option value="stock">Stock</option>
+              <option value="category">Category</option>
+            </select>
+          </div>
+
+          {hasActiveFilters && (
+            <button
+              className="btn btn-secondary"
+              onClick={resetFilters}
+            >
+              Clear Filters
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Bulk Actions */}
+      {selectedProducts.length > 0 && (
+        <div className="bulk-actions">
+          <div className="bulk-actions-info">
+            <span>{selectedProducts.length} product(s) selected</span>
+          </div>
+          <div className="bulk-actions-buttons">
+            <button
+              className="btn btn-sm"
+              onClick={() => handleBulkStatusUpdate('active')}
+              disabled={actionLoading}
+            >
+              {actionLoading ? 'Updating...' : 'Mark Active'}
+            </button>
+            <button
+              className="btn btn-sm"
+              onClick={() => handleBulkStatusUpdate('inactive')}
+              disabled={actionLoading}
+            >
+              {actionLoading ? 'Updating...' : 'Mark Inactive'}
+            </button>
+            <button
+              className="btn btn-sm"
+              onClick={() => handleBulkStatusUpdate('discontinued')}
+              disabled={actionLoading}
+            >
+              {actionLoading ? 'Updating...' : 'Mark Discontinued'}
+            </button>
+            <button
+              className="btn btn-sm btn-danger"
+              onClick={handleBulkDelete}
+              disabled={actionLoading}
+            >
+              {actionLoading ? 'Deleting...' : 'Delete Selected'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Results Summary */}
+      <div className="results-summary">
+        <p>
+          Showing {filteredProducts.length} of {products.length} products
+          {hasActiveFilters && ' (filtered)'}
+        </p>
+        <div className="stats">
+          <span className="stat active">
+            {products.filter(p => p.status === 'active').length} Active
+          </span>
+          <span className="stat inactive">
+            {products.filter(p => p.status === 'inactive').length} Inactive
+          </span>
+          <span className="stat out-of-stock">
+            {products.filter(p => !p.stock || p.stock <= 0).length} Out of Stock
+          </span>
+        </div>
+      </div>
+
+      {/* Products Table */}
+      <div className="products-table-container">
+        {filteredProducts.length === 0 ? (
+          <div className="no-products-message">
+            <h3>No products found</h3>
+            <p>Try adjusting your filters or add a new product.</p>
+            <Link to="/admin/products/new" className="btn btn-primary">
               Add New Product
             </Link>
           </div>
-        </Col>
-      </Row>
+        ) : (
+          <table className="products-table">
+            <thead>
+              <tr>
+                <th>
+                  <input
+                    type="checkbox"
+                    checked={selectedProducts.length === filteredProducts.length && filteredProducts.length > 0}
+                    onChange={(e) => handleSelectAll(e.target.checked)}
+                    aria-label="Select all products"
+                  />
+                </th>
+                <th>Image</th>
+                <th>Name</th>
+                <th>Category</th>
+                <th>Price</th>
+                <th>Stock</th>
+                <th>Status</th>
+                <th>Added</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredProducts.map(product => (
+                <AdminProductRow
+                  key={product.id}
+                  product={product}
+                  isSelected={selectedProducts.includes(product.id)}
+                  onSelect={(isSelected) => handleProductSelection(product.id, isSelected)}
+                />
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+};
 
-      {error && (
-        <Alert variant="danger" dismissible onClose={() => setError('')}>
-          <i className="fas fa-exclamation-triangle me-2"></i>
-          {error}
-        </Alert>
-      )}
-
-      {/* Filters and Search */}
-      <Row className="mb-4">
-        <Col md={6}>
-          <Form.Group>
-            <Form.Label>Search Products</Form.Label>
-            <Form.Control
-              type="text"
-              placeholder="Search by name, brand, or category..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </Form.Group>
-        </Col>
-        <Col md={4}>
-          <Form.Group>
-            <Form.Label>Filter by Stock</Form.Label>
-            <Form.Select value={filter} onChange={(e) => setFilter(e.target.value)}>
-              <option value="all">All Products ({products.length})</option>
-              <option value="inStock">In Stock ({products.filter(p => p.inStock).length})</option>
-              <option value="outOfStock">Out of Stock ({products.filter(p => !p.inStock).length})</option>
-              <option value="featured">Featured ({products.filter(p => p.featured).length})</option>
-            </Form.Select>
-          </Form.Group>
-        </Col>
-        <Col md={2}>
-          <Form.Group>
-            <Form.Label>&nbsp;</Form.Label>
-            <Button variant="outline-secondary" className="w-100" onClick={fetchProducts}>
-              <i className="fas fa-sync-alt me-2"></i>
-              Refresh
-            </Button>
-          </Form.Group>
-        </Col>
-      </Row>
-
-      {/* Products Table */}
-      <Row>
-        <Col>
-          <div className="table-responsive">
-            <Table striped bordered hover className="bg-white">
-              <thead className="table-dark">
-                <tr>
-                  <th>Image</th>
-                  <th>Product Details</th>
-                  <th>Category</th>
-                  <th>Brand</th>
-                  <th>Price</th>
-                  <th>Stock</th>
-                  <th>Featured</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredProducts.length > 0 ? (
-                  filteredProducts.map(product => (
-                    <tr key={product._id}>
-                      <td>
-                        <img
-                          src={getImageUrl(product.image || product.imageUrl, 'product', product.category) || 'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=60&h=60&fit=crop&q=80'}
-                          alt={product.name}
-                          className="rounded"
-                          style={{ 
-                            width: '60px', 
-                            height: '60px', 
-                            objectFit: 'cover' 
-                          }}
-                          onError={(e) => {
-                            e.currentTarget.src = 'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=60&h=60&fit=crop&q=80';
-                          }}
-                        />
-                      </td>
-                      <td>
-                        <strong>{product.name}</strong>
-                        <br />
-                        <small className="text-muted">ID: {product._id?.slice(-8)}</small>
-                      </td>
-                      <td>
-                        <Badge bg="info" className="text-capitalize">
-                          {product.category || 'Uncategorized'}
-                        </Badge>
-                      </td>
-                      <td>{product.brand || 'Generic'}</td>
-                      <td>
-                        <>
-                          <strong className="text-success">
-                            ${parseFloat(product.price || 0).toFixed(2)}
-                          </strong>
-                          {product.originalPrice && product.originalPrice > product.price && (
-                            <>
-                              <br />
-                              <small className="text-muted text-decoration-line-through">
-                                ${parseFloat(product.originalPrice).toFixed(2)}
-                              </small>
-                            </>
-                          )}
-                        </>
-                      </td>
-                      <td>
-                        <>
-                          <Badge bg={product.inStock ? 'success' : 'danger'}>
-                            <i className={`fas fa-${product.inStock ? 'check-circle' : 'times-circle'} me-1`}></i>
-                            {product.inStock ? 'In Stock' : 'Out of Stock'}
-                          </Badge>
-                          {product.stockQuantity && (
-                            <>
-                              <br />
-                              <small className="text-muted">Qty: {product.stockQuantity}</small>
-                            </>
-                          )}
-                        </>
-                      </td>
-                      <td>
-                        {product.featured ? (
-                          <Badge bg="warning" text="dark">
-                            <i className="fas fa-star me-1"></i>
-                            Featured
-                          </Badge>
-                        ) : (
-                          <span className="text-muted">-</span>
-                        )}
-                      </td>
-                      <td>
-                        <div className="btn-group btn-group-sm" role="group">
-                          <Link
-                            to={`/products/${product._id}`}
-                            className="btn btn-outline-info"
-                            title="View"
-                          >
-                            <i className="fas fa-eye"></i>
-                          </Link>
-                          <Link
-                            to={`/admin/products/${product._id}/edit`}
-                            className="btn btn-outline-primary"
-                            title="Edit"
-                          >
-                            <i className="fas fa-edit"></i>
-                          </Link>
-                          <Button
-                            variant="outline-warning"
-                            size="sm"
-                            onClick={() => handleStockToggle(product)}
-                            title="Toggle Stock"
-                          >
-                            <i className="fas fa-exchange-alt"></i>
-                          </Button>
-                          <Button
-                            variant="outline-danger"
-                            size="sm"
-                            onClick={() => handleDelete(product)}
-                            title="Delete"
-                          >
-                            <i className="fas fa-trash"></i>
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan="8" className="text-center py-4">
-                      <div className="text-muted">
-                        <i className="fas fa-search fa-2x mb-2"></i>
-                        <p>
-                          {search || filter !== 'all' 
-                            ? 'No products match your current filters' 
-                            : 'No products found. Add some products to get started!'}
-                        </p>
-                        {(search || filter !== 'all') && (
-                          <Button 
-                            variant="outline-secondary" 
-                            size="sm"
-                            onClick={() => {
-                              setSearch('');
-                              setFilter('all');
-                            }}
-                          >
-                            Clear Filters
-                          </Button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </Table>
-          </div>
-        </Col>
-      </Row>
-
-      {/* Summary Stats */}
-      <Row className="mt-4">
-        <Col>
-          <div className="bg-light p-3 rounded">
-            <Row className="text-center">
-              <Col md={3}>
-                <strong className="text-success">{products.filter(p => p.inStock).length}</strong>
-                <br />
-                <small className="text-muted">In Stock</small>
-              </Col>
-              <Col md={3}>
-                <strong className="text-danger">{products.filter(p => !p.inStock).length}</strong>
-                <br />
-                <small className="text-muted">Out of Stock</small>
-              </Col>
-              <Col md={3}>
-                <strong className="text-warning">{products.filter(p => p.featured).length}</strong>
-                <br />
-                <small className="text-muted">Featured</small>
-              </Col>
-              <Col md={3}>
-                <strong className="text-info">
-                  ${products.reduce((sum, product) => sum + (parseFloat(product.price) || 0), 0).toFixed(2)}
-                </strong>
-                <br />
-                <small className="text-muted">Total Value</small>
-              </Col>
-            </Row>
-          </div>
-        </Col>
-      </Row>
-
-      {/* Delete Confirmation Modal */}
-      <Modal show={deleteModal.show} onHide={() => setDeleteModal({ show: false, product: null })}>
-        <Modal.Header closeButton>
-          <Modal.Title>Confirm Deletion</Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          {deleteModal.product && (
-            <>
-              <p>Are you sure you want to delete <strong>{deleteModal.product.name}</strong>?</p>
-              <div className="alert alert-warning">
-                <i className="fas fa-exclamation-triangle me-2"></i>
-                This action cannot be undone. The product will be permanently removed from the catalog.
-              </div>
-            </>
+// Admin Product Row Component
+const AdminProductRow = ({ product, isSelected, onSelect }) => {
+  const productImageUrl = buildProductImageUrl(product.image);
+  
+  return (
+    <tr className={`product-row ${isSelected ? 'selected' : ''}`}>
+      <td>
+        <input
+          type="checkbox"
+          checked={isSelected}
+          onChange={(e) => onSelect(e.target.checked)}
+          aria-label={`Select ${product.name}`}
+        />
+      </td>
+      <td>
+        <div className="product-image-cell">
+          <SafeImage
+            src={productImageUrl}
+            alt={product.name}
+            className="product-thumbnail"
+          />
+          {!hasValidImageExtension(product.image) && (
+            <span className="no-image-indicator" title="No valid image">
+              📷
+            </span>
           )}
-        </Modal.Body>
-        <Modal.Footer>
-          <Button variant="secondary" onClick={() => setDeleteModal({ show: false, product: null })}>
-            Cancel
-          </Button>
-          <Button 
-            variant="danger" 
-            onClick={confirmDelete}
-            disabled={deleting}
+        </div>
+      </td>
+      <td>
+        <div className="product-name-cell">
+          <strong>{product.name}</strong>
+          {product.brand && (
+            <small>by {product.brand}</small>
+          )}
+        </div>
+      </td>
+      <td>{product.category || 'Uncategorized'}</td>
+      <td>
+        <span className="price">
+          ${product.price ? product.price.toFixed(2) : '0.00'}
+        </span>
+      </td>
+      <td>
+        <div className="stock-cell">
+          <span className={`stock ${
+            product.stock <= 0 ? 'out-of-stock' : 
+            product.stock <= 10 ? 'low-stock' : 
+            'in-stock'
+          }`}>
+            {product.stock || 0}
+          </span>
+          {product.stock <= 10 && product.stock > 0 && (
+            <small className="low-stock-warning">Low Stock</small>
+          )}
+        </div>
+      </td>
+      <td>
+        <span className={`status-badge ${product.status || 'unknown'}`}>
+          {product.status || 'Unknown'}
+        </span>
+      </td>
+      <td>
+        <small>
+          {product.createdAt ? new Date(product.createdAt).toLocaleDateString() : 'Unknown'}
+        </small>
+      </td>
+      <td>
+        <div className="action-buttons">
+          <Link
+            to={`/admin/products/${product.id}`}
+            className="btn btn-sm btn-primary"
+            title="Edit Product"
           >
-            {deleting ? (
-              <>
-                <Spinner animation="border" size="sm" className="me-2" />
-                Deleting...
-              </>
-            ) : (
-              <>
-                <i className="fas fa-trash me-2"></i>
-                Delete Product
-              </>
-            )}
-          </Button>
-        </Modal.Footer>
-      </Modal>
-    </Container>
+            ✏️
+          </Link>
+          <Link
+            to={`/products/${product.id}`}
+            className="btn btn-sm btn-secondary"
+            title="View Product"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            👁️
+          </Link>
+        </div>
+      </td>
+    </tr>
   );
 };
 

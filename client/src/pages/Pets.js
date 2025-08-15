@@ -1,277 +1,258 @@
-// client/src/pages/Pets.js - Updated to use PetCard and card.module.css with image normalization
-import React, { useState, useEffect, useCallback } from 'react';
-import { Container, Row, Col, Card, Button, Form, Spinner, Alert } from 'react-bootstrap';
-import { Link } from 'react-router-dom';
-import { petAPI } from '../services/api';
-import PetCard from '../components/PetCard';
-import styles from '../components/Card.module.css';
-import { buildImageUrl, getFallbackUrl } from '../utils/imageBuilder';
+// src/hooks/usePetFilters.js
 
-// Ensure every pet has a usable imageUrl client-side
-const normalizePetImage = (pet) => {
-  if (!pet) return pet;
+import { useState, useMemo, useCallback } from 'react';
+import { buildPetImageUrl, hasValidImageExtension } from '../utils/imageUtils';
 
-  // If server provided a full URL, keep it
-  if (pet.imageUrl && (pet.imageUrl.startsWith('http://') || pet.imageUrl.startsWith('https://'))) {
-    return pet;
-  }
+/**
+ * Custom hook for filtering and managing pet data
+ * @param {Array} pets - Array of pet objects
+ * @param {Object} initialFilters - Initial filter state
+ * @returns {Object} Filter state and methods
+ */
+const usePetFilters = (pets = [], initialFilters = {}) => {
+  const [filters, setFilters] = useState({
+    species: '',
+    breed: '',
+    age: '',
+    size: '',
+    gender: '',
+    status: 'available',
+    search: '',
+    location: '',
+    hasImages: false,
+    ...initialFilters
+  });
 
-  const path =
-    pet.image ||
-    pet.imagePath ||
-    pet.photo ||
-    pet.picture ||
-    (Array.isArray(pet.images) && pet.images[0]) ||
-    (Array.isArray(pet.photos) && pet.photos[0]) ||
-    null;
+  const [sortBy, setSortBy] = useState('newest');
+  const [sortOrder, setSortOrder] = useState('desc');
 
-  const entityType = pet.type || 'pet';
-  const category = pet.category;
-  const computed = buildImageUrl(path, { entityType, category });
-
-  return {
-    ...pet,
-    imagePath: pet.imagePath || pet.image || null,
-    imageUrl: computed || getFallbackUrl(entityType, category),
-  };
-};
-
-const Pets = () => {
-  const [featuredPets, setFeaturedPets] = useState([]);
-  const [allPets, setAllPets] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedType, setSelectedType] = useState('all');
-  const [stats, setStats] = useState({ totalPets: 0, availablePets: 0, adoptedPets: 0, featuredPets: 0 });
-
-  const fetchFeaturedPets = useCallback(async () => {
-    try {
-      const response = await petAPI.getFeaturedPets(6);
-      if (response.data?.success) {
-        const list = response.data.data || [];
-        setFeaturedPets(list.map(normalizePetImage));
-      }
-    } catch (err) {
-      // eslint-disable-next-line no-console
-      console.error('❌ Error fetching featured pets:', err);
-    }
+  // Update specific filter
+  const updateFilter = useCallback((key, value) => {
+    setFilters(prev => ({
+      ...prev,
+      [key]: value
+    }));
   }, []);
 
-  const fetchAllPets = useCallback(async () => {
-    try {
-      const queryParams = {};
-      if (searchTerm) queryParams.search = searchTerm;
-      if (selectedType !== 'all') queryParams.type = selectedType;
+  // Update multiple filters at once
+  const updateFilters = useCallback((newFilters) => {
+    setFilters(prev => ({
+      ...prev,
+      ...newFilters
+    }));
+  }, []);
 
-      const response = await petAPI.getAllPets(queryParams);
+  // Reset all filters
+  const resetFilters = useCallback(() => {
+    setFilters({
+      species: '',
+      breed: '',
+      age: '',
+      size: '',
+      gender: '',
+      status: 'available',
+      search: '',
+      location: '',
+      hasImages: false,
+      ...initialFilters
+    });
+  }, [initialFilters]);
 
-      if (response.data?.success) {
-        const pets = (response.data.data || []).map(normalizePetImage);
-        setAllPets(pets);
-
-        const totalPets = pets.length;
-        // Use `available` boolean (matches API/Browse/products logic)
-        const availablePets = pets.filter((p) => p.available !== false).length;
-        const adoptedPets = pets.filter((p) => p.available === false).length;
-        const featuredPets = pets.filter((p) => p.featured).length;
-
-        setStats({ totalPets, availablePets, adoptedPets, featuredPets });
-      }
-    } catch (err) {
-      // eslint-disable-next-line no-console
-      console.error('❌ Error fetching pets:', err);
-      setError('Unable to load pets. Please try again.');
+  // Get unique values for filter options
+  const filterOptions = useMemo(() => {
+    if (!pets || pets.length === 0) {
+      return {
+        species: [],
+        breeds: [],
+        ages: [],
+        sizes: [],
+        genders: [],
+        statuses: [],
+        locations: []
+      };
     }
-  }, [searchTerm, selectedType]);
 
-  useEffect(() => {
-    const loadData = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        await Promise.all([fetchFeaturedPets(), fetchAllPets()]);
-      } catch (err) {
-        setError('Unable to load pet data. Please try again.');
-      } finally {
-        setLoading(false);
-      }
+    const species = [...new Set(pets.map(pet => pet.species).filter(Boolean))];
+    const breeds = [...new Set(pets.map(pet => pet.breed).filter(Boolean))];
+    const ages = [...new Set(pets.map(pet => pet.age).filter(Boolean))];
+    const sizes = [...new Set(pets.map(pet => pet.size).filter(Boolean))];
+    const genders = [...new Set(pets.map(pet => pet.gender).filter(Boolean))];
+    const statuses = [...new Set(pets.map(pet => pet.status).filter(Boolean))];
+    const locations = [...new Set(pets.map(pet => pet.location).filter(Boolean))];
+
+    return {
+      species: species.sort(),
+      breeds: breeds.sort(),
+      ages: ages.sort(),
+      sizes: sizes.sort(),
+      genders: genders.sort(),
+      statuses: statuses.sort(),
+      locations: locations.sort()
     };
-    loadData();
-  }, [fetchFeaturedPets, fetchAllPets]);
+  }, [pets]);
 
-  const handleSearch = (e) => {
-    e.preventDefault();
-    fetchAllPets();
+  // Filter pets based on current filters
+  const filteredPets = useMemo(() => {
+    if (!pets || pets.length === 0) return [];
+
+    let filtered = pets.filter(pet => {
+      // Species filter
+      if (filters.species && pet.species !== filters.species) {
+        return false;
+      }
+
+      // Breed filter
+      if (filters.breed && pet.breed !== filters.breed) {
+        return false;
+      }
+
+      // Age filter
+      if (filters.age && pet.age !== filters.age) {
+        return false;
+      }
+
+      // Size filter
+      if (filters.size && pet.size !== filters.size) {
+        return false;
+      }
+
+      // Gender filter
+      if (filters.gender && pet.gender !== filters.gender) {
+        return false;
+      }
+
+      // Status filter
+      if (filters.status && pet.status !== filters.status) {
+        return false;
+      }
+
+      // Location filter
+      if (filters.location && pet.location !== filters.location) {
+        return false;
+      }
+
+      // Search filter (searches name, description, breed, species)
+      if (filters.search) {
+        const searchTerm = filters.search.toLowerCase();
+        const searchableText = [
+          pet.name,
+          pet.description,
+          pet.breed,
+          pet.species,
+          pet.location
+        ].join(' ').toLowerCase();
+        
+        if (!searchableText.includes(searchTerm)) {
+          return false;
+        }
+      }
+
+      // Has images filter
+      if (filters.hasImages) {
+        const hasValidImage = pet.image && hasValidImageExtension(pet.image);
+        const hasImages = pet.images && Array.isArray(pet.images) && pet.images.length > 0;
+        
+        if (!hasValidImage && !hasImages) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+
+    // Sort the filtered results
+    filtered.sort((a, b) => {
+      let comparison = 0;
+
+      switch (sortBy) {
+        case 'name':
+          comparison = (a.name || '').localeCompare(b.name || '');
+          break;
+        case 'age':
+          comparison = (a.age || '').localeCompare(b.age || '');
+          break;
+        case 'species':
+          comparison = (a.species || '').localeCompare(b.species || '');
+          break;
+        case 'breed':
+          comparison = (a.breed || '').localeCompare(b.breed || '');
+          break;
+        case 'newest':
+          comparison = new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+          break;
+        case 'oldest':
+          comparison = new Date(a.createdAt || 0) - new Date(b.createdAt || 0);
+          break;
+        case 'updated':
+          comparison = new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0);
+          break;
+        default:
+          comparison = 0;
+      }
+
+      return sortOrder === 'desc' ? -comparison : comparison;
+    });
+
+    return filtered;
+  }, [pets, filters, sortBy, sortOrder]);
+
+  // Enhance pets with proper image URLs
+  const enhancedPets = useMemo(() => {
+    return filteredPets.map(pet => ({
+      ...pet,
+      imageUrl: buildPetImageUrl(pet.image),
+      imageUrls: pet.images ? pet.images.map(img => buildPetImageUrl(img)) : []
+    }));
+  }, [filteredPets]);
+
+  // Get filter statistics
+  const filterStats = useMemo(() => {
+    return {
+      total: pets.length,
+      filtered: filteredPets.length,
+      available: filteredPets.filter(pet => pet.status === 'available').length,
+      adopted: filteredPets.filter(pet => pet.status === 'adopted').length,
+      pending: filteredPets.filter(pet => pet.status === 'pending').length,
+      withImages: filteredPets.filter(pet => 
+        hasValidImageExtension(pet.image) || 
+        (pet.images && pet.images.length > 0)
+      ).length
+    };
+  }, [pets, filteredPets]);
+
+  // Check if any filters are active
+  const hasActiveFilters = useMemo(() => {
+    const defaultFilters = {
+      species: '',
+      breed: '',
+      age: '',
+      size: '',
+      gender: '',
+      status: 'available',
+      search: '',
+      location: '',
+      hasImages: false
+    };
+
+    return Object.keys(filters).some(key => 
+      filters[key] !== defaultFilters[key]
+    );
+  }, [filters]);
+
+  return {
+    filters,
+    sortBy,
+    sortOrder,
+    filteredPets: enhancedPets,
+    filterOptions,
+    filterStats,
+    hasActiveFilters,
+    updateFilter,
+    updateFilters,
+    resetFilters,
+    setSortBy,
+    setSortOrder
   };
-
-  const petTypes = ['dog', 'cat', 'bird', 'fish', 'rabbit', 'hamster', 'other'];
-
-  return (
-    <Container className="py-4">
-      <div className="text-center mb-5">
-        <h1 className="display-3 mb-3">
-          <i className="fas fa-heart text-danger me-3" />
-          Find Your Perfect Companion
-        </h1>
-        <p className="lead text-muted mb-4">
-          Every pet deserves a loving home. Browse our wonderful animals looking for their forever families.
-        </p>
-
-        <Card className="shadow-sm mb-4">
-          <Card.Body>
-            <Form onSubmit={handleSearch}>
-              <Row className="align-items-end">
-                <Col md={5} className="mb-2">
-                  <Form.Group>
-                    <Form.Label>Search Pets</Form.Label>
-                    <Form.Control
-                      type="text"
-                      placeholder="Search by name, breed, or description..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                    />
-                  </Form.Group>
-                </Col>
-                <Col md={3} className="mb-2">
-                  <Form.Group>
-                    <Form.Label>Pet Type</Form.Label>
-                    <Form.Select
-                      value={selectedType}
-                      onChange={(e) => setSelectedType(e.target.value)}
-                    >
-                      <option value="all">All Types</option>
-                      {petTypes.map((type) => (
-                        <option key={type} value={type}>
-                          {type.charAt(0).toUpperCase() + type.slice(1)}
-                        </option>
-                      ))}
-                    </Form.Select>
-                  </Form.Group>
-                </Col>
-                <Col md={2} className="mb-2">
-                  <Button type="submit" variant="primary" className="w-100">
-                    <i className="fas fa-search me-2" />
-                    Search
-                  </Button>
-                </Col>
-                <Col md={2} className="mb-2">
-                  <Button as={Link} to="/browse" variant="outline-secondary" className="w-100">
-                    <i className="fas fa-filter me-2" />
-                    Advanced
-                  </Button>
-                </Col>
-              </Row>
-            </Form>
-          </Card.Body>
-        </Card>
-      </div>
-
-      <Row className="mb-5">
-        {[
-          { icon: 'paw', color: 'primary', label: 'Total Pets', value: stats.totalPets },
-          { icon: 'home', color: 'success', label: 'Available', value: stats.availablePets },
-          { icon: 'heart', color: 'info', label: 'Happy Homes', value: stats.adoptedPets },
-          { icon: 'star', color: 'warning', label: 'Featured', value: stats.featuredPets },
-        ].map((stat, idx) => (
-          <Col md={3} key={String(idx)} className="mb-3">
-            <Card className="text-center h-100 shadow-sm">
-              <Card.Body>
-                <div className={`text-${stat.color} mb-2`}>
-                  <i className={`fas fa-${stat.icon} fa-2x`} />
-                </div>
-                <h4 className={`text-${stat.color}`}>{loading ? '...' : stat.value}</h4>
-                <p className="text-muted mb-0">{stat.label}</p>
-              </Card.Body>
-            </Card>
-          </Col>
-        ))}
-      </Row>
-
-      {error && (
-        <Alert variant="danger" className="mb-4">
-          <i className="fas fa-exclamation-triangle me-2" />
-          {error}
-        </Alert>
-      )}
-
-      {loading && (
-        <div className="text-center py-5">
-          <Spinner animation="border" role="status" className="mb-3">
-            <span className="visually-hidden">Loading...</span>
-          </Spinner>
-          <p className="text-muted">Loading our wonderful pets...</p>
-        </div>
-      )}
-
-      {!loading && featuredPets.length > 0 && (
-        <div className="mb-5">
-          <div className="d-flex justify-content-between align-items-center mb-4">
-            <h2>
-              <i className="fas fa-star text-warning me-2" />
-              Featured Pets
-            </h2>
-            <Button as={Link} to="/browse?featured=true" variant="outline-primary">
-              View All Featured
-            </Button>
-          </div>
-          <Row>
-            {featuredPets.map((pet) => (
-              <Col key={pet._id} lg={4} md={6} className="mb-4">
-                <PetCard pet={pet} showStatus className={styles.card} />
-              </Col>
-            ))}
-          </Row>
-        </div>
-      )}
-
-      {!loading && allPets.length > 0 && (
-        <div className="mb-5">
-          <div className="d-flex justify-content-between align-items-center mb-4">
-            <h2>
-              <i className="fas fa-clock text-info me-2" />
-              {searchTerm || selectedType !== 'all' ? 'Search Results' : 'Recent Additions'}
-            </h2>
-            <Button as={Link} to="/browse" variant="outline-primary">
-              Browse All Pets
-            </Button>
-          </div>
-          <Row>
-            {allPets.slice(0, 8).map((pet) => (
-              <Col key={pet._id} lg={3} md={4} sm={6} className="mb-4">
-                <PetCard pet={pet} showStatus className={styles.card} />
-              </Col>
-            ))}
-          </Row>
-        </div>
-      )}
-
-      {!loading && (
-        <Card className="bg-light text-center shadow-sm">
-          <Card.Body className="py-5">
-            <h3 className="mb-3">Ready to Find Your New Best Friend?</h3>
-            <p className="lead text-muted mb-4">
-              Browse our full collection of amazing pets or learn more about the adoption process.
-            </p>
-            <div className="d-flex gap-3 justify-content-center flex-wrap">
-              <Button as={Link} to="/browse" variant="primary" size="lg">
-                <i className="fas fa-search me-2" />
-                Browse All Pets
-              </Button>
-              <Button as={Link} to="/about" variant="outline-primary" size="lg">
-                <i className="fas fa-info-circle me-2" />
-                Adoption Process
-              </Button>
-              <Button as={Link} to="/contact" variant="outline-secondary" size="lg">
-                <i className="fas fa-envelope me-2" />
-                Contact Us
-              </Button>
-            </div>
-          </Card.Body>
-        </Card>
-      )}
-    </Container>
-  );
 };
 
-export default Pets;
+export default usePetFilters;

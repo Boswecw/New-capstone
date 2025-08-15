@@ -1,193 +1,166 @@
-// client/src/components/SafeImage.js
+// src/components/SafeImage.js
+
 import React, { useState, useEffect } from 'react';
-import PropTypes from 'prop-types';
-import { buildImageUrl, getFallbackUrl } from '../utils/imageUrlBuilder';
+import { 
+  buildImageUrl, 
+  buildPetImageUrl, 
+  validateImageUrl, 
+  DEFAULT_PET_IMAGE 
+} from '../utils/imageUtils';
 
 /**
- * SafeImage Component - Handles image loading with fallbacks
- * Uses the unified image URL builder for consistent URL construction
+ * SafeImage component that handles image loading with fallbacks
+ * @param {Object} props - Component props
+ * @param {string} props.src - Image source URL
+ * @param {string} props.alt - Alt text for accessibility
+ * @param {string} props.fallback - Custom fallback image
+ * @param {string} props.className - CSS classes
+ * @param {Object} props.style - Inline styles
+ * @param {Function} props.onLoad - Callback when image loads successfully
+ * @param {Function} props.onError - Callback when image fails to load
+ * @param {boolean} props.isPet - Whether this is a pet image (uses pet-specific URL building)
+ * @param {Object} props.optimization - Image optimization options
  */
-const SafeImage = ({ 
-  src, 
-  alt = 'Image', 
-  item = null,
-  entityType = 'default',
-  category = null,
+const SafeImage = ({
+  src,
+  alt = '',
+  fallback = DEFAULT_PET_IMAGE,
   className = '',
   style = {},
-  imgProps = {},
-  showLoading = true,
-  retryCount = 2,
-  onLoad = null,
-  onError = null
+  onLoad,
+  onError,
+  isPet = false,
+  optimization = {},
+  ...props
 }) => {
-  const [imageSrc, setImageSrc] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [hasError, setHasError] = useState(false);
-  const [retries, setRetries] = useState(0);
+  const [imageSrc, setImageSrc] = useState('');
+  const [imageError, setImageError] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  // Determine the image source
   useEffect(() => {
-    // Extract image path from various sources
-    const imagePath = src || 
-                     item?.image || 
-                     item?.imagePath || 
-                     item?.imageUrl || 
-                     item?.photo || 
-                     item?.picture;
-    
-    // Determine entity type and category from item if not provided
-    const finalEntityType = entityType || item?.type || 'default';
-    const finalCategory = category || item?.category || null;
-    
-    // Build the image URL using our unified builder
-    const url = buildImageUrl(imagePath, {
-      entityType: finalEntityType,
-      category: finalCategory
-    });
-    
-    console.log('SafeImage: Building URL', {
-      imagePath,
-      finalEntityType,
-      finalCategory,
-      resultUrl: url
-    });
-    
-    setImageSrc(url);
-    setIsLoading(true);
-    setHasError(false);
-  }, [src, item, entityType, category]);
+    let isMounted = true;
 
-  // Handle image load success
-  const handleLoad = (e) => {
-    setIsLoading(false);
-    setHasError(false);
-    setRetries(0);
-    
+    const loadImage = async () => {
+      if (!src) {
+        setImageSrc(fallback);
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+      setImageError(false);
+
+      try {
+        // Build the image URL based on type
+        const imageUrl = isPet ? buildPetImageUrl(src, fallback) : buildImageUrl(src);
+        
+        // Validate the image URL
+        const isValid = await validateImageUrl(imageUrl);
+        
+        if (isMounted) {
+          if (isValid) {
+            setImageSrc(imageUrl);
+          } else {
+            setImageSrc(fallback);
+            setImageError(true);
+            if (onError) {
+              onError(new Error(`Failed to load image: ${imageUrl}`));
+            }
+          }
+          setLoading(false);
+        }
+      } catch (error) {
+        if (isMounted) {
+          setImageSrc(fallback);
+          setImageError(true);
+          setLoading(false);
+          if (onError) {
+            onError(error);
+          }
+        }
+      }
+    };
+
+    loadImage();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [src, fallback, isPet, onError]);
+
+  const handleLoad = (event) => {
+    setLoading(false);
     if (onLoad) {
-      onLoad(e);
+      onLoad(event);
     }
   };
 
-  // Handle image load error
-  const handleError = (e) => {
-    console.warn('SafeImage: Load error', {
-      src: imageSrc,
-      retries,
-      maxRetries: retryCount
-    });
-    
-    // Try retry if we haven't exceeded the retry count
-    if (retries < retryCount) {
-      setRetries(retries + 1);
-      
-      // Add a cache buster to retry
-      const url = new URL(imageSrc);
-      url.searchParams.set('retry', retries + 1);
-      setImageSrc(url.toString());
-      
-      return;
-    }
-    
-    // All retries failed, use fallback
-    setIsLoading(false);
-    setHasError(true);
-    
-    // Determine fallback URL
-    const finalEntityType = entityType || item?.type || 'default';
-    const finalCategory = category || item?.category || null;
-    const fallbackUrl = getFallbackUrl(finalEntityType, finalCategory);
-    
-    // Set fallback image
-    if (imageSrc !== fallbackUrl) {
-      console.log('SafeImage: Using fallback', fallbackUrl);
-      setImageSrc(fallbackUrl);
-      setHasError(false); // Reset error for fallback attempt
-    }
-    
-    if (onError) {
-      onError(e);
+  const handleError = (event) => {
+    if (!imageError) {
+      setImageSrc(fallback);
+      setImageError(true);
+      if (onError) {
+        onError(new Error(`Image failed to load: ${src}`));
+      }
     }
   };
 
-  // Loading placeholder
-  if (isLoading && showLoading) {
-    return (
-      <div 
-        className={`safe-image-loading ${className}`}
-        style={{
-          ...style,
-          backgroundColor: '#f0f0f0',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          minHeight: style.height || 200,
-          borderRadius: style.borderRadius || 0
-        }}
-      >
-        <div className="spinner-border text-secondary" role="status">
-          <span className="visually-hidden">Loading...</span>
-        </div>
-      </div>
-    );
-  }
+  const imageStyle = {
+    opacity: loading ? 0.7 : 1,
+    transition: 'opacity 0.3s ease',
+    ...style
+  };
 
-  // Error placeholder (only shown if fallback also fails)
-  if (hasError && !imageSrc) {
-    return (
-      <div 
-        className={`safe-image-error ${className}`}
-        style={{
-          ...style,
-          backgroundColor: '#e0e0e0',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          minHeight: style.height || 200,
-          borderRadius: style.borderRadius || 0,
-          color: '#666'
-        }}
-      >
-        <div className="text-center">
-          <i className="bi bi-image" style={{ fontSize: '2rem' }}></i>
-          <div className="small mt-2">Image unavailable</div>
-        </div>
-      </div>
-    );
-  }
-
-  // Render the image
   return (
-    <img
-      src={imageSrc}
-      alt={alt}
-      className={className}
-      style={{
-        ...style,
-        opacity: isLoading ? 0 : 1,
-        transition: 'opacity 0.3s ease-in-out'
-      }}
-      onLoad={handleLoad}
-      onError={handleError}
-      loading="lazy"
-      {...imgProps}
-    />
+    <div className={`safe-image-container ${className}`} style={{ position: 'relative' }}>
+      {loading && (
+        <div 
+          className="image-loading-placeholder"
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: '#f0f0f0',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '12px',
+            color: '#666'
+          }}
+        >
+          Loading...
+        </div>
+      )}
+      <img
+        src={imageSrc}
+        alt={alt}
+        style={imageStyle}
+        onLoad={handleLoad}
+        onError={handleError}
+        {...props}
+      />
+      {imageError && (
+        <div 
+          className="image-error-indicator"
+          style={{
+            position: 'absolute',
+            top: 2,
+            right: 2,
+            background: 'rgba(255, 0, 0, 0.7)',
+            color: 'white',
+            padding: '2px 4px',
+            fontSize: '10px',
+            borderRadius: '2px'
+          }}
+          title="Image failed to load"
+        >
+          !
+        </div>
+      )}
+    </div>
   );
-};
-
-SafeImage.propTypes = {
-  src: PropTypes.string,
-  alt: PropTypes.string,
-  item: PropTypes.object,
-  entityType: PropTypes.string,
-  category: PropTypes.string,
-  className: PropTypes.string,
-  style: PropTypes.object,
-  imgProps: PropTypes.object,
-  showLoading: PropTypes.bool,
-  retryCount: PropTypes.number,
-  onLoad: PropTypes.func,
-  onError: PropTypes.func
 };
 
 export default SafeImage;

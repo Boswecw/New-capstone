@@ -1,347 +1,320 @@
-// client/src/pages/admin/AdminDashboard.js - FIXED IMAGE IMPORTS
+// src/pages/admin/AdminDashboard.js
+
 import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, Table, Badge, Alert, Spinner } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
-import { petAPI, productAPI } from '../../services/api';
-import { getImageUrl } from '../../utils/imageUtils'; // ✅ FIXED: Use consolidated utility
+import SafeImage from '../../components/SafeImage';
+import { 
+  buildProductImageUrl, 
+  getOptimizedImageUrl
+} from '../../utils/imageUtils';
+import './AdminDashboard.css';
 
 const AdminDashboard = () => {
-  const [stats, setStats] = useState({
-    totalPets: 0,
-    availablePets: 0,
-    totalProducts: 0,
-    inStockProducts: 0,
-    totalUsers: 0,
-    newContacts: 0
+  const [dashboardData, setDashboardData] = useState({
+    stats: {
+      totalPets: 0,
+      availablePets: 0,
+      adoptedPets: 0,
+      pendingPets: 0,
+      totalProducts: 0,
+      totalUsers: 0,
+      recentAdoptions: 0
+    },
+    recentPets: [],
+    recentAdoptions: [],
+    recentProducts: [],
+    alerts: []
   });
-  const [recentPets, setRecentPets] = useState([]);
-  const [recentProducts, setRecentProducts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState(null);
 
+  // Fetch dashboard data
   useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch('/api/admin/dashboard');
+        if (!response.ok) {
+          throw new Error('Failed to fetch dashboard data');
+        }
+        const data = await response.json();
+        setDashboardData(data);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
     fetchDashboardData();
   }, []);
 
-  const fetchDashboardData = async () => {
-    try {
-      setLoading(true);
-      
-      const [petsResponse, productsResponse] = await Promise.all([
-        petAPI.get('/', { params: { limit: 5, sort: 'newest' } }),
-        productAPI.get('/', { params: { limit: 5, sort: 'newest' } })
-      ]);
-
-      const pets = petsResponse.data?.pets || petsResponse.data?.data || [];
-      const products = productsResponse.data?.data || [];
-
-      setStats({
-        totalPets: pets.length,
-        availablePets: pets.filter(pet => pet.status === 'available').length,
-        totalProducts: products.length,
-        inStockProducts: products.filter(product => product.inStock).length,
-        totalUsers: 0, // TODO: Add user API call
-        newContacts: 0 // TODO: Add contacts API call
-      });
-
-      setRecentPets(pets.slice(0, 5));
-      setRecentProducts(products.slice(0, 5));
-      
-    } catch (error) {
-      console.error('Error fetching dashboard data:', error);
-      setError('Failed to load dashboard data');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   if (loading) {
     return (
-      <Container fluid className="py-4">
-        <div className="text-center">
-          <Spinner animation="border" role="status" size="lg">
-            <span className="visually-hidden">Loading dashboard...</span>
-          </Spinner>
-          <p className="mt-2">Loading dashboard...</p>
-        </div>
-      </Container>
+      <div className="admin-dashboard loading">
+        <div className="loading-spinner">Loading dashboard...</div>
+      </div>
     );
   }
 
   if (error) {
     return (
-      <Container fluid className="py-4">
-        <Alert variant="danger">
-          <Alert.Heading>Dashboard Error</Alert.Heading>
+      <div className="admin-dashboard error">
+        <div className="error-message">
+          <h2>Error Loading Dashboard</h2>
           <p>{error}</p>
-          <button className="btn btn-outline-danger" onClick={fetchDashboardData}>
+          <button onClick={() => window.location.reload()}>
             Try Again
           </button>
-        </Alert>
-      </Container>
+        </div>
+      </div>
     );
   }
 
+  const { stats, recentPets, recentAdoptions, recentProducts, alerts } = dashboardData;
+
   return (
-    <Container fluid className="py-4">
-      {/* Welcome Header */}
-      <Row className="mb-4">
-        <Col>
-          <h2 className="fw-bold">
-            <i className="fas fa-tachometer-alt me-2 text-primary"></i>
-            Admin Dashboard
-          </h2>
-          <p className="text-muted">Welcome to the FurBabies Pet Store admin panel</p>
-        </Col>
-      </Row>
+    <div className="admin-dashboard">
+      <div className="dashboard-header">
+        <h1>Admin Dashboard</h1>
+        <p>Manage pets, products, and monitor activity</p>
+      </div>
 
-      {/* Statistics Cards */}
-      <Row className="mb-4">
-        <Col lg={3} md={6} className="mb-4">
-          <Card className="h-100 shadow-sm border-0">
-            <Card.Body className="text-center">
-              <div className="rounded-circle bg-primary bg-opacity-10 d-inline-flex align-items-center justify-content-center mb-3" style={{ width: '60px', height: '60px' }}>
-                <i className="fas fa-paw fa-2x text-primary"></i>
-              </div>
-              <h3 className="fw-bold text-primary">{stats.totalPets}</h3>
-              <p className="text-muted mb-0">Total Pets</p>
-              <small className="text-success">
-                <i className="fas fa-check-circle me-1"></i>
-                {stats.availablePets} available
-              </small>
-            </Card.Body>
-          </Card>
-        </Col>
-        
-        <Col lg={3} md={6} className="mb-4">
-          <Card className="h-100 shadow-sm border-0">
-            <Card.Body className="text-center">
-              <div className="rounded-circle bg-success bg-opacity-10 d-inline-flex align-items-center justify-content-center mb-3" style={{ width: '60px', height: '60px' }}>
-                <i className="fas fa-box fa-2x text-success"></i>
-              </div>
-              <h3 className="fw-bold text-success">{stats.totalProducts}</h3>
-              <p className="text-muted mb-0">Total Products</p>
-              <small className="text-success">
-                <i className="fas fa-check-circle me-1"></i>
-                {stats.inStockProducts} in stock
-              </small>
-            </Card.Body>
-          </Card>
-        </Col>
-        
-        <Col lg={3} md={6} className="mb-4">
-          <Card className="h-100 shadow-sm border-0">
-            <Card.Body className="text-center">
-              <div className="rounded-circle bg-info bg-opacity-10 d-inline-flex align-items-center justify-content-center mb-3" style={{ width: '60px', height: '60px' }}>
-                <i className="fas fa-users fa-2x text-info"></i>
-              </div>
-              <h3 className="fw-bold text-info">{stats.totalUsers}</h3>
-              <p className="text-muted mb-0">Total Users</p>
-              <small className="text-muted">Registered members</small>
-            </Card.Body>
-          </Card>
-        </Col>
-        
-        <Col lg={3} md={6} className="mb-4">
-          <Card className="h-100 shadow-sm border-0">
-            <Card.Body className="text-center">
-              <div className="rounded-circle bg-warning bg-opacity-10 d-inline-flex align-items-center justify-content-center mb-3" style={{ width: '60px', height: '60px' }}>
-                <i className="fas fa-envelope fa-2x text-warning"></i>
-              </div>
-              <h3 className="fw-bold text-warning">{stats.newContacts}</h3>
-              <p className="text-muted mb-0">New Messages</p>
-              <small className="text-muted">Pending replies</small>
-            </Card.Body>
-          </Card>
-        </Col>
-      </Row>
-
-      {/* Recent Content */}
-      <Row>
-        {/* Recent Pets */}
-        <Col lg={6} className="mb-4">
-          <Card className="h-100 shadow-sm border-0">
-            <Card.Header className="bg-primary text-white">
-              <h5 className="mb-0">
-                <i className="fas fa-paw me-2"></i>
-                Recent Pets
-              </h5>
-            </Card.Header>
-            <Card.Body className="p-0">
-              {recentPets.length > 0 ? (
-                <Table responsive hover className="mb-0">
-                  <tbody>
-                    {recentPets.map(pet => (
-                      <tr key={pet._id}>
-                        <td style={{ width: '60px' }}>
-                          <img
-                            src={getImageUrl(pet.image || pet.imageUrl, 'pet', pet.type) || 'https://images.unsplash.com/photo-1601758228041-f3b2795255f1?w=40&h=40&fit=crop&q=80'}
-                            alt={pet.name}
-                            className="rounded"
-                            style={{ 
-                              width: '40px', 
-                              height: '40px', 
-                              objectFit: 'cover' 
-                            }}
-                            onError={(e) => {
-                              e.currentTarget.src = 'https://images.unsplash.com/photo-1601758228041-f3b2795255f1?w=40&h=40&fit=crop&q=80';
-                            }}
-                          />
-                        </td>
-                        <td>
-                          <strong>{pet.name}</strong>
-                          <br />
-                          <small className="text-muted">{pet.type} • {pet.breed}</small>
-                        </td>
-                        <td>
-                          <Badge bg={
-                            pet.status === 'available' ? 'success' :
-                            pet.status === 'adopted' ? 'primary' :
-                            pet.status === 'pending' ? 'warning' : 'secondary'
-                          }>
-                            {pet.status}
-                          </Badge>
-                        </td>
-                        <td>
-                          <Link 
-                            to={`/admin/pets/${pet._id}/edit`} 
-                            className="btn btn-sm btn-outline-primary"
-                          >
-                            Edit
-                          </Link>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </Table>
-              ) : (
-                <div className="text-center py-4 text-muted">
-                  <i className="fas fa-paw fa-2x mb-2"></i>
-                  <p>No pets yet</p>
+      {/* Alerts Section */}
+      {alerts && alerts.length > 0 && (
+        <div className="alerts-section">
+          <h2>Alerts & Notifications</h2>
+          <div className="alerts-list">
+            {alerts.map((alert, index) => (
+              <div key={index} className={`alert ${alert.type}`}>
+                <div className="alert-icon">
+                  {alert.type === 'warning' && '⚠️'}
+                  {alert.type === 'error' && '❌'}
+                  {alert.type === 'info' && 'ℹ️'}
+                  {alert.type === 'success' && '✅'}
                 </div>
-              )}
-            </Card.Body>
-            <Card.Footer className="text-center">
-              <Link to="/admin/pets" className="btn btn-outline-primary btn-sm">
-                View All Pets
-              </Link>
-            </Card.Footer>
-          </Card>
-        </Col>
-
-        {/* Recent Products */}
-        <Col lg={6} className="mb-4">
-          <Card className="h-100 shadow-sm border-0">
-            <Card.Header className="bg-success text-white">
-              <h5 className="mb-0">
-                <i className="fas fa-box me-2"></i>
-                Recent Products
-              </h5>
-            </Card.Header>
-            <Card.Body className="p-0">
-              {recentProducts.length > 0 ? (
-                <Table responsive hover className="mb-0">
-                  <tbody>
-                    {recentProducts.map(product => (
-                      <tr key={product._id}>
-                        <td style={{ width: '60px' }}>
-                          <img
-                            src={getImageUrl(product.image || product.imageUrl, 'product', product.category) || 'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=40&h=40&fit=crop&q=80'}
-                            alt={product.name}
-                            className="rounded"
-                            style={{ 
-                              width: '40px', 
-                              height: '40px', 
-                              objectFit: 'cover' 
-                            }}
-                            onError={(e) => {
-                              e.currentTarget.src = 'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=40&h=40&fit=crop&q=80';
-                            }}
-                          />
-                        </td>
-                        <td>
-                          <strong>{product.name}</strong>
-                          <br />
-                          <small className="text-muted">{product.category}</small>
-                        </td>
-                        <td>
-                          <strong className="text-success">${parseFloat(product.price || 0).toFixed(2)}</strong>
-                        </td>
-                        <td>
-                          <Badge bg={product.inStock ? 'success' : 'danger'}>
-                            {product.inStock ? 'In Stock' : 'Out'}
-                          </Badge>
-                        </td>
-                        <td>
-                          <Link 
-                            to={`/admin/products/${product._id}/edit`} 
-                            className="btn btn-sm btn-outline-success"
-                          >
-                            Edit
-                          </Link>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </Table>
-              ) : (
-                <div className="text-center py-4 text-muted">
-                  <i className="fas fa-box fa-2x mb-2"></i>
-                  <p>No products yet</p>
+                <div className="alert-content">
+                  <h4>{alert.title}</h4>
+                  <p>{alert.message}</p>
+                  {alert.timestamp && (
+                    <small>{new Date(alert.timestamp).toLocaleString()}</small>
+                  )}
                 </div>
-              )}
-            </Card.Body>
-            <Card.Footer className="text-center">
-              <Link to="/admin/products" className="btn btn-outline-success btn-sm">
-                View All Products
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Stats Overview */}
+      <div className="stats-overview">
+        <h2>Overview</h2>
+        <div className="stats-grid">
+          <div className="stat-card pets">
+            <div className="stat-icon">🐾</div>
+            <div className="stat-content">
+              <h3>Total Pets</h3>
+              <div className="stat-number">{stats.totalPets}</div>
+              <div className="stat-breakdown">
+                <span className="available">{stats.availablePets} Available</span>
+                <span className="pending">{stats.pendingPets} Pending</span>
+                <span className="adopted">{stats.adoptedPets} Adopted</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="stat-card products">
+            <div className="stat-icon">🛍️</div>
+            <div className="stat-content">
+              <h3>Products</h3>
+              <div className="stat-number">{stats.totalProducts}</div>
+              <Link to="/admin/products" className="stat-link">
+                Manage Products →
               </Link>
-            </Card.Footer>
-          </Card>
-        </Col>
-      </Row>
+            </div>
+          </div>
+
+          <div className="stat-card users">
+            <div className="stat-icon">👥</div>
+            <div className="stat-content">
+              <h3>Users</h3>
+              <div className="stat-number">{stats.totalUsers}</div>
+              <Link to="/admin/users" className="stat-link">
+                Manage Users →
+              </Link>
+            </div>
+          </div>
+
+          <div className="stat-card adoptions">
+            <div className="stat-icon">❤️</div>
+            <div className="stat-content">
+              <h3>Recent Adoptions</h3>
+              <div className="stat-number">{stats.recentAdoptions}</div>
+              <small>Last 30 days</small>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Quick Actions */}
-      <Row className="mt-4">
-        <Col>
-          <Card className="shadow-sm border-0">
-            <Card.Header className="bg-light">
-              <h5 className="mb-0">
-                <i className="fas fa-bolt me-2"></i>
-                Quick Actions
-              </h5>
-            </Card.Header>
-            <Card.Body>
-              <Row>
-                <Col md={3} className="mb-3">
-                  <Link to="/admin/pets/new" className="btn btn-primary w-100">
-                    <i className="fas fa-plus me-2"></i>
-                    Add New Pet
-                  </Link>
-                </Col>
-                <Col md={3} className="mb-3">
-                  <Link to="/admin/products/new" className="btn btn-success w-100">
-                    <i className="fas fa-plus me-2"></i>
-                    Add New Product
-                  </Link>
-                </Col>
-                <Col md={3} className="mb-3">
-                  <Link to="/admin/users" className="btn btn-info w-100">
-                    <i className="fas fa-users me-2"></i>
-                    Manage Users
-                  </Link>
-                </Col>
-                <Col md={3} className="mb-3">
-                  <Link to="/admin/contacts" className="btn btn-warning w-100">
-                    <i className="fas fa-envelope me-2"></i>
-                    View Messages
-                  </Link>
-                </Col>
-              </Row>
-            </Card.Body>
-          </Card>
-        </Col>
-      </Row>
-    </Container>
+      <div className="quick-actions">
+        <h2>Quick Actions</h2>
+        <div className="actions-grid">
+          <Link to="/admin/pets/new" className="action-card">
+            <div className="action-icon">➕</div>
+            <h3>Add New Pet</h3>
+            <p>Add a new pet to the database</p>
+          </Link>
+
+          <Link to="/admin/products/new" className="action-card">
+            <div className="action-icon">🛒</div>
+            <h3>Add Product</h3>
+            <p>Add a new product to the store</p>
+          </Link>
+
+          <Link to="/admin/adoptions" className="action-card">
+            <div className="action-icon">📋</div>
+            <h3>View Applications</h3>
+            <p>Review adoption applications</p>
+          </Link>
+
+          <Link to="/admin/reports" className="action-card">
+            <div className="action-icon">📊</div>
+            <h3>Generate Reports</h3>
+            <p>View analytics and reports</p>
+          </Link>
+        </div>
+      </div>
+
+      {/* Recent Activity */}
+      <div className="recent-activity">
+        <div className="activity-section">
+          <h2>Recently Added Pets</h2>
+          {recentPets.length === 0 ? (
+            <p className="no-data">No recent pets added</p>
+          ) : (
+            <div className="pets-list">
+              {recentPets.map(pet => (
+                <RecentPetCard key={pet.id} pet={pet} />
+              ))}
+            </div>
+          )}
+          <Link to="/admin/pets" className="view-all-link">
+            View All Pets →
+          </Link>
+        </div>
+
+        <div className="activity-section">
+          <h2>Recent Adoptions</h2>
+          {recentAdoptions.length === 0 ? (
+            <p className="no-data">No recent adoptions</p>
+          ) : (
+            <div className="adoptions-list">
+              {recentAdoptions.map(adoption => (
+                <RecentAdoptionCard key={adoption.id} adoption={adoption} />
+              ))}
+            </div>
+          )}
+          <Link to="/admin/adoptions" className="view-all-link">
+            View All Adoptions →
+          </Link>
+        </div>
+
+        <div className="activity-section">
+          <h2>Recent Products</h2>
+          {recentProducts.length === 0 ? (
+            <p className="no-data">No recent products added</p>
+          ) : (
+            <div className="products-list">
+              {recentProducts.map(product => (
+                <RecentProductCard key={product.id} product={product} />
+              ))}
+            </div>
+          )}
+          <Link to="/admin/products" className="view-all-link">
+            View All Products →
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Recent Pet Card Component
+const RecentPetCard = ({ pet }) => {
+  const imageUrl = getOptimizedImageUrl(pet.image, { width: 80, height: 80 });
+  
+  return (
+    <div className="recent-pet-card">
+      <div className="pet-image">
+        <SafeImage
+          src={imageUrl}
+          alt={pet.name}
+          isPet={true}
+        />
+      </div>
+      <div className="pet-info">
+        <h4>{pet.name}</h4>
+        <p>{pet.breed} • {pet.species}</p>
+        <span className={`status ${pet.status}`}>{pet.status}</span>
+      </div>
+      <div className="pet-actions">
+        <Link to={`/admin/pets/${pet.id}`} className="btn btn-sm">
+          Edit
+        </Link>
+      </div>
+    </div>
+  );
+};
+
+// Recent Adoption Card Component
+const RecentAdoptionCard = ({ adoption }) => {
+  const petImageUrl = getOptimizedImageUrl(adoption.pet?.image, { width: 60, height: 60 });
+  
+  return (
+    <div className="recent-adoption-card">
+      <div className="adoption-pet-image">
+        <SafeImage
+          src={petImageUrl}
+          alt={adoption.pet?.name || 'Pet'}
+          isPet={true}
+        />
+      </div>
+      <div className="adoption-info">
+        <h4>{adoption.pet?.name}</h4>
+        <p>Adopted by {adoption.adopter?.name}</p>
+        <small>{new Date(adoption.adoptionDate).toLocaleDateString()}</small>
+      </div>
+      <div className="adoption-status">
+        <span className={`status ${adoption.status}`}>
+          {adoption.status}
+        </span>
+      </div>
+    </div>
+  );
+};
+
+// Recent Product Card Component
+const RecentProductCard = ({ product }) => {
+  return (
+    <div className="recent-product-card">
+      <div className="product-image">
+        <SafeImage
+          src={buildProductImageUrl(product.image)}
+          alt={product.name}
+        />
+      </div>
+      <div className="product-info">
+        <h4>{product.name}</h4>
+        <p>${product.price}</p>
+        <small>Stock: {product.stock || 0}</small>
+      </div>
+      <div className="product-actions">
+        <Link to={`/admin/products/${product.id}`} className="btn btn-sm">
+          Edit
+        </Link>
+      </div>
+    </div>
   );
 };
 
