@@ -10,15 +10,19 @@ export const DEFAULT_PET_IMAGE = '/images/default-pet.jpg';
  */
 export const DEFAULT_PRODUCT_IMAGE = '/images/default-product.jpg';
 
+// Base path for Google Cloud Storage bucket
+export const BUCKET_BASE = 'https://storage.googleapis.com/furbabies-petstore';
+
 /**
  * Build a complete image URL from a relative path or filename
  * @param {string} imagePath - The image path or filename
  * @param {string} baseUrl - Optional base URL (defaults to current origin)
+ * @param {string} fallback - Fallback image when no path provided
  * @returns {string} Complete image URL
  */
-export const buildImageUrl = (imagePath, baseUrl = '') => {
+export const buildImageUrl = (imagePath, baseUrl = '', fallback = DEFAULT_PET_IMAGE) => {
   if (!imagePath) {
-    return DEFAULT_PET_IMAGE;
+    return fallback;
   }
 
   // If it's already a complete URL, return as-is
@@ -26,13 +30,21 @@ export const buildImageUrl = (imagePath, baseUrl = '') => {
     return imagePath;
   }
 
+  // Remove any leading slashes from imagePath when baseUrl is provided
+  const normalizedBase = baseUrl.replace(/\/$/, '');
+  const normalizedPath = imagePath.replace(/^\/+/, '');
+
+  if (baseUrl) {
+    return `${normalizedBase}/${normalizedPath}`;
+  }
+
   // If it starts with '/', it's an absolute path
   if (imagePath.startsWith('/')) {
-    return `${baseUrl}${imagePath}`;
+    return imagePath;
   }
 
   // Otherwise, assume it's a relative path that needs /images/ prefix
-  return `${baseUrl}/images/${imagePath}`;
+  return `/images/${imagePath}`;
 };
 
 /**
@@ -45,7 +57,16 @@ export const buildPetImageUrl = (imagePath, fallback = DEFAULT_PET_IMAGE) => {
   if (!imagePath) {
     return fallback;
   }
-  return buildImageUrl(imagePath);
+
+  // Allow already-prefixed or complete URLs
+  if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+    return buildImageUrl(imagePath, '', fallback);
+  }
+
+  const cleanedPath = imagePath.replace(/^\/+/, '');
+  const pathWithPrefix = cleanedPath.startsWith('pet/') ? cleanedPath : `pet/${cleanedPath}`;
+
+  return buildImageUrl(pathWithPrefix, BUCKET_BASE, fallback);
 };
 
 /**
@@ -58,7 +79,16 @@ export const buildProductImageUrl = (imagePath, fallback = DEFAULT_PRODUCT_IMAGE
   if (!imagePath) {
     return fallback;
   }
-  return buildImageUrl(imagePath);
+
+  // Allow already-prefixed or complete URLs
+  if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+    return buildImageUrl(imagePath, '', fallback);
+  }
+
+  const cleanedPath = imagePath.replace(/^\/+/, '');
+  const pathWithPrefix = cleanedPath.startsWith('product/') ? cleanedPath : `product/${cleanedPath}`;
+
+  return buildImageUrl(pathWithPrefix, BUCKET_BASE, fallback);
 };
 
 /**
