@@ -1,438 +1,258 @@
-// server/routes/news.js - CLEANED UP VERSION (No problematic imports)
+// server/routes/news.js - COMPLETE NEWS ROUTES
 const express = require('express');
 const router = express.Router();
-const crypto = require('crypto');
-const axios = require('axios');
-const NewsArticle = require('../models/NewsArticle'); // ✅ Use your existing model
 const { protect, admin } = require('../middleware/auth');
 
-// ===== HELPER FUNCTIONS =====
-
-// ✅ Create stable ID for external articles
-const createStableExternalId = (article) => {
-  const source = article.url || article.title || 'unknown';
-  return `ext-${crypto.createHash('md5').update(source).digest('hex').substring(0, 12)}`;
-};
-
-// ✅ Format external article to match your NewsArticle schema
-const formatExternal = (article) => ({
-  id: createStableExternalId(article),
-  title: article.title || 'Untitled Article',
-  summary: article.description || '',
-  content: article.content || article.description || '',
-  author: article.author || article.source?.name || 'External Source',
-  category: 'external-news',
-  imageUrl: article.urlToImage || '',
-  originalUrl: article.url,
-  published: true,
-  featured: false,
-  publishedAt: article.publishedAt || new Date(),
-  views: 0,
-  likes: 0,
-  tags: ['external', 'news'],
-  source: 'external',
-  type: 'external'
-});
-
-// ✅ Fetch external news directly (replaces broken service)
-const fetchExternalNews = async (query = 'pets OR dogs OR cats', limit = 10) => {
-  try {
-    const NEWS_API_KEY = process.env.NEWS_API_KEY;
-    
-    if (!NEWS_API_KEY) {
-      console.log('⚠️ No NewsAPI key configured - using fallback');
-      return getFallbackExternalNews();
-    }
-
-    const response = await axios.get('https://newsapi.org/v2/everything', {
-      params: {
-        q: query,
-        language: 'en',
-        sortBy: 'publishedAt',
-        pageSize: limit,
-        apiKey: NEWS_API_KEY
-      },
-      timeout: 10000
-    });
-
-    return {
-      success: true,
-      articles: response.data.articles || [],
-      source: 'newsapi'
-    };
-  } catch (error) {
-    console.error('❌ External news fetch error:', error.message);
-    return getFallbackExternalNews();
+// Mock news data (you can replace this with a MongoDB model later)
+const mockNewsData = [
+  {
+    id: '1',
+    title: 'New Pet Adoption Center Opens Downtown',
+    summary: 'A state-of-the-art pet adoption facility has opened its doors.',
+    content: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit...',
+    category: 'adoption',
+    author: 'FurBabies Team',
+    featured: true,
+    published: true,
+    publishedAt: new Date('2024-12-01'),
+    views: 1250,
+    likes: 89,
+    imageUrl: '/images/news/adoption-center.jpg',
+    tags: ['adoption', 'facility', 'downtown']
+  },
+  {
+    id: '2', 
+    title: 'Holiday Pet Safety Tips',
+    summary: 'Keep your furry friends safe during the holiday season.',
+    content: 'The holidays can be a dangerous time for pets...',
+    category: 'safety',
+    author: 'Dr. Sarah Johnson',
+    featured: true,
+    published: true,
+    publishedAt: new Date('2024-12-15'),
+    views: 980,
+    likes: 67,
+    imageUrl: '/images/news/holiday-safety.jpg',
+    tags: ['safety', 'holidays', 'tips']
+  },
+  {
+    id: '3',
+    title: 'Success Story: Max Finds His Forever Home',
+    summary: 'Follow Max the Golden Retriever\'s journey from shelter to family.',
+    content: 'Max arrived at our shelter six months ago...',
+    category: 'success-story',
+    author: 'Maria Rodriguez',
+    featured: true,
+    published: true,
+    publishedAt: new Date('2024-12-10'),
+    views: 1567,
+    likes: 234,
+    imageUrl: '/images/news/max-success.jpg',
+    tags: ['success-story', 'golden-retriever', 'adoption']
+  },
+  {
+    id: '4',
+    title: 'Volunteer Training Workshop This Weekend',
+    summary: 'Join us for comprehensive volunteer training.',
+    content: 'We are hosting a volunteer training workshop...',
+    category: 'events',
+    author: 'FurBabies Team',
+    featured: false,
+    published: true,
+    publishedAt: new Date('2024-12-20'),
+    views: 456,
+    likes: 23,
+    imageUrl: '/images/news/volunteer-training.jpg',
+    tags: ['volunteer', 'training', 'workshop']
+  },
+  {
+    id: '5',
+    title: 'Understanding Pet Nutrition',
+    summary: 'Learn about proper nutrition for your pets.',
+    content: 'Proper nutrition is essential for your pet\'s health...',
+    category: 'health',
+    author: 'Dr. Mike Chen',
+    featured: false,
+    published: true,
+    publishedAt: new Date('2024-12-18'),
+    views: 789,
+    likes: 45,
+    imageUrl: '/images/news/pet-nutrition.jpg',
+    tags: ['nutrition', 'health', 'diet']
   }
-};
+];
 
-// ✅ Fallback news data
-const getFallbackExternalNews = () => {
-  return {
-    success: true,
-    articles: [
-      {
-        title: 'Pet Adoption Tips for New Families',
-        description: 'Essential guide for families considering pet adoption this season.',
-        content: 'When adopting a pet, preparation is key...',
-        url: 'https://example.com/adoption-tips',
-        urlToImage: 'https://images.unsplash.com/photo-1601758228041-f3b2795255f1?w=400',
-        publishedAt: new Date().toISOString(),
-        source: { name: 'Pet Care Guide' },
-        author: 'Pet Expert'
-      },
-      {
-        title: 'Senior Pet Care: What You Need to Know',
-        description: 'Special considerations for caring for older pets in your home.',
-        content: 'Senior pets require extra attention and care...',
-        url: 'https://example.com/senior-pet-care',
-        urlToImage: 'https://images.unsplash.com/photo-1548199973-03cce0bbc87b?w=400',
-        publishedAt: new Date().toISOString(),
-        source: { name: 'Pet Health Today' },
-        author: 'Dr. Pet Care'
-      }
-    ],
-    isFallback: true,
-    source: 'fallback'
-  };
-};
-
-// ✅ Health check for news service
-const getNewsServiceHealth = () => {
-  return {
-    status: 'operational',
-    timestamp: new Date().toISOString(),
-    services: {
-      database: 'connected',
-      externalAPI: {
-        configured: !!process.env.NEWS_API_KEY,
-        status: process.env.NEWS_API_KEY ? 'operational' : 'fallback'
-      }
-    }
-  };
-};
-
-// ===== MAIN ROUTES =====
-
-// GET /api/news/health - Health check
-router.get('/health', (req, res) => {
-  try {
-    const healthStatus = getNewsServiceHealth();
-    res.json({
-      success: true,
-      ...healthStatus
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      status: 'error',
-      message: error.message
-    });
-  }
-});
-
-// GET /api/news - Get all articles with filtering
-router.get('/', async (req, res) => {
-  try {
-    const { category, source = 'all', search, limit = 50, featured } = req.query;
-    let allArticles = [];
-
-    console.log(`📰 GET /news - category: ${category}, source: ${source}, search: ${search}`);
-
-    // ✅ Get custom articles from MongoDB using your NewsArticle model
-    if (source === 'all' || source === 'custom') {
-      let query = { published: true };
-      
-      // Add category filter
-      if (category && category !== 'all') {
-        query.category = category;
-      }
-      
-      // Add featured filter
-      if (featured === 'true') {
-        query.featured = true;
-      }
-      
-      let customArticles;
-      
-      // ✅ Search functionality
-      if (search && search.trim()) {
-        const searchRegex = new RegExp(search.trim(), 'i');
-        customArticles = await NewsArticle.find({
-          ...query,
-          $or: [
-            { title: searchRegex },
-            { summary: searchRegex },
-            { content: searchRegex },
-            { tags: { $in: [searchRegex] } }
-          ]
-        })
-        .sort({ publishedAt: -1 })
-        .limit(parseInt(limit))
-        .lean();
-      } else {
-        customArticles = await NewsArticle.find(query)
-          .sort({ publishedAt: -1 })
-          .limit(parseInt(limit))
-          .lean();
-      }
-      
-      allArticles.push(...customArticles);
-      console.log(`✅ Found ${customArticles.length} custom articles from MongoDB`);
-    }
-
-    // ✅ Include external articles if requested
-    if (source === 'all' || source === 'external') {
-      const searchQuery = search || 'pets OR dogs OR cats OR pet adoption';
-      const externalResult = await fetchExternalNews(searchQuery, 10);
-      
-      if (externalResult.success && externalResult.articles) {
-        const formattedExternal = externalResult.articles.map(formatExternal);
-        allArticles.push(...formattedExternal);
-        console.log(`✅ Found ${formattedExternal.length} external articles`);
-      }
-    }
-
-    // ✅ Sort combined results by date
-    allArticles.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
-
-    // ✅ Apply final limit
-    if (limit && allArticles.length > parseInt(limit)) {
-      allArticles = allArticles.slice(0, parseInt(limit));
-    }
-
-    res.json({
-      success: true,
-      data: allArticles,
-      count: allArticles.length,
-      breakdown: {
-        custom: allArticles.filter(a => a.source !== 'external').length,
-        external: allArticles.filter(a => a.source === 'external').length
-      }
-    });
-
-  } catch (err) {
-    console.error('❌ GET /news error:', err);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Failed to fetch articles',
-      data: []
-    });
-  }
-});
-
-// GET /api/news/featured - Get featured articles (home page)
+// GET /api/news/featured - Get featured news articles  
 router.get('/featured', async (req, res) => {
   try {
-    const { limit = 6 } = req.query;
+    console.log('📰 GET /api/news/featured');
     
-    console.log(`🌟 GET /news/featured - limit: ${limit}`);
+    const limit = parseInt(req.query.limit) || 3;
     
-    // ✅ Get featured custom articles first
-    const featuredCustom = await NewsArticle.find({ 
-      published: true, 
-      featured: true 
-    })
-    .sort({ publishedAt: -1 })
-    .limit(parseInt(limit))
-    .lean();
+    const featuredNews = mockNewsData
+      .filter(article => article.featured && article.published)
+      .sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt))
+      .slice(0, limit);
 
-    let allFeatured = [...featuredCustom];
-    
-    // ✅ Fill remaining slots with external news if needed
-    const remaining = parseInt(limit) - featuredCustom.length;
-    if (remaining > 0) {
-      const externalResult = await fetchExternalNews('pets trending news', remaining);
-      
-      if (externalResult.success && externalResult.articles) {
-        const formattedExternal = externalResult.articles
-          .slice(0, remaining)
-          .map(formatExternal);
-        allFeatured.push(...formattedExternal);
-      }
-    }
-
-    // ✅ Sort by date and apply final limit
-    allFeatured.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
-    allFeatured = allFeatured.slice(0, parseInt(limit));
+    console.log(`📰 Found ${featuredNews.length} featured articles`);
 
     res.json({
       success: true,
-      data: allFeatured,
-      count: allFeatured.length,
-      breakdown: {
-        custom: allFeatured.filter(a => a.source !== 'external').length,
-        external: allFeatured.filter(a => a.source === 'external').length,
-        externalSource: allFeatured.some(a => a.source === 'external') ? 'live' : 'none'
-      }
+      data: featuredNews,
+      count: featuredNews.length,
+      message: 'Featured news articles retrieved successfully'
     });
-
-  } catch (err) {
-    console.error('❌ GET /news/featured error:', err);
-    
-    // ✅ Return fallback data instead of failure
-    const fallbackData = getFallbackExternalNews();
-    res.json({
-      success: true,
-      data: fallbackData.articles.map(formatExternal).slice(0, parseInt(req.query.limit || 6)),
-      count: Math.min(fallbackData.articles.length, parseInt(req.query.limit || 6)),
-      isFallback: true,
-      error: 'Failed to load featured articles'
+  } catch (error) {
+    console.error('❌ Error fetching featured news:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching featured news',
+      error: error.message
     });
   }
 });
 
-// GET /api/news/custom - Get only custom articles
-router.get('/custom', async (req, res) => {
-  try {
-    const { category, search, limit = 50 } = req.query;
-    
-    let query = { published: true };
-    
-    if (category && category !== 'all') {
-      query.category = category;
-    }
-    
-    let articles;
-    
-    if (search && search.trim()) {
-      const searchRegex = new RegExp(search.trim(), 'i');
-      articles = await NewsArticle.find({
-        ...query,
-        $or: [
-          { title: searchRegex },
-          { summary: searchRegex },
-          { content: searchRegex },
-          { tags: { $in: [searchRegex] } }
-        ]
-      })
-      .sort({ publishedAt: -1 })
-      .limit(parseInt(limit))
-      .lean();
-    } else {
-      articles = await NewsArticle.find(query)
-        .sort({ publishedAt: -1 })
-        .limit(parseInt(limit))
-        .lean();
-    }
-
-    res.json({
-      success: true,
-      data: articles,
-      count: articles.length
-    });
-
-  } catch (err) {
-    console.error('❌ GET /news/custom error:', err);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Failed to fetch custom articles' 
-    });
-  }
-});
-
-// GET /api/news/external - Get only external articles
-router.get('/external', async (req, res) => {
-  try {
-    const { search = 'pets OR dogs OR cats', limit = 20 } = req.query;
-    
-    const externalResult = await fetchExternalNews(search, parseInt(limit));
-    
-    if (externalResult.success && externalResult.articles) {
-      const formattedArticles = externalResult.articles.map(formatExternal);
-      
-      res.json({
-        success: true,
-        data: formattedArticles,
-        count: formattedArticles.length
-      });
-    } else {
-      res.json({
-        success: true,
-        data: [],
-        count: 0,
-        message: 'No external articles available'
-      });
-    }
-
-  } catch (err) {
-    console.error('❌ GET /news/external error:', err);
-    res.status(500).json({ 
-      success: false, 
-      message: 'External news service unavailable',
-      data: []
-    });
-  }
-});
-
-// GET /api/news/categories - Get available categories
+// GET /api/news/categories - Get distinct categories
 router.get('/categories', async (req, res) => {
   try {
-    const categories = await NewsArticle.distinct('category', { published: true });
+    console.log('📰 GET /api/news/categories');
+    
+    const categories = [...new Set(mockNewsData.map(article => article.category))];
     
     res.json({
       success: true,
-      data: categories
+      data: categories,
+      message: 'News categories retrieved successfully'
     });
-
-  } catch (err) {
-    console.error('❌ GET /news/categories error:', err);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Failed to fetch categories',
-      data: []
+  } catch (error) {
+    console.error('❌ Error fetching categories:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching categories',
+      error: error.message
     });
   }
 });
 
-// GET /api/news/:id - Get individual article
+// GET /api/news - Get all news articles
+router.get('/', async (req, res) => {
+  try {
+    console.log('📰 GET /api/news - Query params:', req.query);
+    
+    const { 
+      category, 
+      featured, 
+      search, 
+      limit = 10, 
+      page = 1, 
+      sort = 'publishedAt' 
+    } = req.query;
+    
+    let filteredNews = [...mockNewsData];
+    
+    // Filter by published status
+    filteredNews = filteredNews.filter(article => article.published);
+    
+    // Filter by category
+    if (category && category !== 'all') {
+      filteredNews = filteredNews.filter(article => article.category === category);
+    }
+    
+    // Filter by featured status
+    if (featured === 'true') {
+      filteredNews = filteredNews.filter(article => article.featured);
+    }
+    
+    // Search functionality
+    if (search) {
+      const searchLower = search.toLowerCase();
+      filteredNews = filteredNews.filter(article =>
+        article.title.toLowerCase().includes(searchLower) ||
+        article.summary.toLowerCase().includes(searchLower) ||
+        article.content.toLowerCase().includes(searchLower) ||
+        article.tags.some(tag => tag.toLowerCase().includes(searchLower))
+      );
+    }
+    
+    // Sort articles
+    filteredNews.sort((a, b) => {
+      switch (sort) {
+        case 'title':
+          return a.title.localeCompare(b.title);
+        case 'author':
+          return a.author.localeCompare(b.author);
+        case 'views':
+          return b.views - a.views;
+        case 'likes':
+          return b.likes - a.likes;
+        case 'oldest':
+          return new Date(a.publishedAt) - new Date(b.publishedAt);
+        default: // publishedAt (newest first)
+          return new Date(b.publishedAt) - new Date(a.publishedAt);
+      }
+    });
+    
+    // Pagination
+    const startIndex = (parseInt(page) - 1) * parseInt(limit);
+    const endIndex = startIndex + parseInt(limit);
+    const paginatedNews = filteredNews.slice(startIndex, endIndex);
+    
+    const totalPages = Math.ceil(filteredNews.length / parseInt(limit));
+    
+    res.json({
+      success: true,
+      data: paginatedNews,
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages,
+        totalArticles: filteredNews.length,
+        hasNext: parseInt(page) < totalPages,
+        hasPrev: parseInt(page) > 1,
+        limit: parseInt(limit)
+      },
+      message: 'News articles retrieved successfully'
+    });
+    
+  } catch (error) {
+    console.error('❌ Error fetching news:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching news articles',
+      error: error.message
+    });
+  }
+});
+
+// GET /api/news/:id - Get specific news article
 router.get('/:id', async (req, res) => {
   try {
+    console.log('📰 GET /api/news/:id - Fetching article:', req.params.id);
+    
     const { id } = req.params;
+    const article = mockNewsData.find(article => article.id === id);
     
-    console.log(`📰 GET /news/${id}`);
-
-    // ✅ Try to find article by MongoDB _id first
-    let article;
-    try {
-      article = await NewsArticle.findOne({ 
-        _id: id, 
-        published: true 
-      });
-    } catch (err) {
-      // ID might not be a valid ObjectId, continue to other checks
-    }
-    
-    if (article) {
-      // ✅ Increment view count
-      article.views = (article.views || 0) + 1;
-      await article.save();
-      
-      return res.json({
-        success: true,
-        data: article
-      });
-    }
-
-    // Handle external article IDs
-    if (id.startsWith('ext-')) {
+    if (!article) {
       return res.status(404).json({
         success: false,
-        message: 'External articles must be viewed at their original source',
-        redirect: true
+        message: 'Article not found'
       });
     }
-
-    res.status(404).json({
-      success: false,
-      message: 'Article not found'
+    
+    // Increment view count (in a real app, you'd update the database)
+    article.views += 1;
+    
+    res.json({
+      success: true,
+      data: article,
+      message: 'Article retrieved successfully'
     });
-
-  } catch (err) {
-    console.error(`❌ GET /news/${req.params.id} error:`, err);
+    
+  } catch (error) {
+    console.error(`❌ GET /news/${req.params.id} error:`, error);
     res.status(500).json({ 
       success: false, 
-      message: 'Failed to fetch article' 
+      message: 'Failed to fetch article',
+      error: error.message 
     });
   }
 });
@@ -440,33 +260,35 @@ router.get('/:id', async (req, res) => {
 // POST /api/news/:id/like - Like an article
 router.post('/:id/like', async (req, res) => {
   try {
+    console.log('📰 POST /api/news/:id/like - Liking article:', req.params.id);
+    
     const { id } = req.params;
+    const article = mockNewsData.find(article => article.id === id);
     
-    // ✅ Find and update in MongoDB using your model
-    const article = await NewsArticle.findById(id);
-    
-    if (article) {
-      article.likes = (article.likes || 0) + 1;
-      await article.save();
-      
-      res.json({
-        success: true,
-        data: {
-          likes: article.likes
-        }
-      });
-    } else {
-      res.status(404).json({
+    if (!article) {
+      return res.status(404).json({
         success: false,
         message: 'Article not found'
       });
     }
-
-  } catch (err) {
-    console.error(`❌ POST /news/${req.params.id}/like error:`, err);
+    
+    // Increment likes (in a real app, you'd update the database)
+    article.likes += 1;
+    
+    res.json({
+      success: true,
+      data: {
+        likes: article.likes
+      },
+      message: 'Article liked successfully'
+    });
+    
+  } catch (error) {
+    console.error(`❌ POST /news/${req.params.id}/like error:`, error);
     res.status(500).json({ 
       success: false, 
-      message: 'Failed to like article' 
+      message: 'Failed to like article',
+      error: error.message 
     });
   }
 });
@@ -476,9 +298,27 @@ router.post('/:id/like', async (req, res) => {
 // POST /api/news - Create new article (Admin only)
 router.post('/', protect, admin, async (req, res) => {
   try {
-    const { title, content, summary, category, featured, imageUrl, tags } = req.body;
+    console.log('📰 POST /api/news - Admin creating article');
     
-    const newArticle = new NewsArticle({
+    const { 
+      title, 
+      content, 
+      summary, 
+      category, 
+      featured, 
+      imageUrl, 
+      tags 
+    } = req.body;
+    
+    if (!title || !content || !summary) {
+      return res.status(400).json({
+        success: false,
+        message: 'Title, content, and summary are required'
+      });
+    }
+    
+    const newArticle = {
+      id: String(mockNewsData.length + 1),
       title,
       content,
       summary,
@@ -491,21 +331,22 @@ router.post('/', protect, admin, async (req, res) => {
       publishedAt: new Date(),
       views: 0,
       likes: 0
-    });
-
-    await newArticle.save();
+    };
+    
+    mockNewsData.push(newArticle);
     
     res.status(201).json({
       success: true,
       data: newArticle,
       message: 'Article created successfully'
     });
-
-  } catch (err) {
-    console.error('❌ POST /news error:', err);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Failed to create article' 
+    
+  } catch (error) {
+    console.error('❌ Error creating article:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error creating article',
+      error: error.message
     });
   }
 });
@@ -513,33 +354,40 @@ router.post('/', protect, admin, async (req, res) => {
 // PUT /api/news/:id - Update article (Admin only)
 router.put('/:id', protect, admin, async (req, res) => {
   try {
+    console.log('📰 PUT /api/news/:id - Admin updating article:', req.params.id);
+    
     const { id } = req.params;
-    const updateData = req.body;
+    const articleIndex = mockNewsData.findIndex(article => article.id === id);
     
-    const article = await NewsArticle.findByIdAndUpdate(
-      id, 
-      updateData, 
-      { new: true, runValidators: true }
-    );
-    
-    if (!article) {
+    if (articleIndex === -1) {
       return res.status(404).json({
         success: false,
         message: 'Article not found'
       });
     }
     
+    // Update article with new data
+    const updatedArticle = {
+      ...mockNewsData[articleIndex],
+      ...req.body,
+      id, // Preserve the ID
+      updatedAt: new Date()
+    };
+    
+    mockNewsData[articleIndex] = updatedArticle;
+    
     res.json({
       success: true,
-      data: article,
+      data: updatedArticle,
       message: 'Article updated successfully'
     });
-
-  } catch (err) {
-    console.error(`❌ PUT /news/${req.params.id} error:`, err);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Failed to update article' 
+    
+  } catch (error) {
+    console.error('❌ Error updating article:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error updating article',
+      error: error.message
     });
   }
 });
@@ -547,27 +395,65 @@ router.put('/:id', protect, admin, async (req, res) => {
 // DELETE /api/news/:id - Delete article (Admin only)
 router.delete('/:id', protect, admin, async (req, res) => {
   try {
+    console.log('📰 DELETE /api/news/:id - Admin deleting article:', req.params.id);
+    
     const { id } = req.params;
+    const articleIndex = mockNewsData.findIndex(article => article.id === id);
     
-    const article = await NewsArticle.findByIdAndDelete(id);
-    
-    if (!article) {
+    if (articleIndex === -1) {
       return res.status(404).json({
         success: false,
         message: 'Article not found'
       });
     }
     
+    const deletedArticle = mockNewsData.splice(articleIndex, 1)[0];
+    
     res.json({
       success: true,
+      data: deletedArticle,
       message: 'Article deleted successfully'
     });
+    
+  } catch (error) {
+    console.error('❌ Error deleting article:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error deleting article',
+      error: error.message
+    });
+  }
+});
 
-  } catch (err) {
-    console.error(`❌ DELETE /news/${req.params.id} error:`, err);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Failed to delete article' 
+// GET /api/news/custom - Get custom news for admin dashboard
+router.get('/custom', protect, admin, async (req, res) => {
+  try {
+    console.log('📰 GET /api/news/custom - Admin fetching custom news');
+    
+    const customNews = mockNewsData.map(article => ({
+      id: article.id,
+      title: article.title,
+      category: article.category,
+      author: article.author,
+      published: article.published,
+      featured: article.featured,
+      views: article.views,
+      likes: article.likes,
+      publishedAt: article.publishedAt
+    }));
+    
+    res.json({
+      success: true,
+      data: customNews,
+      message: 'Custom news data retrieved successfully'
+    });
+    
+  } catch (error) {
+    console.error('❌ Error fetching custom news:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching custom news',
+      error: error.message
     });
   }
 });

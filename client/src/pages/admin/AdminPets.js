@@ -1,484 +1,431 @@
-// client/src/pages/admin/AdminPets.js - SHOW ALL PETS VERSION
-import React, { useState, useEffect, useCallback, useMemo } from "react";
-import {
-  Row,
-  Col,
-  Card,
-  Form,
-  Button,
-  Modal,
-  Alert,
-  Badge,
-  Spinner,
-  ButtonGroup,
-  Pagination
-} from "react-bootstrap";
-import DataTable from "../../components/DataTable";
-import axios from 'axios';
+// src/pages/admin/AdminPets.js
+
+import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import SafeImage from '../../components/SafeImage';
+import usePetFilters from '../../hooks/usePetFilters';
+import { 
+  getOptimizedImageUrl,
+  hasValidImageExtension
+} from '../../utils/imageUtils';
+import './AdminPets.css';
 
 const AdminPets = () => {
   const [pets, setPets] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [pagination, setPagination] = useState({});
-  const [currentPage, setCurrentPage] = useState(1);
-  const [viewMode, setViewMode] = useState('paginated'); // 'paginated' or 'all'
-  const [itemsPerPage, setItemsPerPage] = useState(20); // Increased default
-  
-  const [filters, setFilters] = useState({
-    search: "",
-    category: "",
-    type: "",
-    status: "",
-    available: "",
-  });
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [editingPet, setEditingPet] = useState(null);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [deletingPet, setDeletingPet] = useState(null);
-  const [alert, setAlert] = useState({ show: false, message: "", variant: "" });
+  const [error, setError] = useState(null);
+  const [selectedPets, setSelectedPets] = useState([]);
+  const [actionLoading, setActionLoading] = useState(false);
 
-  // ✅ Stable API instance
-  const adminAPI = useMemo(() => {
-    const api = axios.create({
-      baseURL: process.env.NODE_ENV === 'production' 
-        ? 'https://furbabies-backend.onrender.com/api'
-        : 'http://localhost:5000/api',
-      timeout: 45000,
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      }
-    });
+  const {
+    filters,
+    sortBy,
+    filteredPets,
+    filterOptions,
+    filterStats,
+    hasActiveFilters,
+    updateFilter,
+    resetFilters,
+    setSortBy
+  } = usePetFilters(pets, { status: '' }); // Show all statuses by default in admin
 
-    api.interceptors.request.use((config) => {
-      const token = localStorage.getItem('token');
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-      }
-      console.log(`📡 Admin Request: ${config.method?.toUpperCase()} ${config.url}`);
-      return config;
-    });
-
-    api.interceptors.response.use(
-      (response) => {
-        console.log(`✅ Admin Response: ${response.status} ${response.config.url}`);
-        return response;
-      },
-      (error) => {
-        console.error('❌ Admin Error:', error.response?.status, error.response?.data || error.message);
-        return Promise.reject(error);
-      }
-    );
-
-    return api;
-  }, []);
-
-  const fetchPets = useCallback(
-    async (page = 1) => {
-      setLoading(true);
+  // Fetch pets data
+  useEffect(() => {
+    const fetchPets = async () => {
       try {
-        console.log(`🐾 Fetching admin pets - Page: ${page}, ViewMode: ${viewMode}`);
-        
-        const params = new URLSearchParams({
-          page,
-          // ✅ KEY CHANGE: Dynamic limit based on view mode
-          limit: viewMode === 'all' ? 10000 : itemsPerPage, // Use high number for "show all"
-          ...Object.fromEntries(
-            Object.entries(filters).filter(([_, value]) => value !== "")
-          )
+        setLoading(true);
+        const response = await fetch('/api/admin/pets', {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+          }
         });
-
-        const response = await adminAPI.get(`/admin/pets?${params.toString()}`);
-        
-        if (response.data.success) {
-          setPets(response.data.data || []);
-          setPagination(response.data.pagination || {});
-          console.log(`✅ Admin pets loaded: ${response.data.data?.length || 0} pets (Total: ${response.data.pagination?.totalPets || 0})`);
-        } else {
-          throw new Error(response.data.message || 'Failed to fetch pets');
+        if (!response.ok) {
+          throw new Error('Failed to fetch pets');
         }
-        
-      } catch (error) {
-        console.error("❌ Error fetching pets:", error);
-        
-        let errorMessage = "Error fetching pets";
-        if (error.code === 'ECONNABORTED') {
-          errorMessage = "Request timed out. Please try again in a moment.";
-        } else if (error.response?.data?.message) {
-          errorMessage = error.response.data.message;
-        } else if (error.message) {
-          errorMessage = error.message;
-        }
-        
-        showAlert(errorMessage, error.code === 'ECONNABORTED' ? "warning" : "danger");
+        const data = await response.json();
+        setPets(data);
+      } catch (err) {
+        setError(err.message);
       } finally {
         setLoading(false);
       }
-    },
-    [filters, adminAPI, viewMode, itemsPerPage]
-  );
+    };
 
-  // ✅ Load pets on mount
-  useEffect(() => {
-    console.log('🔄 AdminPets: Loading initial data');
-    fetchPets(currentPage);
+    fetchPets();
   }, []);
 
-  // ✅ Refetch when filters, view mode, or items per page change
-  useEffect(() => {
-    console.log('🔍 AdminPets: Filters/ViewMode changed, refetching');
-    setCurrentPage(1); // Reset to first page when filters change
-    fetchPets(1);
-  }, [filters, viewMode, itemsPerPage]);
-
-  // ✅ Handle page changes
-  const handlePageChange = (page) => {
-    setCurrentPage(page);
-    fetchPets(page);
+  // Handle pet selection for bulk actions
+  const handlePetSelection = (petId, isSelected) => {
+    setSelectedPets(prev => 
+      isSelected 
+        ? [...prev, petId]
+        : prev.filter(id => id !== petId)
+    );
   };
 
-  // ✅ Handle view mode toggle
-  const handleViewModeChange = (mode) => {
-    console.log(`🔄 Switching view mode to: ${mode}`);
-    setViewMode(mode);
-    setCurrentPage(1);
+  // Handle select all pets
+  const handleSelectAll = (isSelected) => {
+    setSelectedPets(isSelected ? filteredPets.map(pet => pet.id) : []);
   };
 
-  const showAlert = (message, variant) => {
-    setAlert({ show: true, message, variant });
-    setTimeout(() => {
-      setAlert({ show: false, message: "", variant: "" });
-    }, 5000);
-  };
-
-  const handleEditPet = (pet) => {
-    setEditingPet(pet);
-    setShowEditModal(true);
-  };
-
-  const handleDeletePet = (pet) => {
-    setDeletingPet(pet);
-    setShowDeleteModal(true);
-  };
-
-  const confirmDeletePet = async () => {
-    if (!deletingPet) return;
+  // Handle bulk status update
+  const handleBulkStatusUpdate = async (newStatus) => {
+    if (selectedPets.length === 0) return;
 
     try {
-      console.log('🗑️ Deleting pet:', deletingPet._id);
-      
-      const response = await adminAPI.delete(`/admin/pets/${deletingPet._id}`);
-      
-      if (response.data.success) {
-        showAlert("Pet deleted successfully", "success");
-        fetchPets(currentPage);
-      } else {
-        throw new Error(response.data.message || 'Failed to delete pet');
+      setActionLoading(true);
+      const response = await fetch('/api/admin/pets/bulk-update', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+        },
+        body: JSON.stringify({
+          petIds: selectedPets,
+          updates: { status: newStatus }
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update pets');
       }
+
+      // Refresh pets data
+      const updatedResponse = await fetch('/api/admin/pets', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+        }
+      });
+      const updatedData = await updatedResponse.json();
+      setPets(updatedData);
+      setSelectedPets([]);
       
-    } catch (error) {
-      console.error("❌ Error deleting pet:", error);
-      showAlert(error.response?.data?.message || error.message || "Error deleting pet", "danger");
+      alert(`Successfully updated ${selectedPets.length} pet(s) to ${newStatus}`);
+    } catch (err) {
+      alert(`Error updating pets: ${err.message}`);
     } finally {
-      setShowDeleteModal(false);
-      setDeletingPet(null);
+      setActionLoading(false);
     }
   };
 
-  const handleSaveEdit = async (updatedPetData) => {
-    if (!editingPet) return;
+  // Handle bulk delete
+  const handleBulkDelete = async () => {
+    if (selectedPets.length === 0) return;
+
+    const confirmed = window.confirm(
+      `Are you sure you want to delete ${selectedPets.length} pet(s)? This action cannot be undone.`
+    );
+
+    if (!confirmed) return;
 
     try {
-      console.log('✏️ Updating pet:', editingPet._id);
-      
-      const response = await adminAPI.put(`/admin/pets/${editingPet._id}`, updatedPetData);
-      
-      if (response.data.success) {
-        showAlert("Pet updated successfully", "success");
-        fetchPets(currentPage);
-      } else {
-        throw new Error(response.data.message || 'Failed to update pet');
+      setActionLoading(true);
+      const response = await fetch('/api/admin/pets/bulk-delete', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+        },
+        body: JSON.stringify({ petIds: selectedPets })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete pets');
       }
+
+      // Remove deleted pets from state
+      setPets(prev => prev.filter(pet => !selectedPets.includes(pet.id)));
+      setSelectedPets([]);
       
-    } catch (error) {
-      console.error("❌ Error updating pet:", error);
-      showAlert(error.response?.data?.message || error.message || "Error updating pet", "danger");
+      alert(`Successfully deleted ${selectedPets.length} pet(s)`);
+    } catch (err) {
+      alert(`Error deleting pets: ${err.message}`);
     } finally {
-      setShowEditModal(false);
-      setEditingPet(null);
+      setActionLoading(false);
     }
   };
-
-  const handleFilterChange = (newFilters) => {
-    setFilters(prev => ({ ...prev, ...newFilters }));
-  };
-
-  const handleRefresh = () => {
-    console.log('🔄 Manual refresh');
-    fetchPets(currentPage);
-  };
-
-  const columns = [
-    {
-      key: 'name',
-      label: 'Name',
-      render: (pet) => (
-        <div>
-          <strong>{pet.name}</strong>
-          <br />
-          <small className="text-muted">{pet.breed}</small>
-        </div>
-      )
-    },
-    {
-      key: 'category',
-      label: 'Type',
-      render: (pet) => (
-        <Badge bg="primary">{pet.category || pet.species || pet.type}</Badge>
-      )
-    },
-    {
-      key: 'age',
-      label: 'Age',
-      render: (pet) => `${pet.age || 'Unknown'}`
-    },
-    {
-      key: 'status',
-      label: 'Status',
-      render: (pet) => (
-        <Badge 
-          bg={pet.status === 'available' ? 'success' : 
-              pet.status === 'adopted' ? 'info' : 'warning'}
-        >
-          {pet.status || 'available'}
-        </Badge>
-      )
-    },
-    {
-      key: 'actions',
-      label: 'Actions',
-      render: (pet) => (
-        <div>
-          <Button 
-            variant="outline-primary" 
-            size="sm" 
-            className="me-2"
-            onClick={() => handleEditPet(pet)}
-          >
-            Edit
-          </Button>
-          <Button 
-            variant="outline-danger" 
-            size="sm"
-            onClick={() => handleDeletePet(pet)}
-          >
-            Delete
-          </Button>
-        </div>
-      )
-    }
-  ];
 
   if (loading) {
     return (
-      <div className="d-flex flex-column justify-content-center align-items-center" style={{ height: '50vh' }}>
-        <Spinner animation="border" variant="primary" />
-        <span className="ms-2 mt-3">Loading pets...</span>
+      <div className="admin-pets loading">
+        <div className="loading-spinner">Loading pets...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="admin-pets error">
+        <div className="error-message">
+          <h2>Error Loading Pets</h2>
+          <p>{error}</p>
+          <button onClick={() => window.location.reload()}>
+            Try Again
+          </button>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="admin-pets">
-      <Row className="mb-4">
-        <Col>
-          <div className="d-flex justify-content-between align-items-center">
-            <div>
-              <h2>Pets Management</h2>
-              <p className="text-muted mb-0">
-                Manage pet listings and information
-                <Badge bg="success" className="ms-2">
-                  {viewMode === 'all' 
-                    ? `${pets.length} pets total` 
-                    : `${pets.length} of ${pagination.totalPets || 0} pets`
-                  }
-                </Badge>
-              </p>
-            </div>
-            
-            {/* ✅ VIEW MODE CONTROLS */}
-            <div className="d-flex gap-3 align-items-center">
-              <div>
-                <Form.Label className="me-2 mb-0">View:</Form.Label>
-                <ButtonGroup size="sm">
-                  <Button 
-                    variant={viewMode === 'paginated' ? 'primary' : 'outline-primary'}
-                    onClick={() => handleViewModeChange('paginated')}
-                  >
-                    Paginated
-                  </Button>
-                  <Button 
-                    variant={viewMode === 'all' ? 'primary' : 'outline-primary'}
-                    onClick={() => handleViewModeChange('all')}
-                  >
-                    Show All
-                  </Button>
-                </ButtonGroup>
-              </div>
-              
-              {viewMode === 'paginated' && (
-                <div>
-                  <Form.Label className="me-2 mb-0">Per Page:</Form.Label>
-                  <Form.Select 
-                    size="sm" 
-                    value={itemsPerPage} 
-                    onChange={(e) => setItemsPerPage(parseInt(e.target.value))}
-                    style={{width: 'auto'}}
-                  >
-                    <option value={10}>10</option>
-                    <option value={20}>20</option>
-                    <option value={50}>50</option>
-                    <option value={100}>100</option>
-                  </Form.Select>
-                </div>
-              )}
-              
-              <Button variant="outline-secondary" size="sm" onClick={handleRefresh}>
-                <i className="fas fa-sync-alt me-2"></i>
-                Refresh
-              </Button>
-            </div>
-          </div>
-        </Col>
-      </Row>
+      <div className="admin-pets-header">
+        <div className="header-content">
+          <h1>Manage Pets</h1>
+          <p>Add, edit, and manage all pets in the system</p>
+        </div>
+        <div className="header-actions">
+          <Link to="/admin/pets/new" className="btn btn-primary">
+            ➕ Add New Pet
+          </Link>
+        </div>
+      </div>
 
-      {alert.show && (
-        <Alert variant={alert.variant} className="mb-4">
-          {alert.message}
-        </Alert>
+      {/* Filter Section */}
+      <div className="admin-filters">
+        <div className="filters-row">
+          {/* Search */}
+          <div className="filter-group">
+            <label>Search</label>
+            <input
+              type="text"
+              placeholder="Search pets..."
+              value={filters.search}
+              onChange={(e) => updateFilter('search', e.target.value)}
+            />
+          </div>
+
+          {/* Species Filter */}
+          <div className="filter-group">
+            <label>Species</label>
+            <select
+              value={filters.species}
+              onChange={(e) => updateFilter('species', e.target.value)}
+            >
+              <option value="">All Species</option>
+              {filterOptions.species.map(species => (
+                <option key={species} value={species}>{species}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Status Filter */}
+          <div className="filter-group">
+            <label>Status</label>
+            <select
+              value={filters.status}
+              onChange={(e) => updateFilter('status', e.target.value)}
+            >
+              <option value="">All Statuses</option>
+              {filterOptions.statuses.map(status => (
+                <option key={status} value={status}>
+                  {status.charAt(0).toUpperCase() + status.slice(1)}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Sort Controls */}
+          <div className="filter-group">
+            <label>Sort by</label>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+            >
+              <option value="newest">Newest First</option>
+              <option value="oldest">Oldest First</option>
+              <option value="name">Name</option>
+              <option value="species">Species</option>
+              <option value="updated">Last Updated</option>
+            </select>
+          </div>
+
+          {hasActiveFilters && (
+            <button
+              className="btn btn-secondary"
+              onClick={resetFilters}
+            >
+              Clear Filters
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Bulk Actions */}
+      {selectedPets.length > 0 && (
+        <div className="bulk-actions">
+          <div className="bulk-actions-info">
+            <span>{selectedPets.length} pet(s) selected</span>
+          </div>
+          <div className="bulk-actions-buttons">
+            <button
+              className="btn btn-sm"
+              onClick={() => handleBulkStatusUpdate('available')}
+              disabled={actionLoading}
+            >
+              Mark Available
+            </button>
+            <button
+              className="btn btn-sm"
+              onClick={() => handleBulkStatusUpdate('adopted')}
+              disabled={actionLoading}
+            >
+              Mark Adopted
+            </button>
+            <button
+              className="btn btn-sm"
+              onClick={() => handleBulkStatusUpdate('pending')}
+              disabled={actionLoading}
+            >
+              Mark Pending
+            </button>
+            <button
+              className="btn btn-sm btn-danger"
+              onClick={handleBulkDelete}
+              disabled={actionLoading}
+            >
+              Delete Selected
+            </button>
+          </div>
+        </div>
       )}
 
-      <Card>
-        <Card.Header>
-          <div className="d-flex justify-content-between align-items-center">
-            <h5 className="mb-0">
-              All Pets 
-              {viewMode === 'all' && (
-                <Badge bg="info" className="ms-2">Showing All</Badge>
-              )}
-            </h5>
-            <div className="d-flex gap-2">
-              <Button variant="success" size="sm">
-                <i className="fas fa-plus me-2"></i>
-                Add Pet
-              </Button>
-              <Button variant="outline-primary" size="sm">
-                <i className="fas fa-download me-2"></i>
-                Export
-              </Button>
-            </div>
+      {/* Results Summary */}
+      <div className="results-summary">
+        <p>
+          Showing {filterStats.filtered} of {filterStats.total} pets
+          {hasActiveFilters && ' (filtered)'}
+        </p>
+        <div className="stats">
+          <span className="stat available">
+            {filterStats.available} Available
+          </span>
+          <span className="stat pending">
+            {filterStats.pending} Pending
+          </span>
+          <span className="stat adopted">
+            {filterStats.adopted} Adopted
+          </span>
+        </div>
+      </div>
+
+      {/* Pets Table */}
+      <div className="pets-table-container">
+        {filteredPets.length === 0 ? (
+          <div className="no-pets-message">
+            <h3>No pets found</h3>
+            <p>Try adjusting your filters or add a new pet.</p>
+            <Link to="/admin/pets/new" className="btn btn-primary">
+              Add New Pet
+            </Link>
           </div>
-        </Card.Header>
-        
-        <Card.Body>
-          {/* ✅ FILTERS ROW */}
-          <Row className="mb-3">
-            <Col md={3}>
-              <Form.Control
-                placeholder="Search pets..."
-                value={filters.search}
-                onChange={(e) => handleFilterChange({ search: e.target.value })}
-              />
-            </Col>
-            <Col md={2}>
-              <Form.Select
-                value={filters.type}
-                onChange={(e) => handleFilterChange({ type: e.target.value })}
-              >
-                <option value="">All Types</option>
-                <option value="dog">Dogs</option>
-                <option value="cat">Cats</option>
-                <option value="bird">Birds</option>
-                <option value="fish">Fish</option>
-                <option value="small-pet">Small Pets</option>
-              </Form.Select>
-            </Col>
-            <Col md={2}>
-              <Form.Select
-                value={filters.status}
-                onChange={(e) => handleFilterChange({ status: e.target.value })}
-              >
-                <option value="">All Status</option>
-                <option value="available">Available</option>
-                <option value="adopted">Adopted</option>
-                <option value="pending">Pending</option>
-              </Form.Select>
-            </Col>
-            <Col md={2}>
-              <Button 
-                variant="outline-secondary" 
-                size="sm" 
-                onClick={() => setFilters({ search: "", category: "", type: "", status: "", available: "" })}
-              >
-                Clear Filters
-              </Button>
-            </Col>
-          </Row>
-
-          {/* ✅ DATA TABLE */}
-          <DataTable
-            data={pets}
-            columns={columns}
-            loading={loading}
-            pagination={viewMode === 'paginated' ? pagination : null}
-            onPageChange={viewMode === 'paginated' ? handlePageChange : null}
-          />
-
-          {/* ✅ PAGINATION CONTROLS (only show in paginated mode) */}
-          {viewMode === 'paginated' && pagination.totalPages > 1 && (
-            <div className="d-flex justify-content-center mt-4">
-              <Pagination>
-                <Pagination.First 
-                  disabled={currentPage === 1}
-                  onClick={() => handlePageChange(1)}
+        ) : (
+          <table className="pets-table">
+            <thead>
+              <tr>
+                <th>
+                  <input
+                    type="checkbox"
+                    checked={selectedPets.length === filteredPets.length}
+                    onChange={(e) => handleSelectAll(e.target.checked)}
+                  />
+                </th>
+                <th>Image</th>
+                <th>Name</th>
+                <th>Species</th>
+                <th>Breed</th>
+                <th>Age</th>
+                <th>Status</th>
+                <th>Added</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredPets.map(pet => (
+                <AdminPetRow
+                  key={pet.id}
+                  pet={pet}
+                  isSelected={selectedPets.includes(pet.id)}
+                  onSelect={(isSelected) => handlePetSelection(pet.id, isSelected)}
                 />
-                <Pagination.Prev 
-                  disabled={currentPage === 1}
-                  onClick={() => handlePageChange(currentPage - 1)}
-                />
-                
-                {/* Show page numbers */}
-                {[...Array(Math.min(pagination.totalPages, 5))].map((_, index) => {
-                  const pageNum = currentPage <= 3 ? index + 1 : currentPage - 2 + index;
-                  if (pageNum > pagination.totalPages) return null;
-                  
-                  return (
-                    <Pagination.Item
-                      key={pageNum}
-                      active={pageNum === currentPage}
-                      onClick={() => handlePageChange(pageNum)}
-                    >
-                      {pageNum}
-                    </Pagination.Item>
-                  );
-                })}
-                
-                <Pagination.Next 
-                  disabled={currentPage === pagination.totalPages}
-                  onClick={() => handlePageChange(currentPage + 1)}
-                />
-                <Pagination.Last 
-                  disabled={currentPage === pagination.totalPages}
-                  onClick={() => handlePageChange(pagination.totalPages)}
-                />
-              </Pagination>
-            </div>
-          )}
-        </Card.Body>
-      </Card>
-
-      {/* Edit and Delete Modals would go here */}
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
     </div>
+  );
+};
+
+// Admin Pet Row Component
+const AdminPetRow = ({ pet, isSelected, onSelect }) => {
+  const imageUrl = getOptimizedImageUrl(pet.image, { width: 60, height: 60 });
+  
+  return (
+    <tr className={`pet-row ${isSelected ? 'selected' : ''}`}>
+      <td>
+        <input
+          type="checkbox"
+          checked={isSelected}
+          onChange={(e) => onSelect(e.target.checked)}
+        />
+      </td>
+      <td>
+        <div className="pet-image-cell">
+          <SafeImage
+            src={imageUrl}
+            alt={pet.name}
+            className="pet-thumbnail"
+            isPet={true}
+          />
+          {!hasValidImageExtension(pet.image) && (
+            <span className="no-image-indicator" title="No valid image">
+              📷
+            </span>
+          )}
+        </div>
+      </td>
+      <td>
+        <div className="pet-name-cell">
+          <strong>{pet.name}</strong>
+          {pet.microchipId && (
+            <small>ID: {pet.microchipId}</small>
+          )}
+        </div>
+      </td>
+      <td>{pet.species}</td>
+      <td>{pet.breed}</td>
+      <td>{pet.age}</td>
+      <td>
+        <span className={`status-badge ${pet.status}`}>
+          {pet.status}
+        </span>
+      </td>
+      <td>
+        <small>
+          {new Date(pet.createdAt).toLocaleDateString()}
+        </small>
+      </td>
+      <td>
+        <div className="action-buttons">
+          <Link
+            to={`/admin/pets/${pet.id}`}
+            className="btn btn-sm btn-primary"
+            title="Edit Pet"
+          >
+            ✏️
+          </Link>
+          <Link
+            to={`/pets/${pet.id}`}
+            className="btn btn-sm btn-secondary"
+            title="View Pet"
+            target="_blank"
+          >
+            👁️
+          </Link>
+        </div>
+      </td>
+    </tr>
   );
 };
 

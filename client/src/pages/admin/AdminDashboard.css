@@ -1,0 +1,575 @@
+/* src/pages/admin/AdminDashboard.css */
+
+.admin-dashboard {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 20px;
+    background-color: #f8f9fa;
+    min-height: 100vh;
+  }
+  
+  /* Dashboard Header */
+  .dashboard-header {
+    text-align: center;
+    margin-bottom: 40px;
+    padding: 30px 20px;
+    background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+    color: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  }
+  
+  .dashboard-header h1 {
+    margin: 0 0 10px 0;
+    font-size: 32px;
+    font-weight: 600;
+  }
+  
+  .dashboard-header p {
+    margin: 0;
+    font-size: 16px;
+    opacity: 0.9;
+  }
+  
+  /* Alerts Section */
+  .alerts-section {
+    margin-bottom: 30px;
+  }
+  
+  .alerts-section h2 {
+    margin-bottom: 15px;
+    color: #2c3e50;
+    font-size: 24px;
+    font-weight: 600;
+  }
+  
+  .alerts-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .alert {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 15px;
+    border-radius: 8px;
+    border-left: 4px solid;
+  }
+  
+  .alert.warning {
+    background-color: #fff3cd;
+    border-left-color: #ffc107;
+    color: #856404;
+  }
+  
+  .alert.error {
+    background-color: #f8d7da;
+    border-left-color: #dc3545;
+    color: #721c24;
+  }
+  
+  .alert.info {
+    background-color: #cce7ff;
+    border-left-color: #007bff;
+    color: #004085;
+  }
+  
+  .alert.success {
+    background-color: #d4edda;
+    border-left-color: #28a745;
+    color: #155724;
+  }
+  
+  .alert-icon {
+    font-size: 18px;
+    margin-top: 2px;
+  }
+  
+  .alert-content h4 {
+    margin: 0 0 5px 0;
+    font-weight: 600;
+  }
+  
+  .alert-content p {
+    margin: 0 0 5px 0;
+  }
+  
+  .alert-content small {
+    opacity: 0.8;
+  }
+  
+  /* Stats Overview */
+  .stats-overview {
+    margin-bottom: 40px;
+  }
+  
+  .stats-overview h2 {
+    margin-bottom: 20px;
+    color: #2c3e50;
+    font-size: 24px;
+    font-weight: 600;
+  }
+  
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 20px;
+  }
+  
+  .stat-card {
+    background: white;
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+  
+  .stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+  }
+  
+  .stat-icon {
+    font-size: 48px;
+    opacity: 0.8;
+  }
+  
+  .stat-card.pets .stat-icon {
+    color: #ff6b6b;
+  }
+  
+  .stat-card.products .stat-icon {
+    color: #4ecdc4;
+  }
+  
+  .stat-card.users .stat-icon {
+    color: #45b7d1;
+  }
+  
+  .stat-card.adoptions .stat-icon {
+    color: #f39c12;
+  }
+  
+  .stat-content h3 {
+    margin: 0 0 8px 0;
+    color: #2c3e50;
+    font-size: 16px;
+    font-weight: 600;
+  }
+  
+  .stat-number {
+    font-size: 36px;
+    font-weight: 700;
+    color: #2c3e50;
+    margin-bottom: 8px;
+  }
+  
+  .stat-breakdown {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  
+  .stat-breakdown span {
+    font-size: 12px;
+    padding: 2px 6px;
+    border-radius: 10px;
+    font-weight: 500;
+  }
+  
+  .stat-breakdown .available {
+    background-color: #d4edda;
+    color: #155724;
+  }
+  
+  .stat-breakdown .pending {
+    background-color: #fff3cd;
+    color: #856404;
+  }
+  
+  .stat-breakdown .adopted {
+    background-color: #cce7ff;
+    color: #004085;
+  }
+  
+  .stat-link {
+    color: #007bff;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    transition: color 0.2s ease;
+  }
+  
+  .stat-link:hover {
+    color: #0056b3;
+  }
+  
+  /* Quick Actions */
+  .quick-actions {
+    margin-bottom: 40px;
+  }
+  
+  .quick-actions h2 {
+    margin-bottom: 20px;
+    color: #2c3e50;
+    font-size: 24px;
+    font-weight: 600;
+  }
+  
+  .actions-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 20px;
+  }
+  
+  .action-card {
+    background: white;
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    text-decoration: none;
+    color: inherit;
+    transition: all 0.2s ease;
+    text-align: center;
+  }
+  
+  .action-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+    text-decoration: none;
+    color: inherit;
+  }
+  
+  .action-icon {
+    font-size: 48px;
+    margin-bottom: 15px;
+    opacity: 0.8;
+  }
+  
+  .action-card h3 {
+    margin: 0 0 10px 0;
+    color: #2c3e50;
+    font-size: 18px;
+    font-weight: 600;
+  }
+  
+  .action-card p {
+    margin: 0;
+    color: #6c757d;
+    font-size: 14px;
+  }
+  
+  /* Recent Activity */
+  .recent-activity {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    gap: 20px;
+  }
+  
+  .activity-section {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+  }
+  
+  .activity-section h2 {
+    margin: 0;
+    padding: 20px;
+    background-color: #f8f9fa;
+    color: #2c3e50;
+    font-size: 18px;
+    font-weight: 600;
+    border-bottom: 1px solid #dee2e6;
+  }
+  
+  .no-data {
+    padding: 40px 20px;
+    text-align: center;
+    color: #6c757d;
+    font-style: italic;
+  }
+  
+  .pets-list,
+  .adoptions-list,
+  .products-list {
+    padding: 0;
+  }
+  
+  .recent-pet-card,
+  .recent-adoption-card,
+  .recent-product-card {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 15px 20px;
+    border-bottom: 1px solid #f8f9fa;
+    transition: background-color 0.2s ease;
+  }
+  
+  .recent-pet-card:hover,
+  .recent-adoption-card:hover,
+  .recent-product-card:hover {
+    background-color: #f8f9fa;
+  }
+  
+  .recent-pet-card:last-child,
+  .recent-adoption-card:last-child,
+  .recent-product-card:last-child {
+    border-bottom: none;
+  }
+  
+  .pet-image,
+  .adoption-pet-image,
+  .product-image {
+    width: 60px;
+    height: 60px;
+    border-radius: 8px;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+  
+  .pet-image img,
+  .adoption-pet-image img,
+  .product-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  
+  .pet-info,
+  .adoption-info,
+  .product-info {
+    flex: 1;
+    min-width: 0;
+  }
+  
+  .pet-info h4,
+  .adoption-info h4,
+  .product-info h4 {
+    margin: 0 0 5px 0;
+    color: #2c3e50;
+    font-size: 16px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  .pet-info p,
+  .adoption-info p,
+  .product-info p {
+    margin: 0 0 5px 0;
+    color: #6c757d;
+    font-size: 14px;
+  }
+  
+  .pet-info small,
+  .adoption-info small,
+  .product-info small {
+    color: #6c757d;
+    font-size: 12px;
+  }
+  
+  .status {
+    padding: 3px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+  }
+  
+  .status.available {
+    background-color: #d4edda;
+    color: #155724;
+  }
+  
+  .status.pending {
+    background-color: #fff3cd;
+    color: #856404;
+  }
+  
+  .status.adopted {
+    background-color: #cce7ff;
+    color: #004085;
+  }
+  
+  .pet-actions,
+  .product-actions {
+    flex-shrink: 0;
+  }
+  
+  .adoption-status {
+    flex-shrink: 0;
+  }
+  
+  .btn {
+    padding: 6px 12px;
+    border: none;
+    border-radius: 4px;
+    text-decoration: none;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  
+  .btn-sm {
+    padding: 4px 8px;
+    font-size: 11px;
+  }
+  
+  .btn-primary {
+    background-color: #007bff;
+    color: white;
+  }
+  
+  .btn-primary:hover {
+    background-color: #0056b3;
+  }
+  
+  .view-all-link {
+    display: block;
+    padding: 15px 20px;
+    background-color: #f8f9fa;
+    text-align: center;
+    color: #007bff;
+    text-decoration: none;
+    font-weight: 500;
+    transition: background-color 0.2s ease;
+  }
+  
+  .view-all-link:hover {
+    background-color: #e9ecef;
+    text-decoration: none;
+    color: #0056b3;
+  }
+  
+  /* Loading and Error States */
+  .admin-dashboard.loading,
+  .admin-dashboard.error {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 60vh;
+  }
+  
+  .loading-spinner {
+    font-size: 18px;
+    color: #6c757d;
+  }
+  
+  .error-message {
+    text-align: center;
+    color: #721c24;
+  }
+  
+  .error-message h2 {
+    color: #dc3545;
+    margin-bottom: 10px;
+  }
+  
+  .error-message button {
+    padding: 10px 20px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-top: 15px;
+  }
+  
+  .error-message button:hover {
+    background-color: #0056b3;
+  }
+  
+  /* Responsive Design */
+  @media (max-width: 1200px) {
+    .admin-dashboard {
+      padding: 15px;
+    }
+    
+    .stats-grid {
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    }
+    
+    .actions-grid {
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    }
+  }
+  
+  @media (max-width: 768px) {
+    .admin-dashboard {
+      padding: 10px;
+    }
+    
+    .dashboard-header {
+      padding: 20px 15px;
+    }
+    
+    .dashboard-header h1 {
+      font-size: 28px;
+    }
+    
+    .stats-grid {
+      grid-template-columns: 1fr;
+    }
+    
+    .stat-card {
+      padding: 20px;
+    }
+    
+    .actions-grid {
+      grid-template-columns: 1fr;
+    }
+    
+    .recent-activity {
+      grid-template-columns: 1fr;
+    }
+    
+    .recent-pet-card,
+    .recent-adoption-card,
+    .recent-product-card {
+      padding: 12px 15px;
+    }
+  }
+  
+  @media (max-width: 480px) {
+    .dashboard-header h1 {
+      font-size: 24px;
+    }
+    
+    .stat-card {
+      flex-direction: column;
+      text-align: center;
+      gap: 15px;
+    }
+    
+    .stat-number {
+      font-size: 28px;
+    }
+    
+    .action-card {
+      padding: 20px;
+    }
+    
+    .recent-pet-card,
+    .recent-adoption-card,
+    .recent-product-card {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 10px;
+    }
+    
+    .pet-image,
+    .adoption-pet-image,
+    .product-image {
+      width: 50px;
+      height: 50px;
+    }
+  }

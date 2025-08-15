@@ -1,574 +1,567 @@
-// client/src/pages/admin/AdminProducts.js - Product Management for Admins
-import React, { useState, useEffect, useCallback, useMemo } from "react";
-import {
-  Row,
-  Col,
-  Card,
-  Form,
-  Button,
-  Modal,
-  Alert,
-  Badge,
-  Spinner,
-  ButtonGroup,
-  Pagination
-} from "react-bootstrap";
-import DataTable from "../../components/DataTable";
-import axios from 'axios';
+// src/pages/admin/AdminProducts.js
+
+import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import SafeImage from '../../components/SafeImage';
+import { 
+  buildProductImageUrl, 
+  hasValidImageExtension
+} from '../../utils/imageUtils';
+import './AdminProducts.css';
 
 const AdminProducts = () => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [pagination, setPagination] = useState({});
-  const [currentPage, setCurrentPage] = useState(1);
-  const [viewMode, setViewMode] = useState('paginated'); // 'paginated' or 'all'
-  const [itemsPerPage, setItemsPerPage] = useState(20);
-  
+  const [error, setError] = useState(null);
+  const [selectedProducts, setSelectedProducts] = useState([]);
+  const [actionLoading, setActionLoading] = useState(false);
   const [filters, setFilters] = useState({
-    search: "",
-    category: "",
-    brand: "",
-    inStock: "",
-    priceRange: "",
+    search: '',
+    category: '',
+    status: '',
+    inStock: false
   });
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [editingProduct, setEditingProduct] = useState(null);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [deletingProduct, setDeletingProduct] = useState(null);
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [alert, setAlert] = useState({ show: false, message: "", variant: "" });
+  const [sortBy, setSortBy] = useState('newest');
 
-  // ✅ Stable API instance (same pattern as AdminPets)
-  const adminAPI = useMemo(() => {
-    const api = axios.create({
-      baseURL: process.env.NODE_ENV === 'production' 
-        ? 'https://furbabies-backend.onrender.com/api'
-        : 'http://localhost:5000/api',
-      timeout: 45000,
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      }
-    });
-
-    api.interceptors.request.use((config) => {
-      const token = localStorage.getItem('token');
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-      }
-      console.log(`📡 Admin Products Request: ${config.method?.toUpperCase()} ${config.url}`);
-      return config;
-    });
-
-    api.interceptors.response.use(
-      (response) => {
-        console.log(`✅ Admin Products Response: ${response.status} ${response.config.url}`);
-        return response;
-      },
-      (error) => {
-        console.error('❌ Admin Products Error:', error.response?.status, error.response?.data || error.message);
-        return Promise.reject(error);
-      }
-    );
-
-    return api;
-  }, []);
-
-  const fetchProducts = useCallback(
-    async (page = 1) => {
-      setLoading(true);
+  // Fetch products data
+  useEffect(() => {
+    const fetchProducts = async () => {
       try {
-        console.log(`🛒 Fetching admin products - Page: ${page}, ViewMode: ${viewMode}`);
-        
-        const params = new URLSearchParams({
-          page,
-          limit: viewMode === 'all' ? 10000 : itemsPerPage,
-          ...Object.fromEntries(
-            Object.entries(filters).filter(([_, value]) => value !== "")
-          )
+        setLoading(true);
+        const response = await fetch('/api/admin/products', {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+          }
         });
-
-        // ✅ Use existing /products endpoint (it has admin protection)
-        // or we could use /admin/products if that route exists
-        let endpoint = '/products';
-        
-        // Try admin-specific endpoint first, fallback to regular products endpoint
-        try {
-          const response = await adminAPI.get(`/admin/products?${params.toString()}`);
-          if (response.data.success) {
-            setProducts(response.data.data || []);
-            setPagination(response.data.pagination || {});
-            console.log(`✅ Admin products loaded: ${response.data.data?.length || 0} products`);
-          }
-        } catch (adminError) {
-          if (adminError.response?.status === 404) {
-            // Admin endpoint doesn't exist, use regular products endpoint
-            console.log('🔄 Admin products endpoint not found, using regular products endpoint...');
-            const response = await adminAPI.get(`/products?${params.toString()}`);
-            
-            if (response.data.success) {
-              setProducts(response.data.data || []);
-              setPagination(response.data.pagination || {});
-              console.log(`✅ Products loaded via regular endpoint: ${response.data.data?.length || 0} products`);
-            } else {
-              throw new Error(response.data.message || 'Failed to fetch products');
-            }
-          } else {
-            throw adminError;
-          }
+        if (!response.ok) {
+          throw new Error('Failed to fetch products');
         }
-        
-      } catch (error) {
-        console.error("❌ Error fetching products:", error);
-        
-        let errorMessage = "Error fetching products";
-        if (error.code === 'ECONNABORTED') {
-          errorMessage = "Request timed out. Please try again in a moment.";
-        } else if (error.response?.data?.message) {
-          errorMessage = error.response.data.message;
-        } else if (error.message) {
-          errorMessage = error.message;
-        }
-        
-        showAlert(errorMessage, error.code === 'ECONNABORTED' ? "warning" : "danger");
+        const data = await response.json();
+        setProducts(data);
+      } catch (err) {
+        setError(err.message);
       } finally {
         setLoading(false);
       }
-    },
-    [filters, adminAPI, viewMode, itemsPerPage]
-  );
+    };
 
-  // ✅ Load products on mount
-  useEffect(() => {
-    console.log('🔄 AdminProducts: Loading initial data');
-    fetchProducts(currentPage);
+    fetchProducts();
   }, []);
 
-  // ✅ Refetch when filters, view mode, or items per page change
-  useEffect(() => {
-    console.log('🔍 AdminProducts: Filters/ViewMode changed, refetching');
-    setCurrentPage(1);
-    fetchProducts(1);
-  }, [filters, viewMode, itemsPerPage]);
-
-  // ✅ Handle page changes
-  const handlePageChange = (page) => {
-    setCurrentPage(page);
-    fetchProducts(page);
-  };
-
-  // ✅ Handle view mode toggle
-  const handleViewModeChange = (mode) => {
-    console.log(`🔄 Switching view mode to: ${mode}`);
-    setViewMode(mode);
-    setCurrentPage(1);
-  };
-
-  const showAlert = (message, variant) => {
-    setAlert({ show: true, message, variant });
-    setTimeout(() => {
-      setAlert({ show: false, message: "", variant: "" });
-    }, 5000);
-  };
-
-  const handleEditProduct = (product) => {
-    setEditingProduct(product);
-    setShowEditModal(true);
-  };
-
-  const handleDeleteProduct = (product) => {
-    setDeletingProduct(product);
-    setShowDeleteModal(true);
-  };
-
-  const handleAddProduct = () => {
-    setShowAddModal(true);
-  };
-
-  const confirmDeleteProduct = async () => {
-    if (!deletingProduct) return;
-
-    try {
-      console.log('🗑️ Deleting product:', deletingProduct._id);
-      
-      // Try admin endpoint first, fallback to regular endpoint
-      let response;
-      try {
-        response = await adminAPI.delete(`/admin/products/${deletingProduct._id}`);
-      } catch (adminError) {
-        if (adminError.response?.status === 404) {
-          response = await adminAPI.delete(`/products/${deletingProduct._id}`);
-        } else {
-          throw adminError;
+  // Filter and sort products
+  const filteredProducts = React.useMemo(() => {
+    let filtered = products.filter(product => {
+      // Search filter
+      if (filters.search) {
+        const searchTerm = filters.search.toLowerCase();
+        const searchableText = [
+          product.name,
+          product.description,
+          product.category,
+          product.brand
+        ].filter(Boolean).join(' ').toLowerCase();
+        
+        if (!searchableText.includes(searchTerm)) {
+          return false;
         }
       }
-      
-      if (response.data.success) {
-        showAlert("Product deleted successfully", "success");
-        fetchProducts(currentPage);
-      } else {
-        throw new Error(response.data.message || 'Failed to delete product');
+
+      // Category filter
+      if (filters.category && product.category !== filters.category) {
+        return false;
       }
-      
-    } catch (error) {
-      console.error("❌ Error deleting product:", error);
-      showAlert(error.response?.data?.message || error.message || "Error deleting product", "danger");
-    } finally {
-      setShowDeleteModal(false);
-      setDeletingProduct(null);
-    }
+
+      // Status filter
+      if (filters.status && product.status !== filters.status) {
+        return false;
+      }
+
+      // In stock filter
+      if (filters.inStock && (!product.stock || product.stock <= 0)) {
+        return false;
+      }
+
+      return true;
+    });
+
+    // Sort products
+    filtered.sort((a, b) => {
+      let comparison = 0;
+
+      switch (sortBy) {
+        case 'name':
+          comparison = (a.name || '').localeCompare(b.name || '');
+          break;
+        case 'price':
+          comparison = (a.price || 0) - (b.price || 0);
+          break;
+        case 'stock':
+          comparison = (a.stock || 0) - (b.stock || 0);
+          break;
+        case 'category':
+          comparison = (a.category || '').localeCompare(b.category || '');
+          break;
+        case 'newest':
+          comparison = new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+          break;
+        case 'oldest':
+          comparison = new Date(a.createdAt || 0) - new Date(b.createdAt || 0);
+          break;
+        default:
+          comparison = 0;
+      }
+
+      return comparison;
+    });
+
+    return filtered;
+  }, [products, filters, sortBy]);
+
+  // Get unique categories for filter
+  const categories = React.useMemo(() => {
+    return [...new Set(products.map(product => product.category).filter(Boolean))].sort();
+  }, [products]);
+
+  // Get unique statuses for filter
+  const statuses = React.useMemo(() => {
+    return [...new Set(products.map(product => product.status).filter(Boolean))].sort();
+  }, [products]);
+
+  // Handle product selection for bulk actions
+  const handleProductSelection = (productId, isSelected) => {
+    setSelectedProducts(prev => 
+      isSelected 
+        ? [...prev, productId]
+        : prev.filter(id => id !== productId)
+    );
   };
 
-  const handleSaveEdit = async (updatedProductData) => {
-    if (!editingProduct) return;
+  // Handle select all products
+  const handleSelectAll = (isSelected) => {
+    setSelectedProducts(isSelected ? filteredProducts.map(product => product.id) : []);
+  };
+
+  // Handle bulk status update
+  const handleBulkStatusUpdate = async (newStatus) => {
+    if (selectedProducts.length === 0) return;
 
     try {
-      console.log('✏️ Updating product:', editingProduct._id);
-      
-      // Try admin endpoint first, fallback to regular endpoint
-      let response;
-      try {
-        response = await adminAPI.put(`/admin/products/${editingProduct._id}`, updatedProductData);
-      } catch (adminError) {
-        if (adminError.response?.status === 404) {
-          response = await adminAPI.put(`/products/${editingProduct._id}`, updatedProductData);
-        } else {
-          throw adminError;
+      setActionLoading(true);
+      const response = await fetch('/api/admin/products/bulk-update', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+        },
+        body: JSON.stringify({
+          productIds: selectedProducts,
+          updates: { status: newStatus }
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update products');
+      }
+
+      // Refresh products data
+      const updatedResponse = await fetch('/api/admin/products', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
         }
+      });
+      
+      if (updatedResponse.ok) {
+        const updatedData = await updatedResponse.json();
+        setProducts(updatedData);
       }
       
-      if (response.data.success) {
-        showAlert("Product updated successfully", "success");
-        fetchProducts(currentPage);
-      } else {
-        throw new Error(response.data.message || 'Failed to update product');
-      }
-      
-    } catch (error) {
-      console.error("❌ Error updating product:", error);
-      showAlert(error.response?.data?.message || error.message || "Error updating product", "danger");
+      setSelectedProducts([]);
+      alert(`Successfully updated ${selectedProducts.length} product(s) to ${newStatus}`);
+    } catch (err) {
+      console.error('Error updating products:', err);
+      alert(`Error updating products: ${err.message}`);
     } finally {
-      setShowEditModal(false);
-      setEditingProduct(null);
+      setActionLoading(false);
     }
   };
 
-  const handleAddProductSave = async (newProductData) => {
+  // Handle bulk delete
+  const handleBulkDelete = async () => {
+    if (selectedProducts.length === 0) return;
+
+    const confirmed = window.confirm(
+      `Are you sure you want to delete ${selectedProducts.length} product(s)? This action cannot be undone.`
+    );
+
+    if (!confirmed) return;
+
     try {
-      console.log('➕ Creating new product:', newProductData);
-      
-      // Try admin endpoint first, fallback to regular endpoint
-      let response;
-      try {
-        response = await adminAPI.post('/admin/products', newProductData);
-      } catch (adminError) {
-        if (adminError.response?.status === 404) {
-          response = await adminAPI.post('/products', newProductData);
-        } else {
-          throw adminError;
-        }
+      setActionLoading(true);
+      const response = await fetch('/api/admin/products/bulk-delete', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+        },
+        body: JSON.stringify({ productIds: selectedProducts })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete products');
       }
+
+      // Remove deleted products from state
+      setProducts(prev => prev.filter(product => !selectedProducts.includes(product.id)));
+      setSelectedProducts([]);
       
-      if (response.data.success) {
-        showAlert("Product created successfully", "success");
-        fetchProducts(currentPage);
-      } else {
-        throw new Error(response.data.message || 'Failed to create product');
-      }
-      
-    } catch (error) {
-      console.error("❌ Error creating product:", error);
-      showAlert(error.response?.data?.message || error.message || "Error creating product", "danger");
+      alert(`Successfully deleted ${selectedProducts.length} product(s)`);
+    } catch (err) {
+      console.error('Error deleting products:', err);
+      alert(`Error deleting products: ${err.message}`);
     } finally {
-      setShowAddModal(false);
+      setActionLoading(false);
     }
   };
 
-  const handleFilterChange = (newFilters) => {
-    setFilters(prev => ({ ...prev, ...newFilters }));
+  // Update filter
+  const updateFilter = (key, value) => {
+    setFilters(prev => ({
+      ...prev,
+      [key]: value
+    }));
   };
 
-  const handleRefresh = () => {
-    console.log('🔄 Manual refresh');
-    fetchProducts(currentPage);
+  // Reset filters
+  const resetFilters = () => {
+    setFilters({
+      search: '',
+      category: '',
+      status: '',
+      inStock: false
+    });
   };
 
-  const columns = [
-    {
-      key: 'name',
-      label: 'Product',
-      render: (product) => (
-        <div>
-          <strong>{product.name}</strong>
-          <br />
-          <small className="text-muted">{product.brand || 'No Brand'}</small>
-        </div>
-      )
-    },
-    {
-      key: 'category',
-      label: 'Category',
-      render: (product) => (
-        <Badge bg="primary">{product.category || 'Uncategorized'}</Badge>
-      )
-    },
-    {
-      key: 'price',
-      label: 'Price',
-      render: (product) => (
-        <strong className="text-success">
-          ${typeof product.price === 'number' ? product.price.toFixed(2) : '0.00'}
-        </strong>
-      )
-    },
-    {
-      key: 'inStock',
-      label: 'Stock',
-      render: (product) => (
-        <Badge 
-          bg={product.inStock !== false ? 'success' : 'danger'}
-        >
-          {product.inStock !== false ? 'In Stock' : 'Out of Stock'}
-        </Badge>
-      )
-    },
-    {
-      key: 'actions',
-      label: 'Actions',
-      render: (product) => (
-        <div>
-          <Button 
-            variant="outline-primary" 
-            size="sm" 
-            className="me-2"
-            onClick={() => handleEditProduct(product)}
-          >
-            Edit
-          </Button>
-          <Button 
-            variant="outline-danger" 
-            size="sm"
-            onClick={() => handleDeleteProduct(product)}
-          >
-            Delete
-          </Button>
-        </div>
-      )
-    }
-  ];
+  const hasActiveFilters = Object.values(filters).some(value => 
+    typeof value === 'boolean' ? value : Boolean(value)
+  );
 
   if (loading) {
     return (
-      <div className="d-flex flex-column justify-content-center align-items-center" style={{ height: '50vh' }}>
-        <Spinner animation="border" variant="primary" />
-        <span className="ms-2 mt-3">Loading products...</span>
+      <div className="admin-products loading">
+        <div className="loading-spinner">Loading products...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="admin-products error">
+        <div className="error-message">
+          <h2>Error Loading Products</h2>
+          <p>{error}</p>
+          <button onClick={() => window.location.reload()}>
+            Try Again
+          </button>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="admin-products">
-      <Row className="mb-4">
-        <Col>
-          <div className="d-flex justify-content-between align-items-center">
-            <div>
-              <h2>Products Management</h2>
-              <p className="text-muted mb-0">
-                Manage product inventory and information
-                <Badge bg="success" className="ms-2">
-                  {viewMode === 'all' 
-                    ? `${products.length} products total` 
-                    : `${products.length} of ${pagination.total || 0} products`
-                  }
-                </Badge>
-              </p>
-            </div>
-            
-            {/* ✅ VIEW MODE CONTROLS */}
-            <div className="d-flex gap-3 align-items-center">
-              <div>
-                <Form.Label className="me-2 mb-0">View:</Form.Label>
-                <ButtonGroup size="sm">
-                  <Button 
-                    variant={viewMode === 'paginated' ? 'primary' : 'outline-primary'}
-                    onClick={() => handleViewModeChange('paginated')}
-                  >
-                    Paginated
-                  </Button>
-                  <Button 
-                    variant={viewMode === 'all' ? 'primary' : 'outline-primary'}
-                    onClick={() => handleViewModeChange('all')}
-                  >
-                    Show All
-                  </Button>
-                </ButtonGroup>
-              </div>
-              
-              {viewMode === 'paginated' && (
-                <div>
-                  <Form.Label className="me-2 mb-0">Per Page:</Form.Label>
-                  <Form.Select 
-                    size="sm" 
-                    value={itemsPerPage} 
-                    onChange={(e) => setItemsPerPage(parseInt(e.target.value))}
-                    style={{width: 'auto'}}
-                  >
-                    <option value={10}>10</option>
-                    <option value={20}>20</option>
-                    <option value={50}>50</option>
-                    <option value={100}>100</option>
-                  </Form.Select>
-                </div>
-              )}
-              
-              <Button variant="outline-secondary" size="sm" onClick={handleRefresh}>
-                <i className="fas fa-sync-alt me-2"></i>
-                Refresh
-              </Button>
-            </div>
-          </div>
-        </Col>
-      </Row>
+      <div className="admin-products-header">
+        <div className="header-content">
+          <h1>Manage Products</h1>
+          <p>Add, edit, and manage all products in the store</p>
+        </div>
+        <div className="header-actions">
+          <Link to="/admin/products/new" className="btn btn-primary">
+            ➕ Add New Product
+          </Link>
+        </div>
+      </div>
 
-      {alert.show && (
-        <Alert variant={alert.variant} className="mb-4">
-          {alert.message}
-        </Alert>
+      {/* Filter Section */}
+      <div className="admin-filters">
+        <div className="filters-row">
+          {/* Search */}
+          <div className="filter-group">
+            <label htmlFor="product-search">Search</label>
+            <input
+              id="product-search"
+              type="text"
+              placeholder="Search products..."
+              value={filters.search}
+              onChange={(e) => updateFilter('search', e.target.value)}
+            />
+          </div>
+
+          {/* Category Filter */}
+          <div className="filter-group">
+            <label htmlFor="category-filter">Category</label>
+            <select
+              id="category-filter"
+              value={filters.category}
+              onChange={(e) => updateFilter('category', e.target.value)}
+            >
+              <option value="">All Categories</option>
+              {categories.map(category => (
+                <option key={category} value={category}>{category}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Status Filter */}
+          <div className="filter-group">
+            <label htmlFor="status-filter">Status</label>
+            <select
+              id="status-filter"
+              value={filters.status}
+              onChange={(e) => updateFilter('status', e.target.value)}
+            >
+              <option value="">All Statuses</option>
+              {statuses.map(status => (
+                <option key={status} value={status}>
+                  {status.charAt(0).toUpperCase() + status.slice(1)}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* In Stock Filter */}
+          <div className="filter-group checkbox-group">
+            <label>
+              <input
+                type="checkbox"
+                checked={filters.inStock}
+                onChange={(e) => updateFilter('inStock', e.target.checked)}
+              />
+              <span>In Stock Only</span>
+            </label>
+          </div>
+
+          {/* Sort Controls */}
+          <div className="filter-group">
+            <label htmlFor="sort-by">Sort by</label>
+            <select
+              id="sort-by"
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+            >
+              <option value="newest">Newest First</option>
+              <option value="oldest">Oldest First</option>
+              <option value="name">Name</option>
+              <option value="price">Price</option>
+              <option value="stock">Stock</option>
+              <option value="category">Category</option>
+            </select>
+          </div>
+
+          {hasActiveFilters && (
+            <button
+              className="btn btn-secondary"
+              onClick={resetFilters}
+            >
+              Clear Filters
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Bulk Actions */}
+      {selectedProducts.length > 0 && (
+        <div className="bulk-actions">
+          <div className="bulk-actions-info">
+            <span>{selectedProducts.length} product(s) selected</span>
+          </div>
+          <div className="bulk-actions-buttons">
+            <button
+              className="btn btn-sm"
+              onClick={() => handleBulkStatusUpdate('active')}
+              disabled={actionLoading}
+            >
+              {actionLoading ? 'Updating...' : 'Mark Active'}
+            </button>
+            <button
+              className="btn btn-sm"
+              onClick={() => handleBulkStatusUpdate('inactive')}
+              disabled={actionLoading}
+            >
+              {actionLoading ? 'Updating...' : 'Mark Inactive'}
+            </button>
+            <button
+              className="btn btn-sm"
+              onClick={() => handleBulkStatusUpdate('discontinued')}
+              disabled={actionLoading}
+            >
+              {actionLoading ? 'Updating...' : 'Mark Discontinued'}
+            </button>
+            <button
+              className="btn btn-sm btn-danger"
+              onClick={handleBulkDelete}
+              disabled={actionLoading}
+            >
+              {actionLoading ? 'Deleting...' : 'Delete Selected'}
+            </button>
+          </div>
+        </div>
       )}
 
-      <Card>
-        <Card.Header>
-          <div className="d-flex justify-content-between align-items-center">
-            <h5 className="mb-0">
-              All Products 
-              {viewMode === 'all' && (
-                <Badge bg="info" className="ms-2">Showing All</Badge>
-              )}
-            </h5>
-            <div className="d-flex gap-2">
-              <Button variant="success" size="sm" onClick={handleAddProduct}>
-                <i className="fas fa-plus me-2"></i>
-                Add Product
-              </Button>
-              <Button variant="outline-primary" size="sm">
-                <i className="fas fa-download me-2"></i>
-                Export
-              </Button>
-            </div>
+      {/* Results Summary */}
+      <div className="results-summary">
+        <p>
+          Showing {filteredProducts.length} of {products.length} products
+          {hasActiveFilters && ' (filtered)'}
+        </p>
+        <div className="stats">
+          <span className="stat active">
+            {products.filter(p => p.status === 'active').length} Active
+          </span>
+          <span className="stat inactive">
+            {products.filter(p => p.status === 'inactive').length} Inactive
+          </span>
+          <span className="stat out-of-stock">
+            {products.filter(p => !p.stock || p.stock <= 0).length} Out of Stock
+          </span>
+        </div>
+      </div>
+
+      {/* Products Table */}
+      <div className="products-table-container">
+        {filteredProducts.length === 0 ? (
+          <div className="no-products-message">
+            <h3>No products found</h3>
+            <p>Try adjusting your filters or add a new product.</p>
+            <Link to="/admin/products/new" className="btn btn-primary">
+              Add New Product
+            </Link>
           </div>
-        </Card.Header>
-        
-        <Card.Body>
-          {/* ✅ FILTERS ROW */}
-          <Row className="mb-3">
-            <Col md={3}>
-              <Form.Control
-                placeholder="Search products..."
-                value={filters.search}
-                onChange={(e) => handleFilterChange({ search: e.target.value })}
-              />
-            </Col>
-            <Col md={2}>
-              <Form.Select
-                value={filters.category}
-                onChange={(e) => handleFilterChange({ category: e.target.value })}
-              >
-                <option value="">All Categories</option>
-                <option value="toys">Toys</option>
-                <option value="food">Food</option>
-                <option value="accessories">Accessories</option>
-                <option value="health">Health</option>
-                <option value="grooming">Grooming</option>
-              </Form.Select>
-            </Col>
-            <Col md={2}>
-              <Form.Select
-                value={filters.inStock}
-                onChange={(e) => handleFilterChange({ inStock: e.target.value })}
-              >
-                <option value="">All Stock</option>
-                <option value="true">In Stock</option>
-                <option value="false">Out of Stock</option>
-              </Form.Select>
-            </Col>
-            <Col md={2}>
-              <Form.Select
-                value={filters.brand}
-                onChange={(e) => handleFilterChange({ brand: e.target.value })}
-              >
-                <option value="">All Brands</option>
-                <option value="purina">Purina</option>
-                <option value="kong">KONG</option>
-                <option value="hill's">Hill's</option>
-                <option value="royal canin">Royal Canin</option>
-              </Form.Select>
-            </Col>
-            <Col md={3}>
-              <Button 
-                variant="outline-secondary" 
-                size="sm" 
-                onClick={() => setFilters({ search: "", category: "", brand: "", inStock: "", priceRange: "" })}
-              >
-                Clear Filters
-              </Button>
-            </Col>
-          </Row>
-
-          {/* ✅ DATA TABLE */}
-          <DataTable
-            data={products}
-            columns={columns}
-            loading={loading}
-            pagination={viewMode === 'paginated' ? pagination : null}
-            onPageChange={viewMode === 'paginated' ? handlePageChange : null}
-          />
-
-          {/* ✅ PAGINATION CONTROLS (only show in paginated mode) */}
-          {viewMode === 'paginated' && pagination.pages > 1 && (
-            <div className="d-flex justify-content-center mt-4">
-              <Pagination>
-                <Pagination.First 
-                  disabled={currentPage === 1}
-                  onClick={() => handlePageChange(1)}
+        ) : (
+          <table className="products-table">
+            <thead>
+              <tr>
+                <th>
+                  <input
+                    type="checkbox"
+                    checked={selectedProducts.length === filteredProducts.length && filteredProducts.length > 0}
+                    onChange={(e) => handleSelectAll(e.target.checked)}
+                    aria-label="Select all products"
+                  />
+                </th>
+                <th>Image</th>
+                <th>Name</th>
+                <th>Category</th>
+                <th>Price</th>
+                <th>Stock</th>
+                <th>Status</th>
+                <th>Added</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredProducts.map(product => (
+                <AdminProductRow
+                  key={product.id}
+                  product={product}
+                  isSelected={selectedProducts.includes(product.id)}
+                  onSelect={(isSelected) => handleProductSelection(product.id, isSelected)}
                 />
-                <Pagination.Prev 
-                  disabled={currentPage === 1}
-                  onClick={() => handlePageChange(currentPage - 1)}
-                />
-                
-                {/* Show page numbers */}
-                {[...Array(Math.min(pagination.pages, 5))].map((_, index) => {
-                  const pageNum = currentPage <= 3 ? index + 1 : currentPage - 2 + index;
-                  if (pageNum > pagination.pages) return null;
-                  
-                  return (
-                    <Pagination.Item
-                      key={pageNum}
-                      active={pageNum === currentPage}
-                      onClick={() => handlePageChange(pageNum)}
-                    >
-                      {pageNum}
-                    </Pagination.Item>
-                  );
-                })}
-                
-                <Pagination.Next 
-                  disabled={currentPage === pagination.pages}
-                  onClick={() => handlePageChange(currentPage + 1)}
-                />
-                <Pagination.Last 
-                  disabled={currentPage === pagination.pages}
-                  onClick={() => handlePageChange(pagination.pages)}
-                />
-              </Pagination>
-            </div>
-          )}
-        </Card.Body>
-      </Card>
-
-      {/* TODO: Add Edit, Delete, and Add Product Modals */}
-      {/* These would be similar to AdminPets modals but with product fields */}
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
     </div>
+  );
+};
+
+// Admin Product Row Component
+const AdminProductRow = ({ product, isSelected, onSelect }) => {
+  const productImageUrl = buildProductImageUrl(product.image);
+  
+  return (
+    <tr className={`product-row ${isSelected ? 'selected' : ''}`}>
+      <td>
+        <input
+          type="checkbox"
+          checked={isSelected}
+          onChange={(e) => onSelect(e.target.checked)}
+          aria-label={`Select ${product.name}`}
+        />
+      </td>
+      <td>
+        <div className="product-image-cell">
+          <SafeImage
+            src={productImageUrl}
+            alt={product.name}
+            className="product-thumbnail"
+          />
+          {!hasValidImageExtension(product.image) && (
+            <span className="no-image-indicator" title="No valid image">
+              📷
+            </span>
+          )}
+        </div>
+      </td>
+      <td>
+        <div className="product-name-cell">
+          <strong>{product.name}</strong>
+          {product.brand && (
+            <small>by {product.brand}</small>
+          )}
+        </div>
+      </td>
+      <td>{product.category || 'Uncategorized'}</td>
+      <td>
+        <span className="price">
+          ${product.price ? product.price.toFixed(2) : '0.00'}
+        </span>
+      </td>
+      <td>
+        <div className="stock-cell">
+          <span className={`stock ${
+            product.stock <= 0 ? 'out-of-stock' : 
+            product.stock <= 10 ? 'low-stock' : 
+            'in-stock'
+          }`}>
+            {product.stock || 0}
+          </span>
+          {product.stock <= 10 && product.stock > 0 && (
+            <small className="low-stock-warning">Low Stock</small>
+          )}
+        </div>
+      </td>
+      <td>
+        <span className={`status-badge ${product.status || 'unknown'}`}>
+          {product.status || 'Unknown'}
+        </span>
+      </td>
+      <td>
+        <small>
+          {product.createdAt ? new Date(product.createdAt).toLocaleDateString() : 'Unknown'}
+        </small>
+      </td>
+      <td>
+        <div className="action-buttons">
+          <Link
+            to={`/admin/products/${product.id}`}
+            className="btn btn-sm btn-primary"
+            title="Edit Product"
+          >
+            ✏️
+          </Link>
+          <Link
+            to={`/products/${product.id}`}
+            className="btn btn-sm btn-secondary"
+            title="View Product"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            👁️
+          </Link>
+        </div>
+      </td>
+    </tr>
   );
 };
 

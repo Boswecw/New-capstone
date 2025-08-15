@@ -1,162 +1,187 @@
-// client/src/App.js - WITH TOASTIFY + SCROLLTOTOP IMPLEMENTED
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { AuthProvider } from './contexts/AuthContext';
-import { ToastProvider } from './contexts/ToastContext';
-import ErrorBoundary from './components/ErrorBoundary';
+// client/src/App.js - FINAL CLEAN VERSION w/ Cart integrated + Performance Monitor + Dev Filter Debug
+
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { AuthProvider } from "./contexts/AuthContext";
+import { ToastProvider } from "./contexts/ToastContext";
+import { CartProvider } from "./contexts/CartContext";
+import ErrorBoundary from "./components/ErrorBoundary";
 
 // Layout Components
-import Navbar from './components/Navbar';
-import Footer from './components/Footer';
-import ScrollToTop from './components/ScrollToTop';
+import Navbar from "./components/Navbar";
+import Footer from "./components/Footer";
+import ScrollToTop from "./components/ScrollToTop";
 
 // Toastify
-import { ToastContainer } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 // Pages
-import Home from './pages/Home';
-import Pets from './pages/Pets';
-import Browse from './pages/Browse';
-import PetDetail from './pages/PetDetail';
-import Products from './pages/Products';
-import ProductDetail from './pages/ProductDetail';
-import News from './pages/News';
-import NewsDetail from './pages/NewsDetail';
-import About from './pages/About';
-import Contact from './pages/Contact';
-import Login from './pages/Login';
-import Register from './pages/Register';
-import Profile from './pages/Profile';
-import NotFound from './pages/NotFound';
+import Home from "./pages/Home";
+import Pets from "./pages/Pets";
+import Browse from "./pages/Browse";
+import PetDetail from "./pages/PetDetail";
+import Products from "./pages/Products";
+import ProductDetail from "./pages/ProductDetail";
+import News from "./pages/News";
+import NewsDetail from "./pages/NewsDetail";
+import About from "./pages/About";
+import Contact from "./pages/Contact";
+import { LoginForm } from "./components/Form/AuthForms";
+import Register from "./pages/Register";
+import Profile from "./pages/Profile";
+import NotFound from "./pages/NotFound";
+import Cart from "./pages/Cart"; // ✅ new
 
 // Admin Pages
-import AdminDashboard from './pages/admin/AdminDashboard';
-import AdminUsers from './pages/admin/AdminUsers';
-import AdminPets from './pages/admin/AdminPets';
-import AdminProducts from './pages/admin/AdminProducts';
-import AdminContacts from './pages/admin/AdminContacts';
-import AdminReports from './pages/admin/AdminReports';
-import AdminAnalytics from './pages/admin/AdminAnalytics';
-import AdminSettings from './pages/admin/AdminSettings';
-import AdminNews from './pages/admin/AdminNews';
+import AdminDashboard from "./pages/admin/AdminDashboard";
+import AdminUsers from "./pages/admin/AdminUsers";
+import AdminPets from "./pages/admin/AdminPets";
+import AdminProducts from "./pages/admin/AdminProducts";
+import AdminContacts from "./pages/admin/AdminContacts";
+import AdminReports from "./pages/admin/AdminReports";
+import AdminAnalytics from "./pages/admin/AdminAnalytics";
+import AdminSettings from "./pages/admin/AdminSettings";
+import AdminNews from "./pages/admin/AdminNews";
+
+// Admin Route & Layout
+import AdminRoute from "./components/AdminRoute";
+import AdminLayout from "./components/admin/AdminLayout";
 
 // Protected Route
-import ProtectedRoute from './components/ProtectedRoute';
+import ProtectedRoute from "./components/ProtectedRoute";
 
-// Bootstrap & Custom Styles
-import 'bootstrap/dist/css/bootstrap.min.css';
-import './App.css';
+// Styles
+import "bootstrap/dist/css/bootstrap.min.css";
+import "./styles/globals.css";
+
+// ============================================
+// Performance Monitoring (kept in this file, outside JSX)
+// ============================================
+export const performanceMonitor = {
+  logFilterPerformance: (filterName, startTime) => {
+    const endTime = Date.now();
+    const duration = endTime - startTime;
+    // eslint-disable-next-line no-console
+    console.log(`⚡ ${filterName} completed in ${duration}ms`);
+    if (duration > 1000) {
+      // eslint-disable-next-line no-console
+      console.warn(`🐌 Slow filter detected: ${filterName} took ${duration}ms`);
+    }
+  },
+
+  logImageLoadPerformance: (imageSrc, startTime, success) => {
+    const endTime = Date.now();
+    const duration = endTime - startTime;
+    const status = success ? "✅" : "❌";
+    // eslint-disable-next-line no-console
+    console.log(`🖼️ ${status} Image load: ${imageSrc} (${duration}ms)`);
+  },
+};
+
+// Expose globally in dev for quick console access (optional)
+if (process.env.NODE_ENV !== "production") {
+  // eslint-disable-next-line no-undef
+  window.performanceMonitor = performanceMonitor;
+}
+
+// 🔧 Dev-only: install global /api/pets fetch monitor + test runners
+if (process.env.NODE_ENV !== "production") {
+  import("./dev/filterDebug").then((m) => m?.setupFilterDebug?.());
+}
 
 function App() {
   return (
     <ErrorBoundary>
       <AuthProvider>
         <ToastProvider>
-          <Router>
-            <ScrollToTop />
-            <div className="App d-flex flex-column min-vh-100">
-              {/* Navigation */}
-              <Navbar />
+          <CartProvider>
+            <Router>
+              <ScrollToTop />
+              <div className="App d-flex flex-column min-vh-100">
+                {/* Navigation */}
+                <Navbar />
 
-              {/* Toastify Container */}
-              <ToastContainer 
-                position="top-right"
-                autoClose={3000}
-                hideProgressBar={false}
-                newestOnTop={false}
-                closeOnClick
-                rtl={false}
-                pauseOnFocusLoss
-                draggable
-                pauseOnHover
-              />
+                {/* Toasts */}
+                <ToastContainer
+                  position="top-right"
+                  autoClose={3000}
+                  hideProgressBar={false}
+                  newestOnTop={false}
+                  closeOnClick
+                  rtl={false}
+                  pauseOnFocusLoss
+                  draggable
+                  pauseOnHover
+                />
 
-              {/* Main Content */}
-              <main className="flex-grow-1">
-                <Routes>
-                  {/* Public Routes */}
-                  <Route path="/" element={<Home />} />
-                  <Route path="/home" element={<Home />} />
-                  <Route path="/pets" element={<Pets />} />
-                  <Route path="/browse" element={<Browse />} />
-                  <Route path="/pets/:id" element={<PetDetail />} />
-                  <Route path="/products" element={<Products />} />
-                  <Route path="/products/:id" element={<ProductDetail />} />
-                  <Route path="/news" element={<News />} />
-                  <Route path="/news/:id" element={<NewsDetail />} />
-                  <Route path="/about" element={<About />} />
-                  <Route path="/contact" element={<Contact />} />
-                  <Route path="/login" element={<Login />} />
-                  <Route path="/register" element={<Register />} />
+                {/* Main Content */}
+                <main className="flex-grow-1">
+                  <Routes>
+                    {/* Public Routes */}
+                    <Route path="/" element={<Home />} />
+                    <Route path="/home" element={<Home />} />
+                    <Route path="/pets" element={<Pets />} />
+                    <Route path="/browse" element={<Browse />} />
+                    <Route path="/pets/:id" element={<PetDetail />} />
+                    <Route path="/products" element={<Products />} />
+                    <Route path="/products/:id" element={<ProductDetail />} />
+                    <Route path="/news" element={<News />} />
+                    <Route path="/news/:id" element={<NewsDetail />} />
+                    <Route path="/about" element={<About />} />
+                    <Route path="/contact" element={<Contact />} />
+                    <Route path="/login" element={<LoginForm />} />
+                    <Route path="/register" element={<Register />} />
+                    <Route path="/cart" element={<Cart />} /> {/* ✅ new */}
 
-                  {/* Protected User Route */}
-                  <Route path="/profile" element={
-                    <ProtectedRoute>
-                      <Profile />
-                    </ProtectedRoute>
-                  } />
+                    {/* Protected User Route */}
+                    <Route
+                      path="/profile"
+                      element={
+                        <ProtectedRoute>
+                          <Profile />
+                        </ProtectedRoute>
+                      }
+                    />
 
-                  {/* Admin Routes */}
-                  <Route path="/admin" element={
-                    <ProtectedRoute adminOnly>
-                      <AdminDashboard />
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/admin/dashboard" element={
-                    <ProtectedRoute adminOnly>
-                      <AdminDashboard />
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/admin/users" element={
-                    <ProtectedRoute adminOnly>
-                      <AdminUsers />
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/admin/pets" element={
-                    <ProtectedRoute adminOnly>
-                      <AdminPets />
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/admin/products" element={
-                    <ProtectedRoute adminOnly>
-                      <AdminProducts />
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/admin/contacts" element={
-                    <ProtectedRoute adminOnly>
-                      <AdminContacts />
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/admin/reports" element={
-                    <ProtectedRoute adminOnly>
-                      <AdminReports />
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/admin/analytics" element={
-                    <ProtectedRoute adminOnly>
-                      <AdminAnalytics />
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/admin/settings" element={
-                    <ProtectedRoute adminOnly>
-                      <AdminSettings />
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/admin/news" element={
-                    <ProtectedRoute adminOnly>
-                      <AdminNews />
-                    </ProtectedRoute>
-                  } />
+                    {/* Admin Routes (Protected and Nested) */}
+                    <Route
+                      path="/admin"
+                      element={
+                        <AdminRoute>
+                          <AdminLayout />
+                        </AdminRoute>
+                      }
+                    >
+                      <Route index element={<AdminDashboard />} />
+                      <Route path="users" element={<AdminUsers />} />
+                      <Route path="pets" element={<AdminPets />} />
+                      <Route path="products" element={<AdminProducts />} />
+                      <Route path="contacts" element={<AdminContacts />} />
+                      <Route path="reports" element={<AdminReports />} />
+                      <Route path="analytics" element={<AdminAnalytics />} />
+                      <Route path="settings" element={<AdminSettings />} />
+                    </Route>
 
-                  {/* 404 Not Found */}
-                  <Route path="*" element={<NotFound />} />
-                </Routes>
-              </main>
+                    {/* Admin News Page (also protected separately) */}
+                    <Route
+                      path="/admin/news"
+                      element={
+                        <ProtectedRoute adminOnly>
+                          <AdminNews />
+                        </ProtectedRoute>
+                      }
+                    />
 
-              {/* Footer */}
-              <Footer />
-            </div>
-          </Router>
+                    {/* 404 Page */}
+                    <Route path="*" element={<NotFound />} />
+                  </Routes>
+                </main>
+
+                {/* Footer */}
+                <Footer />
+              </div>
+            </Router>
+          </CartProvider>
         </ToastProvider>
       </AuthProvider>
     </ErrorBoundary>

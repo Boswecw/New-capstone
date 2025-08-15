@@ -1,231 +1,191 @@
-// client/src/components/SafeImage.js - FIXED ESLint errors
-import React, { useState, useEffect, useCallback } from 'react';
-import PropTypes from 'prop-types';
+// src/components/SafeImage.js
+import React, { useState, useEffect } from 'react';
+import {
+  buildImageUrl,
+  buildPetImageUrl,
+  buildProductImageUrl,
+  validateImageUrl,
+  DEFAULT_PET_IMAGE,
+  DEFAULT_PRODUCT_IMAGE
+} from '../utils/imageUtils';
 
-// ✅ SOLUTION: Move FALLBACK_IMAGES outside component to avoid dependency issues
-const FALLBACK_IMAGES = {
-  dog: 'https://images.unsplash.com/photo-1583337130417-3346a1be7dee?w=400&h=300&fit=crop&q=80&auto=format',
-  cat: 'https://images.unsplash.com/photo-1574144611937-0df059b5ef3e?w=400&h=300&fit=crop&q=80&auto=format',
-  fish: 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400&h=300&fit=crop&q=80&auto=format',
-  bird: 'https://images.unsplash.com/photo-1520637836862-4d197d17c448?w=400&h=300&fit=crop&q=80&auto=format',
-  rabbit: 'https://images.unsplash.com/photo-1585110396000-c9ffd4e4b308?w=400&h=300&fit=crop&q=80&auto=format',
-  'small-pet': 'https://images.unsplash.com/photo-1425082661705-1834bfd09dca?w=400&h=300&fit=crop&q=80&auto=format',
-  hamster: 'https://images.unsplash.com/photo-1425082661705-1834bfd09dca?w=400&h=300&fit=crop&q=80&auto=format',
-  product: 'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400&h=300&fit=crop&q=80&auto=format',
-  food: 'https://images.unsplash.com/photo-1589924691995-400dc9ecc119?w=400&h=300&fit=crop&q=80&auto=format',
-  toy: 'https://images.unsplash.com/photo-1594149929161-86070191b966?w=400&h=300&fit=crop&q=80&auto=format',
-  accessories: 'https://images.unsplash.com/photo-1601758228041-f3b2795255f1?w=400&h=300&fit=crop&q=80&auto=format',
-  default: 'https://images.unsplash.com/photo-1548767797-d8c844163c4c?w=400&h=300&fit=crop&q=80&auto=format'
-};
-
-// ✅ SOLUTION: Move category mappings outside component
-const CATEGORY_MAPPINGS = {
-  'dog': 'dog',
-  'cat': 'cat', 
-  'bird': 'bird',
-  'fish': 'fish',
-  'rabbit': 'rabbit',
-  'hamster': 'small-pet',
-  'guinea pig': 'small-pet',
-  'ferret': 'small-pet',
-  'other': 'default',
-  'general': 'product',
-  'toys': 'toy',
-  'accessories': 'accessories',
-  'health': 'product'
-};
-
-// ✅ SOLUTION: Move backend URL logic outside component
-const getBackendUrl = () => {
-  return process.env.NODE_ENV === 'production' 
-    ? 'https://furbabies-backend.onrender.com'
-    : 'http://localhost:5000';
-};
-
+/**
+ * SafeImage component that handles image loading with fallbacks.
+ *
+ * Props:
+ * - src?: string                 Explicit image URL/path
+ * - item?: object                Entity object (may contain image fields)
+ * - entityType?: 'pet'|'product' Used to choose URL builder & default fallback (default: 'pet')
+ * - alt?: string                 Alt text
+ * - className?: string           CSS class for the container
+ * - style?: object               Inline styles for the <img>
+ * - showLoader?: boolean         Show loading placeholder (default: false)
+ * - fallback?: string            Custom fallback image
+ * - onLoad?: (evt) => void       Callback when image loads
+ * - onError?: (err) => void      Callback when image fails
+ * - optimization?: object        Reserved for future use (sizes, fit, etc.)
+ * - ...imgProps                  Spread onto <img>
+ */
 const SafeImage = ({
   src,
   item,
-  category = 'default',
+  entityType = 'pet',
   alt = '',
   className = '',
   style = {},
-  size = 'medium',
+  showLoader = false,
+  fallback,
   onLoad,
   onError,
-  showLoader = false,
-  ...props
+  optimization = {},
+  ...imgProps
 }) => {
   const [imageSrc, setImageSrc] = useState('');
+  const [imageError, setImageError] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
 
-  // ✅ FIXED: Now uses stable external constants
-  const getFallbackImage = useCallback(() => {
-    let fallbackCategory = category?.toLowerCase() || 'default';
-    
+  // Determine the best candidate for the source image.
+  const resolveSource = () => {
+    if (src) return src;
     if (item) {
-      if (item.type) {
-        fallbackCategory = item.type.toLowerCase();
-      } else if (item.category) {
-        fallbackCategory = item.category.toLowerCase();
-      }
+      // Try a few common fields
+      return item.image || item.imageUrl || item.imagePath || '';
     }
+    return '';
+  };
 
-    const mappedCategory = CATEGORY_MAPPINGS[fallbackCategory] || fallbackCategory;
-    return FALLBACK_IMAGES[mappedCategory] || FALLBACK_IMAGES.default;
-  }, [category, item]); // ✅ FIXED: Clean dependencies
-
-  const buildImageUrl = useCallback(() => {
-    if (!item && !src) {
-      return getFallbackImage();
-    }
-
-    let imagePath = src;
-    
-    if (!imagePath && item) {
-      imagePath = item.image || item.imageUrl || item.imageFile || item.photo;
-    }
-
-    if (!imagePath) {
-      return getFallbackImage();
-    }
-
-    let cleanPath = imagePath;
-    
-    if (cleanPath.startsWith('/')) {
-      cleanPath = cleanPath.substring(1);
-    }
-    
-    if (cleanPath.startsWith('images/')) {
-      cleanPath = cleanPath.substring(7);
-    }
-    
-    if (cleanPath.startsWith('http://') || cleanPath.startsWith('https://')) {
-      return cleanPath;
-    }
-
-    const backendUrl = getBackendUrl();
-    return `${backendUrl}/api/images/gcs/${cleanPath}`;
-  }, [src, item, getFallbackImage]);
+  // Determine fallback based on entity type if not explicitly provided.
+  const resolveFallback = () => {
+    if (fallback) return fallback;
+    return entityType === 'product' ? DEFAULT_PRODUCT_IMAGE : DEFAULT_PET_IMAGE;
+  };
 
   useEffect(() => {
     let isMounted = true;
-    
+
     const loadImage = async () => {
+      const candidate = resolveSource();
+      const fb = resolveFallback();
+
+      if (!candidate) {
+        if (!isMounted) return;
+        setImageSrc(fb);
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
-      setError(false);
-      
-      const imageUrl = buildImageUrl();
-      
-      const img = new Image();
-      
-      img.onload = () => {
-        if (isMounted) {
+      setImageError(false);
+
+      try {
+        // Build the image URL based on entity type
+        const imageUrl =
+          entityType === 'product'
+            ? buildProductImageUrl(candidate, fb)
+            : entityType === 'pet'
+              ? buildPetImageUrl(candidate, fb)
+              : buildImageUrl(candidate);
+
+        // Validate the image URL
+        const isValid = await validateImageUrl(imageUrl);
+
+        if (!isMounted) return;
+
+        if (isValid) {
           setImageSrc(imageUrl);
-          setLoading(false);
-          setError(false);
-          if (onLoad) onLoad();
+        } else {
+          setImageSrc(fb);
+          setImageError(true);
+          onError && onError(new Error(`Failed to load image: ${imageUrl}`));
         }
-      };
-      
-      img.onerror = () => {
-        if (isMounted) {
-          const fallbackUrl = getFallbackImage();
-          
-          const fallbackImg = new Image();
-          fallbackImg.onload = () => {
-            if (isMounted) {
-              setImageSrc(fallbackUrl);
-              setLoading(false);
-              setError(false);
-            }
-          };
-          
-          fallbackImg.onerror = () => {
-            if (isMounted) {
-              setLoading(false);
-              setError(true);
-              if (onError) onError();
-            }
-          };
-          
-          fallbackImg.src = fallbackUrl;
-        }
-      };
-      
-      img.src = imageUrl;
+        setLoading(false);
+      } catch (error) {
+        if (!isMounted) return;
+        const fb = resolveFallback();
+        setImageSrc(fb);
+        setImageError(true);
+        setLoading(false);
+        onError && onError(error);
+      }
     };
 
     loadImage();
-    
+
     return () => {
       isMounted = false;
     };
-  }, [buildImageUrl, getFallbackImage, onLoad, onError]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [src, item, entityType, fallback]);
 
-  // Enhanced loading component
-  if (loading && showLoader) {
-    return (
-      <div 
-        className={`d-flex align-items-center justify-content-center bg-light ${className}`}
-        style={{ 
-          ...style, 
-          minHeight: style.height || '200px',
-          width: style.width || '100%'
-        }}
-      >
-        <div className="text-center">
-          <div className="spinner-border spinner-border-sm text-primary mb-2" role="status">
-            <span className="visually-hidden">Loading...</span>
-          </div>
-          <div className="small text-muted">Loading image...</div>
-        </div>
-      </div>
-    );
-  }
+  const handleLoad = (event) => {
+    setLoading(false);
+    onLoad && onLoad(event);
+  };
 
-  // Enhanced error component
-  if (error) {
-    return (
-      <div 
-        className={`d-flex align-items-center justify-content-center bg-light ${className}`}
-        style={{ 
-          ...style, 
-          minHeight: style.height || '200px',
-          width: style.width || '100%'
-        }}
-      >
-        <div className="text-center text-muted">
-          <i className="fas fa-image fa-2x mb-2"></i>
-          <div className="small">Image not available</div>
-        </div>
-      </div>
-    );
-  }
+  const handleError = () => {
+    if (!imageError) {
+      const fb = resolveFallback();
+      setImageSrc(fb);
+      setImageError(true);
+      onError && onError(new Error('Image failed to load'));
+    }
+  };
+
+  const imageStyle = {
+    opacity: loading ? 0.7 : 1,
+    transition: 'opacity 0.3s ease',
+    ...style
+  };
 
   return (
-    <img
-      src={imageSrc}
-      alt={alt || (item?.name ? `Photo of ${item.name}` : 'Image')}
-      className={className}
-      style={style}
-      loading="lazy"
-      {...props}
-    />
-  );
-};
+    <div className={`safe-image-container ${className}`} style={{ position: 'relative' }}>
+      {showLoader && loading && (
+        <div
+          className="image-loading-placeholder"
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: '#f0f0f0',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '12px',
+            color: '#666'
+          }}
+        >
+          Loading...
+        </div>
+      )}
 
-SafeImage.propTypes = {
-  src: PropTypes.string,
-  item: PropTypes.object,
-  category: PropTypes.string,
-  alt: PropTypes.string,
-  className: PropTypes.string,
-  style: PropTypes.object,
-  size: PropTypes.oneOf(['thumbnail', 'small', 'medium', 'large', 'card', 'hero']),
-  onLoad: PropTypes.func,
-  onError: PropTypes.func,
-  showLoader: PropTypes.bool
+      <img
+        src={imageSrc}
+        alt={alt}
+        style={imageStyle}
+        onLoad={handleLoad}
+        onError={handleError}
+        {...imgProps}
+      />
+
+      {imageError && (
+        <div
+          className="image-error-indicator"
+          style={{
+            position: 'absolute',
+            top: 2,
+            right: 2,
+            background: 'rgba(255, 0, 0, 0.7)',
+            color: 'white',
+            padding: '2px 4px',
+            fontSize: '10px',
+            borderRadius: '2px'
+          }}
+          title="Image failed to load"
+        >
+          !
+        </div>
+      )}
+    </div>
+  );
 };
 
 export default SafeImage;

@@ -1,8 +1,9 @@
-// client/src/pages/News.js - News listing page
+// client/src/pages/News.js - UPDATED with custom Button system
 import React, { useState, useEffect, useCallback } from 'react';
-import { Container, Row, Col, Card, Button, Form, Spinner, Alert, Badge } from 'react-bootstrap';
+import { Container, Row, Col, Card, Form, Spinner, Alert, Badge } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 import { newsAPI } from '../services/api';
+import Button from '../components/button/Button.jsx'; // ✅ ADDED: Custom Button component
 
 const News = () => {
   // State management
@@ -215,7 +216,8 @@ const News = () => {
 
             {/* Clear Filters */}
             <Col md={1} className="mb-3 d-flex align-items-end">
-              <Button variant="outline-secondary" onClick={clearFilters} className="w-100">
+              {/* ✅ UPDATED: Custom Button */}
+              <Button variant="secondary" onClick={clearFilters} className="w-100">
                 Clear
               </Button>
             </Col>
@@ -319,28 +321,35 @@ const News = () => {
                         {/* Action Button */}
                         <div className="mt-auto">
                           {isExternal ? (
-                            <Button
-                              variant="outline-primary"
-                              size="sm"
+                            <a
                               href={articleLink}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="w-100"
+                              className="text-decoration-none d-block"
                             >
-                              <i className="fas fa-external-link-alt me-2"></i>
-                              Read Full Article
-                            </Button>
+                              <Button
+                                variant="secondary"
+                                size="small"
+                                className="w-100"
+                              >
+                                <i className="fas fa-external-link-alt me-2"></i>
+                                Read Full Article
+                              </Button>
+                            </a>
                           ) : (
-                            <Button
-                              variant="outline-primary"
-                              size="sm"
-                              as={Link}
+                            <Link
                               to={articleLink}
-                              className="w-100"
+                              className="text-decoration-none d-block"
                             >
-                              <i className="fas fa-arrow-right me-2"></i>
-                              Read More
-                            </Button>
+                              <Button
+                                variant="secondary"
+                                size="small"
+                                className="w-100"
+                              >
+                                <i className="fas fa-arrow-right me-2"></i>
+                                Read More
+                              </Button>
+                            </Link>
                           )}
                         </div>
                       </Card.Body>

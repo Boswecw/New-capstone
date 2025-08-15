@@ -1,12 +1,13 @@
-// client/src/components/Navbar.js - CLEANED UP TOAST IMPORTS
-import React, { useState, useContext } from 'react';
+// client/src/components/Navbar.js - RESOLVED CONFLICT VERSION
+import React, { useState } from 'react';
 import { Navbar, Nav, Container, Button, NavDropdown } from 'react-bootstrap';
 import { Link, useNavigate } from 'react-router-dom';
-import AuthContext from '../contexts/AuthContext';
+import { useAuth } from '../contexts/AuthContext';
+import './Navbar.css';
 
 const AppNavbar = () => {
   const [expanded, setExpanded] = useState(false);
-  const { user, logout } = useContext(AuthContext);
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = () => {

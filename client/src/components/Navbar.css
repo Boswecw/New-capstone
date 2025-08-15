@@ -1,214 +1,444 @@
-/* Add to your App.css or create a new CSS file */
-
 /* =============================================================================
-   NAVBAR ACTIVE STATE STYLES
+   ENHANCED NAVBAR - MATCHING CARDS DESIGN SYSTEM
    ============================================================================= */
 
-/* Active navbar links */
-.navbar-nav .nav-link.active {
-  color: #0d6efd !important;
+/* Enhanced Navbar Base */
+.navbar {
+  background: linear-gradient(135deg, #212529 0%, #343a40 100%) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+  transition: all 0.3s ease !important;
+  backdrop-filter: blur(10px) !important;
+}
+
+/* Enhanced Navbar Brand */
+.navbar-brand {
   font-weight: 600 !important;
-  background-color: rgba(13, 110, 253, 0.1) !important;
-  border-radius: 0.25rem !important;
+  font-size: 1.5rem !important;
+  color: #ffffff !important;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3) !important;
+  transition: all 0.3s ease !important;
 }
 
-/* Active navbar dropdown */
-.navbar-nav .nav-item.dropdown.active > .nav-link {
-  color: #0d6efd !important;
-  font-weight: 600 !important;
-  background-color: rgba(13, 110, 253, 0.1) !important;
-  border-radius: 0.25rem !important;
-}
-
-/* Hover states for navbar links */
-.navbar-nav .nav-link:hover {
-  color: #0d6efd !important;
-  background-color: rgba(13, 110, 253, 0.05) !important;
-  border-radius: 0.25rem !important;
-  transition: all 0.2s ease-in-out !important;
-}
-
-/* Dropdown active state */
-.navbar-nav .dropdown-menu .dropdown-item.active {
-  background-color: #0d6efd !important;
-  color: white !important;
-}
-
-/* Custom navbar brand hover */
 .navbar-brand:hover {
-  color: #0d6efd !important;
-  transition: color 0.2s ease-in-out !important;
+  color: #ffc107 !important;
+  transform: translateY(-1px) !important;
+  text-shadow: 0 4px 8px rgba(255, 193, 7, 0.3) !important;
+}
+
+.navbar-brand:focus {
+  outline: 2px solid #ffc107 !important;
+  outline-offset: 2px !important;
+  border-radius: 8px !important;
 }
 
 /* =============================================================================
-   NAVBAR RESPONSIVE IMPROVEMENTS
+   ENHANCED NAVIGATION LINKS - CARDS SYSTEM STYLING
    ============================================================================= */
 
-/* Mobile navbar improvements */
-@media (max-width: 991.98px) {
-  .navbar-nav .nav-link {
-    padding: 0.75rem 1rem !important;
-    margin: 0.125rem 0 !important;
-  }
-  
-  .navbar-nav .nav-link.active {
-    background-color: rgba(13, 110, 253, 0.15) !important;
-    margin: 0.125rem 0 !important;
-  }
+/* Enhanced Nav Links */
+.navbar-nav .nav-link {
+  color: rgba(255, 255, 255, 0.9) !important;
+  font-weight: 500 !important;
+  padding: 0.75rem 1rem !important;
+  margin: 0 0.25rem !important;
+  border-radius: 12px !important; /* ✅ MATCHING cards border radius */
+  transition: all 0.3s ease !important;
+  position: relative !important;
+  overflow: hidden !important;
+}
+
+/* Enhanced Nav Link Hover Effects - MATCHING CARDS */
+.navbar-nav .nav-link:hover {
+  color: #ffffff !important;
+  background: linear-gradient(135deg, rgba(255, 193, 7, 0.2) 0%, rgba(255, 193, 7, 0.1) 100%) !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 4px 12px rgba(255, 193, 7, 0.2) !important;
+}
+
+/* Enhanced Active State - MATCHING CARDS SYSTEM */
+.navbar-nav .nav-link.active {
+  color: #212529 !important;
+  background: linear-gradient(135deg, #ffc107 0%, #ffca2c 100%) !important;
+  font-weight: 600 !important;
+  box-shadow: 0 4px 12px rgba(255, 193, 7, 0.3) !important;
+  transform: translateY(-1px) !important;
+}
+
+/* Enhanced Active Hover */
+.navbar-nav .nav-link.active:hover {
+  background: linear-gradient(135deg, #ffca2c 0%, #ffd43b 100%) !important;
+  box-shadow: 0 6px 20px rgba(255, 193, 7, 0.4) !important;
+  transform: translateY(-3px) !important;
+}
+
+/* Enhanced Focus States - MATCHING CARDS ACCESSIBILITY */
+.navbar-nav .nav-link:focus {
+  outline: 2px solid #ffc107 !important;
+  outline-offset: 2px !important;
+  box-shadow: 0 0 0 4px rgba(255, 193, 7, 0.2) !important;
 }
 
 /* =============================================================================
-   SEARCH BAR IMPROVEMENTS
+   ENHANCED DROPDOWN SYSTEM - CARDS STYLE
    ============================================================================= */
 
-/* Search form improvements */
+/* Enhanced Dropdown Toggle */
+.navbar-nav .dropdown-toggle {
+  position: relative !important;
+}
+
+.navbar-nav .dropdown-toggle::after {
+  margin-left: 0.5rem !important;
+  transition: transform 0.3s ease !important;
+}
+
+.navbar-nav .dropdown-toggle[aria-expanded="true"]::after {
+  transform: rotate(180deg) !important;
+}
+
+/* Enhanced Dropdown Menu - MATCHING CARDS */
+.navbar-nav .dropdown-menu {
+  border: none !important;
+  border-radius: 12px !important; /* ✅ MATCHING cards */
+  background: linear-gradient(135deg, #ffffff 0%, #fafafa 100%) !important;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15) !important; /* ✅ MATCHING cards shadow */
+  padding: 0.75rem 0 !important;
+  margin-top: 0.5rem !important;
+  min-width: 220px !important;
+  backdrop-filter: blur(10px) !important;
+}
+
+/* Enhanced Dropdown Items */
+.navbar-nav .dropdown-item {
+  color: #2c3e50 !important; /* ✅ MATCHING cards title color */
+  font-weight: 500 !important;
+  padding: 0.75rem 1.25rem !important;
+  margin: 0.125rem 0.75rem !important;
+  border-radius: 8px !important;
+  transition: all 0.3s ease !important;
+  position: relative !important;
+}
+
+.navbar-nav .dropdown-item:hover {
+  color: #212529 !important;
+  background: linear-gradient(135deg, rgba(255, 193, 7, 0.1) 0%, rgba(255, 193, 7, 0.05) 100%) !important;
+  transform: translateX(4px) !important;
+}
+
+.navbar-nav .dropdown-item.active {
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #ffc107 0%, #ffca2c 100%) !important;
+  font-weight: 600 !important;
+  box-shadow: 0 2px 8px rgba(255, 193, 7, 0.3) !important;
+}
+
+.navbar-nav .dropdown-item:focus {
+  outline: 2px solid #ffc107 !important;
+  outline-offset: 1px !important;
+}
+
+/* =============================================================================
+   ENHANCED SEARCH SYSTEM - CARDS STYLE
+   ============================================================================= */
+
+/* Enhanced Search Form */
 .search-form {
-  position: relative;
+  position: relative !important;
+  margin: 0 1rem !important;
+}
+
+.search-form .input-group {
+  border-radius: 12px !important; /* ✅ MATCHING cards */
+  overflow: hidden !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+  transition: all 0.3s ease !important;
+}
+
+.search-form .input-group:focus-within {
+  box-shadow: 0 4px 20px rgba(255, 193, 7, 0.2) !important;
+  transform: translateY(-1px) !important;
+}
+
+/* Enhanced Search Input */
+.search-form .form-control {
+  border: none !important;
+  background: linear-gradient(135deg, #ffffff 0%, #fafafa 100%) !important;
+  color: #2c3e50 !important; /* ✅ MATCHING cards text color */
+  font-weight: 500 !important;
+  padding: 0.75rem 1rem !important;
+  font-size: 0.9rem !important; /* ✅ MATCHING cards text size */
 }
 
 .search-form .form-control:focus {
-  border-color: #0d6efd;
-  box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+  border: none !important;
+  box-shadow: none !important;
+  background: #ffffff !important;
 }
 
-.search-form .btn-primary {
-  border-color: #0d6efd;
+.search-form .form-control::placeholder {
+  color: #6c757d !important; /* ✅ MATCHING cards muted text */
+  font-weight: 400 !important;
 }
 
-.search-form .btn-primary:hover {
-  background-color: #0b5ed7;
-  border-color: #0a58ca;
+/* Enhanced Search Button */
+.search-form .btn {
+  border: none !important;
+  background: linear-gradient(135deg, #ffc107 0%, #ffca2c 100%) !important;
+  color: #212529 !important;
+  font-weight: 600 !important;
+  padding: 0.75rem 1.25rem !important;
+  transition: all 0.3s ease !important;
 }
 
-.search-form .btn-outline-secondary {
-  border-color: #6c757d;
+.search-form .btn:hover {
+  background: linear-gradient(135deg, #ffca2c 0%, #ffd43b 100%) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 15px rgba(255, 193, 7, 0.4) !important;
 }
 
-.search-form .btn-outline-secondary:hover {
-  background-color: #6c757d;
-  border-color: #6c757d;
-  color: white;
-}
-
-/* Search input with clear button */
-.search-input-group .form-control {
-  border-right: none;
-}
-
-.search-input-group .btn-outline-secondary {
-  border-left: none;
-  border-right: none;
-}
-
-.search-input-group .btn-primary {
-  border-left: none;
+.search-form .btn:focus {
+  outline: 2px solid #ffc107 !important;
+  outline-offset: 2px !important;
 }
 
 /* =============================================================================
-   FILTER IMPROVEMENTS
+   ENHANCED MOBILE RESPONSIVENESS - CARDS SYSTEM
    ============================================================================= */
 
-/* Filter card styling */
-.filter-card {
-  border: 1px solid #dee2e6;
-  border-radius: 0.375rem;
-  box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+/* Enhanced Mobile Toggle */
+.navbar-toggler {
+  border: none !important;
+  padding: 0.5rem !important;
+  border-radius: 8px !important;
+  background: linear-gradient(135deg, rgba(255, 193, 7, 0.1) 0%, rgba(255, 193, 7, 0.05) 100%) !important;
+  transition: all 0.3s ease !important;
 }
 
-.filter-card .card-header {
-  background-color: #f8f9fa;
-  border-bottom: 1px solid #dee2e6;
+.navbar-toggler:hover {
+  background: linear-gradient(135deg, rgba(255, 193, 7, 0.2) 0%, rgba(255, 193, 7, 0.1) 100%) !important;
+  transform: scale(1.05) !important;
 }
 
-/* Filter form controls */
-.filter-form .form-select:focus {
-  border-color: #0d6efd;
-  box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+.navbar-toggler:focus {
+  outline: 2px solid #ffc107 !important;
+  outline-offset: 2px !important;
+  box-shadow: none !important;
 }
 
-.filter-form .form-label {
-  font-weight: 500;
-  margin-bottom: 0.5rem;
+.navbar-toggler-icon {
+  filter: brightness(0) invert(1) !important;
+  transition: all 0.3s ease !important;
 }
 
-/* Active filters badges */
-.active-filters .badge {
-  font-size: 0.875rem;
-  padding: 0.375rem 0.75rem;
-  margin-right: 0.5rem;
-  margin-bottom: 0.5rem;
-}
-
-/* =============================================================================
-   LOADING AND ERROR STATES
-   ============================================================================= */
-
-/* Loading spinner improvements */
-.loading-container {
-  min-height: 200px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-}
-
-.loading-container .spinner-border {
-  width: 3rem;
-  height: 3rem;
-  border-width: 0.3em;
-}
-
-/* Error alert improvements */
-.error-alert {
-  border-left: 4px solid #dc3545;
-  background-color: #f8d7da;
-  border-color: #f5c6cb;
-}
-
-.error-alert .alert-heading {
-  color: #721c24;
-}
-
-/* =============================================================================
-   RESPONSIVE GRID IMPROVEMENTS
-   ============================================================================= */
-
-/* Pet card grid responsive spacing */
-@media (max-width: 575.98px) {
-  .pet-grid .col {
-    padding-left: 0.5rem;
-    padding-right: 0.5rem;
+/* Enhanced Mobile Menu */
+@media (max-width: 991.98px) {
+  .navbar-collapse {
+    background: linear-gradient(135deg, rgba(33, 37, 41, 0.95) 0%, rgba(52, 58, 64, 0.95) 100%) !important;
+    border-radius: 12px !important; /* ✅ MATCHING cards */
+    margin-top: 1rem !important;
+    padding: 1rem !important;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2) !important;
+    backdrop-filter: blur(15px) !important;
   }
-}
 
-@media (min-width: 576px) and (max-width: 991.98px) {
-  .pet-grid .col {
-    padding-left: 0.75rem;
-    padding-right: 0.75rem;
+  .navbar-nav .nav-link {
+    padding: 0.75rem 1rem !important; /* ✅ MATCHING cards spacing */
+    margin: 0.125rem 0 !important;
+    border-radius: 8px !important;
   }
-}
 
-/* =============================================================================
-   ACCESSIBILITY IMPROVEMENTS
-   ============================================================================= */
-
-/* Focus states for better accessibility */
-.nav-link:focus,
-.btn:focus,
-.form-control:focus,
-.form-select:focus {
-  outline: 2px solid #0d6efd;
-  outline-offset: 2px;
-}
-
-/* High contrast mode improvements */
-@media (prefers-contrast: high) {
   .navbar-nav .nav-link.active {
-    background-color: #0d6efd !important;
-    color: white !important;
+    background: linear-gradient(135deg, #ffc107 0%, #ffca2c 100%) !important;
+    margin: 0.125rem 0 !important;
   }
-  
-  .badge {
-    border: 1px solid currentColor;
+
+  .search-form {
+    margin: 1rem 0 !important;
+    width: 100% !important;
   }
+
+  .navbar-nav .dropdown-menu {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(250, 250, 250, 0.95) 100%) !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1) !important;
+    margin: 0.5rem 0 !important;
+  }
+}
+
+/* =============================================================================
+   ENHANCED USER MENU - CARDS SYSTEM
+   ============================================================================= */
+
+/* Enhanced User Avatar/Profile */
+.navbar-nav .nav-link.user-profile {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+}
+
+.navbar-nav .nav-link.user-profile:hover {
+  background: linear-gradient(135deg, rgba(255, 193, 7, 0.2) 0%, rgba(255, 193, 7, 0.1) 100%) !important;
+  border-color: rgba(255, 193, 7, 0.3) !important;
+}
+
+/* Enhanced Profile Dropdown */
+.navbar-nav .user-dropdown .dropdown-menu {
+  right: 0 !important;
+  left: auto !important;
+  min-width: 260px !important;
+}
+
+.navbar-nav .user-dropdown .dropdown-header {
+  color: #2c3e50 !important; /* ✅ MATCHING cards title color */
+  font-weight: 600 !important;
+  font-size: 0.9rem !important;
+  padding: 0.75rem 1.25rem 0.5rem !important;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1) !important;
+  margin-bottom: 0.5rem !important;
+}
+
+/* =============================================================================
+   ENHANCED ANIMATIONS & EFFECTS - MATCHING CARDS
+   ============================================================================= */
+
+/* Enhanced Shimmer Effect for Nav Links */
+.navbar-nav .nav-link::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left 0.5s ease;
+  pointer-events: none;
+}
+
+.navbar-nav .nav-link:hover::before {
+  left: 100%;
+}
+
+/* Enhanced Loading States */
+.navbar-nav .nav-link.loading {
+  opacity: 0.7 !important;
+  pointer-events: none !important;
+}
+
+.navbar-nav .nav-link.loading::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: 0.5rem;
+  width: 12px;
+  height: 12px;
+  margin-top: -6px;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  border-top-color: transparent;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* =============================================================================
+   ACCESSIBILITY & REDUCED MOTION - MATCHING CARDS SYSTEM
+   ============================================================================= */
+
+/* Enhanced Focus States */
+.navbar-nav .nav-link:focus,
+.navbar-brand:focus,
+.navbar-toggler:focus,
+.search-form .form-control:focus,
+.search-form .btn:focus {
+  outline: 2px solid #ffc107 !important;
+  outline-offset: 2px !important;
+}
+
+/* Reduced Motion Support */
+@media (prefers-reduced-motion: reduce) {
+  .navbar,
+  .navbar-brand,
+  .navbar-nav .nav-link,
+  .navbar-nav .dropdown-menu,
+  .navbar-nav .dropdown-item,
+  .search-form .input-group,
+  .search-form .btn,
+  .navbar-toggler {
+    transition: none !important;
+    animation: none !important;
+  }
+
+  .navbar-nav .nav-link:hover,
+  .navbar-nav .nav-link.active,
+  .navbar-brand:hover,
+  .search-form .btn:hover {
+    transform: none !important;
+  }
+
+  .navbar-nav .nav-link::before {
+    display: none !important;
+  }
+}
+
+/* High Contrast Mode */
+@media (prefers-contrast: high) {
+  .navbar {
+    border-bottom: 2px solid #ffffff !important;
+  }
+
+  .navbar-nav .nav-link {
+    border: 1px solid transparent !important;
+  }
+
+  .navbar-nav .nav-link:hover,
+  .navbar-nav .nav-link:focus {
+    border-color: #ffc107 !important;
+  }
+
+  .navbar-nav .nav-link.active {
+    border-color: #212529 !important;
+  }
+}
+
+/* =============================================================================
+   ENHANCED BADGES & NOTIFICATIONS - CARDS SYSTEM
+   ============================================================================= */
+
+/* Enhanced Notification Badges */
+.navbar-nav .nav-link .badge {
+  position: absolute !important;
+  top: 8px !important;
+  right: 8px !important;
+  font-size: 0.7rem !important;
+  padding: 0.25rem 0.5rem !important;
+  border-radius: 10px !important; /* ✅ MATCHING enhanced badges */
+  background: linear-gradient(135deg, #dc3545 0%, #e63946 100%) !important;
+  color: #ffffff !important;
+  font-weight: 600 !important;
+  border: 2px solid #ffffff !important;
+  box-shadow: 0 2px 8px rgba(220, 53, 69, 0.3) !important;
+  animation: pulse-badge 2s infinite !important;
+}
+
+@keyframes pulse-badge {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
+/* Enhanced Status Indicators */
+.navbar-nav .nav-link .status-indicator {
+  position: absolute !important;
+  top: 12px !important;
+  right: 12px !important;
+  width: 8px !important;
+  height: 8px !important;
+  border-radius: 50% !important;
+  background: #28a745 !important;
+  border: 2px solid #ffffff !important;
+  box-shadow: 0 0 8px rgba(40, 167, 69, 0.5) !important;
 }

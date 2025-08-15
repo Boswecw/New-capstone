@@ -541,7 +541,7 @@ router.get(
     const enhancedProducts = products.map((product) => ({
       ...product,
       imageUrl: product.image
-        ? `https://storage.googleapis.com/furbabies-petstore/${product.image}`
+        ? `https://storage.googleapis.com/furbabies-petstore/${encodeURIComponent(product.image)}`
         : null,
       fallbackImageUrl: "/api/images/fallback/product",
       priceFormatted: `$${product.price.toFixed(2)}`,

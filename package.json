@@ -1,30 +1,28 @@
 {
-  "name": "furbabies-petstore",
+  "name": "new-capstone",
   "version": "1.0.0",
-  "description": "FurBabies Pet Store MERN Application",
+  "description": "New Capstone Pet Adoption Platform",
   "main": "server/server.js",
   "scripts": {
-    "start": "node server/server.js",
-    "dev": "concurrently \"yarn server\" \"yarn client\"",
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
     "server": "cd server && nodemon server.js",
-    "client": "cd client && yarn start",
-    "build": "cd client && yarn build",
-    "install-server": "cd server && yarn install",
-    "install-client": "cd client && yarn install",
-    "install-all": "yarn install-server && yarn install-client",
-    "render-postbuild": "yarn install-all && yarn build",
-    "clean": "rm -rf node_modules server/node_modules client/node_modules yarn.lock",
-    "test": "echo \"No tests yet\" && exit 0"
+    "client": "cd client && npm start",
+    "build": "cd client && npm ci --production=false && npm run build",
+    "postbuild": "cd client && rm -rf node_modules",
+    "start": "node server/server.js",
+    "install-server": "cd server && npm install",
+    "install-client": "cd client && npm install",
+    "install-all": "npm run install-server && npm run install-client",
+    "render-postbuild": "npm run install-all && npm run build"
   },
   "keywords": [
     "pet-adoption",
     "mern-stack",
     "react",
     "nodejs",
-    "mongodb",
-    "image-optimization"
+    "mongodb"
   ],
-  "author": "Charlie Boswell",
+  "author": "Charles W Boswell",
   "license": "MIT",
   "dependencies": {
     "@google-cloud/storage": "^7.16.0",
@@ -53,13 +51,5 @@
   "engines": {
     "node": ">=18.0.0",
     "npm": ">=8.0.0"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/Boswecw/furbabies-petstore.git"
-  },
-  "bugs": {
-    "url": "https://github.com/Boswecw/furbabies-petstore/issues"
-  },
-  "homepage": "https://github.com/Boswecw/furbabies-petstore#readme"
+  }
 }

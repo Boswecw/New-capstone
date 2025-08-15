@@ -8,7 +8,14 @@ const storage = new Storage({
   projectId: process.env.GOOGLE_CLOUD_PROJECT_ID,
 });
 
-const bucketName = 'furbabies-petstore'; // Your bucket name from the logs
+// Use environment variable for the bucket name so deployments can target
+// different buckets without code changes
+const bucketName = process.env.GCS_BUCKET;
+if (!bucketName) {
+  const message = 'GCS_BUCKET environment variable is not set';
+  console.warn(message);
+  throw new Error(message);
+}
 const bucket = storage.bucket(bucketName);
 
 // ===== CORS MIDDLEWARE FOR IMAGES =====
@@ -29,12 +36,43 @@ router.use((req, res, next) => {
 
 // ===== HEALTH CHECK =====
 router.get('/health', (req, res) => {
-  res.json({ 
-    status: 'ok', 
+  res.json({
+    status: 'ok',
     service: 'image-proxy',
     bucket: bucketName,
     timestamp: new Date().toISOString()
   });
+});
+
+// ===== LIST IMAGES IN BUCKET =====
+// Example: GET /api/images/gcs?prefix=product/&public=true
+router.get('/gcs', async (req, res) => {
+  try {
+    const { prefix = '' } = req.query;
+    console.log(`\uD83D\uDCF8 Listing images with prefix: "${prefix}"`);
+
+    const [files] = await bucket.getFiles({ prefix });
+
+    const images = files.map(file => ({
+      name: file.name,
+      fileName: file.name.split('/').pop(),
+      folder: file.name.split('/')[0],
+      contentType: file.metadata?.contentType,
+      size: file.metadata?.size,
+      updated: file.metadata?.updated,
+      created: file.metadata?.timeCreated,
+      publicUrl: `https://storage.googleapis.com/${bucketName}/${file.name}`
+    }));
+
+    res.json({ success: true, data: images });
+  } catch (error) {
+    console.error('\u274C Error listing images:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to list images',
+      error: error.message
+    });
+  }
 });
 
 // ===== MAIN IMAGE SERVING ROUTE =====
@@ -122,6 +160,30 @@ router.get('/fallback/product', (req, res) => {
   res.redirect('https://via.placeholder.com/300x250/CCCCCC/666666?text=Product+Image');
 });
 
+// ===== SUPPORT normalizeImageUrl HELPER =====
+// Redirect /api/images/pet/filename.jpg -> /api/images/gcs/pet/filename.jpg
+router.get('/:category/:filename', (req, res) => {
+  const { category, filename } = req.params;
+  console.log(`🔄 Image redirect: /${category}/${filename} -> /gcs/${category}/${filename}`);
+  return res.redirect(302, `/api/images/gcs/${category}/${filename}`);
+});
+
+// Support deeper nested paths like /api/images/pet/subfolder/file.jpg
+router.get('/*', (req, res) => {
+  const fullPath = req.path.replace('/api/images/', '');
+  const pathParts = fullPath.split('/');
+
+  if (pathParts.length < 2) {
+    return res.status(400).json({ error: 'Invalid image path format' });
+  }
+
+  const [category, ...filenameParts] = pathParts;
+  const filename = filenameParts.join('/');
+
+  console.log(`🔄 Deep image redirect: ${fullPath} -> /gcs/${category}/${filename}`);
+  return res.redirect(302, `/api/images/gcs/${category}/${filename}`);
+});
+
 // ===== UTILITY FUNCTION =====
 function getContentType(filename) {
   const ext = filename.toLowerCase().split('.').pop();
@@ -152,3 +214,4 @@ router.use('*', (req, res) => {
 });
 
 module.exports = router;
+

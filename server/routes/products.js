@@ -1,213 +1,83 @@
-// server/routes/products.js - FIXED to match Product model
+// server/routes/products.js
 const express = require('express');
-const Product = require('../models/Product');
 const router = express.Router();
+const Product = require('../models/Product');
+const { enrichEntityWithImages } = require('../utils/imageUtils');
 
-// ===== GET /api/products/featured - FIXED AGGREGATION =====
-router.get('/featured', async (req, res) => {
-  try {
-    const limit = parseInt(req.query.limit) || 4;
-    
-    console.log(`🌟 GET /api/products/featured - Fetching ${limit} featured products`);
-    
-    // ✅ FIXED: Match actual Product model fields
-    const featuredProducts = await Product.aggregate([
-      // Only include products with price > 0 and in stock
-      { $match: { 
-        price: { $gt: 0 },
-        inStock: true  // ✅ Using actual field from model
-      }},
-      // Get random sample
-      { $sample: { size: limit } },
-      // ✅ REMOVED originalPrice logic since field doesn't exist
-      { $addFields: {
-        discountPercentage: 0,  // Default to 0 since no originalPrice field
-        imageUrl: "$image"      // ✅ Map "image" to "imageUrl" for frontend compatibility
-      }}
-    ]);
-    
-    // ✅ FALLBACK: Fixed sample data to match model
-    if (featuredProducts.length === 0) {
-      console.log('⚠️ No products in database, returning sample featured products');
-      
-      const sampleProducts = [
-        {
-          _id: 'sample-1',
-          name: 'Premium Dog Food',
-          category: 'food',  // ✅ lowercase to match model
-          price: 29.99,
-          image: 'https://images.unsplash.com/photo-1589924691995-400dc9ecc119?w=400&h=300&fit=crop',
-          imageUrl: 'https://images.unsplash.com/photo-1589924691995-400dc9ecc119?w=400&h=300&fit=crop', // ✅ Added for frontend
-          description: 'High-quality nutrition for your furry friend',
-          brand: 'PetNutrition',
-          inStock: true,
-          discountPercentage: 0
-        },
-        {
-          _id: 'sample-2',
-          name: 'Cat Scratching Post',
-          category: 'toys',  // ✅ lowercase
-          price: 49.99,
-          image: 'https://images.unsplash.com/photo-1541781774459-bb2af2f05b55?w=400&h=300&fit=crop',
-          imageUrl: 'https://images.unsplash.com/photo-1541781774459-bb2af2f05b55?w=400&h=300&fit=crop',
-          description: 'Keep your cat entertained and your furniture safe',
-          brand: 'FelineJoy',
-          inStock: true,
-          discountPercentage: 0
-        },
-        {
-          _id: 'sample-3',
-          name: 'Pet Carrier Bag',
-          category: 'accessories',  // ✅ lowercase
-          price: 39.99,
-          image: 'https://images.unsplash.com/photo-1544568100-847a948585b9?w=400&h=300&fit=crop',
-          imageUrl: 'https://images.unsplash.com/photo-1544568100-847a948585b9?w=400&h=300&fit=crop',
-          description: 'Safe and comfortable travel for small pets',
-          brand: 'TravelPet',
-          inStock: true,
-          discountPercentage: 0
-        },
-        {
-          _id: 'sample-4',
-          name: 'Interactive Dog Toy',
-          category: 'toys',  // ✅ lowercase
-          price: 19.99,
-          image: 'https://images.unsplash.com/photo-1601758228041-f3b2795255f1?w=400&h=300&fit=crop',
-          imageUrl: 'https://images.unsplash.com/photo-1601758228041-f3b2795255f1?w=400&h=300&fit=crop',
-          description: 'Mental stimulation and fun for active dogs',
-          brand: 'PlayTime',
-          inStock: true,
-          discountPercentage: 0
-        }
-      ].slice(0, limit);
-      
-      return res.json({
-        success: true,
-        data: sampleProducts,
-        count: sampleProducts.length,
-        message: 'Featured products retrieved successfully (sample data)',
-        isSampleData: true
-      });
-    }
-    
-    console.log(`✅ Found ${featuredProducts.length} featured products`);
-    
-    res.json({
-      success: true,
-      data: featuredProducts,
-      count: featuredProducts.length,
-      message: 'Featured products retrieved successfully'
-    });
-    
-  } catch (error) {
-    console.error('❌ Error fetching featured products:', error);
-    
-    // ✅ FIXED: Fallback sample data matches model
-    const sampleProducts = [
-      {
-        _id: 'error-fallback-1',
-        name: 'Premium Pet Food',
-        category: 'food',
-        price: 29.99,
-        image: 'https://images.unsplash.com/photo-1589924691995-400dc9ecc119?w=400&h=300&fit=crop',
-        imageUrl: 'https://images.unsplash.com/photo-1589924691995-400dc9ecc119?w=400&h=300&fit=crop',
-        description: 'Quality nutrition for your pet',
-        brand: 'PetStore',
-        inStock: true,
-        discountPercentage: 0
-      }
-    ];
-    
-    res.status(200).json({
-      success: true,
-      data: sampleProducts,
-      count: sampleProducts.length,
-      message: 'Featured products retrieved (fallback due to database error)',
-      error: error.message,
-      isFallback: true
-    });
-  }
-});
-
-// ===== GET /api/products - All Products (FIXED) =====
+/**
+ * GET /api/products
+ * Query params: featured, limit, page, category, inStock, minPrice, maxPrice
+ */
 router.get('/', async (req, res) => {
   try {
     const {
+      featured,
+      limit = 20,
+      page = 1,
       category,
-      brand,
+      inStock,
       minPrice,
       maxPrice,
-      search,
-      sortBy = 'name',
-      sortOrder = 'asc',
-      page = 1,
-      limit = 12
+      sort = '-createdAt'
     } = req.query;
 
-    console.log(`🛍️ GET /api/products - Fetching products with filters:`, {
-      category, brand, minPrice, maxPrice, search, sortBy, sortOrder, page, limit
-    });
-
-    // Build filter object
-    const filter = {
-      inStock: true  // ✅ Only show products in stock by default
-    };
+    // Build query
+    const query = {};
     
+    // Handle featured filter
+    if (featured === 'true' || featured === true) {
+      query.featured = true;
+    }
+    
+    // InStock filter
+    if (inStock === 'true' || inStock === true) {
+      query.inStock = true;
+    } else if (inStock === 'false' || inStock === false) {
+      query.inStock = false;
+    }
+    
+    // Category filter
     if (category && category !== 'all') {
-      filter.category = new RegExp(category, 'i');
+      query.category = category;
     }
     
-    if (brand && brand !== 'all') {
-      filter.brand = new RegExp(brand, 'i');
-    }
-    
+    // Price range filter
     if (minPrice || maxPrice) {
-      filter.price = {};
-      if (minPrice) filter.price.$gte = parseFloat(minPrice);
-      if (maxPrice) filter.price.$lte = parseFloat(maxPrice);
+      query.price = {};
+      if (minPrice) query.price.$gte = parseFloat(minPrice);
+      if (maxPrice) query.price.$lte = parseFloat(maxPrice);
     }
-    
-    if (search) {
-      filter.$or = [
-        { name: new RegExp(search, 'i') },
-        { description: new RegExp(search, 'i') },
-        { category: new RegExp(search, 'i') },
-        { brand: new RegExp(search, 'i') }
-      ];
-    }
-
-    // Build sort object
-    const sort = {};
-    sort[sortBy] = sortOrder === 'desc' ? -1 : 1;
 
     // Calculate pagination
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const limitNum = parseInt(limit);
+    const pageNum = parseInt(page);
+    const skip = (pageNum - 1) * limitNum;
 
-    // ✅ FIXED: Add imageUrl field for frontend compatibility
-    const products = await Product.find(filter)
-      .sort(sort)
-      .skip(skip)
-      .limit(parseInt(limit))
-      .lean(); // Use lean for better performance
+    // Execute query with pagination
+    const [products, totalCount] = await Promise.all([
+      Product.find(query)
+        .sort(sort)
+        .limit(limitNum)
+        .skip(skip)
+        .lean(),
+      Product.countDocuments(query)
+    ]);
 
-    // ✅ Add imageUrl field to each product for frontend compatibility
-    const productsWithImageUrl = products.map(product => ({
-      ...product,
-      imageUrl: product.image // Map image to imageUrl
-    }));
+    // Enrich with image URLs
+    const enrichedProducts = products.map(product => 
+      enrichEntityWithImages(product, 'product')
+    );
 
-    const totalProducts = await Product.countDocuments(filter);
-    
-    console.log(`✅ Found ${products.length} products (${totalProducts} total)`);
+    console.log(`✅ Returning ${enrichedProducts.length} products (query: ${JSON.stringify(query)})`);
 
     res.json({
       success: true,
-      data: productsWithImageUrl,  // ✅ Return products with imageUrl
+      data: enrichedProducts,
       pagination: {
-        currentPage: parseInt(page),
-        totalPages: Math.ceil(totalProducts / parseInt(limit)),
-        totalItems: totalProducts,
-        itemsPerPage: parseInt(limit)
+        total: totalCount,
+        page: pageNum,
+        limit: limitNum,
+        pages: Math.ceil(totalCount / limitNum)
       }
     });
 
@@ -221,62 +91,104 @@ router.get('/', async (req, res) => {
   }
 });
 
-// ===== GET /api/products/categories - SAME (CORRECT) =====
+/**
+ * GET /api/products/featured
+ * Legacy endpoint for backward compatibility
+ */
+router.get('/featured', async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 6;
+    
+    // Get featured products
+    let products = await Product.find({ 
+      inStock: true, 
+      featured: true 
+    })
+    .sort('-createdAt')
+    .limit(limit)
+    .lean();
+
+    // If not enough featured products, fill with regular in-stock products
+    if (products.length < limit) {
+      const additionalProducts = await Product.find({
+        inStock: true,
+        featured: { $ne: true },
+        _id: { $nin: products.map(p => p._id) }
+      })
+      .sort('-createdAt')
+      .limit(limit - products.length)
+      .lean();
+      
+      products = [...products, ...additionalProducts];
+    }
+
+    // Enrich with image URLs
+    const enrichedProducts = products.map(product => 
+      enrichEntityWithImages(product, 'product')
+    );
+
+    console.log(`✅ Returning ${enrichedProducts.length} featured products`);
+
+    res.json({
+      success: true,
+      data: enrichedProducts,
+      count: enrichedProducts.length
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching featured products:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching featured products',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/products/categories
+ * Get all product categories with counts
+ */
 router.get('/categories', async (req, res) => {
   try {
-    console.log('📂 GET /api/products/categories');
-    
-    const categories = await Product.distinct('category');
-    
-    console.log(`✅ Found ${categories.length} product categories:`, categories);
-    
+    const categories = await Product.aggregate([
+      { $match: { inStock: true } },
+      { $group: { 
+        _id: '$category', 
+        count: { $sum: 1 },
+        avgPrice: { $avg: '$price' }
+      }},
+      { $sort: { count: -1 } }
+    ]);
+
+    const formattedCategories = categories.map(cat => ({
+      name: cat._id,
+      count: cat.count,
+      avgPrice: Math.round(cat.avgPrice * 100) / 100
+    }));
+
     res.json({
       success: true,
-      data: categories,
-      count: categories.length
+      data: formattedCategories
     });
+
   } catch (error) {
-    console.error('❌ Error fetching product categories:', error);
+    console.error('❌ Error fetching categories:', error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching product categories',
+      message: 'Error fetching categories',
       error: error.message
     });
   }
 });
 
-// ===== GET /api/products/brands - SAME (CORRECT) =====
-router.get('/brands', async (req, res) => {
-  try {
-    console.log('🏷️ GET /api/products/brands');
-    
-    const brands = await Product.distinct('brand');
-    
-    console.log(`✅ Found ${brands.length} product brands:`, brands);
-    
-    res.json({
-      success: true,
-      data: brands,
-      count: brands.length
-    });
-  } catch (error) {
-    console.error('❌ Error fetching product brands:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching product brands',
-      error: error.message
-    });
-  }
-});
-
-// ===== GET /api/products/:id - FIXED =====
+/**
+ * GET /api/products/:id
+ * Get single product by ID
+ */
 router.get('/:id', async (req, res) => {
   try {
-    const { id } = req.params;
-    
-    console.log(`🛍️ GET /api/products/${id}`);
-    
-    const product = await Product.findById(id).lean();
+    const product = await Product.findById(req.params.id).lean();
     
     if (!product) {
       return res.status(404).json({
@@ -284,22 +196,17 @@ router.get('/:id', async (req, res) => {
         message: 'Product not found'
       });
     }
-    
-    // ✅ Add imageUrl for frontend compatibility
-    const productWithImageUrl = {
-      ...product,
-      imageUrl: product.image
-    };
-    
-    console.log(`✅ Found product: ${product.name}`);
-    
+
+    // Enrich with image URL
+    const enrichedProduct = enrichEntityWithImages(product, 'product');
+
     res.json({
       success: true,
-      data: productWithImageUrl
+      data: enrichedProduct
     });
-    
+
   } catch (error) {
-    console.error(`❌ Error fetching product ${req.params.id}:`, error);
+    console.error('❌ Error fetching product:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching product',

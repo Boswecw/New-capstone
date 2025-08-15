@@ -1,5 +1,7 @@
+// server/models/User.js - User model with structured logging (RESOLVED)
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
+const { Logger } = require('../middleware/errorHandler');
 
 const userSchema = new mongoose.Schema({
   name: {
@@ -7,6 +9,15 @@ const userSchema = new mongoose.Schema({
     required: [true, 'Name is required'],
     trim: true,
     maxlength: [50, 'Name cannot exceed 50 characters']
+  },
+  username: {
+    type: String,
+    required: [true, 'Username is required'],
+    unique: true,
+    trim: true,
+    minlength: [3, 'Username must be at least 3 characters'],
+    maxlength: [30, 'Username cannot exceed 30 characters'],
+    match: [/^[a-zA-Z0-9_]+$/, 'Username can only contain letters, numbers, and underscores']
   },
   email: {
     type: String,
@@ -96,10 +107,10 @@ const userSchema = new mongoose.Schema({
       }
     }
   },
-  favorites: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Pet'
-  }],
+  favorites: {
+    type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Pet' }],
+    alias: 'favoritesPets'
+  },
   adoptedPets: [{
     pet: {
       type: mongoose.Schema.Types.ObjectId,
@@ -177,6 +188,8 @@ const userSchema = new mongoose.Schema({
 });
 
 // Indexes for better query performance
+userSchema.index({ email: 1 }, { unique: true });
+userSchema.index({ username: 1 }, { unique: true });
 userSchema.index({ role: 1 });
 userSchema.index({ isActive: 1 });
 userSchema.index({ createdAt: -1 });
@@ -193,28 +206,46 @@ userSchema.virtual('isLocked').get(function() {
 
 // Virtual for full name display
 userSchema.virtual('displayName').get(function() {
-  return this.name || this.email.split('@')[0];
+  return this.name || this.username || this.email.split('@')[0];
 });
 
-// Pre-save middleware to hash password
+// Pre-save middleware to hash password with structured logging
 userSchema.pre('save', async function(next) {
-  // Only hash the password if it has been modified (or is new)
-  if (!this.isModified('password')) return next();
-  
+  Logger.debug(
+    `User pre-save middleware triggered (isNew: ${this.isNew}, passwordModified: ${this.isModified('password')})`
+  );
+
+  if (!this.isModified('password')) {
+    Logger.debug('Password not modified, skipping hash');
+    return next();
+  }
+
   try {
-    // Hash password with cost of 12
     const salt = await bcrypt.genSalt(12);
     this.password = await bcrypt.hash(this.password, salt);
+    Logger.debug('Password hashed successfully');
     next();
   } catch (error) {
+    Logger.error('Password hashing error', error);
     next(error);
   }
 });
 
-// Instance method to compare password
+// Instance method to compare password with structured logging
 userSchema.methods.comparePassword = async function(candidatePassword) {
-  if (!this.password) return false;
-  return await bcrypt.compare(candidatePassword, this.password);
+  if (!this.password) {
+    Logger.warn('No stored password found during comparison');
+    return false;
+  }
+
+  try {
+    const isMatch = await bcrypt.compare(candidatePassword, this.password);
+    Logger.debug(`Password comparison result: ${isMatch}`);
+    return isMatch;
+  } catch (error) {
+    Logger.error('Password comparison error', error);
+    return false;
+  }
 };
 
 // Instance method to add pet to favorites
@@ -274,6 +305,22 @@ userSchema.methods.updateLastLogin = function() {
 // Static method to find by email
 userSchema.statics.findByEmail = function(email) {
   return this.findOne({ email: email.toLowerCase() });
+};
+
+// Static method to find by username
+userSchema.statics.findByUsername = function(username) {
+  return this.findOne({ username: username.toLowerCase() });
+};
+
+// Static method to find by email or username
+userSchema.statics.findByEmailOrUsername = function(identifier) {
+  const lowercaseIdentifier = identifier.toLowerCase();
+  return this.findOne({
+    $or: [
+      { email: lowercaseIdentifier },
+      { username: lowercaseIdentifier }
+    ]
+  });
 };
 
 // Static method to get users with role

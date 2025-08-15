@@ -1,159 +1,187 @@
+// server/server.js
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const morgan = require('morgan');
 const path = require('path');
-const helmet = require('helmet');
-const compression = require('compression');
-const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
 const app = express();
 
-// === SECURITY MIDDLEWARE ===
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-      fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      imgSrc: ["'self'", "data:", "https:", "http:"],
-      scriptSrc: ["'self'"],
-    },
-  },
+// ===== MIDDLEWARE =====
+// CORS configuration
+app.use(cors({
+  origin: process.env.NODE_ENV === 'production' 
+    ? process.env.CLIENT_URL 
+    : ['http://localhost:3000', 'http://localhost:5173'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Session-Id']
 }));
 
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP, please try again later.'
-});
-app.use('/api/', limiter);
-
-// Compression
-app.use(compression());
-
-// === CORRECTED CORS CONFIGURATION ===
-const corsOptions = {
-  origin: process.env.NODE_ENV === 'production' 
-    ? [
-        'https://new-capstone.onrender.com',
-        'https://furbabies-frontend.onrender.com'  // ✅ Added missing frontend URL
-      ]
-    : ['http://localhost:3000', 'http://localhost:5000'],
-  credentials: true,
-  optionsSuccessStatus: 200
-};
-app.use(cors(corsOptions));
-
-// === MIDDLEWARE ===
+// Body parsing
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// === MONGODB CONNECTION ===
-const mongoURI = process.env.MONGODB_URI;
-if (!mongoURI) {
-  console.error('❌ MONGODB_URI environment variable is not set');
-  process.exit(1);
+// Logging
+if (process.env.NODE_ENV === 'development') {
+  app.use(morgan('dev'));
+} else {
+  app.use(morgan('combined'));
 }
 
-mongoose.connect(mongoURI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
-.then(() => console.log('✅ Connected to MongoDB Atlas'))
-.catch((err) => {
-  console.error('❌ MongoDB Connection Error:', err);
-  process.exit(1);
-});
-
-// === ROBUST ROUTE IMPORTS ===
-const routes = {};
-
-// Helper function to safely import routes
-const safeImport = (routeName, routePath) => {
+// ===== DATABASE CONNECTION =====
+const connectDB = async () => {
   try {
-    routes[routeName] = require(routePath);
-    console.log(`✅ Loaded ${routeName} routes`);
-    return true;
+    const uri = process.env.MONGODB_URI;
+    
+    if (!uri) {
+      throw new Error('MONGODB_URI not defined in environment variables');
+    }
+
+    await mongoose.connect(uri, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+      serverSelectionTimeoutMS: 10000,
+    });
+
+    console.log('✅ MongoDB Connected Successfully');
+    console.log(`📊 Database: ${mongoose.connection.name}`);
+
+    // Log collection counts
+    const db = mongoose.connection.db;
+    const collections = await db.listCollections().toArray();
+    console.log(`📚 Collections: ${collections.map(c => c.name).join(', ')}`);
+
   } catch (error) {
-    console.warn(`⚠️  Warning: Could not load ${routeName} routes from ${routePath}`);
-    console.warn(`   Error: ${error.message}`);
-    return false;
+    console.error('❌ MongoDB Connection Error:', error.message);
+    process.exit(1);
   }
 };
 
-// Import available routes
-safeImport('pets', './routes/pets');
-safeImport('products', './routes/products');
-safeImport('contacts', './routes/contacts');
-safeImport('users', './routes/users');
-safeImport('auth', './routes/auth');
-safeImport('images', './routes/images');
-safeImport('news', './routes/news');
+// Connect to database
+connectDB();
 
-// === HEALTH CHECK ROUTE ===
+// ===== API ROUTES =====
+// Import route modules
+const petRoutes = require('./routes/pets');
+const productRoutes = require('./routes/products');
+const cartRoutes = require('./routes/cart');
+const userRoutes = require('./routes/users');
+const authRoutes = require('./routes/auth');
+
+// Health check endpoint (before other routes)
 app.get('/api/health', (req, res) => {
-  const loadedRoutes = Object.keys(routes);
-  res.json({ 
-    status: 'OK', 
+  res.json({
+    success: true,
+    message: 'API is healthy',
+    environment: process.env.NODE_ENV || 'development',
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV,
-    corsOrigins: corsOptions.origin,
-    loadedRoutes: loadedRoutes,
-    routeCount: loadedRoutes.length
+    database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
   });
 });
 
-// === ROUTES ===
-app.get('/', (req, res) => {
-  res.send('🌍 FurBabies API is live');
-});
+// Mount API routes
+app.use('/api/pets', petRoutes);
+app.use('/api/products', productRoutes);
+app.use('/api/cart', cartRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/auth', authRoutes);
 
-// Register routes only if they were successfully loaded
-if (routes.pets) app.use('/api/pets', routes.pets);
-if (routes.products) app.use('/api/products', routes.products);
-if (routes.contacts) app.use('/api/contacts', routes.contacts);
-if (routes.users) app.use('/api/users', routes.users);
-if (routes.auth) app.use('/api/auth', routes.auth);
-if (routes.images) app.use('/api/images', routes.images);
-if (routes.news) app.use('/api/news', routes.news);
-
-// === SERVE STATIC FILES IN PRODUCTION ===
-if (process.env.NODE_ENV === 'production') {
-  const clientBuildPath = path.join(__dirname, '../client/dist');
-  app.use(express.static(clientBuildPath));
-
-  app.get('*', (req, res) => {
-    res.sendFile(path.resolve(clientBuildPath, 'index.html'));
+// Debug route to list all registered routes
+if (process.env.NODE_ENV === 'development') {
+  app.get('/api/routes', (req, res) => {
+    const routes = [];
+    
+    function extractRoutes(stack, basePath = '') {
+      stack.forEach(layer => {
+        if (layer.route) {
+          const methods = Object.keys(layer.route.methods).join(', ').toUpperCase();
+          routes.push({
+            path: basePath + layer.route.path,
+            methods
+          });
+        } else if (layer.name === 'router' && layer.handle.stack) {
+          extractRoutes(layer.handle.stack, basePath + layer.regexp.source.replace(/[\\^$]/g, '').replace(/\?\(\?\=/g, ''));
+        }
+      });
+    }
+    
+    extractRoutes(app._router.stack);
+    
+    const apiRoutes = routes
+      .filter(r => r.path.includes('/api'))
+      .sort((a, b) => a.path.localeCompare(b.path));
+    
+    res.json({
+      success: true,
+      count: apiRoutes.length,
+      routes: apiRoutes
+    });
   });
 }
 
-// === ERROR HANDLING MIDDLEWARE ===
-app.use((err, req, res, next) => {
-  console.error('Server Error:', err);
-  res.status(500).json({
-    success: false,
-    message: process.env.NODE_ENV === 'production' 
-      ? 'Internal server error' 
-      : err.message
+// ===== STATIC FILES (Production) =====
+if (process.env.NODE_ENV === 'production') {
+  // Serve static files from React build
+  app.use(express.static(path.join(__dirname, '../client/dist')));
+  
+  // Handle React routing
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '../client/dist', 'index.html'));
   });
-});
+}
 
-// === 404 HANDLER ===
-app.use('*', (req, res) => {
+// ===== ERROR HANDLING =====
+// 404 handler
+app.use((req, res) => {
+  console.log(`⚠️ 404: ${req.method} ${req.originalUrl}`);
   res.status(404).json({
     success: false,
-    message: 'API endpoint not found'
+    message: 'Route not found',
+    path: req.originalUrl,
+    method: req.method
   });
 });
 
-const PORT = process.env.PORT || 10000;
+// Global error handler
+app.use((err, req, res, next) => {
+  console.error('❌ Server Error:', err);
+  
+  const status = err.status || 500;
+  const message = err.message || 'Internal server error';
+  
+  res.status(status).json({
+    success: false,
+    message,
+    error: process.env.NODE_ENV === 'development' ? err.stack : undefined
+  });
+});
+
+// ===== START SERVER =====
+const PORT = process.env.PORT || 5000;
+
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`🌍 Environment: ${process.env.NODE_ENV}`);
-  console.log(`🔐 CORS Origins: ${JSON.stringify(corsOptions.origin)}`);
-  console.log(`📁 Loaded Routes: ${Object.keys(routes).join(', ')}`);
+  console.log('🚀 Server started successfully');
+  console.log(`📡 Port: ${PORT}`);
+  console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`🔗 API Base: http://localhost:${PORT}/api`);
+  
+  if (process.env.NODE_ENV === 'development') {
+    console.log('\n📋 Available endpoints:');
+    console.log('  GET  /api/health');
+    console.log('  GET  /api/pets');
+    console.log('  GET  /api/pets/featured');
+    console.log('  GET  /api/pets/:id');
+    console.log('  GET  /api/products');
+    console.log('  GET  /api/products/featured');
+    console.log('  GET  /api/products/:id');
+    console.log('  GET  /api/cart');
+    console.log('  POST /api/cart/items');
+    console.log('  PUT  /api/cart/items/:id');
+    console.log('  DEL  /api/cart/items/:id');
+    console.log('  GET  /api/routes (debug)');
+  }
 });
 
 module.exports = app;

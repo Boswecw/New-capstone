@@ -1,153 +1,160 @@
-import React from 'react';
-import { Container, Row, Col, Card } from 'react-bootstrap';
-import HeroBanner from '../components/HeroBanner';
+import React from "react";
+import { Container, Row, Col, Card } from "react-bootstrap";
+import HeroBanner from "../components/HeroBanner";
 
 const About = () => {
   return (
     <>
-          {/* Offset content to avoid overlap with fixed navbar */}
-      <div style={{ marginTop: '80px' }}>
-        {/* Hero Banner */}
-        <HeroBanner logoSize="large" />
+      {/* Enhanced Hero Banner - matches Home page style */}
+      <HeroBanner
+  title="About FurBabies"
+  subtitle="Connecting loving families with their perfect furry companions"
+  primaryButtonText="Browse Pets"
+  primaryButtonLink="/browse"
+  secondaryButtonText="Contact Us"
+  secondaryButtonLink="/contact"
+/>
 
+      <Container className="py-5">
         {/* Mission Section */}
-        <Container className="my-5">
-          <Row className="align-items-center">
-            <Col md={8} className="mb-4 mb-md-0">
-              <h3 className="text-primary mb-3">
-                <i className="fas fa-heart me-2"></i>Our Mission
-              </h3>
-              <p className="lead">
-                At FurBabies, our mission is to connect loving families with happy, healthy pets and quality supplies. 
-                We believe every animal deserves a forever home and every pet owner deserves trustworthy products and support.
-              </p>
-              <p>
-                Whether you're shopping for a puppy, parrot, or pet food, FurBabies is here to help make tails wag and whiskers twitch.
-                We're committed to providing the highest quality pets and supplies while supporting animal welfare in our community.
-              </p>
-            </Col>
-
-            <Col md={4}>
-              <div className="ratio ratio-16x9">
-                <iframe
-                  src="https://www.youtube.com/embed/d6kjZXwdyJs?autoplay=1&mute=1"
-                  title="FurBabies Intro Video"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                  allowFullScreen
-                  className="rounded shadow"
-                ></iframe>
-              </div>
-            </Col>
-          </Row>
-        </Container>
-
-        {/* Company Values */}
-        <section className="py-5 bg-light">
-          <Container>
-            <Row>
-              <Col lg={8} className="mx-auto">
-                <Card className="border-0 shadow-sm">
-                  <Card.Body className="p-5">
-                    <h4 className="text-primary mb-4 text-center">
-                      <i className="fas fa-paw me-2"></i>Our Core Values
-                    </h4>
-                    <Row>
-                      <Col md={6}>
-                        <ul className="list-unstyled">
-                          <li className="mb-3">
-                            <i className="fas fa-check-circle text-success me-3"></i>
-                            <strong>Animal welfare first</strong><br />
-                            <small className="text-muted">Every pet's health and happiness is our priority</small>
-                          </li>
-                          <li className="mb-3">
-                            <i className="fas fa-check-circle text-success me-3"></i>
-                            <strong>Quality products & services</strong><br />
-                            <small className="text-muted">Only the best for your furry family members</small>
-                          </li>
-                        </ul>
-                      </Col>
-                      <Col md={6}>
-                        <ul className="list-unstyled">
-                          <li className="mb-3">
-                            <i className="fas fa-check-circle text-success me-3"></i>
-                            <strong>Supporting local communities</strong><br />
-                            <small className="text-muted">Giving back to animal shelters and rescue organizations</small>
-                          </li>
-                          <li className="mb-3">
-                            <i className="fas fa-check-circle text-success me-3"></i>
-                            <strong>Expert guidance & care</strong><br />
-                            <small className="text-muted">Professional advice from pet care specialists</small>
-                          </li>
-                        </ul>
-                      </Col>
-                    </Row>
-                  </Card.Body>
-                </Card>
-              </Col>
-            </Row>
-          </Container>
-        </section>
-
-        {/* What We Offer */}
-        <section className="py-5">
-          <Container>
-            <h2 className="text-center mb-5">
-              <i className="fas fa-star me-2"></i>What We Offer
-            </h2>
-            <Row>
-              <Col lg={3} md={6} className="mb-4 text-center">
-                <i className="fas fa-dog fa-4x text-primary mb-3"></i>
-                <h5 className="text-primary">Dogs</h5>
-                <p className="text-muted">Loyal companions for every family</p>
-              </Col>
-              <Col lg={3} md={6} className="mb-4 text-center">
-                <i className="fas fa-cat fa-4x text-primary mb-3"></i>
-                <h5 className="text-primary">Cats</h5>
-                <p className="text-muted">Independent and loving feline friends</p>
-              </Col>
-              <Col lg={3} md={6} className="mb-4 text-center">
-                <i className="fas fa-fish fa-4x text-primary mb-3"></i>
-                <h5 className="text-primary">Aquatic Pets</h5>
-                <p className="text-muted">Beautiful aquatic companions</p>
-              </Col>
-              <Col lg={3} md={6} className="mb-4 text-center">
-                <i className="fas fa-bone fa-4x text-primary mb-3"></i>
-                <h5 className="text-primary">Supplies</h5>
-                <p className="text-muted">Everything your pet needs</p>
-              </Col>
-            </Row>
-          </Container>
-        </section>
-
-        {/* Why Choose Us */}
-        <Container className="my-5">
-          <Row>
-            <Col lg={10} className="mx-auto">
-              <h2 className="mb-5 text-center">
-                <i className="fas fa-award me-2"></i>Why Choose FurBabies?
+        <Row className="mb-5">
+          <Col>
+            <div className="text-center mb-5">
+              <h2 className="display-5 fw-bold mb-3">
+                <i className="fas fa-bullseye text-primary me-3"></i>
+                Our Mission
               </h2>
-              <Row>
-                <Col md={4} className="mb-4 text-center">
-                  <i className="fas fa-shield-alt fa-3x text-primary mb-3"></i>
-                  <h5>Health Guaranteed</h5>
-                  <p className="text-muted">All our pets come with health certifications and veterinary checkups.</p>
-                </Col>
-                <Col md={4} className="mb-4 text-center">
-                  <i className="fas fa-handshake fa-3x text-primary mb-3"></i>
-                  <h5>Expert Support</h5>
-                  <p className="text-muted">Our experienced team provides ongoing support and guidance.</p>
-                </Col>
-                <Col md={4} className="mb-4 text-center">
-                  <i className="fas fa-truck fa-3x text-primary mb-3"></i>
-                  <h5>Safe Delivery</h5>
-                  <p className="text-muted">We ensure safe and comfortable transportation for all pets.</p>
-                </Col>
-              </Row>
+              <p className="lead text-muted">
+                To rescue, rehabilitate, and rehome pets while connecting them with loving families
+              </p>
+            </div>
+          </Col>
+        </Row>
+
+        {/* Story Section */}
+        <Row className="align-items-center mb-5">
+          <Col md={6}>
+            <h3 className="mb-4">
+              <i className="fas fa-book-open text-info me-2"></i>
+              Our Story
+            </h3>
+            <p className="mb-3">
+              FurBabies was founded in 2020 with a simple but powerful mission: every pet deserves a loving home. 
+              What started as a small local initiative has grown into a comprehensive pet adoption platform 
+              that has helped thousands of animals find their forever families.
+            </p>
+            <p className="mb-3">
+              We work closely with local shelters, rescue organizations, and veterinarians to ensure 
+              that every pet in our care receives the love, attention, and medical care they need 
+              while waiting for their perfect match.
+            </p>
+            <p>
+              Our team of dedicated volunteers and staff work tirelessly to make the adoption process 
+              smooth, transparent, and joyful for both pets and their new families.
+            </p>
+          </Col>
+          <Col md={6}>
+            <Card className="border-0 shadow-sm">
+              <Card.Body className="text-center p-4">
+                <i className="fas fa-award fa-3x text-warning mb-3"></i>
+                <h5>Award-Winning Service</h5>
+                <p className="text-muted mb-0">
+                  Recognized by the National Pet Adoption Association for excellence in pet care and adoption services.
+                </p>
+              </Card.Body>
+            </Card>
+          </Col>
+        </Row>
+
+        {/* Values Section */}
+        <Row className="mb-5">
+          <Col>
+            <div className="text-center mb-5">
+              <h2 className="display-5 fw-bold mb-3">
+                <i className="fas fa-gem text-success me-3"></i>
+                Our Values
+              </h2>
+            </div>
+          </Col>
+        </Row>
+
+        <Row className="g-4 mb-5">
+          <Col md={4}>
+            <Card className="h-100 border-0 shadow-sm">
+              <Card.Body className="text-center p-4">
+                <i className="fas fa-heart fa-3x text-danger mb-3"></i>
+                <h5>Compassion</h5>
+                <p className="text-muted">
+                  Every decision we make is guided by love and empathy for the animals in our care.
+                </p>
+              </Card.Body>
+            </Card>
+          </Col>
+          <Col md={4}>
+            <Card className="h-100 border-0 shadow-sm">
+              <Card.Body className="text-center p-4">
+                <i className="fas fa-handshake fa-3x text-primary mb-3"></i>
+                <h5>Integrity</h5>
+                <p className="text-muted">
+                  We maintain the highest standards of honesty and transparency in all our operations.
+                </p>
+              </Card.Body>
+            </Card>
+          </Col>
+          <Col md={4}>
+            <Card className="h-100 border-0 shadow-sm">
+              <Card.Body className="text-center p-4">
+                <i className="fas fa-users fa-3x text-info mb-3"></i>
+                <h5>Community</h5>
+                <p className="text-muted">
+                  We believe in building strong relationships with pet owners, volunteers, and partners.
+                </p>
+              </Card.Body>
+            </Card>
+          </Col>
+        </Row>
+
+        {/* Impact Section */}
+        <div className="bg-light rounded p-5 mb-5">
+          <Row className="text-center">
+            <Col md={3} className="mb-3">
+              <h3 className="display-4 fw-bold text-primary">2,500+</h3>
+              <p className="text-muted">Pets Adopted</p>
+            </Col>
+            <Col md={3} className="mb-3">
+              <h3 className="display-4 fw-bold text-success">98%</h3>
+              <p className="text-muted">Success Rate</p>
+            </Col>
+            <Col md={3} className="mb-3">
+              <h3 className="display-4 fw-bold text-info">150+</h3>
+              <p className="text-muted">Partner Shelters</p>
+            </Col>
+            <Col md={3} className="mb-3">
+              <h3 className="display-4 fw-bold text-warning">500+</h3>
+              <p className="text-muted">Volunteers</p>
             </Col>
           </Row>
-        </Container>
+        </div>
 
-      </div>
+        {/* Team Section */}
+        <Row className="mb-5">
+          <Col>
+            <div className="text-center">
+              <h2 className="display-5 fw-bold mb-3">
+                <i className="fas fa-users text-primary me-3"></i>
+                Our Team
+              </h2>
+              <p className="lead text-muted mb-4">
+                Meet the passionate people behind FurBabies
+              </p>
+              <p className="text-muted">
+                Our diverse team includes veterinarians, animal behaviorists, adoption counselors, 
+                and dedicated volunteers who share a common love for animals and commitment to their welfare.
+              </p>
+            </div>
+          </Col>
+        </Row>
+      </Container>
     </>
   );
 };

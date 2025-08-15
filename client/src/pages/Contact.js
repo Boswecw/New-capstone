@@ -49,151 +49,203 @@ const Contact = () => {
 
   return (
     <>
-      <div style={{ marginTop: "80px" }}>
-        <HeroBanner
-          logoSize="large"
-          subtitle={
-            <>
-              <i className="fas fa-envelope me-2" />
-              Get in Touch with Us
-            </>
-          }
-        />
+      {/* Enhanced Hero Banner - matches Home page style */}
+      <HeroBanner
+  title="Contact FurBabies"
+  subtitle="We'd love to hear from you!"
+  primaryButtonText="Browse Pets"
+  primaryButtonLink="/browse"
+  secondaryButtonText="Learn More"
+  secondaryButtonLink="/about"
+/>
 
-        <Container className="py-5">
-          <h1 className="text-center mb-4">
-            <i className="fas fa-paw me-2"></i>Contact FurBabies
-          </h1>
-          <p className="text-center text-muted mb-5">
-            We'd love to hear from you! Whether you have a question about pets,
-            services, or anything else, our team is ready to help.
-          </p>
+      <Container className="py-5">
+        <Row className="justify-content-center">
+          <Col lg={8}>
+            {/* Contact Form Card */}
+            <Card className="border-0 shadow-sm mb-5">
+              <Card.Header className="bg-primary text-white">
+                <h3 className="mb-0">
+                  <i className="fas fa-paper-plane me-2"></i>
+                  Send Us a Message
+                </h3>
+              </Card.Header>
+              <Card.Body className="p-4">
+                {/* Success/Error Messages */}
+                {success && (
+                  <Alert variant="success" className="mb-4">
+                    <i className="fas fa-check-circle me-2"></i>
+                    {success}
+                  </Alert>
+                )}
+                {error && (
+                  <Alert variant="danger" className="mb-4">
+                    <i className="fas fa-exclamation-circle me-2"></i>
+                    {error}
+                  </Alert>
+                )}
 
-          <Row className="g-4">
-            {/* Contact Form */}
-            <Col lg={6}>
-              <Card>
-                <Card.Body>
-                  <Card.Title>Send us a Message</Card.Title>
+                <Form onSubmit={handleSubmit}>
+                  <Row>
+                    <Col md={6}>
+                      <Form.Group className="mb-3">
+                        <Form.Label>
+                          <i className="fas fa-user me-1"></i>
+                          Name *
+                        </Form.Label>
+                        <Form.Control
+                          type="text"
+                          name="name"
+                          value={formData.name}
+                          onChange={handleChange}
+                          required
+                          placeholder="Your full name"
+                        />
+                      </Form.Group>
+                    </Col>
+                    <Col md={6}>
+                      <Form.Group className="mb-3">
+                        <Form.Label>
+                          <i className="fas fa-envelope me-1"></i>
+                          Email *
+                        </Form.Label>
+                        <Form.Control
+                          type="email"
+                          name="email"
+                          value={formData.email}
+                          onChange={handleChange}
+                          required
+                          placeholder="your.email@example.com"
+                        />
+                      </Form.Group>
+                    </Col>
+                  </Row>
 
-                  {success && <Alert variant="success">{success}</Alert>}
-                  {error && <Alert variant="danger">{error}</Alert>}
+                  <Form.Group className="mb-3">
+                    <Form.Label>
+                      <i className="fas fa-tag me-1"></i>
+                      Subject *
+                    </Form.Label>
+                    <Form.Select
+                      name="subject"
+                      value={formData.subject}
+                      onChange={handleChange}
+                      required
+                    >
+                      <option value="">Choose a subject...</option>
+                      <option value="adoption">Pet Adoption Inquiry</option>
+                      <option value="volunteer">Volunteer Opportunities</option>
+                      <option value="support">Support & Help</option>
+                      <option value="partnership">Partnership</option>
+                      <option value="feedback">Feedback</option>
+                      <option value="other">Other</option>
+                    </Form.Select>
+                  </Form.Group>
 
-                  <Form onSubmit={handleSubmit}>
-                    <Form.Group className="mb-3">
-                      <Form.Label>
-                        <i className="fas fa-user me-1" />
-                        Name
-                      </Form.Label>
-                      <Form.Control
-                        type="text"
-                        name="name"
-                        value={formData.name}
-                        onChange={handleChange}
-                        placeholder="Your Name"
-                        required
-                      />
-                    </Form.Group>
+                  <Form.Group className="mb-4">
+                    <Form.Label>
+                      <i className="fas fa-comment me-1"></i>
+                      Message *
+                    </Form.Label>
+                    <Form.Control
+                      as="textarea"
+                      rows={5}
+                      name="message"
+                      value={formData.message}
+                      onChange={handleChange}
+                      required
+                      placeholder="Tell us how we can help you..."
+                    />
+                  </Form.Group>
 
-                    <Form.Group className="mb-3">
-                      <Form.Label>
-                        <i className="fas fa-envelope me-1" />
-                        Email
-                      </Form.Label>
-                      <Form.Control
-                        type="email"
-                        name="email"
-                        value={formData.email}
-                        onChange={handleChange}
-                        placeholder="you@example.com"
-                        required
-                      />
-                    </Form.Group>
-
-                    <Form.Group className="mb-3">
-                      <Form.Label>
-                        <i className="fas fa-tag me-1" />
-                        Subject
-                      </Form.Label>
-                      <Form.Control
-                        type="text"
-                        name="subject"
-                        value={formData.subject}
-                        onChange={handleChange}
-                        placeholder="Subject (Optional)"
-                      />
-                    </Form.Group>
-
-                    <Form.Group className="mb-3">
-                      <Form.Label>
-                        <i className="fas fa-comment-dots me-1" />
-                        Message
-                      </Form.Label>
-                      <Form.Control
-                        as="textarea"
-                        rows={4}
-                        name="message"
-                        value={formData.message}
-                        onChange={handleChange}
-                        placeholder="How can we help?"
-                        required
-                      />
-                    </Form.Group>
-
-                    <Button type="submit" variant="primary" disabled={loading}>
-                      <i className="fas fa-paper-plane me-1" />
-                      {loading ? "Sending..." : "Send Message"}
+                  <div className="text-center">
+                    <Button
+                      type="submit"
+                      size="lg"
+                      disabled={loading}
+                      className="px-5"
+                    >
+                      {loading ? (
+                        <>
+                          <span className="spinner-border spinner-border-sm me-2" />
+                          Sending...
+                        </>
+                      ) : (
+                        <>
+                          <i className="fas fa-paper-plane me-2"></i>
+                          Send Message
+                        </>
+                      )}
                     </Button>
-                  </Form>
-                </Card.Body>
-              </Card>
-            </Col>
+                  </div>
+                </Form>
+              </Card.Body>
+            </Card>
+          </Col>
+        </Row>
 
-            {/* Contact Info */}
-            <Col lg={6}>
-              <div className="mb-4">
-                <h5>
-                  <i className="fas fa-map-marker-alt me-2" />
-                  Our Store
-                </h5>
-                <p>
-                  1234 Happy Tails Blvd
-                  <br />
-                  Lexington, KY 40505
+        {/* Contact Information */}
+        <Row className="g-4">
+          <Col md={4}>
+            <Card className="h-100 border-0 shadow-sm text-center">
+              <Card.Body className="p-4">
+                <i className="fas fa-map-marker-alt fa-3x text-primary mb-3"></i>
+                <h5>Visit Us</h5>
+                <p className="text-muted mb-0">
+                  123 Pet Street<br />
+                  Animal City, AC 12345
                 </p>
-              </div>
+              </Card.Body>
+            </Card>
+          </Col>
+          <Col md={4}>
+            <Card className="h-100 border-0 shadow-sm text-center">
+              <Card.Body className="p-4">
+                <i className="fas fa-phone fa-3x text-success mb-3"></i>
+                <h5>Call Us</h5>
+                <p className="text-muted mb-0">
+                  (555) 123-PETS<br />
+                  Mon-Fri 9AM-6PM
+                </p>
+              </Card.Body>
+            </Card>
+          </Col>
+          <Col md={4}>
+            <Card className="h-100 border-0 shadow-sm text-center">
+              <Card.Body className="p-4">
+                <i className="fas fa-envelope fa-3x text-info mb-3"></i>
+                <h5>Email Us</h5>
+                <p className="text-muted mb-0">
+                  info@furbabies.com<br />
+                  We reply within 24 hours
+                </p>
+              </Card.Body>
+            </Card>
+          </Col>
+        </Row>
 
-              <div className="mb-4">
-                <h5>
-                  <i className="fas fa-phone me-2" />
-                  Call Us
-                </h5>
-                <p>(859) 555-1234</p>
-              </div>
-
-              <div className="mb-4">
-                <h5>
-                  <i className="fas fa-envelope me-2" />
-                  Email Us
-                </h5>
-                <p>support@furbabiespets.com</p>
-              </div>
-
-              <div className="map-container">
-                <iframe
-                  src="https://www.google.com/maps?q=Lexington+KY&output=embed"
-                  width="100%"
-                  height="300"
-                  frameBorder="0"
-                  style={{ border: 0, borderRadius: "8px" }}
-                  allowFullScreen
-                  title="Store Location"
-                ></iframe>
-              </div>
+        {/* FAQ Section */}
+        <div className="mt-5 pt-5 border-top">
+          <div className="text-center mb-4">
+            <h3>
+              <i className="fas fa-question-circle text-primary me-2"></i>
+              Frequently Asked Questions
+            </h3>
+            <p className="text-muted">Quick answers to common questions</p>
+          </div>
+          
+          <Row>
+            <Col md={6}>
+              <h6><i className="fas fa-paw me-2 text-primary"></i>How do I adopt a pet?</h6>
+              <p className="text-muted mb-4">Browse our available pets, submit an application, and we'll guide you through our adoption process.</p>
+            </Col>
+            <Col md={6}>
+              <h6><i className="fas fa-heart me-2 text-danger"></i>Can I volunteer?</h6>
+              <p className="text-muted mb-4">Yes! We always need volunteers. Contact us to learn about current opportunities.</p>
             </Col>
           </Row>
-        </Container>
-      </div>
+        </div>
+      </Container>
     </>
   );
 };

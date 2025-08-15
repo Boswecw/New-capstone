@@ -18,18 +18,6 @@ const FilterSidebar = ({ config, filters, stats, onFilterChange, onSearch }) => 
           />
         );
       
-      case 'number':
-        return (
-          <Form.Control
-            type="number"
-            placeholder={filterConfig.placeholder}
-            value={value}
-            onChange={(e) => onFilterChange(key, e.target.value)}
-            min="0"
-            step="0.01"
-          />
-        );
-      
       case 'select':
         return (
           <Form.Select

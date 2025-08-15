@@ -1,118 +1,111 @@
 // server/models/Product.js - Updated with automatic boolean conversion
+
 const mongoose = require('mongoose');
 
-// Custom setter to convert string booleans to actual booleans
-const booleanSetter = function(val) {
-  if (typeof val === 'string') {
-    return val.toLowerCase() === 'true' || val === '1';
-  }
-  return Boolean(val);
-};
-
 const productSchema = new mongoose.Schema({
-  name: {
-    type: String,
-    required: [true, 'Product name is required'],
+  name: { 
+    type: String, 
+    required: true,
     trim: true,
-    maxlength: [100, 'Product name cannot exceed 100 characters']
+    maxlength: 200
   },
-  category: {
+  description: { 
+    type: String, 
+    required: true,
+    trim: true,
+    maxlength: 1000
+  },
+  price: { 
+    type: Number, 
+    required: true,
+    min: 0,
+    validate: {
+      validator: function(v) {
+        return !isNaN(v) && v >= 0;
+      },
+      message: 'Price must be a valid positive number'
+    }
+  },
+  category: { 
+    type: String, 
+    required: true,
+    enum: ['food', 'toys', 'accessories', 'health', 'grooming', 'beds', 'carriers', 'clothing'],
+    lowercase: true
+  },
+  brand: { 
+    type: String, 
+    trim: true,
+    maxlength: 100
+  },
+  image: { 
     type: String,
-    required: [true, 'Category is required'],
     trim: true
   },
-  brand: {
-    type: String,
-    required: [true, 'Brand is required'],
-    trim: true,
-    maxlength: [50, 'Brand cannot exceed 50 characters']
-  },
-  price: {
-    type: Number,
-    required: [true, 'Price is required'],
-    min: [0, 'Price cannot be negative']
-  },
-  inStock: {
-    type: Boolean,
+  inStock: { 
+    type: Boolean, 
     default: true,
-    set: booleanSetter  // Automatically convert string to boolean
+    validate: {
+      validator: function(v) {
+        return typeof v === 'boolean';
+      },
+      message: 'inStock must be a boolean value'
+    }
   },
-  description: {
-    type: String,
-    trim: true,
-    maxlength: [500, 'Description cannot exceed 500 characters']
-  },
-  image: {
-    type: String,
-    trim: true,
-    default: null
-  },
-  imageUrl: {
-    type: String,
-    trim: true,
-    default: null
-  },
-  imagePublicId: {
-    type: String,
-    trim: true
-  },
-  featured: {
-    type: Boolean,
+  featured: { 
+    type: Boolean, 
     default: false,
-    set: booleanSetter  // Automatically convert string to boolean
+    validate: {
+      validator: function(v) {
+        return typeof v === 'boolean';
+      },
+      message: 'featured must be a boolean value'
+    }
   },
-  views: {
+  rating: {
     type: Number,
+    min: 0,
+    max: 5,
     default: 0
   },
-  createdBy: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: false  // Make optional for existing data
-  }
+  reviewCount: {
+    type: Number,
+    min: 0,
+    default: 0
+  },
+  tags: [{
+    type: String,
+    trim: true,
+    lowercase: true
+  }]
 }, {
   timestamps: true,
   toJSON: { virtuals: true },
-  toObject: { virtuals: true },
-  strict: false  // Allow custom string IDs
+  toObject: { virtuals: true }
 });
 
-// Indexes for better query performance
-productSchema.index({ category: 1, inStock: 1 });
-productSchema.index({ inStock: 1, featured: 1 });
-productSchema.index({ createdAt: -1 });
+// Indexes for performance
+productSchema.index({ category: 1, inStock: 1, featured: 1 });
+productSchema.index({ featured: 1 });
+productSchema.index({ name: 'text', description: 'text', brand: 'text' });
 productSchema.index({ price: 1 });
+productSchema.index({ createdAt: -1 });
 
-// Virtual for price display
-productSchema.virtual('priceDisplay').get(function() {
-  return typeof this.price === 'number' ? `$${this.price.toFixed(2)}` : 'Price not available';
-});
-
-// Pre-save middleware to ensure boolean conversion
+// Pre-save hook to ensure data types
 productSchema.pre('save', function(next) {
-  // Ensure featured is boolean
-  if (this.featured !== undefined) {
-    this.featured = booleanSetter(this.featured);
+  // Ensure booleans are actual booleans
+  if (typeof this.featured === 'string') {
+    this.featured = this.featured.toLowerCase() === 'true';
+  }
+  if (typeof this.inStock === 'string') {
+    this.inStock = this.inStock.toLowerCase() === 'true';
   }
   
-  // Ensure inStock is boolean  
-  if (this.inStock !== undefined) {
-    this.inStock = booleanSetter(this.inStock);
+  // Ensure price is a number
+  if (typeof this.price === 'string' && !isNaN(this.price)) {
+    this.price = parseFloat(this.price);
   }
   
   next();
 });
-
-// Static methods
-productSchema.statics.getFeatured = function(limit = 4) {
-  return this.find({ 
-    featured: true, 
-    inStock: true 
-  }).limit(limit).sort({ createdAt: -1 });
-};
-
-productSchema.statics.getInStock = function() {
-  return this.find({ inStock: true }).sort({ createdAt: -1 });
-};
 
 module.exports = mongoose.model('Product', productSchema);
