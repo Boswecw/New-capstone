@@ -1,6 +1,7 @@
 // pages/Supplies.js
 import React, { useState, useEffect } from "react";
 import LoadingSpinner from "../components/admin/LoadingSpinner";
+import SafeImage from "../components/SafeImage";
 
 const Supplies = () => {
   const [supplies, setSupplies] = useState([]);
@@ -85,14 +86,12 @@ const Supplies = () => {
             key={supply.id}
             className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow"
           >
-            <img
+            <SafeImage
               src={supply.image}
               alt={supply.name}
-              className="w-full h-48 object-cover"
-              onError={(e) => {
-                e.target.src =
-                  "https://via.placeholder.com/300x200?text=Pet+Supply";
-              }}
+              className="w-full h-48"
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              fallback="https://via.placeholder.com/300x200?text=Pet+Supply"
             />
             <div className="p-4">
               <h3 className="text-lg font-semibold text-gray-900 mb-2">

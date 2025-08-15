@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import usePetFilters from '../hooks/usePetFilters'; // Fixed: Default import
 import SafeImage from '../components/SafeImage';
-import { getOptimizedImageUrl } from '../utils/imageUtils';
+import { buildPetImageUrl } from '../utils/imageUtils';
 import './Browse.css';
 
 const Browse = () => {
@@ -351,7 +351,7 @@ const Browse = () => {
 
 // Pet Card Component (Grid View)
 const PetCard = ({ pet }) => {
-  const imageUrl = getOptimizedImageUrl(pet.image, { width: 300, height: 300 });
+  const imageUrl = buildPetImageUrl(pet.image, { width: 300, height: 300 });
   
   return (
     <div className="pet-card">
@@ -423,7 +423,7 @@ const PetCard = ({ pet }) => {
 
 // Pet List Item Component (List View)
 const PetListItem = ({ pet }) => {
-  const imageUrl = getOptimizedImageUrl(pet.image, { width: 120, height: 120 });
+  const imageUrl = buildPetImageUrl(pet.image, { width: 120, height: 120 });
   
   return (
     <div className="pet-list-item">
