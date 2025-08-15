@@ -1,7 +1,7 @@
 // src/components/SafeImage.js
-
 import React, { useState, useEffect } from 'react';
 import {
+  buildImageUrl,
   buildPetImageUrl,
   buildProductImageUrl,
   validateImageUrl,
@@ -10,48 +10,66 @@ import {
 } from '../utils/imageUtils';
 
 /**
- * SafeImage component that handles image loading with fallbacks
- * @param {Object} props - Component props
- * @param {string} props.src - Image source URL
- * @param {string} props.alt - Alt text for accessibility
- * @param {string} props.fallback - Custom fallback image
- * @param {string} props.className - CSS classes
- * @param {Object} props.style - Inline styles
- * @param {Function} props.onLoad - Callback when image loads successfully
- * @param {Function} props.onError - Callback when image fails to load
- * @param {string} props.entityType - Type of entity the image represents ('pet' | 'product')
- * @param {Object} props.item - Entity item that may contain image information
- * @param {Object} props.optimization - Image optimization options
-*/
+ * SafeImage component that handles image loading with fallbacks.
+ *
+ * Props:
+ * - src?: string                 Explicit image URL/path
+ * - item?: object                Entity object (may contain image fields)
+ * - entityType?: 'pet'|'product' Used to choose URL builder & default fallback (default: 'pet')
+ * - alt?: string                 Alt text
+ * - className?: string           CSS class for the container
+ * - style?: object               Inline styles for the <img>
+ * - showLoader?: boolean         Show loading placeholder (default: false)
+ * - fallback?: string            Custom fallback image
+ * - onLoad?: (evt) => void       Callback when image loads
+ * - onError?: (err) => void      Callback when image fails
+ * - optimization?: object        Reserved for future use (sizes, fit, etc.)
+ * - ...imgProps                  Spread onto <img>
+ */
 const SafeImage = ({
   src,
+  item,
+  entityType = 'pet',
   alt = '',
-  fallback,
   className = '',
   style = {},
+  showLoader = false,
+  fallback,
   onLoad,
   onError,
-  entityType = 'pet',
-  item,
   optimization = {},
   ...imgProps
 }) => {
   const [imageSrc, setImageSrc] = useState('');
   const [imageError, setImageError] = useState(false);
   const [loading, setLoading] = useState(true);
-  const resolvedFallback = fallback || (entityType === 'product' ? DEFAULT_PRODUCT_IMAGE : DEFAULT_PET_IMAGE);
+
+  // Determine the best candidate for the source image.
+  const resolveSource = () => {
+    if (src) return src;
+    if (item) {
+      // Try a few common fields
+      return item.image || item.imageUrl || item.imagePath || '';
+    }
+    return '';
+  };
+
+  // Determine fallback based on entity type if not explicitly provided.
+  const resolveFallback = () => {
+    if (fallback) return fallback;
+    return entityType === 'product' ? DEFAULT_PRODUCT_IMAGE : DEFAULT_PET_IMAGE;
+  };
 
   useEffect(() => {
     let isMounted = true;
 
     const loadImage = async () => {
-      let source = src;
-      if (!source && item) {
-        source = entityType === 'product' ? item?.imageUrl : item?.image;
-      }
+      const candidate = resolveSource();
+      const fb = resolveFallback();
 
-      if (!source) {
-        setImageSrc(resolvedFallback);
+      if (!candidate) {
+        if (!isMounted) return;
+        setImageSrc(fb);
         setLoading(false);
         return;
       }
@@ -60,32 +78,34 @@ const SafeImage = ({
       setImageError(false);
 
       try {
-        const builder = entityType === 'product' ? buildProductImageUrl : buildPetImageUrl;
-        const imageUrl = builder(source, resolvedFallback);
+        // Build the image URL based on entity type
+        const imageUrl =
+          entityType === 'product'
+            ? buildProductImageUrl(candidate, fb)
+            : entityType === 'pet'
+              ? buildPetImageUrl(candidate, fb)
+              : buildImageUrl(candidate);
 
+        // Validate the image URL
         const isValid = await validateImageUrl(imageUrl);
 
-        if (isMounted) {
-          if (isValid) {
-            setImageSrc(imageUrl);
-          } else {
-            setImageSrc(resolvedFallback);
-            setImageError(true);
-            if (onError) {
-              onError(new Error(`Failed to load image: ${imageUrl}`));
-            }
-          }
-          setLoading(false);
-        }
-      } catch (error) {
-        if (isMounted) {
-          setImageSrc(resolvedFallback);
+        if (!isMounted) return;
+
+        if (isValid) {
+          setImageSrc(imageUrl);
+        } else {
+          setImageSrc(fb);
           setImageError(true);
-          setLoading(false);
-          if (onError) {
-            onError(error);
-          }
+          onError && onError(new Error(`Failed to load image: ${imageUrl}`));
         }
+        setLoading(false);
+      } catch (error) {
+        if (!isMounted) return;
+        const fb = resolveFallback();
+        setImageSrc(fb);
+        setImageError(true);
+        setLoading(false);
+        onError && onError(error);
       }
     };
 
@@ -94,22 +114,20 @@ const SafeImage = ({
     return () => {
       isMounted = false;
     };
-  }, [src, item, fallback, entityType, onError]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [src, item, entityType, fallback]);
 
   const handleLoad = (event) => {
     setLoading(false);
-    if (onLoad) {
-      onLoad(event);
-    }
+    onLoad && onLoad(event);
   };
 
-  const handleError = (event) => {
+  const handleError = () => {
     if (!imageError) {
-      setImageSrc(resolvedFallback);
+      const fb = resolveFallback();
+      setImageSrc(fb);
       setImageError(true);
-      if (onError) {
-        onError(new Error(`Image failed to load: ${src}`));
-      }
+      onError && onError(new Error('Image failed to load'));
     }
   };
 
@@ -121,15 +139,12 @@ const SafeImage = ({
 
   return (
     <div className={`safe-image-container ${className}`} style={{ position: 'relative' }}>
-      {loading && (
-        <div 
+      {showLoader && loading && (
+        <div
           className="image-loading-placeholder"
           style={{
             position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
+            inset: 0,
             background: '#f0f0f0',
             display: 'flex',
             alignItems: 'center',
@@ -141,6 +156,7 @@ const SafeImage = ({
           Loading...
         </div>
       )}
+
       <img
         src={imageSrc}
         alt={alt}
@@ -149,8 +165,9 @@ const SafeImage = ({
         onError={handleError}
         {...imgProps}
       />
+
       {imageError && (
-        <div 
+        <div
           className="image-error-indicator"
           style={{
             position: 'absolute',
