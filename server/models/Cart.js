@@ -1,10 +1,8 @@
-// ===== SHOPPING CART MODEL =====
-// File: server/models/Cart.js (CREATE NEW FILE)
-
+// server/models/Cart.js
 const mongoose = require('mongoose');
 
 const cartItemSchema = new mongoose.Schema({
-  product: {
+  productId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Product',
     required: true
@@ -13,64 +11,82 @@ const cartItemSchema = new mongoose.Schema({
     type: Number,
     required: true,
     min: 1,
-    max: 10,
     default: 1
   },
   price: {
     type: Number,
-    required: true,
-    min: 0
+    required: true
+  },
+  addedAt: {
+    type: Date,
+    default: Date.now
   }
-}, { _id: false });
+});
 
 const cartSchema = new mongoose.Schema({
-  user: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: false // Allow guest carts
-  },
   sessionId: {
     type: String,
-    required: false // For guest users
+    sparse: true,
+    index: true
+  },
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    sparse: true,
+    index: true
   },
   items: [cartItemSchema],
-  totalAmount: {
-    type: Number,
-    default: 0,
-    min: 0
-  },
-  totalItems: {
-    type: Number,
-    default: 0,
-    min: 0
-  },
-  status: {
-    type: String,
-    enum: ['active', 'abandoned', 'converted'],
-    default: 'active'
+  updatedAt: {
+    type: Date,
+    default: Date.now
   },
   expiresAt: {
     type: Date,
-    default: Date.now,
-    expires: 2592000 // 30 days
+    default: () => new Date(+new Date() + 30*24*60*60*1000), // 30 days
+    index: { expireAfterSeconds: 0 }
   }
 }, {
-  timestamps: true,
-  toJSON: { virtuals: true },
-  toObject: { virtuals: true }
+  timestamps: true
 });
 
-// Indexes for performance
-cartSchema.index({ user: 1 });
-cartSchema.index({ sessionId: 1 });
-cartSchema.index({ status: 1 });
-cartSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+// Ensure either sessionId or userId is present
+cartSchema.pre('validate', function(next) {
+  if (!this.sessionId && !this.userId) {
+    next(new Error('Either sessionId or userId is required'));
+  } else {
+    next();
+  }
+});
 
-// Calculate totals before saving
+// Update the updatedAt timestamp on save
 cartSchema.pre('save', function(next) {
-  this.totalItems = this.items.reduce((sum, item) => sum + item.quantity, 0);
-  this.totalAmount = this.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  this.updatedAt = new Date();
   next();
 });
 
-module.exports = mongoose.model('Cart', cartSchema);
+// Instance method to calculate total
+cartSchema.methods.calculateTotal = function() {
+  return this.items.reduce((total, item) => {
+    return total + (item.price * item.quantity);
+  }, 0);
+};
+
+// Instance method to get item count
+cartSchema.methods.getItemCount = function() {
+  return this.items.reduce((count, item) => {
+    return count + item.quantity;
+  }, 0);
+};
+
+// Static method to clean up expired carts
+cartSchema.statics.cleanupExpired = async function() {
+  const thirtyDaysAgo = new Date(Date.now() - 30*24*60*60*1000);
+  return await this.deleteMany({
+    updatedAt: { $lt: thirtyDaysAgo },
+    userId: { $exists: false }
+  });
+};
+
+const Cart = mongoose.model('Cart', cartSchema);
+
+module.exports = Cart;
