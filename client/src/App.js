@@ -1,10 +1,12 @@
-// client/src/App.js - FINAL CLEAN VERSION w/ Cart integrated + Performance Monitor + Dev Filter Debug
+// client/src/App.js - FINAL CLEAN VERSION w/ Cart integrated + Performance Monitor + Dev Filter Debug + FontAwesome
 
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import { ToastProvider } from "./contexts/ToastContext";
 import { CartProvider } from "./contexts/CartContext";
 import ErrorBoundary from "./components/ErrorBoundary";
+
+// FontAwesome icons imported individually in components (tree-shaking)
 
 // Layout Components
 import Navbar from "./components/Navbar";
@@ -53,6 +55,8 @@ import ProtectedRoute from "./components/ProtectedRoute";
 // Styles
 import "bootstrap/dist/css/bootstrap.min.css";
 import "./styles/globals.css";
+
+// Icons are imported individually in each component for better tree-shaking
 
 // ============================================
 // Performance Monitoring (kept in this file, outside JSX)

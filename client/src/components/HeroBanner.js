@@ -1,4 +1,4 @@
-// client/src/components/HeroBanner.js - UPDATED for Home Page Integration with FIX
+// client/src/components/HeroBanner.js - UPDATED for Home Page Integration with DOUBLE SIZE ICON
 
 import React from "react";
 import { Container, Row, Col } from "react-bootstrap";
@@ -69,7 +69,7 @@ const HeroBanner = ({
       <Container className="h-100">
         <Row className="justify-content-center align-items-center h-100 text-center">
           <Col xs={12} lg={variant === "home" ? 8 : 10}>
-            {/* FurBabies Icon */}
+            {/* FurBabies Icon - DOUBLE SIZE */}
             {showLogo && (
               <img
                 src={furBabiesIconUrl}
@@ -77,7 +77,7 @@ const HeroBanner = ({
                 onError={handleImageError}
                 className={`hero-icon ${variant === "home" ? "bounce-energetic" : "bounce-loop"}`}
                 style={{
-                  maxHeight: variant === "home" ? "120px" : "100px",
+                  maxHeight: variant === "home" ? "240px" : "200px", // DOUBLED FROM 120px/100px
                   marginBottom: variant === "home" ? "2rem" : "1.5rem"
                 }}
               />

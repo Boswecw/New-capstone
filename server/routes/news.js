@@ -1,458 +1,415 @@
-// server/routes/news.js - COMPLETE NEWS ROUTES
+// server/routes/news.js - Server-side external news fetching
 const express = require('express');
+const axios = require('axios');
 const router = express.Router();
-const { protect, admin } = require('../middleware/auth');
 
-// Mock news data (you can replace this with a MongoDB model later)
-const mockNewsData = [
-  {
-    id: '1',
-    title: 'New Pet Adoption Center Opens Downtown',
-    summary: 'A state-of-the-art pet adoption facility has opened its doors.',
-    content: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit...',
-    category: 'adoption',
-    author: 'FurBabies Team',
-    featured: true,
-    published: true,
-    publishedAt: new Date('2024-12-01'),
-    views: 1250,
-    likes: 89,
-    imageUrl: '/images/news/adoption-center.jpg',
-    tags: ['adoption', 'facility', 'downtown']
-  },
-  {
-    id: '2', 
-    title: 'Holiday Pet Safety Tips',
-    summary: 'Keep your furry friends safe during the holiday season.',
-    content: 'The holidays can be a dangerous time for pets...',
-    category: 'safety',
-    author: 'Dr. Sarah Johnson',
-    featured: true,
-    published: true,
-    publishedAt: new Date('2024-12-15'),
-    views: 980,
-    likes: 67,
-    imageUrl: '/images/news/holiday-safety.jpg',
-    tags: ['safety', 'holidays', 'tips']
-  },
-  {
-    id: '3',
-    title: 'Success Story: Max Finds His Forever Home',
-    summary: 'Follow Max the Golden Retriever\'s journey from shelter to family.',
-    content: 'Max arrived at our shelter six months ago...',
-    category: 'success-story',
-    author: 'Maria Rodriguez',
-    featured: true,
-    published: true,
-    publishedAt: new Date('2024-12-10'),
-    views: 1567,
-    likes: 234,
-    imageUrl: '/images/news/max-success.jpg',
-    tags: ['success-story', 'golden-retriever', 'adoption']
-  },
-  {
-    id: '4',
-    title: 'Volunteer Training Workshop This Weekend',
-    summary: 'Join us for comprehensive volunteer training.',
-    content: 'We are hosting a volunteer training workshop...',
-    category: 'events',
-    author: 'FurBabies Team',
-    featured: false,
-    published: true,
-    publishedAt: new Date('2024-12-20'),
-    views: 456,
-    likes: 23,
-    imageUrl: '/images/news/volunteer-training.jpg',
-    tags: ['volunteer', 'training', 'workshop']
-  },
-  {
-    id: '5',
-    title: 'Understanding Pet Nutrition',
-    summary: 'Learn about proper nutrition for your pets.',
-    content: 'Proper nutrition is essential for your pet\'s health...',
-    category: 'health',
-    author: 'Dr. Mike Chen',
-    featured: false,
-    published: true,
-    publishedAt: new Date('2024-12-18'),
-    views: 789,
-    likes: 45,
-    imageUrl: '/images/news/pet-nutrition.jpg',
-    tags: ['nutrition', 'health', 'diet']
-  }
+// Cache for news articles (simple in-memory cache)
+let newsCache = {
+  data: [],
+  lastFetch: null,
+  CACHE_DURATION: 30 * 60 * 1000 // 30 minutes
+};
+
+// Pet-related keywords and sources
+const PET_SOURCES = [
+  'petmd.com',
+  'akc.org',
+  'avma.org',
+  'petfinder.com',
+  'aspca.org',
+  'rover.com',
+  'chewy.com',
+  'vetstreet.com',
+  'pethealthnetwork.com'
 ];
 
-// GET /api/news/featured - Get featured news articles  
-router.get('/featured', async (req, res) => {
-  try {
-    console.log('📰 GET /api/news/featured');
-    
-    const limit = parseInt(req.query.limit) || 3;
-    
-    const featuredNews = mockNewsData
-      .filter(article => article.featured && article.published)
-      .sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt))
-      .slice(0, limit);
+const PET_KEYWORDS = [
+  'pet care',
+  'veterinary',
+  'animal health',
+  'pet adoption',
+  'animal welfare',
+  'dog training',
+  'cat care',
+  'pet nutrition',
+  'pet health',
+  'animal rescue'
+];
 
-    console.log(`📰 Found ${featuredNews.length} featured articles`);
-
-    res.json({
-      success: true,
-      data: featuredNews,
-      count: featuredNews.length,
-      message: 'Featured news articles retrieved successfully'
-    });
-  } catch (error) {
-    console.error('❌ Error fetching featured news:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching featured news',
-      error: error.message
-    });
+// Detect article category based on content
+const detectCategory = (content) => {
+  const lowercaseContent = content.toLowerCase();
+  
+  if (lowercaseContent.includes('veterinar') || lowercaseContent.includes('vet ') || lowercaseContent.includes('health')) {
+    return 'veterinary';
   }
-});
-
-// GET /api/news/categories - Get distinct categories
-router.get('/categories', async (req, res) => {
-  try {
-    console.log('📰 GET /api/news/categories');
-    
-    const categories = [...new Set(mockNewsData.map(article => article.category))];
-    
-    res.json({
-      success: true,
-      data: categories,
-      message: 'News categories retrieved successfully'
-    });
-  } catch (error) {
-    console.error('❌ Error fetching categories:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching categories',
-      error: error.message
-    });
+  if (lowercaseContent.includes('adoption') || lowercaseContent.includes('shelter') || lowercaseContent.includes('rescue')) {
+    return 'pet adoption';
   }
-});
+  if (lowercaseContent.includes('nutrition') || lowercaseContent.includes('food') || lowercaseContent.includes('diet')) {
+    return 'pet nutrition';
+  }
+  if (lowercaseContent.includes('training') || lowercaseContent.includes('behavior')) {
+    return 'pet training';
+  }
+  if (lowercaseContent.includes('dog')) {
+    return 'dog care';
+  }
+  if (lowercaseContent.includes('cat')) {
+    return 'cat care';
+  }
+  return 'pet care';
+};
 
-// GET /api/news - Get all news articles
+// Check if content is pet-related
+const isPetRelated = (title, description) => {
+  const content = `${title} ${description || ''}`.toLowerCase();
+  
+  return PET_KEYWORDS.some(keyword => content.includes(keyword.toLowerCase())) ||
+         content.includes('pet') ||
+         content.includes('animal') ||
+         content.includes('dog') ||
+         content.includes('cat') ||
+         content.includes('veterinar') ||
+         content.includes('puppy') ||
+         content.includes('kitten');
+};
+
+// Fetch news from NewsAPI
+const fetchFromNewsAPI = async (searchQuery) => {
+  try {
+    const API_KEY = process.env.NEWS_API_KEY;
+    if (!API_KEY) {
+      console.log('⚠️ NEWS_API_KEY not set, skipping NewsAPI');
+      return [];
+    }
+
+    console.log('📰 Fetching from NewsAPI...');
+    
+    const response = await axios.get('https://newsapi.org/v2/everything', {
+      params: {
+        q: searchQuery || 'pets OR veterinary OR "animal health" OR "pet care"',
+        domains: PET_SOURCES.join(','),
+        language: 'en',
+        sortBy: 'publishedAt',
+        pageSize: 50,
+        apiKey: API_KEY
+      },
+      timeout: 10000
+    });
+
+    if (response.data.status === 'ok') {
+      return response.data.articles
+        .filter(article => {
+          if (article.title === '[Removed]' || !article.title) return false;
+          return isPetRelated(article.title, article.description);
+        })
+        .map(article => ({
+          _id: `newsapi_${Buffer.from(article.url).toString('base64').slice(0, 20)}`,
+          title: article.title,
+          description: article.description,
+          summary: article.description?.slice(0, 200) + '...',
+          imageUrl: article.urlToImage,
+          originalUrl: article.url,
+          publishedAt: article.publishedAt,
+          author: article.author || article.source?.name,
+          source: article.source?.name,
+          category: detectCategory(article.title + ' ' + (article.description || '')),
+          type: 'external',
+          featured: ['PetMD', 'American Kennel Club', 'AVMA'].includes(article.source?.name)
+        }));
+    }
+    
+    return [];
+  } catch (error) {
+    console.error('❌ NewsAPI error:', error.message);
+    return [];
+  }
+};
+
+// Fetch news from Guardian API (alternative source)
+const fetchFromGuardian = async (searchQuery) => {
+  try {
+    const API_KEY = process.env.GUARDIAN_API_KEY;
+    if (!API_KEY) {
+      console.log('⚠️ GUARDIAN_API_KEY not set, skipping Guardian');
+      return [];
+    }
+
+    console.log('📰 Fetching from Guardian API...');
+
+    const response = await axios.get('https://content.guardianapis.com/search', {
+      params: {
+        q: searchQuery || 'pets OR animals OR veterinary',
+        section: 'lifeandstyle|science',
+        'show-fields': 'thumbnail,trailText,byline',
+        'page-size': 20,
+        'api-key': API_KEY
+      },
+      timeout: 10000
+    });
+
+    if (response.data.response?.status === 'ok') {
+      return response.data.response.results
+        .filter(article => isPetRelated(article.webTitle, article.fields?.trailText))
+        .map(article => ({
+          _id: `guardian_${article.id}`,
+          title: article.webTitle,
+          description: article.fields?.trailText,
+          summary: article.fields?.trailText?.slice(0, 200) + '...',
+          imageUrl: article.fields?.thumbnail,
+          originalUrl: article.webUrl,
+          publishedAt: article.webPublicationDate,
+          author: article.fields?.byline || 'The Guardian',
+          source: 'The Guardian',
+          category: detectCategory(article.webTitle + ' ' + (article.fields?.trailText || '')),
+          type: 'external',
+          featured: false
+        }));
+    }
+    
+    return [];
+  } catch (error) {
+    console.error('❌ Guardian API error:', error.message);
+    return [];
+  }
+};
+
+// Get mock pet news as fallback
+const getMockPetNews = () => {
+  return [
+    {
+      _id: 'mock-1',
+      title: 'New Study Reveals Benefits of Regular Vet Checkups',
+      description: 'Veterinary researchers find that pets with regular checkups live 20% longer on average.',
+      summary: 'A comprehensive study shows the importance of preventive veterinary care for pet longevity.',
+      imageUrl: 'https://images.unsplash.com/photo-1576201836106-db1758fd1c97?w=400&h=250&fit=crop&q=80',
+      originalUrl: '#',
+      publishedAt: new Date().toISOString(),
+      author: 'Pet Health Today',
+      source: 'Pet Health Today',
+      category: 'veterinary',
+      type: 'external',
+      featured: true
+    },
+    {
+      _id: 'mock-2',
+      title: 'Top 10 Pet Nutrition Tips for 2024',
+      description: 'Expert veterinarians share essential nutrition guidelines for keeping your pets healthy.',
+      summary: 'Learn the latest in pet nutrition science and feeding best practices.',
+      imageUrl: 'https://images.unsplash.com/photo-1583337130417-3346a1be7dee?w=400&h=250&fit=crop&q=80',
+      originalUrl: '#',
+      publishedAt: new Date(Date.now() - 86400000).toISOString(),
+      author: 'Dr. Sarah Johnson',
+      source: 'Veterinary Weekly',
+      category: 'pet nutrition',
+      type: 'external',
+      featured: false
+    },
+    {
+      _id: 'mock-3',
+      title: 'Record Number of Pet Adoptions This Month',
+      description: 'Local shelters report 40% increase in successful pet adoptions compared to last year.',
+      summary: 'Great news for animal welfare as more pets find loving homes.',
+      imageUrl: 'https://images.unsplash.com/photo-1601758228041-f3b2795255f1?w=400&h=250&fit=crop&q=80',
+      originalUrl: '#',
+      publishedAt: new Date(Date.now() - 172800000).toISOString(),
+      author: 'Animal Shelter Network',
+      source: 'Pet Adoption News',
+      category: 'pet adoption',
+      type: 'external',
+      featured: false
+    },
+    {
+      _id: 'mock-4',
+      title: 'Understanding Your Cat\'s Behavior: Expert Tips',
+      description: 'Feline behaviorists explain common cat behaviors and what they mean.',
+      summary: 'Decode your cat\'s mysterious behaviors with help from animal experts.',
+      imageUrl: 'https://images.unsplash.com/photo-1574144611937-0df059b5ef3e?w=400&h=250&fit=crop&q=80',
+      originalUrl: '#',
+      publishedAt: new Date(Date.now() - 259200000).toISOString(),
+      author: 'Dr. Lisa Martinez',
+      source: 'Cat Behavior Institute',
+      category: 'cat care',
+      type: 'external',
+      featured: false
+    },
+    {
+      _id: 'mock-5',
+      title: 'Dog Training: Positive Reinforcement Methods',
+      description: 'Modern dog training techniques that strengthen the bond between you and your pet.',
+      summary: 'Discover effective, humane training methods for dogs of all ages.',
+      imageUrl: 'https://images.unsplash.com/photo-1552053831-71594a27632d?w=400&h=250&fit=crop&q=80',
+      originalUrl: '#',
+      publishedAt: new Date(Date.now() - 345600000).toISOString(),
+      author: 'Mike Thompson',
+      source: 'Dog Training Today',
+      category: 'dog care',
+      type: 'external',
+      featured: false
+    }
+  ];
+};
+
+// Main route to get all news
 router.get('/', async (req, res) => {
   try {
-    console.log('📰 GET /api/news - Query params:', req.query);
+    console.log('📰 GET /api/news - Fetching pet news...');
     
-    const { 
-      category, 
-      featured, 
-      search, 
-      limit = 10, 
-      page = 1, 
-      sort = 'publishedAt' 
-    } = req.query;
+    const { search, category, sortBy = 'publishedAt', sortOrder = 'desc' } = req.query;
     
-    let filteredNews = [...mockNewsData];
+    // Check cache first
+    const now = Date.now();
+    const cacheValid = newsCache.lastFetch && (now - newsCache.lastFetch) < newsCache.CACHE_DURATION;
     
-    // Filter by published status
-    filteredNews = filteredNews.filter(article => article.published);
+    let articles = [];
     
-    // Filter by category
-    if (category && category !== 'all') {
-      filteredNews = filteredNews.filter(article => article.category === category);
+    if (cacheValid && newsCache.data.length > 0) {
+      console.log('📰 Using cached news data');
+      articles = [...newsCache.data];
+    } else {
+      console.log('📰 Fetching fresh news data...');
+      
+      // Fetch from multiple sources
+      const [newsApiArticles, guardianArticles] = await Promise.all([
+        fetchFromNewsAPI(search),
+        fetchFromGuardian(search)
+      ]);
+      
+      // Combine all sources
+      articles = [
+        ...newsApiArticles,
+        ...guardianArticles
+      ];
+      
+      // If no external articles, use mock data
+      if (articles.length === 0) {
+        console.log('📰 No external articles found, using mock data');
+        articles = getMockPetNews();
+      }
+      
+      // Update cache
+      newsCache.data = articles;
+      newsCache.lastFetch = now;
+      
+      console.log(`✅ Cached ${articles.length} news articles`);
     }
     
-    // Filter by featured status
-    if (featured === 'true') {
-      filteredNews = filteredNews.filter(article => article.featured);
-    }
+    // Apply filters
+    let filteredArticles = articles;
     
-    // Search functionality
+    // Search filter
     if (search) {
-      const searchLower = search.toLowerCase();
-      filteredNews = filteredNews.filter(article =>
-        article.title.toLowerCase().includes(searchLower) ||
-        article.summary.toLowerCase().includes(searchLower) ||
-        article.content.toLowerCase().includes(searchLower) ||
-        article.tags.some(tag => tag.toLowerCase().includes(searchLower))
+      const searchTerm = search.toLowerCase();
+      filteredArticles = filteredArticles.filter(article =>
+        article.title.toLowerCase().includes(searchTerm) ||
+        (article.description && article.description.toLowerCase().includes(searchTerm))
+      );
+    }
+    
+    // Category filter
+    if (category && category !== 'all') {
+      filteredArticles = filteredArticles.filter(article =>
+        article.category.toLowerCase().includes(category.toLowerCase())
       );
     }
     
     // Sort articles
-    filteredNews.sort((a, b) => {
-      switch (sort) {
+    filteredArticles.sort((a, b) => {
+      let comparison = 0;
+      
+      switch (sortBy) {
         case 'title':
-          return a.title.localeCompare(b.title);
-        case 'author':
-          return a.author.localeCompare(b.author);
-        case 'views':
-          return b.views - a.views;
-        case 'likes':
-          return b.likes - a.likes;
-        case 'oldest':
-          return new Date(a.publishedAt) - new Date(b.publishedAt);
-        default: // publishedAt (newest first)
-          return new Date(b.publishedAt) - new Date(a.publishedAt);
+          comparison = a.title.localeCompare(b.title);
+          break;
+        case 'publishedAt':
+        default:
+          const dateA = new Date(a.publishedAt);
+          const dateB = new Date(b.publishedAt);
+          comparison = dateA - dateB;
+          break;
       }
+      
+      return sortOrder === 'desc' ? -comparison : comparison;
     });
     
-    // Pagination
-    const startIndex = (parseInt(page) - 1) * parseInt(limit);
-    const endIndex = startIndex + parseInt(limit);
-    const paginatedNews = filteredNews.slice(startIndex, endIndex);
-    
-    const totalPages = Math.ceil(filteredNews.length / parseInt(limit));
+    console.log(`📰 Returning ${filteredArticles.length} filtered articles`);
     
     res.json({
       success: true,
-      data: paginatedNews,
-      pagination: {
-        currentPage: parseInt(page),
-        totalPages,
-        totalArticles: filteredNews.length,
-        hasNext: parseInt(page) < totalPages,
-        hasPrev: parseInt(page) > 1,
-        limit: parseInt(limit)
-      },
-      message: 'News articles retrieved successfully'
+      data: filteredArticles,
+      total: filteredArticles.length,
+      cached: cacheValid
     });
     
   } catch (error) {
-    console.error('❌ Error fetching news:', error);
+    console.error('❌ Error in news route:', error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching news articles',
+      message: 'Failed to fetch news',
       error: error.message
     });
   }
 });
 
-// GET /api/news/:id - Get specific news article
-router.get('/:id', async (req, res) => {
+// Route to get news categories
+router.get('/categories', (req, res) => {
+  const categories = [
+    'veterinary',
+    'pet care',
+    'pet adoption',
+    'pet nutrition',
+    'dog care',
+    'cat care',
+    'animal health',
+    'pet training'
+  ];
+  
+  res.json({
+    success: true,
+    data: categories
+  });
+});
+
+// Route to refresh news cache
+router.post('/refresh', async (req, res) => {
   try {
-    console.log('📰 GET /api/news/:id - Fetching article:', req.params.id);
+    console.log('🔄 Manually refreshing news cache...');
     
-    const { id } = req.params;
-    const article = mockNewsData.find(article => article.id === id);
+    // Clear cache
+    newsCache.data = [];
+    newsCache.lastFetch = null;
     
-    if (!article) {
-      return res.status(404).json({
-        success: false,
-        message: 'Article not found'
-      });
+    // Fetch fresh data
+    const [newsApiArticles, guardianArticles] = await Promise.all([
+      fetchFromNewsAPI(),
+      fetchFromGuardian()
+    ]);
+    
+    const articles = [
+      ...newsApiArticles,
+      ...guardianArticles
+    ];
+    
+    if (articles.length === 0) {
+      articles.push(...getMockPetNews());
     }
     
-    // Increment view count (in a real app, you'd update the database)
-    article.views += 1;
+    // Update cache
+    newsCache.data = articles;
+    newsCache.lastFetch = Date.now();
     
     res.json({
       success: true,
-      data: article,
-      message: 'Article retrieved successfully'
+      message: `Refreshed ${articles.length} articles`,
+      data: articles
     });
     
   } catch (error) {
-    console.error(`❌ GET /news/${req.params.id} error:`, error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Failed to fetch article',
-      error: error.message 
-    });
-  }
-});
-
-// POST /api/news/:id/like - Like an article
-router.post('/:id/like', async (req, res) => {
-  try {
-    console.log('📰 POST /api/news/:id/like - Liking article:', req.params.id);
-    
-    const { id } = req.params;
-    const article = mockNewsData.find(article => article.id === id);
-    
-    if (!article) {
-      return res.status(404).json({
-        success: false,
-        message: 'Article not found'
-      });
-    }
-    
-    // Increment likes (in a real app, you'd update the database)
-    article.likes += 1;
-    
-    res.json({
-      success: true,
-      data: {
-        likes: article.likes
-      },
-      message: 'Article liked successfully'
-    });
-    
-  } catch (error) {
-    console.error(`❌ POST /news/${req.params.id}/like error:`, error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Failed to like article',
-      error: error.message 
-    });
-  }
-});
-
-// ===== ADMIN ROUTES (Protected) =====
-
-// POST /api/news - Create new article (Admin only)
-router.post('/', protect, admin, async (req, res) => {
-  try {
-    console.log('📰 POST /api/news - Admin creating article');
-    
-    const { 
-      title, 
-      content, 
-      summary, 
-      category, 
-      featured, 
-      imageUrl, 
-      tags 
-    } = req.body;
-    
-    if (!title || !content || !summary) {
-      return res.status(400).json({
-        success: false,
-        message: 'Title, content, and summary are required'
-      });
-    }
-    
-    const newArticle = {
-      id: String(mockNewsData.length + 1),
-      title,
-      content,
-      summary,
-      category: category || 'general',
-      featured: featured || false,
-      imageUrl: imageUrl || '',
-      tags: tags || [],
-      author: req.user.name,
-      published: true,
-      publishedAt: new Date(),
-      views: 0,
-      likes: 0
-    };
-    
-    mockNewsData.push(newArticle);
-    
-    res.status(201).json({
-      success: true,
-      data: newArticle,
-      message: 'Article created successfully'
-    });
-    
-  } catch (error) {
-    console.error('❌ Error creating article:', error);
+    console.error('❌ Error refreshing news:', error);
     res.status(500).json({
       success: false,
-      message: 'Error creating article',
-      error: error.message
-    });
-  }
-});
-
-// PUT /api/news/:id - Update article (Admin only)
-router.put('/:id', protect, admin, async (req, res) => {
-  try {
-    console.log('📰 PUT /api/news/:id - Admin updating article:', req.params.id);
-    
-    const { id } = req.params;
-    const articleIndex = mockNewsData.findIndex(article => article.id === id);
-    
-    if (articleIndex === -1) {
-      return res.status(404).json({
-        success: false,
-        message: 'Article not found'
-      });
-    }
-    
-    // Update article with new data
-    const updatedArticle = {
-      ...mockNewsData[articleIndex],
-      ...req.body,
-      id, // Preserve the ID
-      updatedAt: new Date()
-    };
-    
-    mockNewsData[articleIndex] = updatedArticle;
-    
-    res.json({
-      success: true,
-      data: updatedArticle,
-      message: 'Article updated successfully'
-    });
-    
-  } catch (error) {
-    console.error('❌ Error updating article:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error updating article',
-      error: error.message
-    });
-  }
-});
-
-// DELETE /api/news/:id - Delete article (Admin only)
-router.delete('/:id', protect, admin, async (req, res) => {
-  try {
-    console.log('📰 DELETE /api/news/:id - Admin deleting article:', req.params.id);
-    
-    const { id } = req.params;
-    const articleIndex = mockNewsData.findIndex(article => article.id === id);
-    
-    if (articleIndex === -1) {
-      return res.status(404).json({
-        success: false,
-        message: 'Article not found'
-      });
-    }
-    
-    const deletedArticle = mockNewsData.splice(articleIndex, 1)[0];
-    
-    res.json({
-      success: true,
-      data: deletedArticle,
-      message: 'Article deleted successfully'
-    });
-    
-  } catch (error) {
-    console.error('❌ Error deleting article:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error deleting article',
-      error: error.message
-    });
-  }
-});
-
-// GET /api/news/custom - Get custom news for admin dashboard
-router.get('/custom', protect, admin, async (req, res) => {
-  try {
-    console.log('📰 GET /api/news/custom - Admin fetching custom news');
-    
-    const customNews = mockNewsData.map(article => ({
-      id: article.id,
-      title: article.title,
-      category: article.category,
-      author: article.author,
-      published: article.published,
-      featured: article.featured,
-      views: article.views,
-      likes: article.likes,
-      publishedAt: article.publishedAt
-    }));
-    
-    res.json({
-      success: true,
-      data: customNews,
-      message: 'Custom news data retrieved successfully'
-    });
-    
-  } catch (error) {
-    console.error('❌ Error fetching custom news:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching custom news',
+      message: 'Failed to refresh news',
       error: error.message
     });
   }

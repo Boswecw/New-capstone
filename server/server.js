@@ -69,6 +69,7 @@ const productRoutes = require('./routes/products');
 const cartRoutes = require('./routes/cart');
 const userRoutes = require('./routes/users');
 const authRoutes = require('./routes/auth');
+const newsRoutes = require('./routes/news'); // ← ADDED NEWS ROUTES
 
 // Health check endpoint (before other routes)
 app.get('/api/health', (req, res) => {
@@ -87,6 +88,7 @@ app.use('/api/products', productRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/news', newsRoutes); // ← ADDED NEWS ROUTES
 
 // Debug route to list all registered routes
 if (process.env.NODE_ENV === 'development') {
@@ -180,6 +182,9 @@ app.listen(PORT, () => {
     console.log('  POST /api/cart/items');
     console.log('  PUT  /api/cart/items/:id');
     console.log('  DEL  /api/cart/items/:id');
+    console.log('  GET  /api/news'); // ← ADDED
+    console.log('  GET  /api/news/categories'); // ← ADDED
+    console.log('  POST /api/news/refresh'); // ← ADDED
     console.log('  GET  /api/routes (debug)');
   }
 });

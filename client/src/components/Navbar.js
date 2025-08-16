@@ -1,4 +1,4 @@
-// client/src/components/Navbar.js - RESOLVED CONFLICT VERSION
+// client/src/components/Navbar.js - UPDATED (removed "All Pets", "Puppies & Kittens", "Small Size")
 import React, { useState } from 'react';
 import { Navbar, Nav, Container, Button, NavDropdown } from 'react-bootstrap';
 import { Link, useNavigate } from 'react-router-dom';
@@ -24,9 +24,9 @@ const AppNavbar = () => {
   };
 
   return (
-    <Navbar 
-      bg="white" 
-      expand="lg" 
+    <Navbar
+      bg="white"
+      expand="lg"
       className="shadow-sm sticky-top"
       expanded={expanded}
       onToggle={setExpanded}
@@ -46,48 +46,81 @@ const AppNavbar = () => {
               <i className="fas fa-home me-1"></i> Home
             </Nav.Link>
 
-            <NavDropdown title={<span><i className="fas fa-paw me-1"></i> Pets</span>} id="pets-dropdown">
-              <NavDropdown.Item as={Link} to="/pets" onClick={closeNavbar}>
-                <i className="fas fa-list me-2"></i> All Pets
-              </NavDropdown.Item>
+            {/* Pets dropdown with removed items */}
+            <NavDropdown
+              title={<span><i className="fas fa-paw me-1"></i> Pets</span>}
+              id="pets-dropdown"
+            >
               <NavDropdown.Item as={Link} to="/browse" onClick={closeNavbar}>
                 <i className="fas fa-search me-2"></i> Browse Pets
               </NavDropdown.Item>
               <NavDropdown.Divider />
-              <NavDropdown.Item as={Link} to="/browse?type=dog" onClick={() => handleNavbarFilter('/browse?type=dog', 'type', 'dog')}>
+              <NavDropdown.Item
+                as={Link}
+                to="/browse?type=dog"
+                onClick={() => handleNavbarFilter('/browse?type=dog', 'type', 'dog')}
+              >
                 <i className="fas fa-dog me-2"></i> Dogs
               </NavDropdown.Item>
-              <NavDropdown.Item as={Link} to="/browse?type=cat" onClick={() => handleNavbarFilter('/browse?type=cat', 'type', 'cat')}>
+              <NavDropdown.Item
+                as={Link}
+                to="/browse?type=cat"
+                onClick={() => handleNavbarFilter('/browse?type=cat', 'type', 'cat')}
+              >
                 <i className="fas fa-cat me-2"></i> Cats
               </NavDropdown.Item>
-              <NavDropdown.Item as={Link} to="/browse?type=bird" onClick={() => handleNavbarFilter('/browse?type=bird', 'type', 'bird')}>
+              <NavDropdown.Item
+                as={Link}
+                to="/browse?type=bird"
+                onClick={() => handleNavbarFilter('/browse?type=bird', 'type', 'bird')}
+              >
                 <i className="fas fa-dove me-2"></i> Birds
               </NavDropdown.Item>
-              <NavDropdown.Item as={Link} to="/browse?type=fish" onClick={() => handleNavbarFilter('/browse?type=fish', 'type', 'fish')}>
+              <NavDropdown.Item
+                as={Link}
+                to="/browse?type=fish"
+                onClick={() => handleNavbarFilter('/browse?type=fish', 'type', 'fish')}
+              >
                 <i className="fas fa-fish me-2"></i> Fish & Aquatic
               </NavDropdown.Item>
-              <NavDropdown.Item as={Link} to="/browse?type=rabbit" onClick={() => handleNavbarFilter('/browse?type=rabbit', 'breed', 'rabbit')}>
+              <NavDropdown.Item
+                as={Link}
+                to="/browse?type=rabbit"
+                onClick={() => handleNavbarFilter('/browse?type=rabbit', 'breed', 'rabbit')}
+              >
                 <i className="fas fa-carrot me-2"></i> Rabbits
               </NavDropdown.Item>
-              <NavDropdown.Item as={Link} to="/browse?type=hamster" onClick={() => handleNavbarFilter('/browse?type=hamster', 'breed', 'hamster')}>
+              <NavDropdown.Item
+                as={Link}
+                to="/browse?type=hamster"
+                onClick={() => handleNavbarFilter('/browse?type=hamster', 'breed', 'hamster')}
+              >
                 <i className="fas fa-circle me-2"></i> Hamsters & Small Pets
               </NavDropdown.Item>
-              <NavDropdown.Item as={Link} to="/browse?type=other" onClick={() => handleNavbarFilter('/browse?type=other', 'type', 'other')}>
+              <NavDropdown.Item
+                as={Link}
+                to="/browse?type=other"
+                onClick={() => handleNavbarFilter('/browse?type=other', 'type', 'other')}
+              >
                 <i className="fas fa-paw me-2"></i> Other Pets
               </NavDropdown.Item>
               <NavDropdown.Divider />
-              <NavDropdown.Item as={Link} to="/browse?featured=true" onClick={() => handleNavbarFilter('/browse?featured=true', 'featured', 'true')}>
+              <NavDropdown.Item
+                as={Link}
+                to="/browse?featured=true"
+                onClick={() => handleNavbarFilter('/browse?featured=true', 'featured', 'true')}
+              >
                 <i className="fas fa-star me-2"></i> Featured Pets
               </NavDropdown.Item>
-              <NavDropdown.Item as={Link} to="/browse?age=young" onClick={() => handleNavbarFilter('/browse?age=young', 'age', 'young')}>
+              <NavDropdown.Item
+                as={Link}
+                to="/browse?age=young"
+                onClick={() => handleNavbarFilter('/browse?age=young', 'age', 'young')}
+              >
                 <i className="fas fa-heart me-2"></i> Young Pets
               </NavDropdown.Item>
-              <NavDropdown.Item as={Link} to="/browse?age=puppy/kitten" onClick={() => handleNavbarFilter('/browse?age=puppy/kitten', 'age', 'puppy/kitten')}>
-                <i className="fas fa-baby me-2"></i> Puppies & Kittens
-              </NavDropdown.Item>
-              <NavDropdown.Item as={Link} to="/browse?size=small" onClick={() => handleNavbarFilter('/browse?size=small', 'size', 'small')}>
-                <i className="fas fa-paw me-2"></i> Small Size
-              </NavDropdown.Item>
+              {/* Puppies & Kittens REMOVED */}
+              {/* Small Size REMOVED */}
             </NavDropdown>
 
             <Nav.Link as={Link} to="/products" onClick={closeNavbar}>
@@ -110,7 +143,12 @@ const AppNavbar = () => {
           <Nav>
             {user ? (
               <NavDropdown
-                title={<span><i className="fas fa-user-circle me-1"></i> {user.name || user.email}</span>}
+                title={
+                  <span>
+                    <i className="fas fa-user-circle me-1"></i>{' '}
+                    {user.name || user.email}
+                  </span>
+                }
                 id="user-dropdown"
                 align="end"
               >
@@ -137,10 +175,22 @@ const AppNavbar = () => {
               </NavDropdown>
             ) : (
               <div className="d-flex gap-2">
-                <Button variant="outline-primary" size="sm" as={Link} to="/login" onClick={closeNavbar}>
+                <Button
+                  variant="outline-primary"
+                  size="sm"
+                  as={Link}
+                  to="/login"
+                  onClick={closeNavbar}
+                >
                   <i className="fas fa-sign-in-alt me-1"></i> Login
                 </Button>
-                <Button variant="primary" size="sm" as={Link} to="/register" onClick={closeNavbar}>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  as={Link}
+                  to="/register"
+                  onClick={closeNavbar}
+                >
                   <i className="fas fa-user-plus me-1"></i> Register
                 </Button>
               </div>

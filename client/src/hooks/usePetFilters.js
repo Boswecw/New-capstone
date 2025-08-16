@@ -1,5 +1,7 @@
-// client/src/hooks/usePetFilters.js - ESLint Compliant Version
+// src/hooks/usePetFilters.js - FIXED VERSION
+
 import { useState, useMemo, useCallback } from 'react';
+import { buildPetImageUrl, hasValidImageExtension } from '../utils/imageUtils';
 
 /**
  * Custom hook for filtering and managing pet data
@@ -8,9 +10,30 @@ import { useState, useMemo, useCallback } from 'react';
  * @returns {Object} Filter state and methods
  */
 const usePetFilters = (pets = [], initialFilters = {}) => {
-  // ✅ FIX: Memoize safePets to prevent dependency warnings
+  // ✅ CRITICAL FIX: Ensure pets is always an array
   const safePets = useMemo(() => {
-    return Array.isArray(pets) ? pets : [];
+    if (!pets) {
+      console.warn('usePetFilters: pets is null/undefined, using empty array');
+      return [];
+    }
+    
+    if (!Array.isArray(pets)) {
+      console.warn('usePetFilters: pets is not an array:', typeof pets, pets);
+      // Try to extract array from common API response structures
+      if (pets.data && Array.isArray(pets.data)) {
+        console.warn('usePetFilters: Found pets array at pets.data, extracting...');
+        return pets.data;
+      }
+      if (pets.pets && Array.isArray(pets.pets)) {
+        console.warn('usePetFilters: Found pets array at pets.pets, extracting...');
+        return pets.pets;
+      }
+      // Last resort: return empty array
+      console.error('usePetFilters: Could not find valid pets array, using empty array');
+      return [];
+    }
+    
+    return pets;
   }, [pets]);
 
   const [filters, setFilters] = useState({
@@ -61,7 +84,7 @@ const usePetFilters = (pets = [], initialFilters = {}) => {
     });
   }, [initialFilters]);
 
-  // Get unique values for filter options
+  // Get unique values for filter options - FIXED to use safePets
   const filterOptions = useMemo(() => {
     if (safePets.length === 0) {
       return {
@@ -75,7 +98,8 @@ const usePetFilters = (pets = [], initialFilters = {}) => {
       };
     }
 
-    const species = [...new Set(safePets.map(pet => pet.type || pet.species).filter(Boolean))];
+    // ✅ FIX: Handle both 'species' and 'type' fields for compatibility
+    const species = [...new Set(safePets.map(pet => pet.species || pet.type).filter(Boolean))];
     const breeds = [...new Set(safePets.map(pet => pet.breed).filter(Boolean))];
     const ages = [...new Set(safePets.map(pet => pet.age).filter(Boolean))];
     const sizes = [...new Set(safePets.map(pet => pet.size).filter(Boolean))];
@@ -94,7 +118,7 @@ const usePetFilters = (pets = [], initialFilters = {}) => {
     };
   }, [safePets]);
 
-  // Filter pets based on current filters
+  // Filter pets based on current filters - FIXED to use safePets
   const filteredPets = useMemo(() => {
     if (safePets.length === 0) return [];
 
@@ -138,34 +162,40 @@ const usePetFilters = (pets = [], initialFilters = {}) => {
         return false;
       }
 
-      // Search filter (search in name, breed, description)
+      // Search filter (searches name, description, breed, species)
       if (filters.search) {
         const searchTerm = filters.search.toLowerCase();
         const searchableText = [
           pet.name,
-          pet.breed,
           pet.description,
+          pet.breed,
+          pet.species,
           pet.type,
-          pet.species
+          pet.location
         ]
         .filter(Boolean)
         .join(' ')
         .toLowerCase();
-
+        
         if (!searchableText.includes(searchTerm)) {
           return false;
         }
       }
 
-      // Images filter
-      if (filters.hasImages && !pet.image) {
-        return false;
+      // Has images filter
+      if (filters.hasImages) {
+        const hasValidImage = pet.image && hasValidImageExtension(pet.image);
+        const hasImages = pet.images && Array.isArray(pet.images) && pet.images.length > 0;
+        
+        if (!hasValidImage && !hasImages) {
+          return false;
+        }
       }
 
       return true;
     });
 
-    // Apply sorting
+    // Sort the filtered results
     filtered.sort((a, b) => {
       let comparison = 0;
 
@@ -174,19 +204,30 @@ const usePetFilters = (pets = [], initialFilters = {}) => {
           comparison = (a.name || '').localeCompare(b.name || '');
           break;
         case 'age':
+          // Handle age sorting properly
           const ageOrder = ['baby', 'young', 'adult', 'senior'];
           const aAge = ageOrder.indexOf(a.age) !== -1 ? ageOrder.indexOf(a.age) : 999;
           const bAge = ageOrder.indexOf(b.age) !== -1 ? ageOrder.indexOf(b.age) : 999;
           comparison = aAge - bAge;
           break;
-        case 'price':
-          comparison = (a.adoptionFee || 0) - (b.adoptionFee || 0);
+        case 'species':
+          comparison = (a.species || a.type || '').localeCompare(b.species || b.type || '');
+          break;
+        case 'breed':
+          comparison = (a.breed || '').localeCompare(b.breed || '');
           break;
         case 'newest':
           comparison = new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
           break;
         case 'oldest':
           comparison = new Date(a.createdAt || 0) - new Date(b.createdAt || 0);
+          break;
+        case 'updated':
+          comparison = new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0);
+          break;
+        case 'featured':
+          // Featured pets first
+          comparison = (b.featured ? 1 : 0) - (a.featured ? 1 : 0);
           break;
         default:
           comparison = 0;
@@ -198,14 +239,27 @@ const usePetFilters = (pets = [], initialFilters = {}) => {
     return filtered;
   }, [safePets, filters, sortBy, sortOrder]);
 
-  // Get filter statistics
+  // Enhance pets with proper image URLs
+  const enhancedPets = useMemo(() => {
+    return filteredPets.map(pet => ({
+      ...pet,
+      imageUrl: buildPetImageUrl(pet.image),
+      imageUrls: pet.images ? pet.images.map(img => buildPetImageUrl(img)) : []
+    }));
+  }, [filteredPets]);
+
+  // Get filter statistics - FIXED to use safePets
   const filterStats = useMemo(() => {
     return {
       total: safePets.length,
       filtered: filteredPets.length,
-      available: safePets.filter(pet => pet?.status === 'available').length,
-      pending: safePets.filter(pet => pet?.status === 'pending').length,
-      adopted: safePets.filter(pet => pet?.status === 'adopted').length
+      available: filteredPets.filter(pet => pet.status === 'available').length,
+      adopted: filteredPets.filter(pet => pet.status === 'adopted').length,
+      pending: filteredPets.filter(pet => pet.status === 'pending').length,
+      withImages: filteredPets.filter(pet => 
+        hasValidImageExtension(pet.image) || 
+        (pet.images && pet.images.length > 0)
+      ).length
     };
   }, [safePets, filteredPets]);
 
@@ -224,23 +278,29 @@ const usePetFilters = (pets = [], initialFilters = {}) => {
     };
 
     return Object.keys(filters).some(key => 
-      filters[key] !== defaultFilters[key] && filters[key] !== ''
+      filters[key] !== defaultFilters[key]
     );
   }, [filters]);
 
+  // ✅ DEBUG: Log what we're returning in development
+  if (process.env.NODE_ENV === 'development') {
+    console.log('usePetFilters debug:', {
+      inputPetsType: Array.isArray(pets) ? 'array' : typeof pets,
+      inputPetsLength: Array.isArray(pets) ? pets.length : 'N/A',
+      safePetsLength: safePets.length,
+      filteredLength: filteredPets.length,
+      hasActiveFilters
+    });
+  }
+
   return {
-    // Filter state
     filters,
     sortBy,
     sortOrder,
-    
-    // Computed data
-    filteredPets,
+    filteredPets: enhancedPets,
     filterOptions,
     filterStats,
     hasActiveFilters,
-    
-    // Filter methods
     updateFilter,
     updateFilters,
     resetFilters,
