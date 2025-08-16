@@ -1,15 +1,27 @@
-// server/routes/products.js
+// server/routes/products.js - FIXED VERSION
 const express = require('express');
 const router = express.Router();
 const Product = require('../models/Product');
-const { enrichEntityWithImages } = require('../utils/imageUtils');
+const { protect, admin } = require('../middleware/auth');
 
-/**
- * GET /api/products
- * Query params: featured, limit, page, category, inStock, minPrice, maxPrice
- */
+// Simple function to add image URLs - NO EXTERNAL DEPENDENCIES
+const addImageUrl = (entity, entityType = 'product') => {
+  if (!entity) return entity;
+  
+  const baseUrl = 'https://storage.googleapis.com/furbabies-petstore';
+  
+  return {
+    ...entity,
+    imageUrl: entity.image ? `${baseUrl}/${entity.image}` : null,
+    hasImage: !!entity.image
+  };
+};
+
+// GET /api/products - Get all products
 router.get('/', async (req, res) => {
   try {
+    console.log('🛒 GET /api/products - Query params:', req.query);
+
     const {
       featured,
       limit = 20,
@@ -24,36 +36,32 @@ router.get('/', async (req, res) => {
     // Build query
     const query = {};
     
-    // Handle featured filter
     if (featured === 'true' || featured === true) {
       query.featured = true;
     }
     
-    // InStock filter
-    if (inStock === 'true' || inStock === true) {
+    if (inStock === 'true') {
       query.inStock = true;
-    } else if (inStock === 'false' || inStock === false) {
+    } else if (inStock === 'false') {
       query.inStock = false;
     }
     
-    // Category filter
     if (category && category !== 'all') {
-      query.category = category;
+      query.category = { $regex: category, $options: 'i' };
     }
     
-    // Price range filter
     if (minPrice || maxPrice) {
       query.price = {};
       if (minPrice) query.price.$gte = parseFloat(minPrice);
       if (maxPrice) query.price.$lte = parseFloat(maxPrice);
     }
 
-    // Calculate pagination
+    // Pagination
     const limitNum = parseInt(limit);
     const pageNum = parseInt(page);
     const skip = (pageNum - 1) * limitNum;
 
-    // Execute query with pagination
+    // Execute query
     const [products, totalCount] = await Promise.all([
       Product.find(query)
         .sort(sort)
@@ -63,16 +71,14 @@ router.get('/', async (req, res) => {
       Product.countDocuments(query)
     ]);
 
-    // Enrich with image URLs
-    const enrichedProducts = products.map(product => 
-      enrichEntityWithImages(product, 'product')
-    );
+    // ✅ FIXED: Add image URLs without missing function
+    const productsWithImages = products.map(product => addImageUrl(product, 'product'));
 
-    console.log(`✅ Returning ${enrichedProducts.length} products (query: ${JSON.stringify(query)})`);
+    console.log(`✅ Returning ${productsWithImages.length} products`);
 
     res.json({
       success: true,
-      data: enrichedProducts,
+      data: productsWithImages,
       pagination: {
         total: totalCount,
         page: pageNum,
@@ -91,12 +97,11 @@ router.get('/', async (req, res) => {
   }
 });
 
-/**
- * GET /api/products/featured
- * Legacy endpoint for backward compatibility
- */
+// GET /api/products/featured - Featured products endpoint
 router.get('/featured', async (req, res) => {
   try {
+    console.log('🛒 GET /api/products/featured');
+    
     const limit = parseInt(req.query.limit) || 6;
     
     // Get featured products
@@ -104,35 +109,33 @@ router.get('/featured', async (req, res) => {
       inStock: true, 
       featured: true 
     })
-    .sort('-createdAt')
+    .sort({ createdAt: -1 })
     .limit(limit)
     .lean();
 
-    // If not enough featured products, fill with regular in-stock products
+    // Fill with regular products if not enough featured ones
     if (products.length < limit) {
       const additionalProducts = await Product.find({
         inStock: true,
         featured: { $ne: true },
         _id: { $nin: products.map(p => p._id) }
       })
-      .sort('-createdAt')
+      .sort({ createdAt: -1 })
       .limit(limit - products.length)
       .lean();
       
       products = [...products, ...additionalProducts];
     }
 
-    // Enrich with image URLs
-    const enrichedProducts = products.map(product => 
-      enrichEntityWithImages(product, 'product')
-    );
+    // ✅ FIXED: Add image URLs without missing function
+    const productsWithImages = products.map(product => addImageUrl(product, 'product'));
 
-    console.log(`✅ Returning ${enrichedProducts.length} featured products`);
+    console.log(`✅ Returning ${productsWithImages.length} featured products`);
 
     res.json({
       success: true,
-      data: enrichedProducts,
-      count: enrichedProducts.length
+      data: productsWithImages,
+      count: productsWithImages.length
     });
 
   } catch (error) {
@@ -145,10 +148,7 @@ router.get('/featured', async (req, res) => {
   }
 });
 
-/**
- * GET /api/products/categories
- * Get all product categories with counts
- */
+// GET /api/products/categories - Get product categories
 router.get('/categories', async (req, res) => {
   try {
     const categories = await Product.aggregate([
@@ -182,10 +182,7 @@ router.get('/categories', async (req, res) => {
   }
 });
 
-/**
- * GET /api/products/:id
- * Get single product by ID
- */
+// GET /api/products/:id - Get single product
 router.get('/:id', async (req, res) => {
   try {
     const product = await Product.findById(req.params.id).lean();
@@ -197,12 +194,12 @@ router.get('/:id', async (req, res) => {
       });
     }
 
-    // Enrich with image URL
-    const enrichedProduct = enrichEntityWithImages(product, 'product');
+    // ✅ FIXED: Add image URL without missing function
+    const productWithImage = addImageUrl(product, 'product');
 
     res.json({
       success: true,
-      data: enrichedProduct
+      data: productWithImage
     });
 
   } catch (error) {

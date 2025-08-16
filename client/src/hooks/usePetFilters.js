@@ -1,7 +1,5 @@
-// src/hooks/usePetFilters.js
-
+// client/src/hooks/usePetFilters.js - ESLint Compliant Version
 import { useState, useMemo, useCallback } from 'react';
-import { buildPetImageUrl, hasValidImageExtension } from '../utils/imageUtils';
 
 /**
  * Custom hook for filtering and managing pet data
@@ -10,6 +8,11 @@ import { buildPetImageUrl, hasValidImageExtension } from '../utils/imageUtils';
  * @returns {Object} Filter state and methods
  */
 const usePetFilters = (pets = [], initialFilters = {}) => {
+  // ✅ FIX: Memoize safePets to prevent dependency warnings
+  const safePets = useMemo(() => {
+    return Array.isArray(pets) ? pets : [];
+  }, [pets]);
+
   const [filters, setFilters] = useState({
     species: '',
     breed: '',
@@ -60,7 +63,7 @@ const usePetFilters = (pets = [], initialFilters = {}) => {
 
   // Get unique values for filter options
   const filterOptions = useMemo(() => {
-    if (!pets || pets.length === 0) {
+    if (safePets.length === 0) {
       return {
         species: [],
         breeds: [],
@@ -72,13 +75,13 @@ const usePetFilters = (pets = [], initialFilters = {}) => {
       };
     }
 
-    const species = [...new Set(pets.map(pet => pet.species).filter(Boolean))];
-    const breeds = [...new Set(pets.map(pet => pet.breed).filter(Boolean))];
-    const ages = [...new Set(pets.map(pet => pet.age).filter(Boolean))];
-    const sizes = [...new Set(pets.map(pet => pet.size).filter(Boolean))];
-    const genders = [...new Set(pets.map(pet => pet.gender).filter(Boolean))];
-    const statuses = [...new Set(pets.map(pet => pet.status).filter(Boolean))];
-    const locations = [...new Set(pets.map(pet => pet.location).filter(Boolean))];
+    const species = [...new Set(safePets.map(pet => pet.type || pet.species).filter(Boolean))];
+    const breeds = [...new Set(safePets.map(pet => pet.breed).filter(Boolean))];
+    const ages = [...new Set(safePets.map(pet => pet.age).filter(Boolean))];
+    const sizes = [...new Set(safePets.map(pet => pet.size).filter(Boolean))];
+    const genders = [...new Set(safePets.map(pet => pet.gender).filter(Boolean))];
+    const statuses = [...new Set(safePets.map(pet => pet.status).filter(Boolean))];
+    const locations = [...new Set(safePets.map(pet => pet.location).filter(Boolean))];
 
     return {
       species: species.sort(),
@@ -89,15 +92,19 @@ const usePetFilters = (pets = [], initialFilters = {}) => {
       statuses: statuses.sort(),
       locations: locations.sort()
     };
-  }, [pets]);
+  }, [safePets]);
 
   // Filter pets based on current filters
   const filteredPets = useMemo(() => {
-    if (!pets || pets.length === 0) return [];
+    if (safePets.length === 0) return [];
 
-    let filtered = pets.filter(pet => {
-      // Species filter
-      if (filters.species && pet.species !== filters.species) {
+    let filtered = safePets.filter(pet => {
+      // Handle null/undefined pet objects
+      if (!pet) return false;
+
+      // Species/Type filter (handle both fields)
+      const petType = pet.type || pet.species;
+      if (filters.species && petType !== filters.species) {
         return false;
       }
 
@@ -131,36 +138,34 @@ const usePetFilters = (pets = [], initialFilters = {}) => {
         return false;
       }
 
-      // Search filter (searches name, description, breed, species)
+      // Search filter (search in name, breed, description)
       if (filters.search) {
         const searchTerm = filters.search.toLowerCase();
         const searchableText = [
           pet.name,
-          pet.description,
           pet.breed,
-          pet.species,
-          pet.location
-        ].join(' ').toLowerCase();
-        
+          pet.description,
+          pet.type,
+          pet.species
+        ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+
         if (!searchableText.includes(searchTerm)) {
           return false;
         }
       }
 
-      // Has images filter
-      if (filters.hasImages) {
-        const hasValidImage = pet.image && hasValidImageExtension(pet.image);
-        const hasImages = pet.images && Array.isArray(pet.images) && pet.images.length > 0;
-        
-        if (!hasValidImage && !hasImages) {
-          return false;
-        }
+      // Images filter
+      if (filters.hasImages && !pet.image) {
+        return false;
       }
 
       return true;
     });
 
-    // Sort the filtered results
+    // Apply sorting
     filtered.sort((a, b) => {
       let comparison = 0;
 
@@ -169,22 +174,19 @@ const usePetFilters = (pets = [], initialFilters = {}) => {
           comparison = (a.name || '').localeCompare(b.name || '');
           break;
         case 'age':
-          comparison = (a.age || '').localeCompare(b.age || '');
+          const ageOrder = ['baby', 'young', 'adult', 'senior'];
+          const aAge = ageOrder.indexOf(a.age) !== -1 ? ageOrder.indexOf(a.age) : 999;
+          const bAge = ageOrder.indexOf(b.age) !== -1 ? ageOrder.indexOf(b.age) : 999;
+          comparison = aAge - bAge;
           break;
-        case 'species':
-          comparison = (a.species || '').localeCompare(b.species || '');
-          break;
-        case 'breed':
-          comparison = (a.breed || '').localeCompare(b.breed || '');
+        case 'price':
+          comparison = (a.adoptionFee || 0) - (b.adoptionFee || 0);
           break;
         case 'newest':
           comparison = new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
           break;
         case 'oldest':
           comparison = new Date(a.createdAt || 0) - new Date(b.createdAt || 0);
-          break;
-        case 'updated':
-          comparison = new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0);
           break;
         default:
           comparison = 0;
@@ -194,31 +196,18 @@ const usePetFilters = (pets = [], initialFilters = {}) => {
     });
 
     return filtered;
-  }, [pets, filters, sortBy, sortOrder]);
-
-  // Enhance pets with proper image URLs
-  const enhancedPets = useMemo(() => {
-    return filteredPets.map(pet => ({
-      ...pet,
-      imageUrl: buildPetImageUrl(pet.image),
-      imageUrls: pet.images ? pet.images.map(img => buildPetImageUrl(img)) : []
-    }));
-  }, [filteredPets]);
+  }, [safePets, filters, sortBy, sortOrder]);
 
   // Get filter statistics
   const filterStats = useMemo(() => {
     return {
-      total: pets.length,
+      total: safePets.length,
       filtered: filteredPets.length,
-      available: filteredPets.filter(pet => pet.status === 'available').length,
-      adopted: filteredPets.filter(pet => pet.status === 'adopted').length,
-      pending: filteredPets.filter(pet => pet.status === 'pending').length,
-      withImages: filteredPets.filter(pet => 
-        hasValidImageExtension(pet.image) || 
-        (pet.images && pet.images.length > 0)
-      ).length
+      available: safePets.filter(pet => pet?.status === 'available').length,
+      pending: safePets.filter(pet => pet?.status === 'pending').length,
+      adopted: safePets.filter(pet => pet?.status === 'adopted').length
     };
-  }, [pets, filteredPets]);
+  }, [safePets, filteredPets]);
 
   // Check if any filters are active
   const hasActiveFilters = useMemo(() => {
@@ -235,18 +224,23 @@ const usePetFilters = (pets = [], initialFilters = {}) => {
     };
 
     return Object.keys(filters).some(key => 
-      filters[key] !== defaultFilters[key]
+      filters[key] !== defaultFilters[key] && filters[key] !== ''
     );
   }, [filters]);
 
   return {
+    // Filter state
     filters,
     sortBy,
     sortOrder,
-    filteredPets: enhancedPets,
+    
+    // Computed data
+    filteredPets,
     filterOptions,
     filterStats,
     hasActiveFilters,
+    
+    // Filter methods
     updateFilter,
     updateFilters,
     resetFilters,

@@ -1,15 +1,27 @@
-// server/routes/pets.js
+// server/routes/pets.js - FIXED VERSION
 const express = require('express');
 const router = express.Router();
 const Pet = require('../models/Pet');
-const { enrichEntityWithImages } = require('../utils/imageUtils');
+const { protect, admin } = require('../middleware/auth');
 
-/**
- * GET /api/pets
- * Query params: featured, limit, page, status, type, category
- */
+// Simple function to add image URLs - NO EXTERNAL DEPENDENCIES
+const addImageUrl = (entity, entityType = 'pet') => {
+  if (!entity) return entity;
+  
+  const baseUrl = 'https://storage.googleapis.com/furbabies-petstore';
+  
+  return {
+    ...entity,
+    imageUrl: entity.image ? `${baseUrl}/${entity.image}` : null,
+    hasImage: !!entity.image
+  };
+};
+
+// GET /api/pets - Get all pets with filtering
 router.get('/', async (req, res) => {
   try {
+    console.log('🐕 GET /api/pets - Query params:', req.query);
+
     const {
       featured,
       limit = 20,
@@ -23,32 +35,28 @@ router.get('/', async (req, res) => {
     // Build query
     const query = {};
     
-    // Handle featured filter
     if (featured === 'true' || featured === true) {
       query.featured = true;
     }
     
-    // Status filter
     if (status && status !== 'all') {
       query.status = status;
     }
     
-    // Type filter
     if (type && type !== 'all') {
       query.type = type;
     }
     
-    // Category filter
     if (category && category !== 'all') {
       query.category = category;
     }
 
-    // Calculate pagination
+    // Pagination
     const limitNum = parseInt(limit);
     const pageNum = parseInt(page);
     const skip = (pageNum - 1) * limitNum;
 
-    // Execute query with pagination
+    // Execute query
     const [pets, totalCount] = await Promise.all([
       Pet.find(query)
         .sort(sort)
@@ -58,14 +66,14 @@ router.get('/', async (req, res) => {
       Pet.countDocuments(query)
     ]);
 
-    // Enrich with image URLs
-    const enrichedPets = pets.map(pet => enrichEntityWithImages(pet, 'pet'));
+    // ✅ FIXED: Add image URLs without missing function
+    const petsWithImages = pets.map(pet => addImageUrl(pet, 'pet'));
 
-    console.log(`✅ Returning ${enrichedPets.length} pets (query: ${JSON.stringify(query)})`);
+    console.log(`✅ Returning ${petsWithImages.length} pets`);
 
     res.json({
       success: true,
-      data: enrichedPets,
+      data: petsWithImages,
       pagination: {
         total: totalCount,
         page: pageNum,
@@ -84,12 +92,11 @@ router.get('/', async (req, res) => {
   }
 });
 
-/**
- * GET /api/pets/featured
- * Legacy endpoint for backward compatibility
- */
+// GET /api/pets/featured - Featured pets endpoint
 router.get('/featured', async (req, res) => {
   try {
+    console.log('🐕 GET /api/pets/featured');
+    
     const limit = parseInt(req.query.limit) || 6;
     
     // Get featured pets
@@ -97,33 +104,33 @@ router.get('/featured', async (req, res) => {
       status: 'available', 
       featured: true 
     })
-    .sort('-createdAt')
+    .sort({ createdAt: -1 })
     .limit(limit)
     .lean();
 
-    // If not enough featured pets, fill with regular available pets
+    // Fill with regular pets if not enough featured ones
     if (pets.length < limit) {
       const additionalPets = await Pet.find({
         status: 'available',
         featured: { $ne: true },
         _id: { $nin: pets.map(p => p._id) }
       })
-      .sort('-createdAt')
+      .sort({ createdAt: -1 })
       .limit(limit - pets.length)
       .lean();
       
       pets = [...pets, ...additionalPets];
     }
 
-    // Enrich with image URLs
-    const enrichedPets = pets.map(pet => enrichEntityWithImages(pet, 'pet'));
+    // ✅ FIXED: Add image URLs without missing function
+    const petsWithImages = pets.map(pet => addImageUrl(pet, 'pet'));
 
-    console.log(`✅ Returning ${enrichedPets.length} featured pets`);
+    console.log(`✅ Returning ${petsWithImages.length} featured pets`);
 
     res.json({
       success: true,
-      data: enrichedPets,
-      count: enrichedPets.length
+      data: petsWithImages,
+      count: petsWithImages.length
     });
 
   } catch (error) {
@@ -136,12 +143,11 @@ router.get('/featured', async (req, res) => {
   }
 });
 
-/**
- * GET /api/pets/:id
- * Get single pet by ID
- */
+// GET /api/pets/:id - Get single pet
 router.get('/:id', async (req, res) => {
   try {
+    console.log('🐕 GET /api/pets/:id - Pet ID:', req.params.id);
+    
     const pet = await Pet.findById(req.params.id).lean();
     
     if (!pet) {
@@ -151,12 +157,12 @@ router.get('/:id', async (req, res) => {
       });
     }
 
-    // Enrich with image URL
-    const enrichedPet = enrichEntityWithImages(pet, 'pet');
+    // ✅ FIXED: Add image URL without missing function
+    const petWithImage = addImageUrl(pet, 'pet');
 
     res.json({
       success: true,
-      data: enrichedPet
+      data: petWithImage
     });
 
   } catch (error) {
@@ -164,6 +170,49 @@ router.get('/:id', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error fetching pet',
+      error: error.message
+    });
+  }
+});
+
+// POST /api/pets/:id/rate - Rate a pet
+router.post('/:id/rate', async (req, res) => {
+  try {
+    const { rating } = req.body;
+    
+    if (!rating || rating < 1 || rating > 5) {
+      return res.status(400).json({
+        success: false,
+        message: 'Rating must be between 1 and 5'
+      });
+    }
+
+    const pet = await Pet.findByIdAndUpdate(
+      req.params.id,
+      { heartRating: rating },
+      { new: true }
+    ).lean();
+
+    if (!pet) {
+      return res.status(404).json({
+        success: false,
+        message: 'Pet not found'
+      });
+    }
+
+    const petWithImage = addImageUrl(pet, 'pet');
+
+    res.json({
+      success: true,
+      message: 'Pet rated successfully',
+      data: petWithImage
+    });
+
+  } catch (error) {
+    console.error('❌ Error rating pet:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to rate pet',
       error: error.message
     });
   }

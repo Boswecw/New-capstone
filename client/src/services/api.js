@@ -1,53 +1,78 @@
-// client/src/services/api.js
+// client/src/services/api.js - FIXED VERSION
 import axios from 'axios';
 
 /**
- * Base URL – set in client/.env as:
- *   VITE_API_BASE_URL=http://localhost:5000/api
- * Falls back to '/api'.
+ * API Base URL Configuration
+ * For Create React App (not Vite), use REACT_APP_ prefix
  */
-const API_BASE_URL =
-  (typeof import.meta !== 'undefined' &&
-    import.meta?.env?.VITE_API_BASE_URL) ||
-  '/api';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 
+  (process.env.NODE_ENV === 'production' 
+    ? '/api'  // Use relative path in production
+    : 'http://localhost:5000/api'  // Development default
+  );
 
-/** Axios instance */
-export const api = axios.create({
-  baseURL: API_BASE_URL,
-  withCredentials: true, // keep if you use cookie auth; ok to remove if not needed
-  headers: {
-    Accept: 'application/json',
-    'Content-Type': 'application/json',
-  },
+console.log('🔧 API Configuration:', {
+  NODE_ENV: process.env.NODE_ENV,
+  REACT_APP_API_URL: process.env.REACT_APP_API_URL,
+  API_BASE_URL: API_BASE_URL
 });
 
-/** Request/response interceptors (optional but handy for central logging) */
-api.interceptors.request.use(
-  (config) => config,
-  (error) => Promise.reject(error)
-);
+/**
+ * Main API instance
+ */
+export const api = axios.create({
+  baseURL: API_BASE_URL,
+  timeout: 30000,
+  headers: {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json'
+  }
+});
 
-api.interceptors.response.use(
-  (res) => res,
-  (error) => {
-    // Central error passthrough (keep console noise minimal in prod)
-    if (import.meta?.env?.MODE === 'development') {
-      // eslint-disable-next-line no-console
-      console.warn('API error:', error?.response?.status, error?.config?.url);
+// Request interceptor for auth tokens
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
     }
+    
+    console.log(`🌐 ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`);
+    return config;
+  },
+  (error) => {
+    console.error('🚨 Request Error:', error);
     return Promise.reject(error);
   }
 );
 
-/** Remove empty values and trim "all" sentinels so the server won’t choke */
+// Response interceptor for error handling
+api.interceptors.response.use(
+  (response) => {
+    console.log(`✅ ${response.config.method?.toUpperCase()} ${response.config.url} - ${response.status}`);
+    return response;
+  },
+  (error) => {
+    const method = error.config?.method?.toUpperCase() || 'REQUEST';
+    const url = error.config?.url || 'unknown';
+    const status = error.response?.status || 'NETWORK_ERROR';
+    
+    console.error(`❌ ${method} ${url} - ${status}`, error.response?.data || error.message);
+    return Promise.reject(error);
+  }
+);
+
+/**
+ * Clean up parameters before sending to API
+ */
 function cleanParams(params = {}) {
-  const out = {};
-  Object.entries(params).forEach(([k, v]) => {
-    if (v === undefined || v === null || v === '') return;
-    if (typeof v === 'string' && v.toLowerCase() === 'all') return;
-    out[k] = v;
+  const cleaned = {};
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '' && value !== 'all') {
+      cleaned[key] = value;
+    }
   });
-  return out;
+  return cleaned;
 }
 
 /* =========================
@@ -72,24 +97,42 @@ export const authAPI = {
  *        PETS API
  * ========================= */
 export const petAPI = {
-  /** General listing with filters/pagination */
+  /**
+   * Get all pets with optional filters
+   */
   getAllPets(params = {}) {
     return api.get('/pets', { params: cleanParams(params) });
   },
 
   /**
-   * Featured pets – uses index route with filters, so it works even if
-   * /api/pets/featured is not present on the server.
+   * Get featured pets - this endpoint should work now
    */
   getFeaturedPets(limit = 6) {
+    return api.get('/pets/featured', { params: { limit } });
+  },
+
+  /**
+   * Alternative: Get featured pets using query parameter
+   */
+  getFeaturedPetsAlt(limit = 6) {
     return api.get('/pets', { params: { featured: true, limit } });
   },
 
+  /**
+   * Get single pet by ID
+   */
   getPetById(id) {
     return api.get(`/pets/${id}`);
   },
 
-  // Optional CRUD helpers if you need them later:
+  /**
+   * Rate a pet
+   */
+  ratePet(id, rating) {
+    return api.post(`/pets/${id}/rate`, { rating });
+  },
+
+  // Admin endpoints
   createPet(data) {
     return api.post('/pets', data);
   },
@@ -105,17 +148,65 @@ export const petAPI = {
  *      PRODUCTS API
  * ========================= */
 export const productAPI = {
+  /**
+   * Get all products with optional filters
+   */
   getAllProducts(params = {}) {
     return api.get('/products', { params: cleanParams(params) });
   },
 
-  // Your backend already serves /products/featured (based on your logs)
+  /**
+   * Get featured products
+   */
   getFeaturedProducts(limit = 6) {
     return api.get('/products/featured', { params: { limit } });
   },
 
+  /**
+   * Alternative: Get featured products using query parameter
+   */
+  getFeaturedProductsAlt(limit = 6) {
+    return api.get('/products', { params: { featured: true, limit } });
+  },
+
+  /**
+   * Get single product by ID
+   */
   getProductById(id) {
     return api.get(`/products/${id}`);
+  },
+};
+
+/* =========================
+ *        CART API
+ * ========================= */
+export const cartAPI = {
+  /**
+   * Get cart for session
+   */
+  getCart(sessionId) {
+    return api.get('/cart', { params: { sessionId } });
+  },
+
+  /**
+   * Add item to cart
+   */
+  addToCart(sessionId, item) {
+    return api.post('/cart', { sessionId, ...item });
+  },
+
+  /**
+   * Update cart item
+   */
+  updateCartItem(sessionId, itemId, updates) {
+    return api.put(`/cart/${itemId}`, { sessionId, ...updates });
+  },
+
+  /**
+   * Remove item from cart
+   */
+  removeFromCart(sessionId, itemId) {
+    return api.delete(`/cart/${itemId}`, { params: { sessionId } });
   },
 };
 
@@ -123,16 +214,55 @@ export const productAPI = {
  *        NEWS API
  * ========================= */
 export const newsAPI = {
-  getNews(params = {}) {
+  /**
+   * Get all news articles with optional filters
+   */
+  getAllNews(params = {}) {
     return api.get('/news', { params: cleanParams(params) });
   },
+
+  /**
+   * Get featured news articles
+   */
   getFeaturedNews(limit = 3) {
+    return api.get('/news/featured', { params: { limit } });
+  },
+
+  /**
+   * Alternative: Get featured news using query parameter
+   */
+  getFeaturedNewsAlt(limit = 3) {
     return api.get('/news', { params: { featured: true, limit } });
+  },
+
+  /**
+   * Get single news article by ID
+   */
+  getNewsById(id) {
+    return api.get(`/news/${id}`);
+  },
+
+  /**
+   * Legacy method aliases for backward compatibility
+   */
+  getNews(params = {}) {
+    return this.getAllNews(params);
+  },
+
+  // Admin endpoints
+  createNews(data) {
+    return api.post('/news', data);
+  },
+  updateNews(id, data) {
+    return api.put(`/news/${id}`, data);
+  },
+  deleteNews(id) {
+    return api.delete(`/news/${id}`);
   },
 };
 
 /* =========================
- *      CONTACT / MISC
+ *      CONTACT API
  * ========================= */
 export const contactAPI = {
   sendMessage(data) {
@@ -144,10 +274,7 @@ export const contactAPI = {
  *         DEBUG
  * ========================= */
 if (typeof window !== 'undefined') {
-  // Match your existing console output format
-  // eslint-disable-next-line no-console
   console.log('🔧 API Base URL exposed for debugging:', API_BASE_URL);
-  // eslint-disable-next-line no-console
   console.log('🔧 API instance exposed as window.__api');
   window.__api = api;
 }
