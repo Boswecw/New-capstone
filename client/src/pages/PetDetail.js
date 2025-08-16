@@ -1,11 +1,9 @@
-// client/src/pages/PetDetail.js - ENHANCED VERSION
+// client/src/pages/PetDetail.js - FIXED VERSION
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Container, Row, Col, Card, Badge, Button, Spinner, Alert, ListGroup } from 'react-bootstrap';
+import { useParams, useNavigate } from 'react-router-dom';
+import { Container, Row, Col, Card, Badge, Spinner, Alert, Button } from 'react-bootstrap';
 import { FaHeart, FaPaw, FaMars, FaVenus, FaMapMarkerAlt, FaArrowLeft, FaPhone, FaShare } from 'react-icons/fa';
 import { petAPI } from '../services/api';
-import { getPetImageUrl, FALLBACK_IMAGES } from '../config/imageConfig';
-import HeroBanner from '../components/HeroBanner';
 
 const PetDetail = () => {
   const { id } = useParams();
@@ -15,420 +13,396 @@ const PetDetail = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [imageError, setImageError] = useState(false);
-  const [imageLoaded, setImageLoaded] = useState(false);
-  const [currentRating, setCurrentRating] = useState(0);
-  const [isRating, setIsRating] = useState(false);
 
   // Fetch pet data
   useEffect(() => {
     const fetchPet = async () => {
+      if (!id) {
+        setError('No pet ID provided');
+        setLoading(false);
+        return;
+      }
+
       try {
         setLoading(true);
         setError('');
         
-        console.log('🐕 Fetching pet details for ID:', id);
+        console.log('🐕 PetDetail: Fetching pet details for ID:', id);
         
         const response = await petAPI.getPetById(id);
-        console.log('Pet detail response:', response.data);
+        console.log('🐕 PetDetail: API response:', response);
         
-        const petData = response.data?.data || response.data;
+        // Handle different response structures
+        let petData = null;
+        
+        if (response?.data?.success && response.data.data) {
+          // Standard API response structure
+          petData = response.data.data;
+        } else if (response?.data && response.data._id) {
+          // Direct pet object
+          petData = response.data;
+        } else if (response?.success && response.data) {
+          // Alternative success structure
+          petData = response.data;
+        }
+        
+        if (!petData) {
+          throw new Error('Pet data not found in response');
+        }
+        
+        console.log('🐕 PetDetail: Pet data:', petData);
         setPet(petData);
-        setCurrentRating(petData.heartRating || 0);
         
       } catch (error) {
-        console.error('❌ Error fetching pet details:', error);
+        console.error('❌ PetDetail: Error fetching pet details:', error);
+        
         if (error.response?.status === 404) {
           setError('Pet not found. It may have been adopted or removed.');
+        } else if (error.response?.status >= 500) {
+          setError('Server error. Please try again later.');
         } else {
-          setError('Failed to load pet details. Please try again later.');
+          setError('Failed to load pet details. Please try again.');
         }
       } finally {
         setLoading(false);
       }
     };
 
-    if (id) {
-      fetchPet();
-    }
+    fetchPet();
   }, [id]);
 
-  // Rate pet function
-  const handleRating = async (rating) => {
-    if (isRating) return;
+  // Handle image error
+  const handleImageError = () => {
+    setImageError(true);
+  };
+
+  // Get pet image URL
+  const getPetImageUrl = () => {
+    if (imageError) {
+      return 'https://via.placeholder.com/400x300/f8f9fa/6c757d?text=No+Image';
+    }
     
-    try {
-      setIsRating(true);
-      
-      const response = await petAPI.ratePet?.(id, rating);
-      if (response) {
-        setCurrentRating(rating);
-        console.log('✅ Pet rated successfully');
-      }
-    } catch (error) {
-      console.error('❌ Error rating pet:', error);
-    } finally {
-      setIsRating(false);
+    if (pet?.imageUrl) {
+      return pet.imageUrl;
+    }
+    
+    if (pet?.image) {
+      return `https://storage.googleapis.com/furbabies-petstore/${pet.image}`;
+    }
+    
+    return 'https://via.placeholder.com/400x300/f8f9fa/6c757d?text=No+Image';
+  };
+
+  // Format age display
+  const formatAge = (age) => {
+    if (!age) return 'Unknown';
+    if (age < 1) return `${Math.floor(age * 12)} months`;
+    if (age === 1) return '1 year';
+    return `${age} years`;
+  };
+
+  // Get status badge variant
+  const getStatusVariant = (status) => {
+    switch (status?.toLowerCase()) {
+      case 'available': return 'success';
+      case 'pending': return 'warning';
+      case 'adopted': return 'primary';
+      default: return 'secondary';
     }
   };
 
-  const handleImageError = (e) => {
-    if (!imageError && pet) {
-      const fallbackUrl = FALLBACK_IMAGES[pet.type] || FALLBACK_IMAGES.pet;
-      if (e.target.src !== fallbackUrl) {
-        setImageError(true);
-        e.target.src = fallbackUrl;
-      }
-    }
-  };
-
-  const handleImageLoad = () => {
-    setImageLoaded(true);
-  };
-
-  const getStatusBadge = (status) => {
-    const badges = {
-      available: { variant: 'success', icon: '✨', text: 'Available for Adoption' },
-      pending: { variant: 'warning', icon: '⏳', text: 'Adoption Pending' },
-      adopted: { variant: 'secondary', icon: '❤️', text: 'Already Adopted' }
-    };
-    return badges[status] || badges.available;
-  };
-
+  // Get gender icon
   const getGenderIcon = (gender) => {
-    if (gender === 'male') return <FaMars className="text-primary" />;
-    if (gender === 'female') return <FaVenus className="text-danger" />;
-    return <FaPaw className="text-muted" />;
-  };
-
-  const renderHeartRating = (interactive = false) => {
-    const hearts = [];
-    for (let i = 1; i <= 5; i++) {
-      hearts.push(
-        <FaHeart
-          key={i}
-          className={`${i <= currentRating ? 'text-danger' : 'text-muted'} ${interactive ? 'rating-heart' : ''}`}
-          size={interactive ? 24 : 18}
-          style={{ 
-            cursor: interactive ? 'pointer' : 'default',
-            transition: 'all 0.2s ease',
-            marginRight: '4px'
-          }}
-          onClick={interactive ? () => handleRating(i) : undefined}
-          onMouseEnter={interactive ? (e) => e.target.style.transform = 'scale(1.2)' : undefined}
-          onMouseLeave={interactive ? (e) => e.target.style.transform = 'scale(1)' : undefined}
-        />
-      );
+    switch (gender?.toLowerCase()) {
+      case 'male': return <FaMars className="text-primary" />;
+      case 'female': return <FaVenus className="text-danger" />;
+      default: return <FaPaw className="text-muted" />;
     }
-    return hearts;
   };
 
   // Loading state
   if (loading) {
     return (
-      <>
-        <HeroBanner
-          variant="simple"
-          title="Loading Pet Details..."
-          subtitle="Please wait while we fetch information about your potential new friend"
-          showLogo={false}
-        />
-        <Container className="py-5 text-center">
+      <Container className="py-5">
+        <div className="text-center py-5">
           <Spinner animation="border" variant="primary" size="lg" />
-          <p className="mt-3 text-muted">Loading pet details...</p>
-        </Container>
-      </>
+          <h5 className="mt-3">Loading pet details...</h5>
+          <p className="text-muted">Please wait while we fetch the information.</p>
+        </div>
+      </Container>
     );
   }
 
   // Error state
-  if (error || !pet) {
+  if (error) {
     return (
-      <>
-        <HeroBanner
-          variant="simple"
-          title="Pet Not Found"
-          subtitle="We couldn't find the pet you're looking for"
-          showLogo={false}
-        />
-        <Container className="py-5">
-          <Alert variant="danger" className="text-center">
-            <Alert.Heading>Oops! Something went wrong</Alert.Heading>
-            <p>{error}</p>
-            <div className="d-flex gap-2 justify-content-center">
-              <Button variant="outline-danger" onClick={() => navigate('/browse')}>
-                Browse Other Pets
-              </Button>
-              <Button variant="outline-secondary" onClick={() => window.location.reload()}>
-                Try Again
-              </Button>
-            </div>
-          </Alert>
-        </Container>
-      </>
+      <Container className="py-5">
+        <Alert variant="danger" className="text-center">
+          <Alert.Heading>
+            <i className="fas fa-exclamation-triangle me-2"></i>
+            Unable to Load Pet Details
+          </Alert.Heading>
+          <p className="mb-3">{error}</p>
+          <div className="d-flex justify-content-center gap-3">
+            <Button variant="outline-danger" onClick={() => window.location.reload()}>
+              <i className="fas fa-redo me-2"></i>
+              Try Again
+            </Button>
+            <Button variant="primary" onClick={() => navigate('/pets')}>
+              <FaArrowLeft className="me-2" />
+              Back to Pets
+            </Button>
+          </div>
+        </Alert>
+      </Container>
     );
   }
 
-  const imageUrl = getPetImageUrl(pet.image, pet.type);
-  const statusBadge = getStatusBadge(pet.status);
-
-  return (
-    <div>
-      {/* Hero Section */}
-      <HeroBanner
-        variant="simple"
-        title={`Meet ${pet.name}`}
-        subtitle={`${pet.breed} • ${pet.age} • Looking for a loving home`}
-        showLogo={false}
-        backgroundGradient="linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
-        minHeight="250px"
-      />
-
+  // No pet found
+  if (!pet) {
+    return (
       <Container className="py-5">
-        {/* Back Button */}
-        <div className="mb-4">
-          <Button 
-            variant="outline-secondary" 
-            onClick={() => navigate('/browse')}
-            className="d-flex align-items-center"
-          >
+        <Alert variant="warning" className="text-center">
+          <Alert.Heading>Pet Not Found</Alert.Heading>
+          <p>The pet you're looking for doesn't exist or may have been removed.</p>
+          <Button variant="primary" onClick={() => navigate('/pets')}>
             <FaArrowLeft className="me-2" />
-            Back to Browse
+            Browse All Pets
           </Button>
-        </div>
+        </Alert>
+      </Container>
+    );
+  }
 
-        <Row>
-          {/* Pet Image */}
-          <Col lg={6} className="mb-4">
-            <Card className="enhancedCard">
-              <div className="position-relative">
-                {/* 🆕 LARGE IMAGE CONTAINER for detail page */}
-                <div 
-                  className="cardImgContainer"
-                  style={{
-                    width: '100%',
-                    height: '400px',
-                    margin: '20px auto',
-                    maxWidth: '400px'
-                  }}
-                >
-                  <img
-                    src={imageUrl}
-                    alt={pet.name}
-                    className={`cardImg ${imageLoaded ? '' : 'loading'}`}
-                    onError={handleImageError}
-                    onLoad={handleImageLoad}
-                  />
-                </div>
+  // Main pet detail display
+  return (
+    <Container className="py-4">
+      {/* Back Button */}
+      <div className="mb-4">
+        <Button 
+          variant="outline-secondary" 
+          onClick={() => navigate('/pets')}
+          className="d-flex align-items-center"
+        >
+          <FaArrowLeft className="me-2" />
+          Back to Pets
+        </Button>
+      </div>
 
-                {/* Status Badge */}
+      <Row>
+        {/* Pet Image */}
+        <Col lg={6} className="mb-4">
+          <Card className="border-0 shadow-sm h-100">
+            <div className="position-relative">
+              <img
+                src={getPetImageUrl()}
+                alt={pet.name || 'Pet photo'}
+                className="card-img-top"
+                style={{ 
+                  height: '500px', 
+                  objectFit: 'cover',
+                  borderRadius: '0.375rem 0.375rem 0 0'
+                }}
+                onError={handleImageError}
+              />
+              
+              {/* Status Badge */}
+              <div className="position-absolute top-0 end-0 m-3">
                 <Badge 
-                  bg={statusBadge.variant}
-                  className="position-absolute top-0 end-0 m-3 enhancedBadge"
-                  style={{ zIndex: 10 }}
+                  bg={getStatusVariant(pet.status)} 
+                  className="px-3 py-2 fs-6"
+                  style={{ borderRadius: '20px' }}
                 >
-                  {statusBadge.icon} {statusBadge.text}
+                  {pet.status?.charAt(0).toUpperCase() + pet.status?.slice(1) || 'Unknown'}
                 </Badge>
-
-                {/* Featured Badge */}
-                {pet.featured && (
-                  <Badge 
-                    bg="primary"
-                    className="position-absolute top-0 start-0 m-3 enhancedBadge"
-                    style={{ zIndex: 10 }}
-                  >
-                    ⭐ Featured Pet
-                  </Badge>
-                )}
               </div>
-            </Card>
-          </Col>
 
-          {/* Pet Details */}
-          <Col lg={6}>
-            <Card className="enhancedCard h-100">
-              <Card.Body className="enhancedCardBody">
-                {/* Name & Gender */}
-                <div className="d-flex justify-content-between align-items-center mb-3">
-                  <h1 className="enhancedCardTitle display-5 mb-0 text-capitalize">
-                    {pet.name}
-                  </h1>
-                  <div className="fs-2">
+              {/* Featured Badge */}
+              {pet.featured && (
+                <div className="position-absolute top-0 start-0 m-3">
+                  <Badge bg="warning" text="dark" className="px-3 py-2 fs-6">
+                    <i className="fas fa-star me-1"></i>
+                    Featured
+                  </Badge>
+                </div>
+              )}
+            </div>
+          </Card>
+        </Col>
+
+        {/* Pet Details */}
+        <Col lg={6}>
+          <Card className="border-0 shadow-sm h-100">
+            <Card.Body className="p-4">
+              
+              {/* Pet Name & Type */}
+              <div className="mb-3">
+                <h1 className="display-6 fw-bold text-primary mb-2">
+                  {pet.name || 'Unnamed Pet'}
+                </h1>
+                <h5 className="text-muted">
+                  {pet.breed || 'Mixed Breed'} • {pet.type?.charAt(0).toUpperCase() + pet.type?.slice(1) || 'Pet'}
+                </h5>
+              </div>
+
+              {/* Quick Info */}
+              <Row className="mb-4">
+                <Col sm={6}>
+                  <div className="d-flex align-items-center mb-2">
                     {getGenderIcon(pet.gender)}
-                  </div>
-                </div>
-
-                {/* Basic Info */}
-                <div className="mb-4">
-                  <h5 className="text-muted text-capitalize">
-                    {pet.breed} • {pet.age} • {pet.size}
-                  </h5>
-                </div>
-
-                {/* Location */}
-                {pet.location && (
-                  <div className="mb-4">
-                    <h6 className="text-muted">
-                      <FaMapMarkerAlt className="me-2" />
-                      {pet.location}
-                    </h6>
-                  </div>
-                )}
-
-                {/* Heart Rating */}
-                <div className="mb-4">
-                  <h6 className="mb-2">Rate this pet:</h6>
-                  <div className="d-flex align-items-center gap-2">
-                    {renderHeartRating(true)}
-                    <span className="text-muted">
-                      ({currentRating}/5)
+                    <span className="ms-2">
+                      <strong>Gender:</strong> {pet.gender?.charAt(0).toUpperCase() + pet.gender?.slice(1) || 'Unknown'}
                     </span>
-                    {isRating && <Spinner size="sm" />}
                   </div>
-                </div>
+                  <div className="d-flex align-items-center mb-2">
+                    <FaPaw className="text-primary" />
+                    <span className="ms-2">
+                      <strong>Age:</strong> {formatAge(pet.age)}
+                    </span>
+                  </div>
+                </Col>
+                <Col sm={6}>
+                  <div className="d-flex align-items-center mb-2">
+                    <i className="fas fa-weight text-info"></i>
+                    <span className="ms-2">
+                      <strong>Weight:</strong> {pet.weight ? `${pet.weight} lbs` : 'Not specified'}
+                    </span>
+                  </div>
+                  <div className="d-flex align-items-center mb-2">
+                    <FaMapMarkerAlt className="text-danger" />
+                    <span className="ms-2">
+                      <strong>Location:</strong> {pet.location || 'At shelter'}
+                    </span>
+                  </div>
+                </Col>
+              </Row>
 
-                {/* Badges */}
-                <div className="enhancedBadges mb-4">
-                  {pet.isVaccinated && (
-                    <Badge bg="info" className="enhancedBadge">
-                      💉 Vaccinated
+              {/* Category & Additional Info */}
+              {pet.category && (
+                <div className="mb-3">
+                  <Badge bg="info" className="me-2 px-3 py-2">
+                    {pet.category}
+                  </Badge>
+                  {pet.specialNeeds && (
+                    <Badge bg="warning" text="dark" className="px-3 py-2">
+                      Special Needs
                     </Badge>
                   )}
-                  {pet.isSpayedNeutered && (
-                    <Badge bg="success" className="enhancedBadge">
-                      ✂️ Spayed/Neutered
-                    </Badge>
-                  )}
-                  {pet.needsSpecialCare && (
-                    <Badge bg="warning" className="enhancedBadge">
-                      ⚠️ Needs Special Care
-                    </Badge>
-                  )}
                 </div>
+              )}
 
-                {/* Adoption Fee */}
-                <div className="text-center mb-4 p-3 bg-light rounded">
-                  <h4 className="text-success mb-0">
-                    ${pet.adoptionFee || 0} Adoption Fee
-                  </h4>
-                  <small className="text-muted">Includes initial vet care and vaccinations</small>
+              {/* Description */}
+              {pet.description && (
+                <div className="mb-4">
+                  <h6 className="fw-bold mb-2">About {pet.name}</h6>
+                  <p className="text-muted lh-lg">
+                    {pet.description}
+                  </p>
                 </div>
+              )}
 
-                {/* Action Buttons */}
-                <div className="d-grid gap-2">
-                  {pet.status === 'available' ? (
-                    <>
-                      <Button 
-                        variant="success" 
-                        size="lg"
-                        className="enhancedButton"
-                        style={{
-                          backgroundColor: '#28a745',
-                          borderColor: '#28a745',
-                          boxShadow: '0 4px 15px rgba(40, 167, 69, 0.4)'
-                        }}
-                      >
-                        <FaHeart className="me-2" />
-                        Start Adoption Process
-                      </Button>
-                      <Button 
-                        variant="outline-primary"
-                        className="enhancedButton"
-                      >
-                        <FaPhone className="me-2" />
-                        Contact About {pet.name}
-                      </Button>
-                    </>
-                  ) : (
-                    <Button 
-                      variant="secondary" 
-                      size="lg"
-                      disabled
-                      className="enhancedButton"
-                    >
-                      {statusBadge.icon} {statusBadge.text}
-                    </Button>
+              {/* Additional Details */}
+              {(pet.personality || pet.goodWith || pet.training) && (
+                <div className="mb-4">
+                  <h6 className="fw-bold mb-3">Additional Information</h6>
+                  
+                  {pet.personality && (
+                    <div className="mb-2">
+                      <strong>Personality:</strong> <span className="text-muted">{pet.personality}</span>
+                    </div>
                   )}
                   
-                  <Button 
-                    variant="outline-secondary"
-                    className="enhancedButton"
-                  >
-                    <FaShare className="me-2" />
-                    Share {pet.name}
-                  </Button>
-                </div>
-              </Card.Body>
-            </Card>
-          </Col>
-        </Row>
-
-        {/* Description & Details */}
-        <Row className="mt-5">
-          <Col lg={8}>
-            <Card className="enhancedCard">
-              <Card.Body className="enhancedCardBody">
-                <h3 className="enhancedCardTitle">About {pet.name}</h3>
-                <p className="enhancedCardText">
-                  {pet.description || `${pet.name} is a wonderful ${pet.breed} looking for a loving forever home. This ${pet.age} ${pet.gender} is full of love and ready to become part of your family.`}
-                </p>
-              </Card.Body>
-            </Card>
-          </Col>
-
-          <Col lg={4}>
-            <Card className="enhancedCard">
-              <Card.Body className="enhancedCardBody">
-                <h5 className="enhancedCardTitle">Pet Details</h5>
-                <ListGroup variant="flush">
-                  <ListGroup.Item className="d-flex justify-content-between">
-                    <span>Type:</span>
-                    <span className="text-capitalize">{pet.type}</span>
-                  </ListGroup.Item>
-                  <ListGroup.Item className="d-flex justify-content-between">
-                    <span>Breed:</span>
-                    <span className="text-capitalize">{pet.breed}</span>
-                  </ListGroup.Item>
-                  <ListGroup.Item className="d-flex justify-content-between">
-                    <span>Age:</span>
-                    <span className="text-capitalize">{pet.age}</span>
-                  </ListGroup.Item>
-                  <ListGroup.Item className="d-flex justify-content-between">
-                    <span>Size:</span>
-                    <span className="text-capitalize">{pet.size}</span>
-                  </ListGroup.Item>
-                  <ListGroup.Item className="d-flex justify-content-between">
-                    <span>Gender:</span>
-                    <span className="text-capitalize">{pet.gender}</span>
-                  </ListGroup.Item>
-                  {pet.location && (
-                    <ListGroup.Item className="d-flex justify-content-between">
-                      <span>Location:</span>
-                      <span>{pet.location}</span>
-                    </ListGroup.Item>
+                  {pet.goodWith && (
+                    <div className="mb-2">
+                      <strong>Good with:</strong> <span className="text-muted">{pet.goodWith}</span>
+                    </div>
                   )}
-                </ListGroup>
+                  
+                  {pet.training && (
+                    <div className="mb-2">
+                      <strong>Training:</strong> <span className="text-muted">{pet.training}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="d-grid gap-3">
+                {pet.status === 'available' && (
+                  <Button variant="primary" size="lg" className="fw-bold">
+                    <FaHeart className="me-2" />
+                    Apply to Adopt
+                  </Button>
+                )}
+                
+                <Row>
+                  <Col>
+                    <Button variant="outline-primary" className="w-100">
+                      <FaPhone className="me-2" />
+                      Contact
+                    </Button>
+                  </Col>
+                  <Col>
+                    <Button variant="outline-secondary" className="w-100">
+                      <FaShare className="me-2" />
+                      Share
+                    </Button>
+                  </Col>
+                </Row>
+              </div>
+
+              {/* Pet ID for reference */}
+              <div className="mt-3 text-center">
+                <small className="text-muted">
+                  Pet ID: {pet._id || pet.id}
+                </small>
+              </div>
+
+            </Card.Body>
+          </Card>
+        </Col>
+      </Row>
+
+      {/* Additional Information Section */}
+      {(pet.medicalHistory || pet.vaccinationStatus || pet.adoptionFee) && (
+        <Row className="mt-4">
+          <Col>
+            <Card className="border-0 shadow-sm">
+              <Card.Header className="bg-light">
+                <h5 className="mb-0">
+                  <i className="fas fa-info-circle me-2 text-primary"></i>
+                  Important Information
+                </h5>
+              </Card.Header>
+              <Card.Body>
+                <Row>
+                  {pet.medicalHistory && (
+                    <Col md={4} className="mb-3">
+                      <h6 className="fw-bold">Medical History</h6>
+                      <p className="text-muted small">{pet.medicalHistory}</p>
+                    </Col>
+                  )}
+                  
+                  {pet.vaccinationStatus && (
+                    <Col md={4} className="mb-3">
+                      <h6 className="fw-bold">Vaccinations</h6>
+                      <p className="text-muted small">{pet.vaccinationStatus}</p>
+                    </Col>
+                  )}
+                  
+                  {pet.adoptionFee && (
+                    <Col md={4} className="mb-3">
+                      <h6 className="fw-bold">Adoption Fee</h6>
+                      <p className="text-success fw-bold">${pet.adoptionFee}</p>
+                    </Col>
+                  )}
+                </Row>
               </Card.Body>
             </Card>
           </Col>
         </Row>
-
-        {/* Related Pets */}
-        <Row className="mt-5">
-          <Col>
-            <div className="text-center">
-              <h3>Other Pets You Might Love</h3>
-              <p className="text-muted mb-4">
-                Check out these other wonderful pets looking for homes
-              </p>
-              <Link to="/browse" className="btn btn-primary enhancedButton">
-                <FaPaw className="me-2" />
-                Browse More Pets
-              </Link>
-            </div>
-          </Col>
-        </Row>
-      </Container>
-    </div>
+      )}
+    </Container>
   );
 };
 

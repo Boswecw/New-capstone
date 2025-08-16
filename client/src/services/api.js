@@ -213,12 +213,21 @@ export const cartAPI = {
 /* =========================
  *        NEWS API
  * ========================= */
+// Add this to your newsAPI object in client/src/services/api.js
+
 export const newsAPI = {
   /**
    * Get all news articles with optional filters
    */
   getAllNews(params = {}) {
     return api.get('/news', { params: cleanParams(params) });
+  },
+
+  /**
+   * Get news categories - ADDED METHOD
+   */
+  getCategories() {
+    return api.get('/news/categories');
   },
 
   /**

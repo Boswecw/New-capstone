@@ -1,215 +1,95 @@
-// server/routes/products.js - FIXED VERSION
-const express = require('express');
-const router = express.Router();
-const Product = require('../models/Product');
-const { protect, admin } = require('../middleware/auth');
+// Replace the validateObjectId function in your server/routes/products.js
 
-// Simple function to add image URLs - NO EXTERNAL DEPENDENCIES
-const addImageUrl = (entity, entityType = 'product') => {
-  if (!entity) return entity;
+// ============================================
+// UTILITY FUNCTIONS - UPDATED FOR CUSTOM IDs
+// ============================================
+
+// Flexible ID validation - accepts both ObjectId and custom formats
+const validateId = (req, res, next) => {
+  const id = req.params.id;
   
-  const baseUrl = 'https://storage.googleapis.com/furbabies-petstore';
+  // Allow both MongoDB ObjectIds and custom IDs (like prod_004, product123, etc.)
+  const isValidObjectId = mongoose.Types.ObjectId.isValid(id);
+  const isValidCustomId = /^[a-zA-Z0-9_-]+$/.test(id) && id.length >= 3;
   
-  return {
-    ...entity,
-    imageUrl: entity.image ? `${baseUrl}/${entity.image}` : null,
-    hasImage: !!entity.image
-  };
+  if (!isValidObjectId && !isValidCustomId) {
+    return res.status(400).json({ 
+      success: false, 
+      message: "Invalid product ID format" 
+    });
+  }
+  
+  next();
 };
 
-// GET /api/products - Get all products
-router.get('/', async (req, res) => {
+// Replace your GET /:id route with this:
+
+// GET /api/products/:id - Get single product by ID (supports both ObjectId and custom IDs)
+router.get("/:id", validateId, async (req, res) => {
   try {
-    console.log('🛒 GET /api/products - Query params:', req.query);
-
-    const {
-      featured,
-      limit = 20,
-      page = 1,
-      category,
-      inStock,
-      minPrice,
-      maxPrice,
-      sort = '-createdAt'
-    } = req.query;
-
-    // Build query
-    const query = {};
+    const productId = req.params.id;
+    console.log(`🛒 GET /products/${productId} - Fetching product details`);
     
-    if (featured === 'true' || featured === true) {
-      query.featured = true;
+    let product = null;
+    
+    // Try to find by MongoDB ObjectId first
+    if (mongoose.Types.ObjectId.isValid(productId)) {
+      console.log(`🛒 Searching by ObjectId: ${productId}`);
+      product = await Product.findById(productId).lean();
     }
     
-    if (inStock === 'true') {
-      query.inStock = true;
-    } else if (inStock === 'false') {
-      query.inStock = false;
+    // If not found, try to find by custom ID field
+    if (!product) {
+      console.log(`🛒 Searching by custom ID field: ${productId}`);
+      product = await Product.findOne({ 
+        $or: [
+          { id: productId },           // Custom id field
+          { productId: productId },    // Alternative custom id field
+          { customId: productId },     // Another alternative
+          { sku: productId },          // Sometimes SKU is used as ID
+          { code: productId }          // Product code field
+        ]
+      }).lean();
     }
-    
-    if (category && category !== 'all') {
-      query.category = { $regex: category, $options: 'i' };
-    }
-    
-    if (minPrice || maxPrice) {
-      query.price = {};
-      if (minPrice) query.price.$gte = parseFloat(minPrice);
-      if (maxPrice) query.price.$lte = parseFloat(maxPrice);
-    }
-
-    // Pagination
-    const limitNum = parseInt(limit);
-    const pageNum = parseInt(page);
-    const skip = (pageNum - 1) * limitNum;
-
-    // Execute query
-    const [products, totalCount] = await Promise.all([
-      Product.find(query)
-        .sort(sort)
-        .limit(limitNum)
-        .skip(skip)
-        .lean(),
-      Product.countDocuments(query)
-    ]);
-
-    // ✅ FIXED: Add image URLs without missing function
-    const productsWithImages = products.map(product => addImageUrl(product, 'product'));
-
-    console.log(`✅ Returning ${productsWithImages.length} products`);
-
-    res.json({
-      success: true,
-      data: productsWithImages,
-      pagination: {
-        total: totalCount,
-        page: pageNum,
-        limit: limitNum,
-        pages: Math.ceil(totalCount / limitNum)
-      }
-    });
-
-  } catch (error) {
-    console.error('❌ Error fetching products:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching products',
-      error: error.message
-    });
-  }
-});
-
-// GET /api/products/featured - Featured products endpoint
-router.get('/featured', async (req, res) => {
-  try {
-    console.log('🛒 GET /api/products/featured');
-    
-    const limit = parseInt(req.query.limit) || 6;
-    
-    // Get featured products
-    let products = await Product.find({ 
-      inStock: true, 
-      featured: true 
-    })
-    .sort({ createdAt: -1 })
-    .limit(limit)
-    .lean();
-
-    // Fill with regular products if not enough featured ones
-    if (products.length < limit) {
-      const additionalProducts = await Product.find({
-        inStock: true,
-        featured: { $ne: true },
-        _id: { $nin: products.map(p => p._id) }
-      })
-      .sort({ createdAt: -1 })
-      .limit(limit - products.length)
-      .lean();
-      
-      products = [...products, ...additionalProducts];
-    }
-
-    // ✅ FIXED: Add image URLs without missing function
-    const productsWithImages = products.map(product => addImageUrl(product, 'product'));
-
-    console.log(`✅ Returning ${productsWithImages.length} featured products`);
-
-    res.json({
-      success: true,
-      data: productsWithImages,
-      count: productsWithImages.length
-    });
-
-  } catch (error) {
-    console.error('❌ Error fetching featured products:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching featured products',
-      error: error.message
-    });
-  }
-});
-
-// GET /api/products/categories - Get product categories
-router.get('/categories', async (req, res) => {
-  try {
-    const categories = await Product.aggregate([
-      { $match: { inStock: true } },
-      { $group: { 
-        _id: '$category', 
-        count: { $sum: 1 },
-        avgPrice: { $avg: '$price' }
-      }},
-      { $sort: { count: -1 } }
-    ]);
-
-    const formattedCategories = categories.map(cat => ({
-      name: cat._id,
-      count: cat.count,
-      avgPrice: Math.round(cat.avgPrice * 100) / 100
-    }));
-
-    res.json({
-      success: true,
-      data: formattedCategories
-    });
-
-  } catch (error) {
-    console.error('❌ Error fetching categories:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching categories',
-      error: error.message
-    });
-  }
-});
-
-// GET /api/products/:id - Get single product
-router.get('/:id', async (req, res) => {
-  try {
-    const product = await Product.findById(req.params.id).lean();
     
     if (!product) {
+      console.log(`❌ Product not found with ID: ${productId}`);
+      
+      // Debug: Show available product IDs
+      const availableProducts = await Product.find({}, { _id: 1, id: 1, productId: 1, sku: 1, name: 1 }).limit(10).lean();
+      console.log('🛒 Available product IDs (first 10):', availableProducts.map(p => ({
+        _id: p._id,
+        id: p.id,
+        productId: p.productId,
+        sku: p.sku,
+        name: p.name
+      })));
+      
       return res.status(404).json({
         success: false,
-        message: 'Product not found'
+        message: "Product not found",
+        searchedId: productId,
+        availableIds: availableProducts.map(p => p._id || p.id || p.productId || p.sku).filter(Boolean).slice(0, 5)
       });
     }
 
-    // ✅ FIXED: Add image URL without missing function
-    const productWithImage = addImageUrl(product, 'product');
+    // Add computed fields
+    const productWithImage = addImageUrl(product);
 
+    console.log(`✅ Product found: ${productWithImage.displayName} (${productWithImage._id})`);
+    
     res.json({
       success: true,
       data: productWithImage
     });
 
   } catch (error) {
-    console.error('❌ Error fetching product:', error);
+    console.error(`❌ Error fetching product ${req.params.id}:`, error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching product',
-      error: error.message
+      message: "Failed to fetch product details",
+      error: error.message,
+      searchedId: req.params.id
     });
   }
 });
-
-module.exports = router;
