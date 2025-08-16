@@ -1,33 +1,11 @@
-// server/routes/pets.js - FIXED VERSION FOR CUSTOM IDs (like p051)
+// server/routes/pets.js - COMPLETE FILE WITH OBJECTID CASTING FIX
 const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
 const Pet = require('../models/Pet');
 const { protect, admin, optionalAuth } = require('../middleware/auth');
 
-// ============================================
-// UTILITY FUNCTIONS
-// ============================================
-
-// Flexible ID validation - accepts both ObjectId and custom formats
-const validateId = (req, res, next) => {
-  const id = req.params.id;
-  
-  // Allow both MongoDB ObjectIds and custom IDs (like p051, pet123, etc.)
-  const isValidObjectId = mongoose.Types.ObjectId.isValid(id);
-  const isValidCustomId = /^[a-zA-Z0-9_-]+$/.test(id) && id.length >= 3;
-  
-  if (!isValidObjectId && !isValidCustomId) {
-    return res.status(400).json({ 
-      success: false, 
-      message: "Invalid pet ID format" 
-    });
-  }
-  
-  next();
-};
-
-// Add image URL to pet data
+// ===== HELPER FUNCTIONS =====
 const addImageUrl = (pet, type = 'pet') => {
   if (!pet) return pet;
   
@@ -35,21 +13,37 @@ const addImageUrl = (pet, type = 'pet') => {
     ...pet,
     imageUrl: pet.image ? `https://storage.googleapis.com/furbabies-petstore/${pet.image}` : null,
     hasImage: !!pet.image,
-    displayName: pet.name || 'Unnamed Pet'
+    displayName: pet.name || 'Unnamed Pet',
+    isAvailable: pet.status === 'available',
+    isAdopted: pet.status === 'adopted',
+    statusDisplay: pet.status === 'adopted' ? 'Adopted' : 
+                   pet.status === 'available' ? 'Available for Adoption' : 
+                   pet.status || 'Unknown Status'
   };
 };
 
-// ============================================
-// SPECIFIC ROUTES FIRST (BEFORE /:id)
-// ============================================
+// ===== VALIDATION FUNCTIONS =====
+const validatePetData = (req, res, next) => {
+  const { name, type, breed, description } = req.body;
+  if (!name || !type || !breed || !description) {
+    return res.status(400).json({ 
+      success: false, 
+      message: "Name, type, breed, and description are required" 
+    });
+  }
+  next();
+};
 
-// GET /api/pets/meta/categories
+// ===== METADATA ROUTES (Must come before /:id route) =====
+
+// @desc Get pet categories
+// @route GET /api/pets/meta/categories
+// @access Public
 router.get('/meta/categories', async (req, res) => {
   try {
     console.log('🐕 GET /api/pets/meta/categories');
     
     const categories = await Pet.aggregate([
-      { $match: { status: 'available' } },
       { $group: { _id: '$category', count: { $sum: 1 } } },
       { $sort: { count: -1 } }
     ]);
@@ -76,13 +70,14 @@ router.get('/meta/categories', async (req, res) => {
   }
 });
 
-// GET /api/pets/meta/types
+// @desc Get pet types
+// @route GET /api/pets/meta/types
+// @access Public
 router.get('/meta/types', async (req, res) => {
   try {
     console.log('🐕 GET /api/pets/meta/types');
     
     const types = await Pet.aggregate([
-      { $match: { status: 'available' } },
       { $group: { _id: '$type', count: { $sum: 1 } } },
       { $sort: { count: -1 } }
     ]);
@@ -110,191 +105,181 @@ router.get('/meta/types', async (req, res) => {
   }
 });
 
-// GET /api/pets/featured - Featured pets endpoint
+// @desc Get featured pets
+// @route GET /api/pets/featured
+// @access Public
 router.get('/featured', async (req, res) => {
   try {
     console.log('🐕 GET /api/pets/featured');
     
     const limit = parseInt(req.query.limit) || 6;
     
-    // Get featured pets first
-    let pets = await Pet.find({ 
-      status: 'available', 
-      featured: true 
-    })
-    .sort({ createdAt: -1 })
-    .limit(limit)
-    .lean();
-
-    // Fill with regular pets if not enough featured ones
-    if (pets.length < limit) {
-      const additionalPets = await Pet.find({
-        status: 'available',
-        featured: { $ne: true },
-        _id: { $nin: pets.map(p => p._id) }
-      })
+    // Get featured pets (both available and adopted)
+    const pets = await Pet.find({ featured: true })
       .sort({ createdAt: -1 })
-      .limit(limit - pets.length)
+      .limit(limit)
       .lean();
-      
-      pets = [...pets, ...additionalPets];
-    }
 
-    // Add image URLs
-    const petsWithImages = pets.map(pet => addImageUrl(pet, 'pet'));
+    const petsWithImages = pets.map(pet => addImageUrl(pet));
 
-    console.log(`✅ Returning ${petsWithImages.length} featured pets`);
+    console.log(`🐕 Found ${pets.length} featured pets`);
 
     res.json({
       success: true,
       data: petsWithImages,
-      count: petsWithImages.length
+      count: pets.length
     });
-
   } catch (error) {
     console.error('❌ Error fetching featured pets:', error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching featured pets',
+      message: 'Failed to fetch featured pets',
       error: error.message
     });
   }
 });
 
-// GET /api/pets/stats/summary - Pet statistics
-router.get('/stats/summary', async (req, res) => {
-  try {
-    console.log('🐕 GET /api/pets/stats/summary');
-    
-    const stats = await Pet.aggregate([
-      {
-        $group: {
-          _id: null,
-          total: { $sum: 1 },
-          available: { $sum: { $cond: [{ $eq: ['$status', 'available'] }, 1, 0] } },
-          pending: { $sum: { $cond: [{ $eq: ['$status', 'pending'] }, 1, 0] } },
-          adopted: { $sum: { $cond: [{ $eq: ['$status', 'adopted'] }, 1, 0] } },
-          avgAge: { $avg: '$age' }
-        }
-      }
-    ]);
+// ===== MAIN ROUTES =====
 
-    const summary = stats[0] || {
-      total: 0,
-      available: 0,
-      pending: 0,
-      adopted: 0,
-      avgAge: 0
-    };
-
-    console.log('✅ Pet stats calculated');
-
-    res.json({
-      success: true,
-      data: summary
-    });
-
-  } catch (error) {
-    console.error('❌ Error fetching pet stats:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching pet statistics',
-      error: error.message
-    });
-  }
-});
-
-// ============================================
-// MAIN ROUTES
-// ============================================
-
-// GET /api/pets - Get all pets with filtering
+// @desc Get all pets with filtering and pagination
+// @route GET /api/pets
+// @access Public
 router.get('/', async (req, res) => {
   try {
-    console.log('🐕 GET /api/pets');
-    console.log('🐕 Query params:', req.query);
+    console.log('🐕 GET /api/pets - Query params:', req.query);
 
-    const {
-      page = 1,
-      limit = 12,
-      type,
-      status = 'available',
-      age,
-      breed,
-      gender,
-      category,
-      search,
-      sort = 'createdAt',
-      order = 'desc'
-    } = req.query;
-
-    // Build query
+    // Build query object
     const query = {};
     
-    // Status filter
-    if (status && status !== 'all') {
-      query.status = status;
-    }
-    
+    // Extract query parameters
+    const {
+      type,
+      breed, 
+      category,
+      status,
+      available,
+      age,
+      gender,
+      size,
+      search,
+      featured,
+      page = 1,
+      limit = 12,
+      sort = 'newest'
+    } = req.query;
+
     // Type filter
     if (type && type !== 'all') {
       query.type = type;
+      console.log('🐕 Filtering by type:', type);
     }
-    
-    // Category filter  
-    if (category && category !== 'all') {
-      query.category = category;
-    }
-    
-    // Age filter
-    if (age && age !== 'all') {
-      if (age === 'young') query.age = { $lt: 2 };
-      else if (age === 'adult') query.age = { $gte: 2, $lte: 7 };
-      else if (age === 'senior') query.age = { $gt: 7 };
-    }
-    
-    // Gender filter
-    if (gender && gender !== 'all') {
-      query.gender = gender;
-    }
-    
+
     // Breed filter
     if (breed && breed !== 'all') {
       query.breed = { $regex: breed, $options: 'i' };
+      console.log('🐕 Filtering by breed:', breed);
     }
-    
+
+    // Category filter
+    if (category && category !== 'all') {
+      query.category = category;
+      console.log('🐕 Filtering by category:', category);
+    }
+
+    // Status filter - SHOW ALL by default, filter only if specifically requested
+    if (status && status !== 'all') {
+      query.status = status;
+      console.log('🐕 Filtering by status:', status);
+    } else if (available === 'true') {
+      query.status = 'available';
+      console.log('🐕 Showing only available pets');
+    }
+    // If no status filter, show ALL pets (available, adopted, etc.)
+
+    // Age filter
+    if (age && age !== 'all') {
+      query.age = { $regex: age, $options: 'i' };
+      console.log('🐕 Filtering by age:', age);
+    }
+
+    // Gender filter
+    if (gender && gender !== 'all') {
+      query.gender = gender;
+      console.log('🐕 Filtering by gender:', gender);
+    }
+
+    // Size filter
+    if (size && size !== 'all') {
+      query.size = size;
+      console.log('🐕 Filtering by size:', size);
+    }
+
+    // Featured filter
+    if (featured === 'true') {
+      query.featured = true;
+      console.log('🐕 Showing only featured pets');
+    }
+
     // Search filter
     if (search) {
       query.$or = [
         { name: { $regex: search, $options: 'i' } },
         { breed: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } }
+        { description: { $regex: search, $options: 'i' } },
+        { type: { $regex: search, $options: 'i' } }
       ];
+      console.log('🐕 Search term:', search);
     }
 
-    console.log('🐕 Query object:', query);
-
-    // Calculate pagination
+    // Pagination
     const pageNum = parseInt(page);
     const limitNum = parseInt(limit);
     const skip = (pageNum - 1) * limitNum;
 
-    // Build sort object
-    const sortObj = {};
-    sortObj[sort] = order === 'desc' ? -1 : 1;
+    // Sort options
+    let sortOptions = { createdAt: -1 }; // Default newest first
+    
+    switch (sort) {
+      case 'name_asc':
+        sortOptions = { name: 1 };
+        break;
+      case 'name_desc':
+        sortOptions = { name: -1 };
+        break;
+      case 'age_asc':
+        sortOptions = { age: 1 };
+        break;
+      case 'age_desc':
+        sortOptions = { age: -1 };
+        break;
+      case 'newest':
+        sortOptions = { createdAt: -1 };
+        break;
+      case 'oldest':
+        sortOptions = { createdAt: 1 };
+        break;
+      case 'featured':
+        sortOptions = { featured: -1, createdAt: -1 };
+        break;
+      default:
+        sortOptions = { createdAt: -1 };
+    }
 
-    // Execute query with pagination
+    console.log('🐕 MongoDB query:', JSON.stringify(query, null, 2));
+    console.log('🐕 Sort options:', sortOptions);
+
+    // Execute query
     const [pets, total] = await Promise.all([
       Pet.find(query)
-        .sort(sortObj)
+        .sort(sortOptions)
         .skip(skip)
         .limit(limitNum)
         .lean(),
       Pet.countDocuments(query)
     ]);
 
-    // Add image URLs
-    const petsWithImages = pets.map(pet => addImageUrl(pet, 'pet'));
+    // Add image URLs to all pets
+    const petsWithImages = pets.map(pet => addImageUrl(pet));
 
     console.log(`✅ Found ${pets.length} pets (${total} total)`);
 
@@ -310,14 +295,16 @@ router.get('/', async (req, res) => {
       },
       filters: {
         type: type || 'all',
-        status: status || 'available',
-        age: age || 'all',
         breed: breed || 'all',
-        gender: gender || 'all',
         category: category || 'all',
+        status: status || 'all',
+        available: available || 'all',
+        age: age || 'all',
+        gender: gender || 'all',
+        size: size || 'all',
         search: search || '',
-        sort,
-        order
+        featured: featured || 'all',
+        sort: sort || 'newest'
       }
     });
 
@@ -325,67 +312,67 @@ router.get('/', async (req, res) => {
     console.error('❌ Error fetching pets:', error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching pets',
+      message: 'Failed to fetch pets',
       error: error.message
     });
   }
 });
 
-// ============================================
-// INDIVIDUAL PET BY ID (MUST BE LAST)
-// ============================================
-
-// GET /api/pets/:id - Get single pet by ID (supports both ObjectId and custom IDs)
-router.get('/:id', validateId, async (req, res) => {
+// ===== INDIVIDUAL PET BY ID - FIXED TO BYPASS OBJECTID CASTING =====
+// @desc Get single pet by ID
+// @route GET /api/pets/:id
+// @access Public
+router.get('/:id', async (req, res) => {
   try {
     const petId = req.params.id;
-    console.log(`🐕 GET /api/pets/${petId} - Fetching pet details`);
+    console.log(`🔍 SEARCHING FOR PET: ${petId}`);
     
-    let pet = null;
+    // ✅ Use native MongoDB query to bypass Mongoose ObjectId casting
+    const db = mongoose.connection.db;
+    const petsCollection = db.collection('pets');
     
-    // Try to find by MongoDB ObjectId first
-    if (mongoose.Types.ObjectId.isValid(petId)) {
-      console.log(`🐕 Searching by ObjectId: ${petId}`);
-      pet = await Pet.findById(petId).lean();
-    }
-    
-    // If not found, try to find by custom ID field
-    if (!pet) {
-      console.log(`🐕 Searching by custom ID field: ${petId}`);
-      pet = await Pet.findOne({ 
-        $or: [
-          { id: petId },           // Custom id field
-          { petId: petId },        // Alternative custom id field
-          { customId: petId },     // Another alternative
-          { name: petId }          // Sometimes name is used as ID
-        ]
-      }).lean();
-    }
+    // Find the pet using native MongoDB query (no ObjectId casting)
+    const pet = await petsCollection.findOne({ _id: petId });
     
     if (!pet) {
-      console.log(`❌ Pet not found with ID: ${petId}`);
+      console.log(`❌ PET ${petId} NOT FOUND`);
       
-      // Debug: Show available pet IDs
-      const availablePets = await Pet.find({}, { _id: 1, id: 1, petId: 1, name: 1 }).limit(10).lean();
-      console.log('🐕 Available pet IDs (first 10):', availablePets.map(p => ({
-        _id: p._id,
-        id: p.id,
-        petId: p.petId,
-        name: p.name
-      })));
+      // Get all pets to show available IDs
+      const allPets = await petsCollection.find({}, { projection: { _id: 1, name: 1, status: 1 } }).limit(20).toArray();
+      console.log('📋 ALL PETS IN DATABASE:', allPets.map(p => `${p._id} (${p.name})`));
       
       return res.status(404).json({
         success: false,
-        message: "Pet not found",
+        message: `Pet ${petId} not found`,
         searchedId: petId,
-        availableIds: availablePets.map(p => p._id || p.id || p.petId || p.name).filter(Boolean).slice(0, 5)
+        availableIds: allPets.map(p => p._id).slice(0, 10),
+        totalPets: allPets.length,
+        debug: {
+          searchedFor: petId,
+          totalInDatabase: allPets.length,
+          firstFew: allPets.slice(0, 5).map(p => ({
+            id: p._id,
+            name: p.name,
+            status: p.status
+          }))
+        }
       });
     }
 
-    // Add image URL and computed fields
-    const petWithImage = addImageUrl(pet, 'pet');
+    console.log(`✅ FOUND PET: ${pet.name} (${pet.status})`);
     
-    console.log(`✅ Pet found: ${petWithImage.name} (${petWithImage._id})`);
+    // Add image URL and computed fields
+    const petWithImage = {
+      ...pet,
+      imageUrl: pet.image ? `https://storage.googleapis.com/furbabies-petstore/${pet.image}` : null,
+      hasImage: !!pet.image,
+      displayName: pet.name || 'Unnamed Pet',
+      isAvailable: pet.status === 'available',
+      isAdopted: pet.status === 'adopted',
+      statusDisplay: pet.status === 'adopted' ? 'Adopted' : 
+                     pet.status === 'available' ? 'Available for Adoption' : 
+                     pet.status || 'Unknown Status'
+    };
     
     res.json({
       success: true,
@@ -393,22 +380,21 @@ router.get('/:id', validateId, async (req, res) => {
     });
 
   } catch (error) {
-    console.error(`❌ Error fetching pet ${req.params.id}:`, error);
+    console.error(`❌ ERROR FINDING PET ${req.params.id}:`, error);
     res.status(500).json({
       success: false,
-      message: "Failed to fetch pet details",
-      error: error.message,
-      searchedId: req.params.id
+      message: "Server error",
+      error: error.message
     });
   }
 });
 
-// ============================================
-// ADMIN ROUTES (Protected)
-// ============================================
+// ===== ADMIN ROUTES (Protected) =====
 
-// POST /api/pets - Create new pet (Admin only)
-router.post('/', protect, admin, async (req, res) => {
+// @desc Create new pet (Admin only)
+// @route POST /api/pets
+// @access Private/Admin
+router.post('/', protect, admin, validatePetData, async (req, res) => {
   try {
     console.log('🐕 POST /api/pets - Creating new pet');
     console.log('🐕 Request body:', req.body);
@@ -416,24 +402,24 @@ router.post('/', protect, admin, async (req, res) => {
     const petData = {
       ...req.body,
       createdBy: req.user._id,
+      createdAt: new Date()
     };
 
     const pet = new Pet(petData);
     await pet.save();
 
-    const petWithImage = addImageUrl(pet.toObject(), 'pet');
+    const petWithImage = addImageUrl(pet.toObject());
 
-    console.log("✅ Pet created successfully:", pet._id);
+    console.log('🐕 Pet created:', pet._id);
 
     res.status(201).json({
       success: true,
-      data: petWithImage,
       message: "Pet created successfully",
+      data: petWithImage
     });
-
   } catch (error) {
-    console.error('❌ Error creating pet:', error);
-    res.status(400).json({
+    console.error("❌ Error creating pet:", error);
+    res.status(500).json({
       success: false,
       message: "Failed to create pet",
       error: error.message
@@ -441,49 +427,42 @@ router.post('/', protect, admin, async (req, res) => {
   }
 });
 
-// PUT /api/pets/:id - Update pet (Admin only)
-router.put('/:id', protect, admin, validateId, async (req, res) => {
+// @desc Update pet (Admin only)
+// @route PUT /api/pets/:id
+// @access Private/Admin
+router.put('/:id', protect, admin, async (req, res) => {
   try {
-    console.log("🐕 Updating pet:", req.params.id);
+    console.log('🐕 PUT /api/pets/:id - Updating pet:', req.params.id);
 
-    const petId = req.params.id;
-    let pet = null;
+    const updateData = { ...req.body };
+    updateData.updatedBy = req.user._id;
+    updateData.updatedAt = new Date();
 
-    // Try ObjectId first, then custom ID
-    if (mongoose.Types.ObjectId.isValid(petId)) {
-      pet = await Pet.findByIdAndUpdate(
-        petId,
-        { ...req.body, updatedBy: req.user._id },
-        { new: true, runValidators: true }
-      );
-    } else {
-      pet = await Pet.findOneAndUpdate(
-        { $or: [{ id: petId }, { petId: petId }, { customId: petId }] },
-        { ...req.body, updatedBy: req.user._id },
-        { new: true, runValidators: true }
-      );
-    }
-
+    const pet = await Pet.findByIdAndUpdate(
+      req.params.id,
+      updateData,
+      { new: true, runValidators: true }
+    );
+    
     if (!pet) {
       return res.status(404).json({
         success: false,
-        message: "Pet not found",
+        message: "Pet not found"
       });
     }
 
-    const petWithImage = addImageUrl(pet.toObject(), 'pet');
+    const petWithImage = addImageUrl(pet.toObject());
 
-    console.log("✅ Pet updated successfully");
+    console.log('🐕 Pet updated successfully');
 
     res.json({
       success: true,
-      data: petWithImage,
       message: "Pet updated successfully",
+      data: petWithImage
     });
-
   } catch (error) {
-    console.error('❌ Error updating pet:', error);
-    res.status(400).json({
+    console.error("❌ Error updating pet:", error);
+    res.status(500).json({
       success: false,
       message: "Failed to update pet",
       error: error.message
@@ -491,42 +470,90 @@ router.put('/:id', protect, admin, validateId, async (req, res) => {
   }
 });
 
-// DELETE /api/pets/:id - Delete pet (Admin only)
-router.delete('/:id', protect, admin, validateId, async (req, res) => {
+// @desc Delete pet (Admin only)
+// @route DELETE /api/pets/:id
+// @access Private/Admin
+router.delete('/:id', protect, admin, async (req, res) => {
   try {
-    console.log("🐕 Deleting pet:", req.params.id);
+    console.log('🐕 DELETE /api/pets/:id - Deleting pet:', req.params.id);
 
-    const petId = req.params.id;
-    let pet = null;
-
-    // Try ObjectId first, then custom ID
-    if (mongoose.Types.ObjectId.isValid(petId)) {
-      pet = await Pet.findByIdAndDelete(petId);
-    } else {
-      pet = await Pet.findOneAndDelete({
-        $or: [{ id: petId }, { petId: petId }, { customId: petId }]
-      });
-    }
-
+    const pet = await Pet.findByIdAndDelete(req.params.id);
+    
     if (!pet) {
       return res.status(404).json({
         success: false,
-        message: "Pet not found",
+        message: "Pet not found"
       });
     }
 
-    console.log("✅ Pet deleted successfully");
+    console.log('🐕 Pet deleted successfully');
 
     res.json({
       success: true,
       message: "Pet deleted successfully",
+      data: pet
     });
-
   } catch (error) {
-    console.error('❌ Error deleting pet:', error);
+    console.error("❌ Error deleting pet:", error);
     res.status(500).json({
       success: false,
       message: "Failed to delete pet",
+      error: error.message
+    });
+  }
+});
+
+// @desc Rate pet (Public)
+// @route POST /api/pets/:id/rate
+// @access Public
+router.post('/:id/rate', async (req, res) => {
+  try {
+    const { rating } = req.body;
+    console.log('🐕 POST /api/pets/:id/rate - Rating pet:', req.params.id, 'Rating:', rating);
+
+    if (!rating || rating < 1 || rating > 5) {
+      return res.status(400).json({
+        success: false,
+        message: 'Rating must be between 1 and 5'
+      });
+    }
+
+    const pet = await Pet.findById(req.params.id);
+    
+    if (!pet) {
+      return res.status(404).json({
+        success: false,
+        message: 'Pet not found'
+      });
+    }
+
+    // Update rating
+    const currentTotal = (pet.rating || 0) * (pet.ratingCount || 0);
+    const newCount = (pet.ratingCount || 0) + 1;
+    const newRating = (currentTotal + rating) / newCount;
+
+    pet.rating = Math.round(newRating * 10) / 10; // Round to 1 decimal
+    pet.ratingCount = newCount;
+
+    await pet.save();
+
+    console.log(`🐕 Pet rated: ${pet.name} - New rating: ${pet.rating} (${pet.ratingCount} ratings)`);
+
+    res.json({
+      success: true,
+      message: `Successfully rated ${pet.name}`,
+      data: {
+        rating: pet.rating,
+        ratingCount: pet.ratingCount,
+        petId: pet._id
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error rating pet:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error processing rating',
       error: error.message
     });
   }
