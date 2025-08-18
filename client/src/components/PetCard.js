@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import { FaHeart, FaPaw, FaMars, FaVenus, FaMapMarkerAlt } from 'react-icons/fa';
 
 // ✅ Add this line to load the “second” CSS globally
-import './EnhancedCards.css';
+import './Card.module.css';
 
 // Fallback image handling since getPetImageUrl might not exist
 const buildPetImageUrl = (imagePath, petType) => {
