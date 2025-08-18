@@ -1,8 +1,7 @@
 // client/src/pages/News.js - UPDATED to fix all console errors
 import React, { useState, useEffect, useCallback } from 'react';
-import { Container, Row, Col, Card, Form, Spinner, Alert, Badge } from 'react-bootstrap';
+import { Container, Row, Col, Card, Form, Spinner, Alert, Badge, Button } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
-import Button from '../components/button/Button.jsx';
 import { newsAPI } from '../services/api';
 
 const News = () => {
