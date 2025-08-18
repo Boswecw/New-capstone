@@ -1,0 +1,109 @@
+/* App.css - Main Entry Point */
+
+/* Import Order is Important */
+@import './styles/design-tokens.css';
+@import './styles/reset.css';
+@import 'bootstrap/dist/css/bootstrap.min.css';
+@import './styles/utilities.css';
+
+/* Global Application Styles */
+.App {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Main Content Area */
+main {
+  flex: 1;
+  padding-top: var(--space-lg);
+  padding-bottom: var(--space-lg);
+}
+
+/* Container Improvements */
+.container-fluid {
+  padding-left: var(--space-md);
+  padding-right: var(--space-md);
+}
+
+@media (min-width: 768px) {
+  .container-fluid {
+    padding-left: var(--space-lg);
+    padding-right: var(--space-lg);
+  }
+}
+
+/* Page Transitions */
+.page-enter {
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+.page-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 300ms, transform 300ms;
+}
+
+.page-exit {
+  opacity: 1;
+}
+
+.page-exit-active {
+  opacity: 0;
+  transition: opacity 200ms;
+}
+
+/* Loading States */
+.loading-spinner {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--color-border);
+  border-radius: 50%;
+  border-top-color: var(--color-primary);
+  animation: spin 1s ease-in-out infinite;
+}
+
+/* Accessibility Improvements */
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+/* Focus Management */
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 6px;
+  background: var(--color-primary);
+  color: var(--color-text-inverse);
+  padding: 8px;
+  text-decoration: none;
+  border-radius: var(--border-radius-md);
+  z-index: 1000;
+}
+
+.skip-link:focus {
+  top: 6px;
+}
+
+/* Print Styles */
+@media print {
+  .d-print-none {
+    display: none !important;
+  }
+  
+  .navbar,
+  .footer,
+  .btn {
+    display: none !important;
+  }
+}

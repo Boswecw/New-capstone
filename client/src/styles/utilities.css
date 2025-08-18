@@ -1,0 +1,92 @@
+/* Utility Classes */
+
+/* === DISPLAY === */
+.d-flex { display: flex !important; }
+.d-grid { display: grid !important; }
+.d-block { display: block !important; }
+.d-inline { display: inline !important; }
+.d-inline-block { display: inline-block !important; }
+.d-none { display: none !important; }
+
+/* === FLEX === */
+.flex-column { flex-direction: column !important; }
+.flex-row { flex-direction: row !important; }
+.flex-wrap { flex-wrap: wrap !important; }
+.flex-nowrap { flex-wrap: nowrap !important; }
+.flex-1 { flex: 1 !important; }
+.flex-shrink-0 { flex-shrink: 0 !important; }
+
+.justify-start { justify-content: flex-start !important; }
+.justify-end { justify-content: flex-end !important; }
+.justify-center { justify-content: center !important; }
+.justify-between { justify-content: space-between !important; }
+.justify-around { justify-content: space-around !important; }
+
+.items-start { align-items: flex-start !important; }
+.items-end { align-items: flex-end !important; }
+.items-center { align-items: center !important; }
+.items-stretch { align-items: stretch !important; }
+
+/* === SPACING === */
+.p-0 { padding: 0 !important; }
+.p-xs { padding: var(--space-xs) !important; }
+.p-sm { padding: var(--space-sm) !important; }
+.p-md { padding: var(--space-md) !important; }
+.p-lg { padding: var(--space-lg) !important; }
+.p-xl { padding: var(--space-xl) !important; }
+
+.px-0 { padding-left: 0 !important; padding-right: 0 !important; }
+.px-xs { padding-left: var(--space-xs) !important; padding-right: var(--space-xs) !important; }
+.px-sm { padding-left: var(--space-sm) !important; padding-right: var(--space-sm) !important; }
+.px-md { padding-left: var(--space-md) !important; padding-right: var(--space-md) !important; }
+.px-lg { padding-left: var(--space-lg) !important; padding-right: var(--space-lg) !important; }
+
+.py-0 { padding-top: 0 !important; padding-bottom: 0 !important; }
+.py-xs { padding-top: var(--space-xs) !important; padding-bottom: var(--space-xs) !important; }
+.py-sm { padding-top: var(--space-sm) !important; padding-bottom: var(--space-sm) !important; }
+.py-md { padding-top: var(--space-md) !important; padding-bottom: var(--space-md) !important; }
+.py-lg { padding-top: var(--space-lg) !important; padding-bottom: var(--space-lg) !important; }
+
+.m-0 { margin: 0 !important; }
+.m-auto { margin: auto !important; }
+.m-xs { margin: var(--space-xs) !important; }
+.m-sm { margin: var(--space-sm) !important; }
+.m-md { margin: var(--space-md) !important; }
+.m-lg { margin: var(--space-lg) !important; }
+
+/* === TEXT === */
+.text-left { text-align: left !important; }
+.text-center { text-align: center !important; }
+.text-right { text-align: right !important; }
+
+.text-xs { font-size: var(--font-size-xs) !important; }
+.text-sm { font-size: var(--font-size-sm) !important; }
+.text-base { font-size: var(--font-size-base) !important; }
+.text-lg { font-size: var(--font-size-lg) !important; }
+.text-xl { font-size: var(--font-size-xl) !important; }
+
+.font-light { font-weight: var(--font-weight-light) !important; }
+.font-normal { font-weight: var(--font-weight-normal) !important; }
+.font-medium { font-weight: var(--font-weight-medium) !important; }
+.font-semibold { font-weight: var(--font-weight-semibold) !important; }
+.font-bold { font-weight: var(--font-weight-bold) !important; }
+
+.text-primary { color: var(--color-primary) !important; }
+.text-secondary { color: var(--color-text-secondary) !important; }
+.text-muted { color: var(--color-text-muted) !important; }
+.text-success { color: var(--color-success) !important; }
+.text-danger { color: var(--color-danger) !important; }
+.text-warning { color: var(--color-warning) !important; }
+
+/* === BORDERS === */
+.rounded-sm { border-radius: var(--border-radius-sm) !important; }
+.rounded-md { border-radius: var(--border-radius-md) !important; }
+.rounded-lg { border-radius: var(--border-radius-lg) !important; }
+.rounded-xl { border-radius: var(--border-radius-xl) !important; }
+.rounded-full { border-radius: var(--border-radius-full) !important; }
+
+/* === SHADOWS === */
+.shadow-sm { box-shadow: var(--shadow-sm) !important; }
+.shadow-md { box-shadow: var(--shadow-md) !important; }
+.shadow-lg { box-shadow: var(--shadow-lg) !important; }
+.shadow-none { box-shadow: none !important; }
