@@ -1,55 +1,74 @@
-// client/src/components/ProductCard.js - REFACTORED FOR Card.module.css
+// client/src/components/ProductCard.js
 import React, { useState } from 'react';
-import { Button } from 'react-bootstrap';
+import { Card, Badge, Button } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
-import { FaStar, FaShoppingCart, FaHeart, FaBox } from 'react-icons/fa';
-import { getProductImageUrl, FALLBACK_IMAGES } from '../config/imageConfig';
-import styles from './Card.module.css';
+import { 
+  FaShoppingCart, 
+  FaHeart, 
+  FaStar, 
+  FaCheck, 
+  FaTimes,
+  FaTag,
+  FaBox
+} from 'react-icons/fa';
+
+// Fallback image handling
+const buildProductImageUrl = (imagePath, productName) => {
+  if (!imagePath) return `https://via.placeholder.com/300x200?text=${encodeURIComponent(productName || 'Product')}`;
+  if (imagePath.startsWith('http')) return imagePath;
+  return `https://storage.googleapis.com/furbabies-petstore/${imagePath}`;
+};
+
+const FALLBACK_IMAGES = {
+  'Dog Care': 'https://via.placeholder.com/300x200?text=Dog+Care',
+  'Cat Care': 'https://via.placeholder.com/300x200?text=Cat+Care',
+  'Aquarium & Fish Care': 'https://via.placeholder.com/300x200?text=Fish+Care',
+  'Grooming & Health': 'https://via.placeholder.com/300x200?text=Grooming',
+  'Training & Behavior': 'https://via.placeholder.com/300x200?text=Training',
+  product: 'https://via.placeholder.com/300x200?text=Product'
+};
 
 const ProductCard = ({ 
   product, 
-  onAddToCart, 
-  onClick,
   showAddToCart = true,
   showFavoriteButton = false,
-  className = ''
+  showActions = true,
+  className = '',
+  variant = 'vertical',
+  onClick,
+  onAddToCart,
+  onFavorite
 }) => {
   const [imageError, setImageError] = useState(false);
-  const [imageLoaded, setImageLoaded] = useState(false);
   const [isFavorited, setIsFavorited] = useState(false);
+  const [imageLoaded, setImageLoaded] = useState(false);
   const [isAddingToCart, setIsAddingToCart] = useState(false);
 
-  // ✅ IMAGE URL HANDLING
-  const imageUrl = getProductImageUrl(product.image);
-  const fallbackUrl = FALLBACK_IMAGES.product;
+  const safeProduct = {
+    ...product,
+    name: String(product.name || 'Unknown Product'),
+    brand: String(product.brand || 'Generic'),
+    category: String(product.category || 'Product'),
+    price: Number(product.price) || 0,
+    description: String(product.description || 'Quality product for your pet.'),
+    inStock: Boolean(product.inStock !== false), // Default to true unless explicitly false
+    featured: Boolean(product.featured),
+    onSale: Boolean(product.onSale),
+    rating: Number(product.rating) || 0,
+    reviewCount: Number(product.reviewCount) || 0
+  };
 
-  // 🆕 DETERMINE IMAGE ASPECT RATIO for Card.module.css containers
+  const getImageUrl = () => buildProductImageUrl(safeProduct.image, safeProduct.name);
+  const getFallbackUrl = () => FALLBACK_IMAGES[safeProduct.category] || FALLBACK_IMAGES.product;
+
+  const imageUrl = getImageUrl();
+  const fallbackUrl = getFallbackUrl();
+
   const getImageContainerClass = () => {
-    const category = product.category?.toLowerCase();
-    const name = product.name?.toLowerCase();
-    
-    // Portrait products (taller images) - uses .portrait from Card.module.css
-    if (name?.includes('tower') || name?.includes('tall') || name?.includes('tree')) {
-      return 'portrait';
-    }
-    if (category?.includes('furniture') || category?.includes('scratcher')) {
-      return 'portrait';
-    }
-    
-    // Tall products (very tall) - uses .tall from Card.module.css
-    if (name?.includes('scratching post') || name?.includes('cat tree')) {
-      return 'tall';
-    }
-    
-    // Landscape products (wider images) - uses .landscape from Card.module.css
-    if (name?.includes('bed') || name?.includes('mat') || name?.includes('blanket')) {
-      return 'landscape';
-    }
-    if (category?.includes('bed') || category?.includes('mat')) {
-      return 'landscape';
-    }
-    
-    // Default to square - uses default .productImgContainer from Card.module.css
+    const category = safeProduct.category?.toLowerCase();
+    if (category?.includes('food') || category?.includes('treat')) return 'portrait';
+    if (category?.includes('tank') || category?.includes('aquarium')) return 'landscape';
+    if (category?.includes('toy') && category?.includes('large')) return 'tall';
     return 'square';
   };
 
@@ -60,263 +79,265 @@ const ProductCard = ({
     }
   };
 
-  const handleImageLoad = () => {
-    setImageLoaded(true);
-  };
-
-  const handleAddToCart = async (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    if (!product.inStock || isAddingToCart) return;
-    
-    setIsAddingToCart(true);
-    try {
-      if (onAddToCart) {
-        await onAddToCart(product);
-      }
-    } finally {
-      setIsAddingToCart(false);
-    }
-  };
+  const handleImageLoad = () => setImageLoaded(true);
 
   const handleFavoriteClick = (e) => {
     e.preventDefault();
     e.stopPropagation();
     setIsFavorited(!isFavorited);
+    if (onFavorite) onFavorite(safeProduct, !isFavorited);
   };
 
-  const handleCardClick = () => {
-    if (onClick) {
-      onClick(product);
+  const handleAddToCart = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!safeProduct.inStock || isAddingToCart) return;
+    
+    setIsAddingToCart(true);
+    try {
+      if (onAddToCart) await onAddToCart(safeProduct);
+    } finally {
+      setIsAddingToCart(false);
     }
+  };
+
+  const handleCardClick = () => onClick && onClick(safeProduct);
+
+  const renderStarRating = (rating, reviewCount) => {
+    const stars = [];
+    const fullStars = Math.floor(rating);
+    const hasHalfStar = rating % 1 >= 0.5;
+
+    for (let i = 1; i <= 5; i++) {
+      if (i <= fullStars) {
+        stars.push(<FaStar key={i} className="text-warning" size={12} />);
+      } else if (i === fullStars + 1 && hasHalfStar) {
+        stars.push(<FaStar key={i} className="text-warning" size={12} style={{ opacity: 0.5 }} />);
+      } else {
+        stars.push(<FaStar key={i} className="text-muted" size={12} />);
+      }
+    }
+
+    return (
+      <div className="d-flex align-items-center gap-1">
+        {stars}
+        {reviewCount > 0 && (
+          <small className="text-muted ms-1">({reviewCount})</small>
+        )}
+      </div>
+    );
+  };
+
+  const formatPrice = (price) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD'
+    }).format(price);
   };
 
   const imageContainerClass = getImageContainerClass();
 
   return (
-    <div 
-      className={`${styles.enhancedCard} ${className}`}
+    <Card 
+      className={`card enhanced-card ${className}`}
       onClick={handleCardClick}
       style={{ cursor: onClick ? 'pointer' : 'default' }}
     >
-      {/* 🆕 CARD.MODULE.CSS IMAGE CONTAINER - Responsive & Adaptive */}
-      <div className={`${styles.productImgContainer} ${styles[imageContainerClass]}`}>
-        {/* Stock Status Badge - Uses Card.module.css statusBadge */}
-        {!product.inStock && (
-          <div className={`${styles.statusBadge} ${styles.adopted}`}>
-            Out of Stock
-          </div>
-        )}
-
-        {/* Featured Badge */}
-        {product.featured && (
-          <div 
-            className={styles.statusBadge}
-            style={{ 
-              top: 'var(--space-sm)', 
-              left: 'var(--space-sm)', 
-              right: 'auto',
-              background: 'var(--color-primary)',
-              color: 'var(--color-text-inverse)'
-            }}
-          >
-            ⭐ Featured
-          </div>
-        )}
-
+      <div className={`product-img-container ${imageContainerClass}`}>
         <img
           src={imageUrl}
-          alt={product.name}
-          className={`${styles.productImg} ${imageLoaded ? '' : styles.loading}`}
+          alt={safeProduct.name}
+          className={`product-img ${imageLoaded ? '' : 'loading'}`}
           onError={handleImageError}
           onLoad={handleImageLoad}
         />
-        
-        {/* Favorite Button Overlay */}
+
+        {/* Sale Badge */}
+        {safeProduct.onSale && (
+          <div className="badge statusBadge" style={{ 
+            position: 'absolute', 
+            top: '8px', 
+            left: '8px', 
+            background: '#dc3545',
+            color: 'white'
+          }}>
+            <FaTag className="me-1" />
+            Sale!
+          </div>
+        )}
+
+        {/* Stock Status */}
+        <div className="badge statusBadge" style={{ 
+          position: 'absolute', 
+          top: '8px', 
+          right: '8px',
+          background: safeProduct.inStock ? '#28a745' : '#6c757d',
+          color: 'white'
+        }}>
+          {safeProduct.inStock ? (
+            <>
+              <FaCheck className="me-1" />
+              In Stock
+            </>
+          ) : (
+            <>
+              <FaTimes className="me-1" />
+              Out of Stock
+            </>
+          )}
+        </div>
+
+        {/* Favorite Button */}
         {showFavoriteButton && (
           <Button
             variant={isFavorited ? 'danger' : 'outline-danger'}
             size="sm"
-            className="position-absolute rounded-circle"
+            className="position-absolute bottom-0 end-0 m-2 rounded-circle"
             onClick={handleFavoriteClick}
-            style={{ 
-              top: 'var(--space-sm)',
-              right: 'var(--space-sm)',
-              width: '35px', 
-              height: '35px',
-              zIndex: 10,
-              opacity: 0.9
-            }}
+            style={{ width: '35px', height: '35px', zIndex: 10, opacity: 0.9 }}
           >
             <FaHeart size={14} />
           </Button>
         )}
       </div>
 
-      {/* 🆕 CARD.MODULE.CSS BODY - Enhanced Styling */}
-      <div className={styles.enhancedCardBody}>
-        {/* Product Name - Uses Card.module.css title styling */}
-        <h5 className={styles.enhancedCardTitle}>
-          {product.name}
-        </h5>
-
-        {/* Brand & Category */}
-        <div style={{ marginBottom: 'var(--space-md)' }}>
-          <small style={{ 
-            color: 'var(--color-text-muted)',
-            textTransform: 'capitalize',
-            fontSize: 'var(--font-size-xs)'
-          }}>
-            {product.brand} • {product.category}
+      <Card.Body className="card-body">
+        {/* Product Header */}
+        <div className="mb-2">
+          <Card.Title 
+            className="card-title"
+            style={{ 
+              whiteSpace: 'nowrap', 
+              overflow: 'hidden', 
+              textOverflow: 'ellipsis',
+              marginBottom: '4px'
+            }}
+          >
+            {safeProduct.name}
+          </Card.Title>
+          <small className="text-muted d-block">
+            by {safeProduct.brand}
           </small>
         </div>
 
-        {/* Star Rating */}
-        <div style={{ 
-          marginBottom: 'var(--space-md)', 
-          display: 'flex', 
-          justifyContent: 'center' 
-        }}>
-          <div style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: 'var(--space-xs)' 
-          }}>
-            {[1, 2, 3, 4, 5].map(star => (
-              <FaStar
-                key={star}
-                style={{ 
-                  color: star <= 4 ? 'var(--color-warning)' : 'var(--color-text-muted)',
-                  fontSize: '12px'
-                }}
-              />
-            ))}
-            <small style={{ 
-              color: 'var(--color-text-muted)', 
-              marginLeft: 'var(--space-xs)' 
-            }}>
-              (4.0/5)
-            </small>
-          </div>
+        {/* Category Badge */}
+        <div className="mb-2">
+          <Badge bg="secondary" className="enhanced-badge">
+            <FaBox className="me-1" />
+            {safeProduct.category}
+          </Badge>
         </div>
 
-        {/* Description - Uses Card.module.css text styling */}
-        <p className={styles.enhancedCardText}>
-          {product.description && product.description.length > 100 
-            ? `${product.description.slice(0, 100)}...`
-            : product.description || 'High-quality product for your beloved pet.'}
-        </p>
+        {/* Rating */}
+        {safeProduct.rating > 0 && (
+          <div className="mb-2 d-flex justify-content-center">
+            {renderStarRating(safeProduct.rating, safeProduct.reviewCount)}
+          </div>
+        )}
 
-        {/* 🆕 CARD.MODULE.CSS BADGES - Enhanced Badge System */}
-        <div className={styles.enhancedBadges}>
-          {product.inStock ? (
-            <span 
-              className={styles.enhancedBadge}
-              style={{ 
-                background: 'var(--color-success)',
-                color: 'var(--color-text-inverse)'
-              }}
-            >
-              ✅ In Stock
-            </span>
-          ) : (
-            <span 
-              className={styles.enhancedBadge}
-              style={{ 
-                background: 'var(--color-danger)',
-                color: 'var(--color-text-inverse)'
-              }}
-            >
-              ❌ Out of Stock
-            </span>
+        {/* Description */}
+        <Card.Text 
+          className="card-text"
+          style={{ 
+            display: 'block', 
+            whiteSpace: 'normal', 
+            wordWrap: 'break-word',
+            fontSize: '0.9rem',
+            lineHeight: '1.4'
+          }}
+        >
+          {safeProduct.description && safeProduct.description.length > 80 
+            ? `${safeProduct.description.slice(0, 80)}...`
+            : safeProduct.description}
+        </Card.Text>
+
+        {/* Badges */}
+        <div className="enhanced-badges mb-3">
+          {safeProduct.featured && (
+            <Badge bg="primary" className="enhanced-badge">
+              <FaStar className="me-1" />
+              Featured
+            </Badge>
           )}
-          
-          <span 
-            className={styles.enhancedBadge}
-            style={{ 
-              background: 'var(--color-info)',
-              color: 'var(--color-text-primary)'
-            }}
-          >
-            <FaBox style={{ marginRight: 'var(--space-xs)' }} />
-            {product.category}
-          </span>
+          {safeProduct.inStock && (
+            <Badge bg="success" className="enhanced-badge">
+              <FaCheck className="me-1" />
+              Available
+            </Badge>
+          )}
+          {safeProduct.rating >= 4 && (
+            <Badge bg="warning" className="enhanced-badge">
+              <FaStar className="me-1" />
+              Top Rated
+            </Badge>
+          )}
         </div>
 
         {/* Price */}
-        <div style={{ 
-          textAlign: 'center', 
-          marginBottom: 'var(--space-md)' 
-        }}>
-          <div style={{ 
-            fontWeight: 'var(--font-weight-bold)',
-            color: 'var(--color-success)',
-            fontSize: 'var(--font-size-xl)'
-          }}>
-            ${product.price?.toFixed(2) || '0.00'}
+        <div className="text-center mb-3">
+          <div className="fw-bold text-success fs-4">
+            {formatPrice(safeProduct.price)}
+          </div>
+          {safeProduct.onSale && (
+            <small className="text-muted text-decoration-line-through">
+              {formatPrice(safeProduct.price * 1.2)}
+            </small>
+          )}
+        </div>
+
+        {/* Actions */}
+        {showActions && (
+          <div className="d-grid gap-2">
+            {showAddToCart && (
+              <Button
+                variant={safeProduct.inStock ? "success" : "secondary"}
+                className="enhanced-button"
+                onClick={handleAddToCart}
+                disabled={!safeProduct.inStock || isAddingToCart}
+                style={{ textDecoration: 'none' }}
+              >
+                <FaShoppingCart className="me-2" />
+                {isAddingToCart ? 'Adding...' : 
+                 !safeProduct.inStock ? 'Out of Stock' : 
+                 'Add to Cart'}
+              </Button>
+            )}
+            
+            <Link 
+              to={`/products/${safeProduct._id}`} 
+              className="btn btn-outline-primary enhanced-button"
+              onClick={(e) => e.stopPropagation()}
+              style={{ textDecoration: 'none' }}
+            >
+              <FaBox className="me-2" />
+              View Details
+            </Link>
+          </div>
+        )}
+
+        {/* Quick Product Info */}
+        <div className="mt-3 pt-2 border-top">
+          <div className="row text-center">
+            <div className="col-4">
+              <small className="text-muted d-block">Brand</small>
+              <small className="fw-bold">{safeProduct.brand}</small>
+            </div>
+            <div className="col-4">
+              <small className="text-muted d-block">Stock</small>
+              <small className={`fw-bold ${safeProduct.inStock ? 'text-success' : 'text-danger'}`}>
+                {safeProduct.inStock ? 'Available' : 'Out'}
+              </small>
+            </div>
+            <div className="col-4">
+              <small className="text-muted d-block">Rating</small>
+              <small className="fw-bold">
+                {safeProduct.rating > 0 ? `${safeProduct.rating.toFixed(1)}★` : 'New'}
+              </small>
+            </div>
           </div>
         </div>
-
-        {/* 🆕 CARD.MODULE.CSS BUTTONS - Enhanced Button System */}
-        <div style={{ 
-          display: 'grid', 
-          gap: 'var(--space-sm)' 
-        }}>
-          {showAddToCart && (
-            <button
-              className={styles.enhancedButton}
-              onClick={handleAddToCart}
-              disabled={!product.inStock || isAddingToCart}
-              style={{
-                backgroundColor: product.inStock ? 'var(--color-success)' : 'var(--color-secondary)',
-                borderColor: product.inStock ? 'var(--color-success)' : 'var(--color-secondary)',
-                color: 'var(--color-text-inverse)',
-                opacity: (!product.inStock || isAddingToCart) ? 0.6 : 1,
-                cursor: (!product.inStock || isAddingToCart) ? 'not-allowed' : 'pointer'
-              }}
-            >
-              <FaShoppingCart style={{ marginRight: 'var(--space-xs)' }} />
-              {isAddingToCart ? 'Adding...' : 
-               product.inStock ? 'Add to Cart' : 'Out of Stock'}
-            </button>
-          )}
-          
-          <Link 
-            to={`/products/${product._id}`} 
-            className={styles.enhancedButton}
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              backgroundColor: 'transparent',
-              borderColor: 'var(--color-warning)',
-              color: 'var(--color-warning)',
-              textDecoration: 'none',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}
-          >
-            <FaBox style={{ marginRight: 'var(--space-xs)' }} />
-            View Details
-          </Link>
-        </div>
-      </div>
-
-      {/* 🆕 CARD.MODULE.CSS FOOTER - Optional Enhanced Footer */}
-      <div className={styles.cardFooter}>
-        <small style={{ color: 'var(--color-text-muted)' }}>
-          Product ID: {product._id?.slice(-6) || 'N/A'}
-        </small>
-        <div style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          gap: 'var(--space-xs)' 
-        }}>
-          <FaStar style={{ color: 'var(--color-warning)', fontSize: '12px' }} />
-          <small style={{ color: 'var(--color-text-secondary)' }}>4.0</small>
-        </div>
-      </div>
-    </div>
+      </Card.Body>
+    </Card>
   );
 };
 
