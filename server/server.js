@@ -14,7 +14,7 @@ const app = express();
 /**
  * ===== CORS (must come first) =====
  * Allow the deployed frontend + localhost for dev.
- * Also handle preflight and caching correctness with Vary: Origin.
+ * Also handle preflight requests and caching correctness with Vary: Origin.
  */
 const FRONTEND_ORIGIN =
   process.env.FRONTEND_ORIGIN || 'https://furbabies-frontend.onrender.com';
@@ -41,7 +41,7 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-app.options('*', cors(corsOptions)); // ✅ ensure preflights succeed
+app.options('*', cors(corsOptions)); // ✅ ensure preflight requests succeed
 
 // Set Vary: Origin for cache correctness
 app.use((req, res, next) => {
@@ -367,4 +367,3 @@ const server = app.listen(PORT, () => {
 });
 
 module.exports = app;
-git 
