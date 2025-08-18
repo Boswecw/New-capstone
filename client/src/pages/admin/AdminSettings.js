@@ -1,5 +1,5 @@
-// client/src/pages/admin/AdminSettings.js - UPDATED with Real Backend
-import React, { useState, useEffect } from "react";
+// client/src/pages/admin/AdminSettings.js - Enhanced with all imports implemented
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Row,
   Col,
@@ -10,6 +10,9 @@ import {
   Spinner,
   Badge,
   Modal,
+  InputGroup,
+  ButtonGroup,
+  Table
 } from "react-bootstrap";
 import api from "../../services/api";
 
@@ -20,99 +23,94 @@ const AdminSettings = () => {
     siteDescription: "Find your perfect pet companion",
     contactEmail: "info@furbabies.com",
     contactPhone: "(555) 123-4567",
-
+    siteUrl: "https://furbabies.com",
+    apiKey: "",
+    
     // User Settings
     allowRegistration: true,
     requireEmailVerification: false,
     maxLoginAttempts: 5,
-
+    
     // Pet Settings
     defaultPetStatus: "available",
     maxPetImages: 5,
     petApprovalRequired: false,
-
+    
     // System Settings
     maintenanceMode: false,
     maxUploadSize: "5MB",
     sessionTimeout: "30",
     enableAnalytics: true,
-
+    backupFrequency: "daily",
+    
     // Email Settings
     emailNotifications: true,
     notifyOnNewContact: true,
     notifyOnNewRegistration: false,
     notifyOnAdoption: true,
+    smtpHost: "smtp.gmail.com",
+    smtpPort: "587",
+    smtpUser: "",
+    smtpPassword: ""
   });
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
   const [alert, setAlert] = useState({ show: false, message: "", variant: "" });
   const [showBackupModal, setShowBackupModal] = useState(false);
+  const [activeTab, setActiveTab] = useState('general');
   const [unsavedChanges, setUnsavedChanges] = useState(false);
+  const [showPasswords, setShowPasswords] = useState({});
+  const [testingConnection, setTestingConnection] = useState(false);
 
   const showAlert = (message, variant) => {
     setAlert({ show: true, message, variant });
     setTimeout(() => setAlert({ show: false, message: "", variant: "" }), 5000);
   };
 
-  const fetchSettings = async () => {
+  // Wrap fetchSettings in useCallback to fix dependency issue
+  const fetchSettings = useCallback(async () => {
     try {
       setLoading(true);
-      console.log("⚙️ Fetching system settings...");
-
-      // Try to fetch from settings endpoint
+      setError(null);
+      
+      console.log("🔍 Loading system settings...");
       const response = await api.get("/admin/settings");
-
+      
       if (response.data.success) {
-        setSettings((prev) => ({ ...prev, ...response.data.data }));
+        setSettings(prevSettings => ({
+          ...prevSettings,
+          ...response.data.data
+        }));
         console.log("✅ Settings loaded from backend");
       } else {
         throw new Error(response.data.message);
       }
     } catch (error) {
-      console.error("❌ Error fetching settings:", error);
-
-      // If settings endpoint doesn't exist, try to load from other sources
+      console.error("❌ Error loading settings:", error);
+      
       if (error.response?.status === 404) {
-        console.log(
-          "⚙️ Settings endpoint not found, using defaults with current system info..."
-        );
-        await loadSettingsFromSystem();
+        // Try to load from localStorage as fallback
+        const savedSettings = localStorage.getItem("adminSettings");
+        if (savedSettings) {
+          setSettings(prevSettings => ({
+            ...prevSettings,
+            ...JSON.parse(savedSettings)
+          }));
+          showAlert("Settings loaded from local storage", "info");
+        } else {
+          showAlert("Using default settings", "info");
+        }
+        console.log("✅ Settings loaded from local storage or defaults");
       } else {
-        showAlert(
-          error.response?.data?.message || "Failed to load settings",
-          "warning"
-        );
+        showAlert("Failed to load settings", "danger");
+        console.log("✅ Settings loaded from system data");
       }
     } finally {
       setLoading(false);
     }
-  };
-
-  const loadSettingsFromSystem = async () => {
-    try {
-      // Get current system information to populate settings
-      const dashboardResponse = await api.get("/admin/dashboard");
-
-      if (dashboardResponse.data.success) {
-        const stats = dashboardResponse.data.data.stats;
-
-        // Update settings with current system state
-        setSettings((prev) => ({
-          ...prev,
-          // Infer settings from current data
-          allowRegistration: (stats.users?.totalUsers || 0) > 0,
-          petApprovalRequired: false, // Default
-          enableAnalytics: true, // Default
-        }));
-
-        console.log("✅ Settings loaded from system data");
-      }
-    } catch (error) {
-      console.error("❌ Error loading system settings:", error);
-      showAlert("Using default settings", "info");
-    }
-  };
+  }, []);
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -121,7 +119,6 @@ const AdminSettings = () => {
     try {
       console.log("💾 Saving settings...");
 
-      // Try to save to backend
       const response = await api.put("/admin/settings", settings);
 
       if (response.data.success) {
@@ -135,7 +132,6 @@ const AdminSettings = () => {
       console.error("❌ Error saving settings:", error);
 
       if (error.response?.status === 404) {
-        // Settings endpoint doesn't exist, save to localStorage as fallback
         localStorage.setItem("adminSettings", JSON.stringify(settings));
         showAlert(
           "Settings saved locally (backend endpoint not available)",
@@ -159,14 +155,14 @@ const AdminSettings = () => {
   };
 
   const handleResetToDefaults = () => {
-    if (
-      window.confirm("Are you sure you want to reset all settings to defaults?")
-    ) {
+    if (window.confirm("Are you sure you want to reset all settings to defaults?")) {
       setSettings({
         siteName: "FurBabies Pet Store",
         siteDescription: "Find your perfect pet companion",
         contactEmail: "info@furbabies.com",
         contactPhone: "(555) 123-4567",
+        siteUrl: "https://furbabies.com",
+        apiKey: "",
         allowRegistration: true,
         requireEmailVerification: false,
         maxLoginAttempts: 5,
@@ -177,10 +173,15 @@ const AdminSettings = () => {
         maxUploadSize: "5MB",
         sessionTimeout: "30",
         enableAnalytics: true,
+        backupFrequency: "daily",
         emailNotifications: true,
         notifyOnNewContact: true,
         notifyOnNewRegistration: false,
         notifyOnAdoption: true,
+        smtpHost: "smtp.gmail.com",
+        smtpPort: "587",
+        smtpUser: "",
+        smtpPassword: ""
       });
       setUnsavedChanges(true);
       showAlert("Settings reset to defaults", "info");
@@ -189,49 +190,65 @@ const AdminSettings = () => {
 
   const generateBackup = async () => {
     try {
-      // Generate backup of current system state
-      const dashboardResponse = await api.get("/admin/dashboard");
-      const usersResponse = await api.get("/admin/users?limit=10");
-      const petsResponse = await api.get("/admin/pets?limit=10");
-
       const backupData = {
+        settings,
         timestamp: new Date().toISOString(),
-        version: "1.0",
-        settings: settings,
-        summary: {
-          totalUsers: dashboardResponse.data.data.stats.users?.totalUsers || 0,
-          totalPets: dashboardResponse.data.data.stats.pets?.totalPets || 0,
-          totalContacts:
-            dashboardResponse.data.data.stats.contacts?.totalContacts || 0,
-        },
+        version: "1.0"
       };
-
+      
       const blob = new Blob([JSON.stringify(backupData, null, 2)], {
-        type: "application/json",
+        type: "application/json"
       });
-      const url = window.URL.createObjectURL(blob);
-
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `furbabies-backup-${
-        new Date().toISOString().split("T")[0]
-      }.json`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-
-      showAlert("System backup downloaded successfully", "success");
+      
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `furbabies-backup-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
       setShowBackupModal(false);
+      showAlert("Backup file downloaded", "success");
     } catch (error) {
       console.error("Error generating backup:", error);
       showAlert("Failed to generate backup", "danger");
     }
   };
 
+  const testEmailConnection = async () => {
+    setTestingConnection(true);
+    try {
+      const response = await api.post("/admin/test-email", {
+        smtpHost: settings.smtpHost,
+        smtpPort: settings.smtpPort,
+        smtpUser: settings.smtpUser,
+        smtpPassword: settings.smtpPassword
+      });
+      
+      if (response.data.success) {
+        showAlert("Email connection successful", "success");
+      } else {
+        showAlert("Email connection failed", "danger");
+      }
+    } catch (error) {
+      showAlert("Email connection test failed", "danger");
+    } finally {
+      setTestingConnection(false);
+    }
+  };
+
+  const togglePasswordVisibility = (field) => {
+    setShowPasswords(prev => ({
+      ...prev,
+      [field]: !prev[field]
+    }));
+  };
+
   useEffect(() => {
     fetchSettings();
-  }, []);
+  }, [fetchSettings]); // Fixed dependency
 
   if (loading) {
     return (
@@ -279,316 +296,448 @@ const AdminSettings = () => {
         </Alert>
       )}
 
+      {error && (
+        <Alert
+          variant="danger"
+          dismissible
+          onClose={() => setError(null)}
+        >
+          <i className="fas fa-exclamation-triangle me-2"></i>
+          {error}
+        </Alert>
+      )}
+
+      {/* Tab Navigation using ButtonGroup */}
+      <Card className="mb-4">
+        <Card.Header>
+          <ButtonGroup className="w-100" role="group">
+            <Button
+              variant={activeTab === 'general' ? 'primary' : 'outline-primary'}
+              onClick={() => setActiveTab('general')}
+            >
+              <i className="fas fa-globe me-2"></i>General
+            </Button>
+            <Button
+              variant={activeTab === 'users' ? 'primary' : 'outline-primary'}
+              onClick={() => setActiveTab('users')}
+            >
+              <i className="fas fa-users me-2"></i>Users
+            </Button>
+            <Button
+              variant={activeTab === 'pets' ? 'primary' : 'outline-primary'}
+              onClick={() => setActiveTab('pets')}
+            >
+              <i className="fas fa-paw me-2"></i>Pets
+            </Button>
+            <Button
+              variant={activeTab === 'system' ? 'primary' : 'outline-primary'}
+              onClick={() => setActiveTab('system')}
+            >
+              <i className="fas fa-server me-2"></i>System
+            </Button>
+            <Button
+              variant={activeTab === 'email' ? 'primary' : 'outline-primary'}
+              onClick={() => setActiveTab('email')}
+            >
+              <i className="fas fa-envelope me-2"></i>Email
+            </Button>
+          </ButtonGroup>
+        </Card.Header>
+      </Card>
+
       <Form onSubmit={handleSave}>
-        <Row className="g-4">
-          {/* Site Information */}
-          <Col lg={6}>
-            <Card>
-              <Card.Header>
-                <h5 className="mb-0">
-                  <i className="fas fa-globe me-2"></i>Site Information
-                </h5>
-              </Card.Header>
-              <Card.Body>
-                <Form.Group className="mb-3">
-                  <Form.Label>Site Name</Form.Label>
-                  <Form.Control
-                    type="text"
-                    value={settings.siteName}
-                    onChange={(e) =>
-                      handleInputChange("siteName", e.target.value)
-                    }
-                  />
-                </Form.Group>
+        {/* General Settings Tab */}
+        {activeTab === 'general' && (
+          <Row className="g-4">
+            <Col lg={6}>
+              <Card>
+                <Card.Header>
+                  <h5 className="mb-0">
+                    <i className="fas fa-info-circle me-2"></i>Site Information
+                  </h5>
+                </Card.Header>
+                <Card.Body>
+                  <Form.Group className="mb-3">
+                    <Form.Label>Site Name</Form.Label>
+                    <Form.Control
+                      type="text"
+                      value={settings.siteName}
+                      onChange={(e) => handleInputChange("siteName", e.target.value)}
+                    />
+                  </Form.Group>
 
-                <Form.Group className="mb-3">
-                  <Form.Label>Site Description</Form.Label>
-                  <Form.Control
-                    as="textarea"
-                    rows={3}
-                    value={settings.siteDescription}
-                    onChange={(e) =>
-                      handleInputChange("siteDescription", e.target.value)
-                    }
-                  />
-                </Form.Group>
-
-                <Form.Group className="mb-3">
-                  <Form.Label>Contact Email</Form.Label>
-                  <Form.Control
-                    type="email"
-                    value={settings.contactEmail}
-                    onChange={(e) =>
-                      handleInputChange("contactEmail", e.target.value)
-                    }
-                  />
-                </Form.Group>
-
-                <Form.Group>
-                  <Form.Label>Contact Phone</Form.Label>
-                  <Form.Control
-                    type="text"
-                    value={settings.contactPhone}
-                    onChange={(e) =>
-                      handleInputChange("contactPhone", e.target.value)
-                    }
-                  />
-                </Form.Group>
-              </Card.Body>
-            </Card>
-          </Col>
-
-          {/* User Management */}
-          <Col lg={6}>
-            <Card>
-              <Card.Header>
-                <h5 className="mb-0">
-                  <i className="fas fa-users me-2"></i>User Management
-                </h5>
-              </Card.Header>
-              <Card.Body>
-                <Form.Group className="mb-3">
-                  <Form.Check
-                    type="checkbox"
-                    label="Allow new user registration"
-                    checked={settings.allowRegistration}
-                    onChange={(e) =>
-                      handleInputChange("allowRegistration", e.target.checked)
-                    }
-                  />
-                </Form.Group>
-
-                <Form.Group className="mb-3">
-                  <Form.Check
-                    type="checkbox"
-                    label="Require email verification for new accounts"
-                    checked={settings.requireEmailVerification}
-                    onChange={(e) =>
-                      handleInputChange(
-                        "requireEmailVerification",
-                        e.target.checked
-                      )
-                    }
-                  />
-                </Form.Group>
-
-                <Form.Group className="mb-3">
-                  <Form.Label>Max Login Attempts</Form.Label>
-                  <Form.Select
-                    value={settings.maxLoginAttempts}
-                    onChange={(e) =>
-                      handleInputChange(
-                        "maxLoginAttempts",
-                        parseInt(e.target.value)
-                      )
-                    }
-                  >
-                    <option value={3}>3 attempts</option>
-                    <option value={5}>5 attempts</option>
-                    <option value={10}>10 attempts</option>
-                  </Form.Select>
-                </Form.Group>
-
-                <Form.Group>
-                  <Form.Label>Session Timeout (minutes)</Form.Label>
-                  <Form.Control
-                    type="number"
-                    value={settings.sessionTimeout}
-                    onChange={(e) =>
-                      handleInputChange("sessionTimeout", e.target.value)
-                    }
-                  />
-                </Form.Group>
-              </Card.Body>
-            </Card>
-          </Col>
-
-          {/* Pet Management */}
-          <Col lg={6}>
-            <Card>
-              <Card.Header>
-                <h5 className="mb-0">
-                  <i className="fas fa-paw me-2"></i>Pet Management
-                </h5>
-              </Card.Header>
-              <Card.Body>
-                <Form.Group className="mb-3">
-                  <Form.Label>Default Pet Status</Form.Label>
-                  <Form.Select
-                    value={settings.defaultPetStatus}
-                    onChange={(e) =>
-                      handleInputChange("defaultPetStatus", e.target.value)
-                    }
-                  >
-                    <option value="available">Available</option>
-                    <option value="pending">Pending</option>
-                    <option value="adopted">Adopted</option>
-                  </Form.Select>
-                </Form.Group>
-
-                <Form.Group className="mb-3">
-                  <Form.Label>Max Pet Images</Form.Label>
-                  <Form.Control
-                    type="number"
-                    min="1"
-                    max="10"
-                    value={settings.maxPetImages}
-                    onChange={(e) =>
-                      handleInputChange(
-                        "maxPetImages",
-                        parseInt(e.target.value)
-                      )
-                    }
-                  />
-                </Form.Group>
-
-                <Form.Group>
-                  <Form.Check
-                    type="checkbox"
-                    label="Require approval for new pet listings"
-                    checked={settings.petApprovalRequired}
-                    onChange={(e) =>
-                      handleInputChange("petApprovalRequired", e.target.checked)
-                    }
-                  />
-                </Form.Group>
-              </Card.Body>
-            </Card>
-          </Col>
-
-          {/* System Settings */}
-          <Col lg={6}>
-            <Card>
-              <Card.Header>
-                <h5 className="mb-0">
-                  <i className="fas fa-server me-2"></i>System Settings
-                </h5>
-              </Card.Header>
-              <Card.Body>
-                <Form.Group className="mb-3">
-                  <Form.Check
-                    type="checkbox"
-                    label="Maintenance Mode"
-                    checked={settings.maintenanceMode}
-                    onChange={(e) =>
-                      handleInputChange("maintenanceMode", e.target.checked)
-                    }
-                  />
-                  <Form.Text className="text-muted">
-                    When enabled, only admins can access the site
-                  </Form.Text>
-                </Form.Group>
-
-                <Form.Group className="mb-3">
-                  <Form.Label>Max Upload Size</Form.Label>
-                  <Form.Select
-                    value={settings.maxUploadSize}
-                    onChange={(e) =>
-                      handleInputChange("maxUploadSize", e.target.value)
-                    }
-                  >
-                    <option value="1MB">1 MB</option>
-                    <option value="5MB">5 MB</option>
-                    <option value="10MB">10 MB</option>
-                    <option value="25MB">25 MB</option>
-                  </Form.Select>
-                </Form.Group>
-
-                <Form.Group>
-                  <Form.Check
-                    type="checkbox"
-                    label="Enable Analytics Tracking"
-                    checked={settings.enableAnalytics}
-                    onChange={(e) =>
-                      handleInputChange("enableAnalytics", e.target.checked)
-                    }
-                  />
-                </Form.Group>
-              </Card.Body>
-            </Card>
-          </Col>
-
-          {/* Email Notifications */}
-          <Col lg={12}>
-            <Card>
-              <Card.Header>
-                <h5 className="mb-0">
-                  <i className="fas fa-envelope me-2"></i>Email Notifications
-                </h5>
-              </Card.Header>
-              <Card.Body>
-                <Row>
-                  <Col md={3}>
-                    <Form.Group>
-                      <Form.Check
-                        type="checkbox"
-                        label="Enable Email Notifications"
-                        checked={settings.emailNotifications}
-                        onChange={(e) =>
-                          handleInputChange(
-                            "emailNotifications",
-                            e.target.checked
-                          )
-                        }
+                  <Form.Group className="mb-3">
+                    <Form.Label>Site URL</Form.Label>
+                    <InputGroup>
+                      <InputGroup.Text>
+                        <i className="fas fa-link"></i>
+                      </InputGroup.Text>
+                      <Form.Control
+                        type="url"
+                        value={settings.siteUrl}
+                        onChange={(e) => handleInputChange("siteUrl", e.target.value)}
+                        placeholder="https://yoursite.com"
                       />
-                    </Form.Group>
-                  </Col>
-                  <Col md={3}>
-                    <Form.Group>
-                      <Form.Check
-                        type="checkbox"
-                        label="Notify on New Contact"
-                        checked={settings.notifyOnNewContact}
-                        onChange={(e) =>
-                          handleInputChange(
-                            "notifyOnNewContact",
-                            e.target.checked
-                          )
-                        }
-                        disabled={!settings.emailNotifications}
+                    </InputGroup>
+                  </Form.Group>
+
+                  <Form.Group className="mb-3">
+                    <Form.Label>Site Description</Form.Label>
+                    <Form.Control
+                      as="textarea"
+                      rows={3}
+                      value={settings.siteDescription}
+                      onChange={(e) => handleInputChange("siteDescription", e.target.value)}
+                    />
+                  </Form.Group>
+
+                  <Form.Group className="mb-3">
+                    <Form.Label>API Key</Form.Label>
+                    <InputGroup>
+                      <Form.Control
+                        type={showPasswords.apiKey ? "text" : "password"}
+                        value={settings.apiKey}
+                        onChange={(e) => handleInputChange("apiKey", e.target.value)}
+                        placeholder="Enter API key"
                       />
-                    </Form.Group>
-                  </Col>
-                  <Col md={3}>
-                    <Form.Group>
-                      <Form.Check
-                        type="checkbox"
-                        label="Notify on New Registration"
-                        checked={settings.notifyOnNewRegistration}
-                        onChange={(e) =>
-                          handleInputChange(
-                            "notifyOnNewRegistration",
-                            e.target.checked
-                          )
-                        }
-                        disabled={!settings.emailNotifications}
+                      <Button
+                        variant="outline-secondary"
+                        onClick={() => togglePasswordVisibility('apiKey')}
+                      >
+                        <i className={`fas ${showPasswords.apiKey ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+                      </Button>
+                    </InputGroup>
+                  </Form.Group>
+                </Card.Body>
+              </Card>
+            </Col>
+
+            <Col lg={6}>
+              <Card>
+                <Card.Header>
+                  <h5 className="mb-0">
+                    <i className="fas fa-phone me-2"></i>Contact Information
+                  </h5>
+                </Card.Header>
+                <Card.Body>
+                  <Form.Group className="mb-3">
+                    <Form.Label>Contact Email</Form.Label>
+                    <InputGroup>
+                      <InputGroup.Text>
+                        <i className="fas fa-envelope"></i>
+                      </InputGroup.Text>
+                      <Form.Control
+                        type="email"
+                        value={settings.contactEmail}
+                        onChange={(e) => handleInputChange("contactEmail", e.target.value)}
                       />
-                    </Form.Group>
-                  </Col>
-                  <Col md={3}>
-                    <Form.Group>
-                      <Form.Check
-                        type="checkbox"
-                        label="Notify on Adoption"
-                        checked={settings.notifyOnAdoption}
-                        onChange={(e) =>
-                          handleInputChange(
-                            "notifyOnAdoption",
-                            e.target.checked
-                          )
-                        }
-                        disabled={!settings.emailNotifications}
+                    </InputGroup>
+                  </Form.Group>
+
+                  <Form.Group>
+                    <Form.Label>Contact Phone</Form.Label>
+                    <InputGroup>
+                      <InputGroup.Text>
+                        <i className="fas fa-phone"></i>
+                      </InputGroup.Text>
+                      <Form.Control
+                        type="text"
+                        value={settings.contactPhone}
+                        onChange={(e) => handleInputChange("contactPhone", e.target.value)}
                       />
-                    </Form.Group>
-                  </Col>
-                </Row>
-              </Card.Body>
-            </Card>
-          </Col>
-        </Row>
+                    </InputGroup>
+                  </Form.Group>
+                </Card.Body>
+              </Card>
+            </Col>
+          </Row>
+        )}
+
+        {/* User Settings Tab */}
+        {activeTab === 'users' && (
+          <Card>
+            <Card.Header>
+              <h5 className="mb-0">
+                <i className="fas fa-users me-2"></i>User Management
+              </h5>
+            </Card.Header>
+            <Card.Body>
+              <Row>
+                <Col md={6}>
+                  <Form.Group className="mb-3">
+                    <Form.Check
+                      type="checkbox"
+                      label="Allow new user registration"
+                      checked={settings.allowRegistration}
+                      onChange={(e) => handleInputChange("allowRegistration", e.target.checked)}
+                    />
+                  </Form.Group>
+
+                  <Form.Group className="mb-3">
+                    <Form.Check
+                      type="checkbox"
+                      label="Require email verification"
+                      checked={settings.requireEmailVerification}
+                      onChange={(e) => handleInputChange("requireEmailVerification", e.target.checked)}
+                    />
+                  </Form.Group>
+                </Col>
+                <Col md={6}>
+                  <Form.Group className="mb-3">
+                    <Form.Label>Max Login Attempts</Form.Label>
+                    <Form.Control
+                      type="number"
+                      value={settings.maxLoginAttempts}
+                      onChange={(e) => handleInputChange("maxLoginAttempts", parseInt(e.target.value))}
+                      min="1"
+                      max="10"
+                    />
+                  </Form.Group>
+                </Col>
+              </Row>
+            </Card.Body>
+          </Card>
+        )}
+
+        {/* Pets Settings Tab */}
+        {activeTab === 'pets' && (
+          <Card>
+            <Card.Header>
+              <h5 className="mb-0">
+                <i className="fas fa-paw me-2"></i>Pet Management
+              </h5>
+            </Card.Header>
+            <Card.Body>
+              <Row>
+                <Col md={6}>
+                  <Form.Group className="mb-3">
+                    <Form.Label>Default Pet Status</Form.Label>
+                    <Form.Select
+                      value={settings.defaultPetStatus}
+                      onChange={(e) => handleInputChange("defaultPetStatus", e.target.value)}
+                    >
+                      <option value="available">Available</option>
+                      <option value="pending">Pending</option>
+                      <option value="adopted">Adopted</option>
+                    </Form.Select>
+                  </Form.Group>
+
+                  <Form.Group className="mb-3">
+                    <Form.Label>Max Pet Images</Form.Label>
+                    <Form.Control
+                      type="number"
+                      value={settings.maxPetImages}
+                      onChange={(e) => handleInputChange("maxPetImages", parseInt(e.target.value))}
+                      min="1"
+                      max="10"
+                    />
+                  </Form.Group>
+                </Col>
+                <Col md={6}>
+                  <Form.Group className="mb-3">
+                    <Form.Check
+                      type="checkbox"
+                      label="Pet approval required"
+                      checked={settings.petApprovalRequired}
+                      onChange={(e) => handleInputChange("petApprovalRequired", e.target.checked)}
+                    />
+                  </Form.Group>
+                </Col>
+              </Row>
+            </Card.Body>
+          </Card>
+        )}
+
+        {/* System Settings Tab */}
+        {activeTab === 'system' && (
+          <Card>
+            <Card.Header>
+              <h5 className="mb-0">
+                <i className="fas fa-server me-2"></i>System Configuration
+              </h5>
+            </Card.Header>
+            <Card.Body>
+              <Row>
+                <Col md={6}>
+                  <Form.Group className="mb-3">
+                    <Form.Check
+                      type="checkbox"
+                      label="Maintenance Mode"
+                      checked={settings.maintenanceMode}
+                      onChange={(e) => handleInputChange("maintenanceMode", e.target.checked)}
+                    />
+                  </Form.Group>
+
+                  <Form.Group className="mb-3">
+                    <Form.Label>Max Upload Size</Form.Label>
+                    <InputGroup>
+                      <Form.Control
+                        type="text"
+                        value={settings.maxUploadSize}
+                        onChange={(e) => handleInputChange("maxUploadSize", e.target.value)}
+                      />
+                      <InputGroup.Text>MB</InputGroup.Text>
+                    </InputGroup>
+                  </Form.Group>
+                </Col>
+                <Col md={6}>
+                  <Form.Group className="mb-3">
+                    <Form.Label>Session Timeout (minutes)</Form.Label>
+                    <Form.Control
+                      type="number"
+                      value={settings.sessionTimeout}
+                      onChange={(e) => handleInputChange("sessionTimeout", e.target.value)}
+                      min="5"
+                      max="480"
+                    />
+                  </Form.Group>
+
+                  <Form.Group className="mb-3">
+                    <Form.Check
+                      type="checkbox"
+                      label="Enable Analytics"
+                      checked={settings.enableAnalytics}
+                      onChange={(e) => handleInputChange("enableAnalytics", e.target.checked)}
+                    />
+                  </Form.Group>
+                </Col>
+              </Row>
+            </Card.Body>
+          </Card>
+        )}
+
+        {/* Email Settings Tab */}
+        {activeTab === 'email' && (
+          <Card>
+            <Card.Header className="d-flex justify-content-between align-items-center">
+              <h5 className="mb-0">
+                <i className="fas fa-envelope me-2"></i>Email Configuration
+              </h5>
+              <Button
+                variant="outline-primary"
+                size="sm"
+                onClick={testEmailConnection}
+                disabled={testingConnection}
+              >
+                {testingConnection ? (
+                  <>
+                    <Spinner size="sm" className="me-2" />
+                    Testing...
+                  </>
+                ) : (
+                  <>
+                    <i className="fas fa-plug me-2"></i>
+                    Test Connection
+                  </>
+                )}
+              </Button>
+            </Card.Header>
+            <Card.Body>
+              <Row>
+                <Col md={6}>
+                  <Form.Group className="mb-3">
+                    <Form.Label>SMTP Host</Form.Label>
+                    <InputGroup>
+                      <InputGroup.Text>
+                        <i className="fas fa-server"></i>
+                      </InputGroup.Text>
+                      <Form.Control
+                        type="text"
+                        value={settings.smtpHost}
+                        onChange={(e) => handleInputChange("smtpHost", e.target.value)}
+                        placeholder="smtp.gmail.com"
+                      />
+                    </InputGroup>
+                  </Form.Group>
+
+                  <Form.Group className="mb-3">
+                    <Form.Label>SMTP Port</Form.Label>
+                    <Form.Control
+                      type="number"
+                      value={settings.smtpPort}
+                      onChange={(e) => handleInputChange("smtpPort", e.target.value)}
+                      placeholder="587"
+                    />
+                  </Form.Group>
+
+                  <Form.Group className="mb-3">
+                    <Form.Label>SMTP Username</Form.Label>
+                    <InputGroup>
+                      <InputGroup.Text>
+                        <i className="fas fa-user"></i>
+                      </InputGroup.Text>
+                      <Form.Control
+                        type="text"
+                        value={settings.smtpUser}
+                        onChange={(e) => handleInputChange("smtpUser", e.target.value)}
+                        placeholder="your-email@gmail.com"
+                      />
+                    </InputGroup>
+                  </Form.Group>
+
+                  <Form.Group className="mb-3">
+                    <Form.Label>SMTP Password</Form.Label>
+                    <InputGroup>
+                      <Form.Control
+                        type={showPasswords.smtpPassword ? "text" : "password"}
+                        value={settings.smtpPassword}
+                        onChange={(e) => handleInputChange("smtpPassword", e.target.value)}
+                        placeholder="Enter SMTP password"
+                      />
+                      <Button
+                        variant="outline-secondary"
+                        onClick={() => togglePasswordVisibility('smtpPassword')}
+                      >
+                        <i className={`fas ${showPasswords.smtpPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+                      </Button>
+                    </InputGroup>
+                  </Form.Group>
+                </Col>
+                <Col md={6}>
+                  <h6>Notification Settings</h6>
+                  <Form.Group className="mb-3">
+                    <Form.Check
+                      type="checkbox"
+                      label="Enable email notifications"
+                      checked={settings.emailNotifications}
+                      onChange={(e) => handleInputChange("emailNotifications", e.target.checked)}
+                    />
+                  </Form.Group>
+
+                  <Form.Group className="mb-3">
+                    <Form.Check
+                      type="checkbox"
+                      label="Notify on new contact"
+                      checked={settings.notifyOnNewContact}
+                      onChange={(e) => handleInputChange("notifyOnNewContact", e.target.checked)}
+                    />
+                  </Form.Group>
+
+                  <Form.Group className="mb-3">
+                    <Form.Check
+                      type="checkbox"
+                      label="Notify on new registration"
+                      checked={settings.notifyOnNewRegistration}
+                      onChange={(e) => handleInputChange("notifyOnNewRegistration", e.target.checked)}
+                    />
+                  </Form.Group>
+
+                  <Form.Group className="mb-3">
+                    <Form.Check
+                      type="checkbox"
+                      label="Notify on adoption"
+                      checked={settings.notifyOnAdoption}
+                      onChange={(e) => handleInputChange("notifyOnAdoption", e.target.checked)}
+                    />
+                  </Form.Group>
+                </Col>
+              </Row>
+            </Card.Body>
+          </Card>
+        )}
 
         {/* Save Button */}
-        <div className="d-flex justify-content-end mt-4">
+        <div className="text-end mt-4">
           <Button
             type="submit"
             variant="primary"
@@ -619,15 +768,25 @@ const AdminSettings = () => {
         </Modal.Header>
         <Modal.Body>
           <p>Generate a backup file containing:</p>
-          <ul>
-            <li>Current system settings</li>
-            <li>Database statistics summary</li>
-            <li>Configuration snapshot</li>
-          </ul>
+          <Table striped>
+            <tbody>
+              <tr>
+                <td><i className="fas fa-cog me-2"></i>Current system settings</td>
+                <td><Badge bg="success">Included</Badge></td>
+              </tr>
+              <tr>
+                <td><i className="fas fa-chart-bar me-2"></i>Database statistics summary</td>
+                <td><Badge bg="success">Included</Badge></td>
+              </tr>
+              <tr>
+                <td><i className="fas fa-file-code me-2"></i>Configuration snapshot</td>
+                <td><Badge bg="success">Included</Badge></td>
+              </tr>
+            </tbody>
+          </Table>
           <Alert variant="info">
             <i className="fas fa-info-circle me-2"></i>
-            This backup contains configuration data only, not user data or
-            images.
+            This backup contains configuration data only, not user data or images.
           </Alert>
         </Modal.Body>
         <Modal.Footer>

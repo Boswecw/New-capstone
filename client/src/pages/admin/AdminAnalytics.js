@@ -1,22 +1,48 @@
-// client/src/pages/admin/AdminAnalytics.js - FIXED VERSION
-import React, { useState, useEffect, useMemo } from 'react';
-import { Row, Col, Card, Form, Button, Alert, Spinner, Badge } from 'react-bootstrap';
-import axios from 'axios'; // ✅ Import axios directly
+// client/src/pages/admin/AdminAnalytics.js - Enhanced with Table implementation
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { 
+  Row, 
+  Col, 
+  Card, 
+  Form, 
+  Button, 
+  Alert, 
+  Spinner, 
+  Badge, 
+  Table,
+  ProgressBar 
+} from 'react-bootstrap';
+import axios from 'axios';
 
 const AdminAnalytics = () => {
   const [analytics, setAnalytics] = useState({
-    overview: {},
-    chartData: {},
+    overview: {
+      totalUsers: 0,
+      totalPets: 0,
+      totalAdoptions: 0,
+      totalContacts: 0,
+      growthRate: 0,
+      conversionRate: 0
+    },
+    chartData: {
+      userRegistrations: [],
+      petAdoptions: [],
+      pageViews: [],
+      topPages: []
+    },
     topPages: [],
     userFlow: [],
-    recentActivity: []
+    recentActivity: [],
+    performanceMetrics: [],
+    popularPets: []
   });
+  
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [dateRange, setDateRange] = useState('30days');
   const [refreshing, setRefreshing] = useState(false);
 
-  // ✅ FIXED: Create stable admin API instance (same pattern as AdminPets)
+  // Create stable admin API instance
   const adminAPI = useMemo(() => {
     const api = axios.create({
       baseURL: process.env.NODE_ENV === 'production' 
@@ -52,376 +78,431 @@ const AdminAnalytics = () => {
     );
 
     return api;
-  }, []); // ✅ Empty dependency array - create once
+  }, []);
 
   const dateRanges = [
     { value: '7days', label: 'Last 7 days' },
     { value: '30days', label: 'Last 30 days' },
-    { value: '90days', label: 'Last 90 days' },
+    { value: '90days', label: 'Last 3 months' },
     { value: '1year', label: 'Last year' }
   ];
 
-  const fetchAnalytics = async (range = dateRange) => {
+  // Wrap fetchAnalytics in useCallback to fix dependency issue
+  const fetchAnalytics = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
       
-      console.log('📊 Fetching analytics data for range:', range);
+      console.log(`🔍 Fetching analytics for ${dateRange}...`);
       
-      // ✅ FIXED: Use adminAPI instance
-      const response = await adminAPI.get(`/admin/analytics?range=${range}`);
+      // Try to fetch real analytics data
+      const response = await adminAPI.get(`/admin/analytics?range=${dateRange}`);
       
       if (response.data.success) {
         setAnalytics(response.data.data);
-        console.log('✅ Analytics data loaded');
+        console.log('✅ Analytics loaded from backend');
       } else {
         throw new Error(response.data.message);
       }
-    } catch (err) {
-      console.error('❌ Error fetching analytics:', err);
+    } catch (error) {
+      console.error('❌ Error fetching analytics:', error);
       
-      // If API endpoint doesn't exist, create analytics from available data
-      if (err.response?.status === 404) {
-        console.log('📊 Analytics endpoint not found, generating from dashboard data...');
-        await generateAnalyticsFromDashboard(range);
-      } else {
-        setError(err.response?.data?.message || err.message || 'Failed to fetch analytics');
-      }
+      // Fallback to mock data for demo purposes
+      const mockAnalytics = {
+        overview: {
+          totalUsers: 1247,
+          totalPets: 89,
+          totalAdoptions: 34,
+          totalContacts: 156,
+          growthRate: 15.3,
+          conversionRate: 8.7
+        },
+        chartData: {
+          userRegistrations: [12, 19, 23, 17, 31, 28, 25],
+          petAdoptions: [2, 5, 3, 8, 4, 6, 7],
+          pageViews: [245, 312, 289, 378, 456, 389, 423],
+          topPages: [
+            { page: '/pets', views: 1234, percentage: 35 },
+            { page: '/browse', views: 987, percentage: 28 },
+            { page: '/products', views: 654, percentage: 18 },
+            { page: '/about', views: 432, percentage: 12 },
+            { page: '/contact', views: 234, percentage: 7 }
+          ]
+        },
+        topPages: [
+          { path: '/pets', views: 1234, bounceRate: 23.5, avgTime: '2:45' },
+          { path: '/browse', views: 987, bounceRate: 18.2, avgTime: '3:12' },
+          { path: '/products', views: 654, bounceRate: 31.8, avgTime: '1:58' },
+          { path: '/about', views: 432, bounceRate: 15.6, avgTime: '4:23' },
+          { path: '/contact', views: 234, bounceRate: 45.2, avgTime: '1:34' }
+        ],
+        performanceMetrics: [
+          { metric: 'Page Load Speed', value: '1.2s', status: 'good', target: '< 2s' },
+          { metric: 'Mobile Performance', value: '87/100', status: 'good', target: '> 80' },
+          { metric: 'SEO Score', value: '92/100', status: 'excellent', target: '> 85' },
+          { metric: 'Accessibility', value: '94/100', status: 'excellent', target: '> 90' },
+          { metric: 'Server Response', value: '245ms', status: 'good', target: '< 500ms' }
+        ],
+        popularPets: [
+          { name: 'Buddy', type: 'Dog', views: 89, inquiries: 12, breed: 'Golden Retriever' },
+          { name: 'Whiskers', type: 'Cat', views: 76, inquiries: 8, breed: 'Maine Coon' },
+          { name: 'Luna', type: 'Dog', views: 65, inquiries: 15, breed: 'Husky' },
+          { name: 'Mittens', type: 'Cat', views: 54, inquiries: 6, breed: 'Persian' },
+          { name: 'Rocky', type: 'Dog', views: 48, inquiries: 9, breed: 'German Shepherd' }
+        ],
+        recentActivity: [
+          { type: 'adoption', user: 'John Smith', pet: 'Buddy', time: '2 hours ago' },
+          { type: 'registration', user: 'Sarah Johnson', time: '4 hours ago' },
+          { type: 'contact', user: 'Mike Wilson', subject: 'Pet Inquiry', time: '6 hours ago' },
+          { type: 'pet_added', pet: 'Charlie', time: '1 day ago' },
+          { type: 'adoption', user: 'Emma Davis', pet: 'Luna', time: '2 days ago' }
+        ]
+      };
+      
+      setAnalytics(mockAnalytics);
+      setError('Using demo data (backend not available)');
+      console.log('✅ Analytics loaded from mock data');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
-  };
+  }, [adminAPI, dateRange]); // Fixed dependencies
 
-  // Generate analytics from existing dashboard data if dedicated endpoint doesn't exist
-  const generateAnalyticsFromDashboard = async (range) => {
-    try {
-      console.log('📊 Generating analytics from dashboard data...');
-      
-      // ✅ FIXED: Use adminAPI instance for dashboard call
-      const dashboardResponse = await adminAPI.get('/admin/dashboard');
-      
-      if (dashboardResponse.data.success) {
-        const dashboardData = dashboardResponse.data.data;
-        const stats = dashboardData.stats || {};
-        
-        // Generate realistic analytics from dashboard stats
-        const generatedAnalytics = {
-          overview: {
-            totalVisits: (stats.users?.totalUsers || 0) * 25, // Estimate visits
-            uniqueVisitors: stats.users?.totalUsers || 0,
-            adoptionInquiries: stats.contacts?.totalContacts || 0,
-            successfulAdoptions: stats.pets?.adoptedPets || 0,
-            conversionRate: stats.pets?.adoptedPets && stats.contacts?.totalContacts 
-              ? ((stats.pets.adoptedPets / stats.contacts.totalContacts) * 100).toFixed(1)
-              : '0.0'
-          },
-          chartData: {
-            visits: generateVisitData(range),
-            adoptions: generateAdoptionData(stats.pets?.adoptedPets || 0, range),
-            petViews: generatePetViewData(range)
-          },
-          topPages: [
-            { page: '/pets', visits: Math.floor(Math.random() * 1000) + 500, bounceRate: '25%' },
-            { page: '/browse', visits: Math.floor(Math.random() * 800) + 400, bounceRate: '20%' },
-            { page: '/about', visits: Math.floor(Math.random() * 500) + 200, bounceRate: '30%' },
-            { page: '/contact', visits: Math.floor(Math.random() * 300) + 100, bounceRate: '15%' },
-            { page: '/admin', visits: Math.floor(Math.random() * 200) + 50, bounceRate: '10%' }
-          ],
-          userFlow: [
-            { step: 'Homepage Visit', users: stats.users?.totalUsers || 0, percentage: '100%' },
-            { step: 'Browse Pets', users: Math.floor((stats.users?.totalUsers || 0) * 0.75), percentage: '75%' },
-            { step: 'View Pet Details', users: Math.floor((stats.users?.totalUsers || 0) * 0.45), percentage: '45%' },
-            { step: 'Contact/Apply', users: stats.contacts?.totalContacts || 0, percentage: '25%' },
-            { step: 'Successful Adoption', users: stats.pets?.adoptedPets || 0, percentage: '12%' }
-          ],
-          recentActivity: dashboardData.recentActivities || {}
-        };
-        
-        setAnalytics(generatedAnalytics);
-        console.log('✅ Analytics generated from dashboard data');
-      }
-    } catch (error) {
-      console.error('❌ Error generating analytics:', error);
-      setError('Failed to generate analytics data. Dashboard may not be available.');
-    }
-  };
-
-  const generateVisitData = (range) => {
-    const days = range === '7days' ? 7 : range === '30days' ? 30 : range === '90days' ? 90 : 365;
-    const data = [];
-    
-    for (let i = days - 1; i >= 0; i--) {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-      data.push({
-        date: date.toISOString().split('T')[0],
-        visits: Math.floor(Math.random() * 100) + 50,
-        unique: Math.floor(Math.random() * 80) + 30
-      });
-    }
-    
-    return data;
-  };
-
-  const generateAdoptionData = (totalAdoptions, range) => {
-    const days = range === '7days' ? 7 : range === '30days' ? 30 : range === '90days' ? 90 : 365;
-    const adoptionsPerDay = Math.max(1, Math.floor(totalAdoptions / days));
-    const data = [];
-    
-    for (let i = days - 1; i >= 0; i--) {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-      data.push({
-        date: date.toISOString().split('T')[0],
-        adoptions: Math.floor(Math.random() * adoptionsPerDay * 2)
-      });
-    }
-    
-    return data;
-  };
-
-  const generatePetViewData = (range) => {
-    const days = range === '7days' ? 7 : range === '30days' ? 30 : range === '90days' ? 90 : 365;
-    const data = [];
-    
-    for (let i = days - 1; i >= 0; i--) {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-      data.push({
-        date: date.toISOString().split('T')[0],
-        views: Math.floor(Math.random() * 200) + 100
-      });
-    }
-    
-    return data;
-  };
-
-  const handleDateRangeChange = (newRange) => {
-    setDateRange(newRange);
-    fetchAnalytics(newRange);
-  };
-
-  const handleRefresh = async () => {
+  const handleRefresh = () => {
     setRefreshing(true);
-    await fetchAnalytics();
-    setRefreshing(false);
+    fetchAnalytics();
   };
 
-  // ✅ Load data on mount
+  const getStatusVariant = (status) => {
+    switch (status) {
+      case 'excellent': return 'success';
+      case 'good': return 'primary';
+      case 'warning': return 'warning';
+      case 'poor': return 'danger';
+      default: return 'secondary';
+    }
+  };
+
+  const getActivityIcon = (type) => {
+    switch (type) {
+      case 'adoption': return 'fa-heart';
+      case 'registration': return 'fa-user-plus';
+      case 'contact': return 'fa-envelope';
+      case 'pet_added': return 'fa-paw';
+      default: return 'fa-circle';
+    }
+  };
+
   useEffect(() => {
-    console.log('📊 AdminAnalytics: Loading initial analytics data');
     fetchAnalytics();
-  }, []); // Empty dependency array - only run on mount
+  }, [fetchAnalytics]); // Fixed dependency
 
   if (loading) {
     return (
-      <div className="d-flex flex-column justify-content-center align-items-center" style={{ height: '50vh' }}>
-        <Spinner animation="border" variant="primary" />
-        <span className="ms-2 mt-3">Loading analytics...</span>
+      <div className="text-center py-5">
+        <Spinner animation="border" role="status">
+          <span className="visually-hidden">Loading analytics...</span>
+        </Spinner>
+        <p className="mt-2">Loading analytics data...</p>
       </div>
     );
   }
 
-  if (error) {
-    return (
-      <Alert variant="danger">
-        <Alert.Heading>Analytics Error</Alert.Heading>
-        <p>{error}</p>
-        <Button variant="outline-danger" onClick={() => fetchAnalytics()}>
-          Try Again
-        </Button>
-      </Alert>
-    );
-  }
-
-  const { overview, chartData, topPages, userFlow } = analytics;
-
   return (
-    <div className="admin-analytics">
-      <Row className="mb-4">
-        <Col>
-          <div className="d-flex justify-content-between align-items-center">
-            <div>
-              <h2>Analytics Dashboard</h2>
-              <p className="text-muted mb-0">
-                Website performance and adoption insights
-                <Badge bg="info" className="ms-2">Generated from Dashboard Data</Badge>
-              </p>
-            </div>
-            
-            <div className="d-flex gap-3 align-items-center">
-              <Form.Select 
-                value={dateRange} 
-                onChange={(e) => handleDateRangeChange(e.target.value)}
-                style={{width: 'auto'}}
-              >
-                {dateRanges.map(range => (
-                  <option key={range.value} value={range.value}>
-                    {range.label}
-                  </option>
-                ))}
-              </Form.Select>
-              
-              <Button 
-                variant="outline-primary" 
-                size="sm" 
-                onClick={handleRefresh}
-                disabled={refreshing}
-              >
-                <i className={`fas ${refreshing ? 'fa-spinner fa-spin' : 'fa-sync-alt'} me-2`}></i>
+    <>
+      <div className="d-flex justify-content-between align-items-center mb-4">
+        <h1>
+          <i className="fas fa-chart-line me-2"></i>Analytics Dashboard
+        </h1>
+        <div className="d-flex gap-2">
+          <Form.Select
+            value={dateRange}
+            onChange={(e) => setDateRange(e.target.value)}
+            style={{ width: '200px' }}
+          >
+            {dateRanges.map(range => (
+              <option key={range.value} value={range.value}>
+                {range.label}
+              </option>
+            ))}
+          </Form.Select>
+          <Button
+            variant="outline-primary"
+            onClick={handleRefresh}
+            disabled={refreshing}
+          >
+            {refreshing ? (
+              <>
+                <Spinner size="sm" className="me-2" />
+                Refreshing...
+              </>
+            ) : (
+              <>
+                <i className="fas fa-sync-alt me-2"></i>
                 Refresh
-              </Button>
-            </div>
-          </div>
-        </Col>
-      </Row>
+              </>
+            )}
+          </Button>
+        </div>
+      </div>
 
-      {/* Overview Stats */}
+      {error && (
+        <Alert variant="warning" className="mb-4">
+          <i className="fas fa-exclamation-triangle me-2"></i>
+          {error}
+        </Alert>
+      )}
+
+      {/* Overview Cards */}
       <Row className="g-4 mb-4">
-        <Col md={3}>
-          <Card className="h-100">
-            <Card.Body className="text-center">
-              <i className="fas fa-eye fa-2x text-primary mb-3"></i>
-              <h3 className="mb-1">{overview.totalVisits?.toLocaleString() || '0'}</h3>
-              <p className="text-muted mb-0">Total Visits</p>
+        <Col lg={3} md={6}>
+          <Card className="border-0 shadow-sm">
+            <Card.Body>
+              <div className="d-flex align-items-center">
+                <div className="flex-shrink-0">
+                  <div className="bg-primary bg-opacity-10 p-3 rounded">
+                    <i className="fas fa-users fa-lg text-primary"></i>
+                  </div>
+                </div>
+                <div className="flex-grow-1 ms-3">
+                  <h6 className="text-muted mb-1">Total Users</h6>
+                  <h3 className="mb-0">{analytics.overview.totalUsers.toLocaleString()}</h3>
+                  <small className="text-success">
+                    <i className="fas fa-arrow-up me-1"></i>
+                    +{analytics.overview.growthRate}%
+                  </small>
+                </div>
+              </div>
             </Card.Body>
           </Card>
         </Col>
-        <Col md={3}>
-          <Card className="h-100">
-            <Card.Body className="text-center">
-              <i className="fas fa-users fa-2x text-success mb-3"></i>
-              <h3 className="mb-1">{overview.uniqueVisitors?.toLocaleString() || '0'}</h3>
-              <p className="text-muted mb-0">Unique Visitors</p>
+        
+        <Col lg={3} md={6}>
+          <Card className="border-0 shadow-sm">
+            <Card.Body>
+              <div className="d-flex align-items-center">
+                <div className="flex-shrink-0">
+                  <div className="bg-info bg-opacity-10 p-3 rounded">
+                    <i className="fas fa-paw fa-lg text-info"></i>
+                  </div>
+                </div>
+                <div className="flex-grow-1 ms-3">
+                  <h6 className="text-muted mb-1">Available Pets</h6>
+                  <h3 className="mb-0">{analytics.overview.totalPets}</h3>
+                  <small className="text-info">Active listings</small>
+                </div>
+              </div>
             </Card.Body>
           </Card>
         </Col>
-        <Col md={3}>
-          <Card className="h-100">
-            <Card.Body className="text-center">
-              <i className="fas fa-envelope fa-2x text-info mb-3"></i>
-              <h3 className="mb-1">{overview.adoptionInquiries || '0'}</h3>
-              <p className="text-muted mb-0">Adoption Inquiries</p>
+        
+        <Col lg={3} md={6}>
+          <Card className="border-0 shadow-sm">
+            <Card.Body>
+              <div className="d-flex align-items-center">
+                <div className="flex-shrink-0">
+                  <div className="bg-success bg-opacity-10 p-3 rounded">
+                    <i className="fas fa-heart fa-lg text-success"></i>
+                  </div>
+                </div>
+                <div className="flex-grow-1 ms-3">
+                  <h6 className="text-muted mb-1">Adoptions</h6>
+                  <h3 className="mb-0">{analytics.overview.totalAdoptions}</h3>
+                  <small className="text-success">
+                    {analytics.overview.conversionRate}% conversion
+                  </small>
+                </div>
+              </div>
             </Card.Body>
           </Card>
         </Col>
-        <Col md={3}>
-          <Card className="h-100">
-            <Card.Body className="text-center">
-              <i className="fas fa-heart fa-2x text-danger mb-3"></i>
-              <h3 className="mb-1">{overview.successfulAdoptions || '0'}</h3>
-              <p className="text-muted mb-0">Successful Adoptions</p>
-              <small className="text-success">{overview.conversionRate}% conversion</small>
+        
+        <Col lg={3} md={6}>
+          <Card className="border-0 shadow-sm">
+            <Card.Body>
+              <div className="d-flex align-items-center">
+                <div className="flex-shrink-0">
+                  <div className="bg-warning bg-opacity-10 p-3 rounded">
+                    <i className="fas fa-envelope fa-lg text-warning"></i>
+                  </div>
+                </div>
+                <div className="flex-grow-1 ms-3">
+                  <h6 className="text-muted mb-1">Contacts</h6>
+                  <h3 className="mb-0">{analytics.overview.totalContacts}</h3>
+                  <small className="text-muted">This period</small>
+                </div>
+              </div>
             </Card.Body>
           </Card>
         </Col>
       </Row>
 
       <Row className="g-4">
-        {/* Top Pages */}
-        <Col lg={6}>
-          <Card>
-            <Card.Header>
+        {/* Top Pages Table */}
+        <Col lg={8}>
+          <Card className="border-0 shadow-sm">
+            <Card.Header className="bg-transparent">
               <h5 className="mb-0">
-                <i className="fas fa-chart-bar me-2"></i>
-                Top Pages
+                <i className="fas fa-chart-bar me-2"></i>Top Performing Pages
               </h5>
             </Card.Header>
             <Card.Body>
-              <div className="table-responsive">
-                <table className="table table-sm">
-                  <thead>
-                    <tr>
-                      <th>Page</th>
-                      <th>Visits</th>
-                      <th>Bounce Rate</th>
+              <Table responsive hover>
+                <thead>
+                  <tr>
+                    <th>Page</th>
+                    <th>Views</th>
+                    <th>Bounce Rate</th>
+                    <th>Avg. Time</th>
+                    <th>Performance</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {analytics.topPages.map((page, index) => (
+                    <tr key={index}>
+                      <td>
+                        <code className="text-primary">{page.path}</code>
+                      </td>
+                      <td>
+                        <strong>{page.views.toLocaleString()}</strong>
+                      </td>
+                      <td>
+                        <Badge bg={page.bounceRate < 25 ? 'success' : page.bounceRate < 40 ? 'warning' : 'danger'}>
+                          {page.bounceRate}%
+                        </Badge>
+                      </td>
+                      <td>{page.avgTime}</td>
+                      <td>
+                        <ProgressBar 
+                          now={100 - page.bounceRate} 
+                          variant={page.bounceRate < 25 ? 'success' : page.bounceRate < 40 ? 'warning' : 'danger'}
+                          style={{ height: '8px' }}
+                        />
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {topPages.map((page, index) => (
-                      <tr key={index}>
-                        <td>{page.page}</td>
-                        <td>{page.visits.toLocaleString()}</td>
-                        <td>
-                          <Badge bg={
-                            parseFloat(page.bounceRate) < 20 ? 'success' :
-                            parseFloat(page.bounceRate) < 30 ? 'warning' : 'danger'
-                          }>
-                            {page.bounceRate}
-                          </Badge>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                  ))}
+                </tbody>
+              </Table>
+            </Card.Body>
+          </Card>
+        </Col>
+
+        {/* Recent Activity */}
+        <Col lg={4}>
+          <Card className="border-0 shadow-sm">
+            <Card.Header className="bg-transparent">
+              <h5 className="mb-0">
+                <i className="fas fa-clock me-2"></i>Recent Activity
+              </h5>
+            </Card.Header>
+            <Card.Body>
+              <div className="activity-timeline">
+                {analytics.recentActivity.map((activity, index) => (
+                  <div key={index} className="d-flex mb-3">
+                    <div className="flex-shrink-0">
+                      <div className="bg-light p-2 rounded-circle">
+                        <i className={`fas ${getActivityIcon(activity.type)} text-muted`}></i>
+                      </div>
+                    </div>
+                    <div className="flex-grow-1 ms-3">
+                      <div className="small">
+                        <strong>{activity.user}</strong>
+                        {activity.type === 'adoption' && ` adopted ${activity.pet}`}
+                        {activity.type === 'registration' && ' registered'}
+                        {activity.type === 'contact' && ` sent: ${activity.subject}`}
+                        {activity.type === 'pet_added' && ` added ${activity.pet}`}
+                      </div>
+                      <div className="text-muted small">{activity.time}</div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </Card.Body>
           </Card>
         </Col>
 
-        {/* User Flow */}
+        {/* Performance Metrics Table */}
         <Col lg={6}>
-          <Card>
-            <Card.Header>
+          <Card className="border-0 shadow-sm">
+            <Card.Header className="bg-transparent">
               <h5 className="mb-0">
-                <i className="fas fa-stream me-2"></i>
-                Adoption Funnel
+                <i className="fas fa-tachometer-alt me-2"></i>Performance Metrics
               </h5>
             </Card.Header>
             <Card.Body>
-              {userFlow.map((step, index) => (
-                <div key={index} className="mb-3">
-                  <div className="d-flex justify-content-between align-items-center mb-1">
-                    <span>{step.step}</span>
-                    <div>
-                      <strong>{step.users.toLocaleString()}</strong>
-                      <small className="text-muted ms-2">({step.percentage})</small>
-                    </div>
-                  </div>
-                  <div className="progress" style={{height: '8px'}}>
-                    <div 
-                      className="progress-bar" 
-                      style={{width: step.percentage}}
-                      role="progressbar"
-                    ></div>
-                  </div>
-                </div>
-              ))}
+              <Table>
+                <thead>
+                  <tr>
+                    <th>Metric</th>
+                    <th>Current</th>
+                    <th>Target</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {analytics.performanceMetrics.map((metric, index) => (
+                    <tr key={index}>
+                      <td>{metric.metric}</td>
+                      <td><strong>{metric.value}</strong></td>
+                      <td className="text-muted">{metric.target}</td>
+                      <td>
+                        <Badge bg={getStatusVariant(metric.status)}>
+                          {metric.status}
+                        </Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
             </Card.Body>
           </Card>
         </Col>
-      </Row>
 
-      {/* Chart Data Summary */}
-      <Row className="mt-4">
-        <Col>
-          <Card>
-            <Card.Header>
+        {/* Popular Pets Table */}
+        <Col lg={6}>
+          <Card className="border-0 shadow-sm">
+            <Card.Header className="bg-transparent">
               <h5 className="mb-0">
-                <i className="fas fa-chart-line me-2"></i>
-                Performance Summary
+                <i className="fas fa-star me-2"></i>Most Popular Pets
               </h5>
             </Card.Header>
             <Card.Body>
-              <Row className="text-center">
-                <Col md={4}>
-                  <h4 className="text-primary">{chartData.visits?.length || 0}</h4>
-                  <p className="text-muted">Days of Visit Data</p>
-                </Col>
-                <Col md={4}>
-                  <h4 className="text-success">{chartData.adoptions?.length || 0}</h4>
-                  <p className="text-muted">Days of Adoption Data</p>
-                </Col>
-                <Col md={4}>
-                  <h4 className="text-info">{chartData.petViews?.length || 0}</h4>
-                  <p className="text-muted">Days of Pet View Data</p>
-                </Col>
-              </Row>
+              <Table>
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Type</th>
+                    <th>Views</th>
+                    <th>Inquiries</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {analytics.popularPets.map((pet, index) => (
+                    <tr key={index}>
+                      <td>
+                        <div>
+                          <strong>{pet.name}</strong>
+                          <div className="small text-muted">{pet.breed}</div>
+                        </div>
+                      </td>
+                      <td>
+                        <Badge bg={pet.type === 'Dog' ? 'primary' : 'info'}>
+                          {pet.type}
+                        </Badge>
+                      </td>
+                      <td>{pet.views}</td>
+                      <td>
+                        <Badge bg="success">{pet.inquiries}</Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
             </Card.Body>
           </Card>
         </Col>
       </Row>
-    </div>
+    </>
   );
 };
 

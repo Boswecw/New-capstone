@@ -1,174 +1,115 @@
-// server/routes/admin.js - COMPLETE UPDATED VERSION
+// server/routes/admin.js - COMPLETE ADMIN ROUTES
 const express = require("express");
 const router = express.Router();
-const Pet = require("../models/Pet");
 const User = require("../models/User");
+const Pet = require("../models/Pet");
 const Contact = require("../models/Contact");
 const Product = require("../models/Product");
+const Settings = require("../models/Settings");
 const { protect, admin } = require("../middleware/auth");
-const {
-  validatePetCreation,
-  validatePetUpdate,
-  validateObjectId,
-} = require("../middleware/validation");
+const { validateObjectId } = require("../middleware/validation");
 
-// Middleware to ensure all admin routes are protected
-router.use(protect);
-router.use(admin);
-
-// ===== UTILITY FUNCTIONS =====
-const handleAsyncError = (fn) => {
-  return (req, res, next) => {
-    Promise.resolve(fn(req, res, next)).catch(next);
-  };
+// Helper function for async error handling
+const handleAsyncError = (fn) => (req, res, next) => {
+  Promise.resolve(fn(req, res, next)).catch(next);
 };
 
+// Apply admin middleware to all routes
+router.use(protect, admin);
+
 // ===== DASHBOARD ROUTE =====
-// GET /api/admin/dashboard - Get dashboard statistics
+// GET /api/admin/dashboard - Get dashboard statistics and data
 router.get(
   "/dashboard",
   handleAsyncError(async (req, res) => {
-    console.log("📊 Admin dashboard requested");
+    console.log("📊 Admin: Fetching dashboard data");
 
-    // Get current date and 30 days ago
-    const now = new Date();
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    try {
+      // Get all statistics in parallel
+      const [
+        totalPets,
+        availablePets,
+        pendingPets,
+        adoptedPets,
+        totalUsers,
+        activeUsers,
+        totalContacts,
+        newContacts,
+        readContacts,
+        totalProducts,
+        inStockProducts,
+        recentPets,
+        recentUsers,
+        recentContacts
+      ] = await Promise.all([
+        Pet.countDocuments(),
+        Pet.countDocuments({ status: "available" }),
+        Pet.countDocuments({ status: "pending" }),
+        Pet.countDocuments({ status: "adopted" }),
+        User.countDocuments(),
+        User.countDocuments({ isActive: true }),
+        Contact.countDocuments(),
+        Contact.countDocuments({ status: "new" }),
+        Contact.countDocuments({ status: "read" }),
+        Product.countDocuments(),
+        Product.countDocuments({ inStock: true }),
+        Pet.find().sort({ createdAt: -1 }).limit(5).select("name type breed status createdAt image"),
+        User.find().sort({ createdAt: -1 }).limit(5).select("name email role createdAt isActive"),
+        Contact.find().sort({ createdAt: -1 }).limit(5).select("name email subject status createdAt")
+      ]);
 
-    // Get pet statistics
-    const petStats = await Pet.aggregate([
-      {
-        $group: {
-          _id: null,
-          totalPets: { $sum: 1 },
-          availablePets: {
-            $sum: { $cond: [{ $eq: ["$status", "available"] }, 1, 0] },
-          },
-          adoptedPets: {
-            $sum: { $cond: [{ $eq: ["$status", "adopted"] }, 1, 0] },
-          },
-          pendingPets: {
-            $sum: { $cond: [{ $eq: ["$status", "pending"] }, 1, 0] },
-          },
+      const stats = {
+        pets: {
+          total: totalPets,
+          available: availablePets,
+          pending: pendingPets,
+          adopted: adoptedPets
         },
-      },
-    ]);
+        users: {
+          total: totalUsers,
+          active: activeUsers,
+          inactive: totalUsers - activeUsers
+        },
+        contacts: {
+          total: totalContacts,
+          new: newContacts,
+          read: readContacts,
+          resolved: totalContacts - newContacts - readContacts
+        },
+        products: {
+          total: totalProducts,
+          inStock: inStockProducts,
+          outOfStock: totalProducts - inStockProducts
+        }
+      };
 
-    // Get user statistics
-    const userStats = await User.aggregate([
-      {
-        $group: {
-          _id: null,
-          totalUsers: { $sum: 1 },
-          activeUsers: {
-            $sum: { $cond: [{ $eq: ["$isActive", true] }, 1, 0] },
-          },
-          newUsersThisMonth: {
-            $sum: {
-              $cond: [{ $gte: ["$createdAt", thirtyDaysAgo] }, 1, 0],
-            },
-          },
-        },
-      },
-    ]);
-
-    // Get contact statistics
-    const contactStats = await Contact.aggregate([
-      {
-        $group: {
-          _id: null,
-          totalContacts: { $sum: 1 },
-          newContacts: {
-            $sum: { $cond: [{ $eq: ["$status", "new"] }, 1, 0] },
-          },
-          pendingContacts: {
-            $sum: {
-              $cond: [{ $in: ["$status", ["new", "read"]] }, 1, 0],
-            },
-          },
-        },
-      },
-    ]);
-
-    // Get product statistics
-    const productStats = await Product.aggregate([
-      {
-        $group: {
-          _id: null,
-          totalProducts: { $sum: 1 },
-          inStockProducts: {
-            $sum: { $cond: [{ $eq: ["$inStock", true] }, 1, 0] },
-          },
-          outOfStockProducts: {
-            $sum: { $cond: [{ $eq: ["$inStock", false] }, 1, 0] },
-          },
-        },
-      },
-    ]);
-
-    // Get recent activities
-    const recentPets = await Pet.find()
-      .sort({ createdAt: -1 })
-      .limit(5)
-      .select("name type status createdAt");
-    const recentContacts = await Contact.find()
-      .sort({ createdAt: -1 })
-      .limit(5)
-      .select("name email subject status createdAt");
-    const recentUsers = await User.find()
-      .sort({ createdAt: -1 })
-      .limit(5)
-      .select("name email role createdAt");
-
-    // Compile dashboard data
-    const dashboardData = {
-      stats: {
-        pets: petStats[0] || {
-          totalPets: 0,
-          availablePets: 0,
-          adoptedPets: 0,
-          pendingPets: 0,
-        },
-        users: userStats[0] || {
-          totalUsers: 0,
-          activeUsers: 0,
-          newUsersThisMonth: 0,
-        },
-        contacts: contactStats[0] || {
-          totalContacts: 0,
-          newContacts: 0,
-          pendingContacts: 0,
-        },
-        products: productStats[0] || {
-          totalProducts: 0,
-          inStockProducts: 0,
-          outOfStockProducts: 0,
-        },
-      },
-      recentActivities: {
+      const recentActivity = {
         pets: recentPets,
-        contacts: recentContacts,
         users: recentUsers,
-      },
-      systemInfo: {
-        environment: process.env.NODE_ENV,
-        timestamp: now.toISOString(),
-        uptime: process.uptime(),
-      },
-    };
+        contacts: recentContacts
+      };
 
-    console.log("✅ Dashboard data compiled successfully");
-
-    res.json({
-      success: true,
-      data: dashboardData,
-      message: "Dashboard data retrieved successfully",
-    });
+      res.json({
+        success: true,
+        data: {
+          stats,
+          recentActivity
+        },
+        message: "Dashboard data retrieved successfully",
+      });
+    } catch (error) {
+      console.error("❌ Dashboard error:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to load dashboard data",
+        error: error.message
+      });
+    }
   })
 );
 
 // ===== USER MANAGEMENT ROUTES =====
-// GET /api/admin/users - Get all users with pagination
+// GET /api/admin/users - Get all users with pagination and filtering
 router.get(
   "/users",
   handleAsyncError(async (req, res) => {
@@ -191,11 +132,11 @@ router.get(
       ];
     }
 
-    if (role) {
+    if (role && role !== 'all') {
       query.role = role;
     }
 
-    if (isActive !== undefined) {
+    if (isActive !== undefined && isActive !== 'all') {
       query.isActive = isActive === "true";
     }
 
@@ -226,8 +167,7 @@ router.get(
       .sort(sortOptions)
       .limit(limitNum)
       .skip(skip)
-      .select("-password")
-      .populate("adoptedPets.pet", "name type breed");
+      .select("-password");
 
     const totalUsers = await User.countDocuments(query);
     const totalPages = Math.ceil(totalUsers / limitNum);
@@ -243,6 +183,61 @@ router.get(
         hasPrev: page > 1,
       },
       message: "Users retrieved successfully",
+    });
+  })
+);
+
+// PUT /api/admin/users/:id - Update user
+router.put(
+  "/users/:id",
+  validateObjectId,
+  handleAsyncError(async (req, res) => {
+    const { role, isActive, name, email } = req.body;
+    
+    const updateData = {};
+    if (role !== undefined) updateData.role = role;
+    if (isActive !== undefined) updateData.isActive = isActive;
+    if (name !== undefined) updateData.name = name;
+    if (email !== undefined) updateData.email = email;
+
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      updateData,
+      { new: true, runValidators: true }
+    ).select("-password");
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
+      });
+    }
+
+    res.json({
+      success: true,
+      data: user,
+      message: "User updated successfully"
+    });
+  })
+);
+
+// DELETE /api/admin/users/:id - Delete user
+router.delete(
+  "/users/:id",
+  validateObjectId,
+  handleAsyncError(async (req, res) => {
+    const user = await User.findByIdAndDelete(req.params.id);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
+      });
+    }
+
+    res.json({
+      success: true,
+      message: "User deleted successfully"
     });
   })
 );
@@ -265,7 +260,7 @@ router.get(
       sort = "createdAt",
     } = req.query;
 
-    // Build query object
+    // Build query
     const query = {};
 
     if (search) {
@@ -276,26 +271,20 @@ router.get(
       ];
     }
 
-    if (type && type !== "all") {
+    if (type && type !== 'all') {
       query.type = type;
     }
 
-    if (status && status !== "all") {
+    if (status && status !== 'all') {
       query.status = status;
     }
 
-    if (size && size !== "all") {
-      query.size = size;
+    if (age && age !== 'all') {
+      query.age = age;
     }
 
-    if (age) {
-      const ageRange = age.split("-");
-      if (ageRange.length === 2) {
-        query.age = {
-          $gte: parseInt(ageRange[0]),
-          $lte: parseInt(ageRange[1]),
-        };
-      }
+    if (size && size !== 'all') {
+      query.size = size;
     }
 
     // Pagination
@@ -307,9 +296,6 @@ router.get(
     switch (sort) {
       case "name":
         sortOptions.name = 1;
-        break;
-      case "age":
-        sortOptions.age = 1;
         break;
       case "type":
         sortOptions.type = 1;
@@ -324,18 +310,15 @@ router.get(
         sortOptions.createdAt = -1;
     }
 
-    console.log("🐕 MongoDB query:", query);
-
     const pets = await Pet.find(query)
       .sort(sortOptions)
       .limit(limitNum)
-      .skip(skip)
-      .populate("createdBy", "name email");
+      .skip(skip);
 
     const totalPets = await Pet.countDocuments(query);
     const totalPages = Math.ceil(totalPets / limitNum);
 
-    console.log("✅ Found pets:", totalPets);
+    console.log(`🔍 Found ${pets.length} pets (${totalPets} total)`);
 
     res.json({
       success: true,
@@ -344,37 +327,10 @@ router.get(
         currentPage: parseInt(page),
         totalPages,
         totalPets,
-        total: totalPets,
-        pages: totalPages,
-        hasNext: parseInt(page) < totalPages,
-        hasPrev: parseInt(page) > 1,
+        hasNext: page < totalPages,
+        hasPrev: page > 1,
       },
       message: "Pets retrieved successfully",
-    });
-  })
-);
-
-// POST /api/admin/pets - Add new pet
-router.post(
-  "/pets",
-  validatePetCreation,
-  handleAsyncError(async (req, res) => {
-    console.log("🐕 Creating new pet:", req.body);
-
-    const petData = {
-      ...req.body,
-      createdBy: req.user._id,
-    };
-
-    const pet = new Pet(petData);
-    await pet.save();
-
-    console.log("✅ Pet created successfully:", pet._id);
-
-    res.status(201).json({
-      success: true,
-      data: pet,
-      message: "Pet created successfully",
     });
   })
 );
@@ -383,29 +339,24 @@ router.post(
 router.put(
   "/pets/:id",
   validateObjectId,
-  validatePetUpdate,
   handleAsyncError(async (req, res) => {
-    console.log("🐕 Updating pet:", req.params.id);
-
     const pet = await Pet.findByIdAndUpdate(
       req.params.id,
-      { ...req.body, updatedBy: req.user._id },
+      req.body,
       { new: true, runValidators: true }
     );
 
     if (!pet) {
       return res.status(404).json({
         success: false,
-        message: "Pet not found",
+        message: "Pet not found"
       });
     }
-
-    console.log("✅ Pet updated successfully");
 
     res.json({
       success: true,
       data: pet,
-      message: "Pet updated successfully",
+      message: "Pet updated successfully"
     });
   })
 );
@@ -415,28 +366,24 @@ router.delete(
   "/pets/:id",
   validateObjectId,
   handleAsyncError(async (req, res) => {
-    console.log("🐕 Deleting pet:", req.params.id);
-
     const pet = await Pet.findByIdAndDelete(req.params.id);
 
     if (!pet) {
       return res.status(404).json({
         success: false,
-        message: "Pet not found",
+        message: "Pet not found"
       });
     }
 
-    console.log("✅ Pet deleted successfully");
-
     res.json({
       success: true,
-      message: "Pet deleted successfully",
+      message: "Pet deleted successfully"
     });
   })
 );
 
-// ===== PRODUCT MANAGEMENT ROUTES (FIXED) =====
-// GET /api/admin/products - Get all products with enhanced error handling
+// ===== PRODUCT MANAGEMENT ROUTES =====
+// GET /api/admin/products - Get all products for admin management
 router.get(
   "/products",
   handleAsyncError(async (req, res) => {
@@ -445,71 +392,50 @@ router.get(
       category,
       brand,
       inStock,
-      minPrice,
-      maxPrice,
       limit = 20,
       page = 1,
       sort = "createdAt",
     } = req.query;
 
-    console.log("🛒 Admin fetching products with filters:", req.query);
-
-    // Build query object with validation
+    // Build query
     const query = {};
 
-    if (search && search.trim()) {
+    if (search) {
       query.$or = [
-        { name: { $regex: search.trim(), $options: "i" } },
-        { brand: { $regex: search.trim(), $options: "i" } },
-        { description: { $regex: search.trim(), $options: "i" } },
+        { name: { $regex: search, $options: "i" } },
+        { title: { $regex: search, $options: "i" } },
+        { description: { $regex: search, $options: "i" } },
+        { brand: { $regex: search, $options: "i" } },
       ];
     }
 
-    if (category && category !== "all") {
-      query.category = category.toLowerCase();
+    if (category && category !== 'all') {
+      query.category = category;
     }
 
-    if (brand && brand !== "all") {
+    if (brand && brand !== 'all') {
       query.brand = brand;
     }
 
-    if (inStock !== undefined && inStock !== "all") {
+    if (inStock !== undefined && inStock !== 'all') {
       query.inStock = inStock === "true";
     }
 
-    // Price range filtering with validation
-    if (minPrice || maxPrice) {
-      query.price = {};
-      if (minPrice && !isNaN(parseFloat(minPrice))) {
-        query.price.$gte = parseFloat(minPrice);
-      }
-      if (maxPrice && !isNaN(parseFloat(maxPrice))) {
-        query.price.$lte = parseFloat(maxPrice);
-      }
-    }
+    // Pagination
+    const limitNum = parseInt(limit);
+    const skip = (parseInt(page) - 1) * limitNum;
 
-    // Pagination with validation
-    const limitNum = Math.min(parseInt(limit) || 20, 100);
-    const pageNum = Math.max(parseInt(page) || 1, 1);
-    const skip = (pageNum - 1) * limitNum;
-
-    // Sort options with validation
+    // Sort options
     const sortOptions = {};
     switch (sort) {
       case "name":
         sortOptions.name = 1;
         break;
-      case "price_asc":
+      case "price":
         sortOptions.price = 1;
-        break;
-      case "price_desc":
-        sortOptions.price = -1;
         break;
       case "category":
         sortOptions.category = 1;
-        break;
-      case "brand":
-        sortOptions.brand = 1;
         break;
       case "oldest":
         sortOptions.createdAt = 1;
@@ -518,83 +444,44 @@ router.get(
         sortOptions.createdAt = -1;
     }
 
-    console.log("🔍 MongoDB query:", JSON.stringify(query, null, 2));
+    const products = await Product.find(query)
+      .sort(sortOptions)
+      .limit(limitNum)
+      .skip(skip);
 
-    // Execute queries with error handling
-    const [products, totalProducts] = await Promise.all([
-      Product.find(query)
-        .sort(sortOptions)
-        .limit(limitNum)
-        .skip(skip)
-        .populate("createdBy", "name email")
-        .lean(),
-      Product.countDocuments(query),
-    ]);
-
+    const totalProducts = await Product.countDocuments(query);
     const totalPages = Math.ceil(totalProducts / limitNum);
-
-    console.log(
-      `✅ Found ${totalProducts} products, returning page ${pageNum}/${totalPages}`
-    );
-
-    // Enhance products with additional fields
-    const enhancedProducts = products.map((product) => ({
-      ...product,
-      imageUrl: product.image
-        ? `https://storage.googleapis.com/furbabies-petstore/${encodeURIComponent(product.image)}`
-        : null,
-      fallbackImageUrl: "/api/images/fallback/product",
-      priceFormatted: `$${product.price.toFixed(2)}`,
-      createdByName: product.createdBy?.name || "Unknown",
-    }));
 
     res.json({
       success: true,
-      data: enhancedProducts,
+      data: products,
       pagination: {
-        currentPage: pageNum,
+        currentPage: parseInt(page),
         totalPages,
         totalProducts,
-        total: totalProducts,
-        pages: totalPages,
-        hasNext: pageNum < totalPages,
-        hasPrev: pageNum > 1,
-        limit: limitNum,
+        hasNext: page < totalPages,
+        hasPrev: page > 1,
       },
-      filters: {
-        search: search || "",
-        category: category || "all",
-        brand: brand || "all",
-        inStock: inStock || "all",
-        minPrice: minPrice || "",
-        maxPrice: maxPrice || "",
-        sort,
-      },
-      message: `Found ${totalProducts} products`,
+      message: "Products retrieved successfully",
     });
   })
 );
 
-// POST /api/admin/products - Add new product
+// POST /api/admin/products - Create new product
 router.post(
   "/products",
   handleAsyncError(async (req, res) => {
-    console.log("🛒 Creating new product:", req.body);
-
-    const productData = {
+    const product = new Product({
       ...req.body,
-      createdBy: req.user._id,
-    };
+      createdBy: req.user._id
+    });
 
-    const product = new Product(productData);
     await product.save();
-
-    console.log("✅ Product created successfully:", product._id);
 
     res.status(201).json({
       success: true,
       data: product,
-      message: "Product created successfully",
+      message: "Product created successfully"
     });
   })
 );
@@ -604,27 +491,23 @@ router.put(
   "/products/:id",
   validateObjectId,
   handleAsyncError(async (req, res) => {
-    console.log("🛒 Updating product:", req.params.id);
-
     const product = await Product.findByIdAndUpdate(
       req.params.id,
-      { ...req.body, updatedBy: req.user._id },
+      { ...req.body, updatedBy: req.user._id, updatedAt: new Date() },
       { new: true, runValidators: true }
     );
 
     if (!product) {
       return res.status(404).json({
         success: false,
-        message: "Product not found",
+        message: "Product not found"
       });
     }
-
-    console.log("✅ Product updated successfully");
 
     res.json({
       success: true,
       data: product,
-      message: "Product updated successfully",
+      message: "Product updated successfully"
     });
   })
 );
@@ -634,115 +517,37 @@ router.delete(
   "/products/:id",
   validateObjectId,
   handleAsyncError(async (req, res) => {
-    console.log("🛒 Deleting product:", req.params.id);
-
     const product = await Product.findByIdAndDelete(req.params.id);
 
     if (!product) {
       return res.status(404).json({
         success: false,
-        message: "Product not found",
+        message: "Product not found"
       });
     }
 
-    console.log("✅ Product deleted successfully");
-
     res.json({
       success: true,
-      message: "Product deleted successfully",
-    });
-  })
-);
-
-// GET /api/admin/products/stats - Get product statistics
-router.get(
-  "/products/stats",
-  handleAsyncError(async (req, res) => {
-    console.log("📊 Fetching product statistics...");
-
-    const totalProducts = await Product.countDocuments();
-    const inStockProducts = await Product.countDocuments({ inStock: true });
-    const outOfStockProducts = await Product.countDocuments({ inStock: false });
-
-    // Category breakdown
-    const categoryStats = await Product.aggregate([
-      {
-        $group: {
-          _id: "$category",
-          count: { $sum: 1 },
-          avgPrice: { $avg: "$price" },
-        },
-      },
-      { $sort: { count: -1 } },
-    ]);
-
-    // Brand breakdown
-    const brandStats = await Product.aggregate([
-      {
-        $group: {
-          _id: "$brand",
-          count: { $sum: 1 },
-          avgPrice: { $avg: "$price" },
-        },
-      },
-      { $sort: { count: -1 } },
-    ]);
-
-    // Price ranges
-    const priceRanges = await Product.aggregate([
-      {
-        $bucket: {
-          groupBy: "$price",
-          boundaries: [0, 25, 50, 100, 1000],
-          default: "over1000",
-          output: {
-            count: { $sum: 1 },
-            avgPrice: { $avg: "$price" },
-          },
-        },
-      },
-    ]);
-
-    res.json({
-      success: true,
-      data: {
-        overview: {
-          totalProducts,
-          inStockProducts,
-          outOfStockProducts,
-          stockPercentage:
-            totalProducts > 0
-              ? ((inStockProducts / totalProducts) * 100).toFixed(1)
-              : 0,
-        },
-        categories: categoryStats,
-        brands: brandStats,
-        priceRanges,
-      },
-      message: "Product statistics retrieved successfully",
+      message: "Product deleted successfully"
     });
   })
 );
 
 // ===== CONTACT MANAGEMENT ROUTES =====
-// GET /api/admin/contacts - Get all contacts
+// GET /api/admin/contacts - Get all contacts with filtering
 router.get(
   "/contacts",
   handleAsyncError(async (req, res) => {
     const {
-      status,
       search,
+      status,
       limit = 20,
       page = 1,
       sort = "createdAt",
     } = req.query;
 
-    // Build query object
+    // Build query
     const query = {};
-
-    if (status) {
-      query.status = status;
-    }
 
     if (search) {
       query.$or = [
@@ -750,6 +555,10 @@ router.get(
         { email: { $regex: search, $options: "i" } },
         { subject: { $regex: search, $options: "i" } },
       ];
+    }
+
+    if (status && status !== 'all') {
+      query.status = status;
     }
 
     // Pagination
@@ -803,10 +612,11 @@ router.put(
   "/contacts/:id",
   validateObjectId,
   handleAsyncError(async (req, res) => {
-    const contact = await Contact.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-      runValidators: true,
-    });
+    const contact = await Contact.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true, runValidators: true }
+    );
 
     if (!contact) {
       return res.status(404).json({
@@ -844,7 +654,7 @@ router.delete(
   })
 );
 
-// ===== ANALYTICS ROUTE (NEW - FIXES SPINNING ISSUE) =====
+// ===== ANALYTICS ROUTES =====
 // GET /api/admin/analytics - Get analytics data
 router.get(
   "/analytics",
@@ -858,301 +668,337 @@ router.get(
       "7days": 7,
       "30days": 30,
       "90days": 90,
-      "1year": 365,
+      "1year": 365
     };
+    
     const days = daysMap[range] || 30;
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - days);
+    const startDate = new Date(now - (days * 24 * 60 * 60 * 1000));
 
-    // Get overview statistics
-    const totalPets = await Pet.countDocuments();
-    const totalProducts = await Product.countDocuments();
-    const totalUsers = await User.countDocuments();
-    const totalContacts = await Contact.countDocuments();
-
-    // Get pets by status
-    const petsAvailable = await Pet.countDocuments({ status: "available" });
-    const petsAdopted = await Pet.countDocuments({ status: "adopted" });
-
-    // Get recent activity
-    const recentPets = await Pet.countDocuments({
-      createdAt: { $gte: startDate },
-    });
-    const recentProducts = await Product.countDocuments({
-      createdAt: { $gte: startDate },
-    });
-    const recentContacts = await Contact.countDocuments({
-      createdAt: { $gte: startDate },
-    });
-
-    // Generate daily activity data for charts
-    const chartData = [];
-    for (let i = days - 1; i >= 0; i--) {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-      const dayStart = new Date(date.setHours(0, 0, 0, 0));
-      const dayEnd = new Date(date.setHours(23, 59, 59, 999));
-
-      const dayContacts = await Contact.countDocuments({
-        createdAt: { $gte: dayStart, $lte: dayEnd },
-      });
-
-      chartData.push({
-        date: dayStart.toISOString().split("T")[0],
-        contacts: dayContacts,
-        visits: Math.floor(Math.random() * 100) + 50, // Mock data
-        adoptions: Math.floor(Math.random() * 5), // Mock data
-      });
-    }
-
-    // Category breakdown
-    const petCategories = await Pet.aggregate([
-      {
-        $group: {
-          _id: "$category",
-          count: { $sum: 1 },
-        },
-      },
-      { $sort: { count: -1 } },
-    ]);
-
-    const productCategories = await Product.aggregate([
-      {
-        $group: {
-          _id: "$category",
-          count: { $sum: 1 },
-        },
-      },
-      { $sort: { count: -1 } },
-    ]);
-
-    // Top performing pages (mock data)
-    const topPages = [
-      {
-        page: "/pets",
-        visits: Math.floor(Math.random() * 1000) + 500,
-        bounceRate: "25%",
-      },
-      {
-        page: "/browse",
-        visits: Math.floor(Math.random() * 800) + 400,
-        bounceRate: "20%",
-      },
-      {
-        page: "/products",
-        visits: Math.floor(Math.random() * 600) + 300,
-        bounceRate: "30%",
-      },
-      {
-        page: "/about",
-        visits: Math.floor(Math.random() * 400) + 200,
-        bounceRate: "35%",
-      },
-      {
-        page: "/contact",
-        visits: Math.floor(Math.random() * 300) + 100,
-        bounceRate: "15%",
-      },
-    ];
-
-    // User flow (mock data based on real stats)
-    const userFlow = [
-      { step: "Homepage Visit", users: totalUsers, percentage: "100%" },
-      {
-        step: "Browse Pets",
-        users: Math.floor(totalUsers * 0.75),
-        percentage: "75%",
-      },
-      {
-        step: "View Pet Details",
-        users: Math.floor(totalUsers * 0.45),
-        percentage: "45%",
-      },
-      {
-        step: "Contact/Apply",
-        users: totalContacts,
-        percentage: `${
-          totalUsers > 0 ? Math.floor((totalContacts / totalUsers) * 100) : 0
-        }%`,
-      },
-      {
-        step: "Successful Adoption",
-        users: petsAdopted,
-        percentage: `${
-          totalUsers > 0 ? Math.floor((petsAdopted / totalUsers) * 100) : 0
-        }%`,
-      },
-    ];
-
-    const analyticsData = {
-      overview: {
-        totalVisits: totalUsers * 25, // Estimate
-        uniqueVisitors: totalUsers,
-        adoptionInquiries: totalContacts,
-        successfulAdoptions: petsAdopted,
-        conversionRate:
-          totalContacts > 0
-            ? ((petsAdopted / totalContacts) * 100).toFixed(1)
-            : "0.0",
-        recentActivity: {
-          pets: recentPets,
-          products: recentProducts,
-          contacts: recentContacts,
-        },
-      },
-      chartData: {
-        daily: chartData,
-        petCategories: petCategories.map((cat) => ({
-          category: cat._id || "Unknown",
-          count: cat.count,
-        })),
-        productCategories: productCategories.map((cat) => ({
-          category: cat._id || "Unknown",
-          count: cat.count,
-        })),
-      },
-      topPages,
-      userFlow,
-      recentActivity: [
-        { action: "New pet added", time: "2 hours ago", type: "pets" },
-        { action: "Contact received", time: "4 hours ago", type: "contacts" },
-        { action: "Product updated", time: "6 hours ago", type: "products" },
-        { action: "User registered", time: "8 hours ago", type: "users" },
-      ],
-    };
-
-    res.json({
-      success: true,
-      data: analyticsData,
-      message: `Analytics data for ${range} retrieved successfully`,
-    });
-  })
-);
-
-// ===== REPORTS ROUTE =====
-// GET /api/admin/reports - Generate various reports
-router.get(
-  "/reports",
-  handleAsyncError(async (req, res) => {
-    const { type = "summary", startDate, endDate } = req.query;
-
-    // Set date range
-    const start = startDate
-      ? new Date(startDate)
-      : new Date(new Date().getFullYear(), 0, 1);
-    const end = endDate ? new Date(endDate) : new Date();
-
-    let reportData = {};
-
-    switch (type) {
-      case "pets":
-        reportData = await Pet.aggregate([
-          {
-            $match: {
-              createdAt: { $gte: start, $lte: end },
-            },
-          },
+    try {
+      // Get analytics data
+      const [
+        totalStats,
+        periodStats,
+        petStats,
+        userStats,
+        contactStats,
+        productStats,
+        recentActivity
+      ] = await Promise.all([
+        // Total stats
+        Promise.all([
+          Pet.countDocuments(),
+          User.countDocuments(),
+          Contact.countDocuments(),
+          Product.countDocuments()
+        ]),
+        // Period stats
+        Promise.all([
+          Pet.countDocuments({ createdAt: { $gte: startDate } }),
+          User.countDocuments({ createdAt: { $gte: startDate } }),
+          Contact.countDocuments({ createdAt: { $gte: startDate } }),
+          Product.countDocuments({ createdAt: { $gte: startDate } })
+        ]),
+        // Pet analytics
+        Pet.aggregate([
           {
             $group: {
               _id: "$status",
+              count: { $sum: 1 }
+            }
+          }
+        ]),
+        // User analytics
+        User.aggregate([
+          {
+            $group: {
+              _id: "$role",
+              count: { $sum: 1 }
+            }
+          }
+        ]),
+        // Contact analytics
+        Contact.aggregate([
+          {
+            $group: {
+              _id: "$status",
+              count: { $sum: 1 }
+            }
+          }
+        ]),
+        // Product analytics
+        Product.aggregate([
+          {
+            $group: {
+              _id: "$category",
               count: { $sum: 1 },
-              pets: {
-                $push: { name: "$name", type: "$type", breed: "$breed" },
-              },
-            },
-          },
-        ]);
-        break;
+              totalValue: { $sum: "$price" }
+            }
+          }
+        ]),
+        // Recent activity
+        {
+          pets: Pet.find().sort({ createdAt: -1 }).limit(10).select("name type status createdAt"),
+          users: User.find().sort({ createdAt: -1 }).limit(10).select("name email role createdAt"),
+          contacts: Contact.find().sort({ createdAt: -1 }).limit(10).select("name email subject status createdAt")
+        }
+      ]);
 
-      case "adoptions":
-        reportData = await Pet.find({
-          status: "adopted",
-          updatedAt: { $gte: start, $lte: end },
-        }).select("name type breed adoptionDate");
-        break;
+      const [totalPets, totalUsers, totalContacts, totalProducts] = totalStats;
+      const [newPets, newUsers, newContacts, newProducts] = periodStats;
 
-      case "contacts":
-        reportData = await Contact.find({
-          createdAt: { $gte: start, $lte: end },
-        }).select("name email subject status createdAt");
-        break;
+      // Format analytics data
+      const analytics = {
+        overview: {
+          totalPets,
+          totalUsers,
+          totalContacts,
+          totalProducts,
+          newPets,
+          newUsers,
+          newContacts,
+          newProducts,
+          period: range
+        },
+        chartData: {
+          petsByStatus: petStats.reduce((acc, item) => {
+            acc[item._id] = item.count;
+            return acc;
+          }, {}),
+          usersByRole: userStats.reduce((acc, item) => {
+            acc[item._id] = item.count;
+            return acc;
+          }, {}),
+          contactsByStatus: contactStats.reduce((acc, item) => {
+            acc[item._id] = item.count;
+            return acc;
+          }, {}),
+          productsByCategory: productStats.map(item => ({
+            category: item._id,
+            count: item.count,
+            value: item.totalValue
+          }))
+        },
+        recentActivity
+      };
 
-      default:
-        // Summary report
-        const petStats = await Pet.aggregate([
-          { $group: { _id: "$status", count: { $sum: 1 } } },
-        ]);
-        const userStats = await User.aggregate([
-          { $group: { _id: "$role", count: { $sum: 1 } } },
-        ]);
-        const contactStats = await Contact.aggregate([
-          { $group: { _id: "$status", count: { $sum: 1 } } },
-        ]);
+      console.log("✅ Analytics data compiled successfully");
 
-        reportData = {
-          pets: petStats,
-          users: userStats,
-          contacts: contactStats,
-          period: { start, end },
-        };
+      res.json({
+        success: true,
+        data: analytics,
+        message: "Analytics data retrieved successfully"
+      });
+    } catch (error) {
+      console.error("❌ Analytics error:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to fetch analytics data",
+        error: error.message
+      });
     }
+  })
+);
+
+// ===== SETTINGS ROUTES =====
+// GET /api/admin/settings - Get system settings
+router.get(
+  "/settings",
+  handleAsyncError(async (req, res) => {
+    console.log("⚙️ Fetching system settings");
+
+    try {
+      // Try to get settings from database
+      let settings = await Settings.findOne();
+
+      if (!settings) {
+        // Create default settings if none exist
+        settings = new Settings({
+          siteName: "FurBabies Pet Store",
+          siteDescription: "Find your perfect pet companion",
+          contactEmail: "info@furbabies.com",
+          contactPhone: "(555) 123-4567",
+          allowRegistration: true,
+          requireEmailVerification: false,
+          maxLoginAttempts: 5,
+          defaultPetStatus: "available",
+          maxPetImages: 5,
+          petApprovalRequired: false,
+          maintenanceMode: false,
+          maxUploadSize: "5MB",
+          sessionTimeout: "30",
+          enableAnalytics: true,
+          emailNotifications: true,
+          notifyOnNewContact: true,
+          notifyOnNewRegistration: false,
+          notifyOnAdoption: true
+        });
+        
+        await settings.save();
+        console.log("✅ Created default settings");
+      }
+
+      res.json({
+        success: true,
+        data: settings,
+        message: "Settings retrieved successfully"
+      });
+    } catch (error) {
+      console.error("❌ Settings fetch error:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to fetch settings",
+        error: error.message
+      });
+    }
+  })
+);
+
+// PUT /api/admin/settings - Update system settings
+router.put(
+  "/settings",
+  handleAsyncError(async (req, res) => {
+    console.log("⚙️ Updating system settings", req.body);
+
+    try {
+      let settings = await Settings.findOne();
+
+      if (!settings) {
+        // Create new settings if none exist
+        settings = new Settings(req.body);
+      } else {
+        // Update existing settings
+        Object.assign(settings, req.body);
+        settings.updatedAt = new Date();
+      }
+
+      await settings.save();
+
+      res.json({
+        success: true,
+        data: settings,
+        message: "Settings updated successfully"
+      });
+    } catch (error) {
+      console.error("❌ Settings update error:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to update settings",
+        error: error.message
+      });
+    }
+  })
+);
+
+// ===== REPORTS ROUTES =====
+// GET /api/admin/reports - Generate reports
+router.get(
+  "/reports",
+  handleAsyncError(async (req, res) => {
+    const { type = "all", period = "30days" } = req.query;
+    console.log(`📋 Generating ${type} report for ${period}`);
+
+    const now = new Date();
+    const daysMap = { "7days": 7, "30days": 30, "90days": 90, "1year": 365 };
+    const days = daysMap[period] || 30;
+    const startDate = new Date(now - (days * 24 * 60 * 60 * 1000));
+
+    try {
+      const reports = {};
+
+      if (type === "all" || type === "pets") {
+        reports.pets = await Pet.find({ createdAt: { $gte: startDate } })
+          .sort({ createdAt: -1 })
+          .select("name type breed status age size createdAt");
+      }
+
+      if (type === "all" || type === "users") {
+        reports.users = await User.find({ createdAt: { $gte: startDate } })
+          .sort({ createdAt: -1 })
+          .select("name email role isActive createdAt");
+      }
+
+      if (type === "all" || type === "contacts") {
+        reports.contacts = await Contact.find({ createdAt: { $gte: startDate } })
+          .sort({ createdAt: -1 })
+          .select("name email subject status createdAt");
+      }
+
+      if (type === "all" || type === "products") {
+        reports.products = await Product.find({ createdAt: { $gte: startDate } })
+          .sort({ createdAt: -1 })
+          .select("name category brand price inStock createdAt");
+      }
+
+      res.json({
+        success: true,
+        data: {
+          type,
+          period,
+          dateRange: { start: startDate, end: now },
+          reports
+        },
+        message: "Reports generated successfully"
+      });
+    } catch (error) {
+      console.error("❌ Reports error:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to generate reports",
+        error: error.message
+      });
+    }
+  })
+);
+
+// ===== BATCH OPERATIONS =====
+// POST /api/admin/batch/delete-pets - Batch delete pets
+router.post(
+  "/batch/delete-pets",
+  handleAsyncError(async (req, res) => {
+    const { petIds } = req.body;
+
+    if (!petIds || !Array.isArray(petIds) || petIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Pet IDs array is required"
+      });
+    }
+
+    const result = await Pet.deleteMany({ _id: { $in: petIds } });
 
     res.json({
       success: true,
-      data: reportData,
-      message: `${type} report generated successfully`,
+      data: { deletedCount: result.deletedCount },
+      message: `${result.deletedCount} pets deleted successfully`
     });
   })
 );
 
-// ===== ERROR HANDLING MIDDLEWARE =====
-const adminErrorHandler = (err, req, res, next) => {
-  console.error("❌ Admin route error:", err);
+// POST /api/admin/batch/delete-users - Batch delete users
+router.post(
+  "/batch/delete-users",
+  handleAsyncError(async (req, res) => {
+    const { userIds } = req.body;
 
-  // Mongoose validation error
-  if (err.name === "ValidationError") {
-    const validationErrors = Object.values(err.errors).map((e) => e.message);
-    return res.status(400).json({
-      success: false,
-      message: "Validation failed",
-      errors: validationErrors,
+    if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "User IDs array is required"
+      });
+    }
+
+    const result = await User.deleteMany({ 
+      _id: { $in: userIds },
+      role: { $ne: "admin" } // Prevent deleting admin users
     });
-  }
 
-  // Mongoose cast error (invalid ObjectId)
-  if (err.name === "CastError") {
-    return res.status(400).json({
-      success: false,
-      message: "Invalid ID format",
+    res.json({
+      success: true,
+      data: { deletedCount: result.deletedCount },
+      message: `${result.deletedCount} users deleted successfully`
     });
-  }
-
-  // MongoDB duplicate key error
-  if (err.code === 11000) {
-    return res.status(400).json({
-      success: false,
-      message: "Duplicate entry found",
-    });
-  }
-
-  // JWT errors
-  if (err.name === "JsonWebTokenError") {
-    return res.status(401).json({
-      success: false,
-      message: "Invalid token",
-    });
-  }
-
-  // Default server error
-  res.status(500).json({
-    success: false,
-    message: "Internal server error",
-    error: process.env.NODE_ENV === "development" ? err.message : undefined,
-    timestamp: new Date().toISOString(),
-  });
-};
-
-// Apply error handling middleware
-router.use(adminErrorHandler);
+  })
+);
 
 module.exports = router;
