@@ -1,13 +1,9 @@
-// =============================================================================
-// Complete Contact Form - Fixed Version
-// All imports and functions properly defined
-// =============================================================================
-
+// components/Form/ContactForm.js - FIXED VERSION
 import React, { useState } from 'react';
 import { Container, Row, Col, Card, Alert } from 'react-bootstrap';
-import api from '../services/api';
+import { contactAPI } from '../../services/api';
 
-// Import our form components (make sure the path is correct)
+// Import form components from the fixed index
 import {
   Form,
   CompleteField,
@@ -16,14 +12,13 @@ import {
   Textarea,
   FormActions,
   Select
-} from '../components/Form';
+} from './index';
 
 const ContactForm = () => {
   // State management
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
-  const [formRef, setFormRef] = useState(null);
 
   // Form validation rules
   const validation = {
@@ -38,6 +33,7 @@ const ContactForm = () => {
       patternMessage: 'Please enter a valid email address'
     },
     subject: {
+      required: 'Please select a subject',
       maxLength: 100
     },
     message: { 
@@ -49,6 +45,7 @@ const ContactForm = () => {
 
   // Subject options for the dropdown
   const subjectOptions = [
+    { value: '', label: 'Please select a subject...' },
     { value: 'general', label: 'General Inquiry' },
     { value: 'adoption', label: 'Pet Adoption' },
     { value: 'support', label: 'Customer Support' },
@@ -64,21 +61,17 @@ const ContactForm = () => {
     setSuccess('');
 
     try {
-      // Submit to your API endpoint
-      const response = await api.post('/contact', {
+      // Submit to API endpoint
+      const response = await contactAPI.createContact({
         name: formData.name,
         email: formData.email,
-        subject: formData.subject || 'General Inquiry',
+        subject: formData.subject,
         message: formData.message
       });
 
       if (response.data.success) {
         setSuccess('Thank you for your message! We will get back to you soon.');
-        
-        // Reset the form by clearing all input values
-        if (formRef) {
-          formRef.reset();
-        }
+        // Form will be reset automatically by the Form component
       } else {
         throw new Error(response.data.message || 'Failed to send message');
       }
@@ -95,20 +88,18 @@ const ContactForm = () => {
   };
 
   return (
-    <Container className="py-5">
+    <Container className="py-5" style={{ marginTop: '80px' }}>
       <Row className="justify-content-center">
         <Col md={8} lg={6}>
           <Card className="shadow-lg border-0">
-            <Card.Body className="p-4">
+            <Card.Body className="p-5">
               {/* Header */}
               <div className="text-center mb-4">
-                <h3 className="fw-bold">
-                  <i className="fas fa-envelope me-2 text-primary"></i>
-                  Contact Us
-                </h3>
-                <p className="text-muted">
-                  We'd love to hear from you! Send us a message and we'll respond as soon as possible.
-                </p>
+                <div className="mb-3">
+                  <i className="fas fa-envelope fa-3x text-primary"></i>
+                </div>
+                <h2 className="fw-bold">Get In Touch</h2>
+                <p className="text-muted">We'd love to hear from you. Send us a message and we'll respond as soon as possible.</p>
               </div>
 
               {/* Success Message */}
@@ -128,65 +119,48 @@ const ContactForm = () => {
               )}
 
               {/* Contact Form */}
-              <Form 
-                onSubmit={handleSubmit} 
-                validation={validation}
-                ref={setFormRef}
-              >
+              <Form onSubmit={handleSubmit} validation={validation}>
                 {/* Name Field */}
-                <CompleteField 
-                  label={
-                    <>
-                      <i className="fas fa-user me-1"></i>
-                      Full Name
-                    </>
-                  }
-                  name="name" 
+                <CompleteField
+                  label="Name"
+                  name="name"
                   type="text"
-                  required 
-                  helpText="Enter your first and last name"
+                  required
                   inputProps={{
-                    placeholder: "John Doe",
-                    autoComplete: "name",
-                    autoFocus: true
+                    placeholder: "Your full name",
+                    autoComplete: "name"
                   }}
                 />
 
                 {/* Email Field */}
-                <CompleteField 
-                  label={
-                    <>
-                      <i className="fas fa-envelope me-1"></i>
-                      Email Address
-                    </>
-                  }
-                  name="email" 
-                  type="email" 
-                  required 
-                  helpText="We'll use this email to respond to your message"
+                <CompleteField
+                  label="Email Address"
+                  name="email"
+                  type="email"
+                  required
                   inputProps={{
-                    placeholder: "john@example.com",
+                    placeholder: "your.email@example.com",
                     autoComplete: "email"
                   }}
                 />
 
                 {/* Subject Field */}
-                <FormField>
-                  <Label htmlFor="subject">
+                <FormField required>
+                  <Label htmlFor="subject" required>
                     <i className="fas fa-tag me-1"></i>
                     Subject
                   </Label>
                   <Select
                     id="subject"
                     name="subject"
-                    placeholder="What is this message about?"
                     options={subjectOptions}
+                    required
                   />
                 </FormField>
 
                 {/* Message Field */}
                 <FormField required>
-                  <Label htmlFor="message">
+                  <Label htmlFor="message" required>
                     <i className="fas fa-comment-dots me-1"></i>
                     Message
                   </Label>
@@ -195,6 +169,7 @@ const ContactForm = () => {
                     name="message"
                     rows={5}
                     placeholder="Tell us how we can help you..."
+                    required
                   />
                 </FormField>
 
@@ -210,7 +185,7 @@ const ContactForm = () => {
                 <FormActions alignment="center">
                   <button 
                     type="submit" 
-                    className="btn btn-primary btn-lg"
+                    className="btn btn-primary btn-lg px-5"
                     disabled={loading}
                   >
                     {loading ? (
@@ -235,5 +210,4 @@ const ContactForm = () => {
   );
 };
 
-// Export the component
 export default ContactForm;

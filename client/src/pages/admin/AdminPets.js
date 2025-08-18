@@ -1,13 +1,10 @@
-// src/pages/admin/AdminPets.js
+// src/pages/admin/AdminPets.js - FIXED VERSION
 
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import SafeImage from '../../components/SafeImage';
 import usePetFilters from '../../hooks/usePetFilters';
-import { 
-  getOptimizedImageUrl,
-  hasValidImageExtension
-} from '../../utils/imageUtils';
+import { getOptimizedImageUrl } from '../../utils/imageUtils';
 import './AdminPets.css';
 
 const AdminPets = () => {
@@ -133,8 +130,14 @@ const AdminPets = () => {
         throw new Error('Failed to delete pets');
       }
 
-      // Remove deleted pets from state
-      setPets(prev => prev.filter(pet => !selectedPets.includes(pet.id)));
+      // Refresh pets data
+      const updatedResponse = await fetch('/api/admin/pets', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+        }
+      });
+      const updatedData = await updatedResponse.json();
+      setPets(updatedData);
       setSelectedPets([]);
       
       alert(`Successfully deleted ${selectedPets.length} pet(s)`);
@@ -148,7 +151,12 @@ const AdminPets = () => {
   if (loading) {
     return (
       <div className="admin-pets loading">
-        <div className="loading-spinner">Loading pets...</div>
+        <div className="loading-spinner">
+          <div className="spinner-border text-primary" role="status">
+            <span className="visually-hidden">Loading...</span>
+          </div>
+          <p>Loading pets...</p>
+        </div>
       </div>
     );
   }
@@ -156,10 +164,13 @@ const AdminPets = () => {
   if (error) {
     return (
       <div className="admin-pets error">
-        <div className="error-message">
-          <h2>Error Loading Pets</h2>
+        <div className="alert alert-danger">
+          <h4>Error Loading Pets</h4>
           <p>{error}</p>
-          <button onClick={() => window.location.reload()}>
+          <button 
+            className="btn btn-primary"
+            onClick={() => window.location.reload()}
+          >
             Try Again
           </button>
         </div>
@@ -169,51 +180,52 @@ const AdminPets = () => {
 
   return (
     <div className="admin-pets">
+      {/* Header */}
       <div className="admin-pets-header">
         <div className="header-content">
-          <h1>Manage Pets</h1>
-          <p>Add, edit, and manage all pets in the system</p>
+          <h1>
+            <i className="fas fa-paw me-2"></i>
+            Pet Management
+          </h1>
+          <div className="header-actions">
+            <Link to="/admin/pets/new" className="btn btn-primary">
+              <i className="fas fa-plus me-2"></i>
+              Add New Pet
+            </Link>
+          </div>
         </div>
-        <div className="header-actions">
-          <Link to="/admin/pets/new" className="btn btn-primary">
-            ➕ Add New Pet
-          </Link>
-        </div>
-      </div>
 
-      {/* Filter Section */}
-      <div className="admin-filters">
-        <div className="filters-row">
-          {/* Search */}
+        {/* Filters */}
+        <div className="filters-section">
           <div className="filter-group">
             <label>Search</label>
             <input
               type="text"
-              placeholder="Search pets..."
-              value={filters.search}
+              placeholder="Search by name, breed, or species..."
+              value={filters.search || ''}
               onChange={(e) => updateFilter('search', e.target.value)}
             />
           </div>
 
-          {/* Species Filter */}
           <div className="filter-group">
             <label>Species</label>
             <select
-              value={filters.species}
+              value={filters.species || ''}
               onChange={(e) => updateFilter('species', e.target.value)}
             >
               <option value="">All Species</option>
               {filterOptions.species.map(species => (
-                <option key={species} value={species}>{species}</option>
+                <option key={species} value={species}>
+                  {species.charAt(0).toUpperCase() + species.slice(1)}
+                </option>
               ))}
             </select>
           </div>
 
-          {/* Status Filter */}
           <div className="filter-group">
             <label>Status</label>
             <select
-              value={filters.status}
+              value={filters.status || ''}
               onChange={(e) => updateFilter('status', e.target.value)}
             >
               <option value="">All Statuses</option>
@@ -312,120 +324,108 @@ const AdminPets = () => {
       {/* Pets Table */}
       <div className="pets-table-container">
         {filteredPets.length === 0 ? (
-          <div className="no-pets-message">
-            <h3>No pets found</h3>
-            <p>Try adjusting your filters or add a new pet.</p>
-            <Link to="/admin/pets/new" className="btn btn-primary">
-              Add New Pet
-            </Link>
+          <div className="no-pets">
+            <div className="no-pets-content">
+              <i className="fas fa-paw fa-3x text-muted mb-3"></i>
+              <h3>No pets found</h3>
+              <p className="text-muted">
+                {hasActiveFilters 
+                  ? 'Try adjusting your filters to see more results.'
+                  : 'No pets have been added yet.'
+                }
+              </p>
+              {!hasActiveFilters && (
+                <Link to="/admin/pets/new" className="btn btn-primary">
+                  <i className="fas fa-plus me-2"></i>
+                  Add Your First Pet
+                </Link>
+              )}
+            </div>
           </div>
         ) : (
-          <table className="pets-table">
-            <thead>
-              <tr>
-                <th>
-                  <input
-                    type="checkbox"
-                    checked={selectedPets.length === filteredPets.length}
-                    onChange={(e) => handleSelectAll(e.target.checked)}
-                  />
-                </th>
-                <th>Image</th>
-                <th>Name</th>
-                <th>Species</th>
-                <th>Breed</th>
-                <th>Age</th>
-                <th>Status</th>
-                <th>Added</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredPets.map(pet => (
-                <AdminPetRow
-                  key={pet.id}
-                  pet={pet}
-                  isSelected={selectedPets.includes(pet.id)}
-                  onSelect={(isSelected) => handlePetSelection(pet.id, isSelected)}
-                />
-              ))}
-            </tbody>
-          </table>
+          <div className="table-responsive">
+            <table className="table table-hover">
+              <thead>
+                <tr>
+                  <th>
+                    <input
+                      type="checkbox"
+                      checked={selectedPets.length === filteredPets.length && filteredPets.length > 0}
+                      onChange={(e) => handleSelectAll(e.target.checked)}
+                    />
+                  </th>
+                  <th>Image</th>
+                  <th>Name</th>
+                  <th>Species</th>
+                  <th>Breed</th>
+                  <th>Age</th>
+                  <th>Status</th>
+                  <th>Updated</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredPets.map(pet => (
+                  <tr key={pet.id}>
+                    <td>
+                      <input
+                        type="checkbox"
+                        checked={selectedPets.includes(pet.id)}
+                        onChange={(e) => handlePetSelection(pet.id, e.target.checked)}
+                      />
+                    </td>
+                    <td>
+                      <div className="pet-image-thumb">
+                        <SafeImage
+                          src={getOptimizedImageUrl(pet.image, { width: 60, height: 60 })}
+                          alt={pet.name}
+                          isPet={true}
+                        />
+                      </div>
+                    </td>
+                    <td>
+                      <Link to={`/admin/pets/${pet.id}`} className="pet-name-link">
+                        {pet.name}
+                      </Link>
+                    </td>
+                    <td>{pet.species}</td>
+                    <td>{pet.breed}</td>
+                    <td>{pet.age}</td>
+                    <td>
+                      <span className={`status-badge ${pet.status}`}>
+                        {pet.status}
+                      </span>
+                    </td>
+                    <td>
+                      {new Date(pet.updatedAt).toLocaleDateString()}
+                    </td>
+                    <td>
+                      <div className="action-buttons">
+                        <Link 
+                          to={`/admin/pets/${pet.id}/edit`}
+                          className="btn btn-sm btn-outline-primary"
+                          title="Edit Pet"
+                        >
+                          <i className="fas fa-edit"></i>
+                        </Link>
+                        <Link 
+                          to={`/pets/${pet.id}`}
+                          className="btn btn-sm btn-outline-secondary"
+                          title="View Pet"
+                          target="_blank"
+                        >
+                          <i className="fas fa-eye"></i>
+                        </Link>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>
-  );
-};
-
-// Admin Pet Row Component
-const AdminPetRow = ({ pet, isSelected, onSelect }) => {
-  const imageUrl = getOptimizedImageUrl(pet.image, { width: 60, height: 60 });
-  
-  return (
-    <tr className={`pet-row ${isSelected ? 'selected' : ''}`}>
-      <td>
-        <input
-          type="checkbox"
-          checked={isSelected}
-          onChange={(e) => onSelect(e.target.checked)}
-        />
-      </td>
-      <td>
-        <div className="pet-image-cell">
-          <SafeImage
-            src={imageUrl}
-            alt={pet.name}
-            className="pet-thumbnail"
-            isPet={true}
-          />
-          {!hasValidImageExtension(pet.image) && (
-            <span className="no-image-indicator" title="No valid image">
-              📷
-            </span>
-          )}
-        </div>
-      </td>
-      <td>
-        <div className="pet-name-cell">
-          <strong>{pet.name}</strong>
-          {pet.microchipId && (
-            <small>ID: {pet.microchipId}</small>
-          )}
-        </div>
-      </td>
-      <td>{pet.species}</td>
-      <td>{pet.breed}</td>
-      <td>{pet.age}</td>
-      <td>
-        <span className={`status-badge ${pet.status}`}>
-          {pet.status}
-        </span>
-      </td>
-      <td>
-        <small>
-          {new Date(pet.createdAt).toLocaleDateString()}
-        </small>
-      </td>
-      <td>
-        <div className="action-buttons">
-          <Link
-            to={`/admin/pets/${pet.id}`}
-            className="btn btn-sm btn-primary"
-            title="Edit Pet"
-          >
-            ✏️
-          </Link>
-          <Link
-            to={`/pets/${pet.id}`}
-            className="btn btn-sm btn-secondary"
-            title="View Pet"
-            target="_blank"
-          >
-            👁️
-          </Link>
-        </div>
-      </td>
-    </tr>
   );
 };
 

@@ -1,4 +1,4 @@
-// src/components/Form/Form.js - FIXED to avoid DOM prop warnings
+// src/components/Form/Form.js - COMPLETE VERSION with missing components
 import React, { useState } from 'react';
 
 const Form = ({ 
@@ -80,27 +80,20 @@ const Form = ({
     }
   };
 
-  // ✅ FIXED: More aggressive detection of form components
+  // More aggressive detection of form components
   const childrenWithProps = React.Children.map(children, child => {
     if (React.isValidElement(child)) {
-      // Get all possible component identifiers
       const componentName = child.type?.displayName || child.type?.name;
       const childProps = child.props || {};
       
-      // Check if this is definitely a form component
       const isFormComponent = 
-        // By component name
-        ['FormField', 'CompleteField', 'Input', 'Checkbox', 'FormRow', 'FormCol', 'FormActions', 'Label'].includes(componentName) ||
-        // By having form-related props
+        ['FormField', 'CompleteField', 'Input', 'Checkbox', 'FormRow', 'FormCol', 'FormActions', 'Label', 'Textarea', 'Select'].includes(componentName) ||
         ('name' in childProps) ||
         ('id' in childProps && 'label' in childProps) ||
-        // Specifically for checkbox
         (childProps.type === 'checkbox') ||
-        // If it has a name prop, it's probably a form input
         Boolean(childProps.name);
       
       if (isFormComponent) {
-        console.log(`Passing form props to component: ${componentName}`, childProps);
         return React.cloneElement(child, {
           formData,
           errors,
@@ -113,7 +106,7 @@ const Form = ({
     return child;
   });
 
-  // ✅ FIXED: Don't pass form-specific props to the form DOM element
+  // Don't pass form-specific props to the form DOM element
   const { formData: _, errors: __, touched: ___, handleChange: ____, validation: _____, ...cleanProps } = otherProps;
 
   return (
@@ -129,6 +122,10 @@ const Form = ({
 };
 
 export default Form;
+
+// =============================================================================
+// LAYOUT COMPONENTS
+// =============================================================================
 
 export const FormRow = ({ children, className = '' }) => (
   <div className={`row ${className}`}>{children}</div>
@@ -158,7 +155,6 @@ export const FormField = ({
   validation,
   ...props
 }) => {
-  // ✅ FIXED: Remove form props before passing to DOM
   const { formData: _, errors: __, touched: ___, handleChange: ____, validation: _____, ...cleanProps } = props;
   
   return (
@@ -179,6 +175,10 @@ export const FormField = ({
   );
 };
 
+// =============================================================================
+// INPUT COMPONENTS
+// =============================================================================
+
 export const Label = ({ htmlFor, children, required = false, className = '' }) => (
   <label htmlFor={htmlFor} className={`form-label ${className}`}>
     {children}{required && <span className="text-danger ms-1">*</span>}
@@ -198,7 +198,6 @@ export const Input = ({
   const hasError = touched?.[name] && errors?.[name];
   const value = formData?.[name] || '';
 
-  // ✅ FIXED: Remove form props before passing to DOM
   const { formData: _, errors: __, touched: ___, validation: ____, ...cleanProps } = props;
 
   return (
@@ -217,21 +216,88 @@ export const Input = ({
   );
 };
 
+export const Textarea = ({ 
+  name, 
+  className = '', 
+  formData, 
+  errors, 
+  touched, 
+  handleChange, 
+  rows = 3,
+  ...props
+}) => {
+  const hasError = touched?.[name] && errors?.[name];
+  const value = formData?.[name] || '';
+
+  const { formData: _, errors: __, touched: ___, validation: ____, ...cleanProps } = props;
+
+  return (
+    <>
+      <textarea
+        name={name}
+        value={value}
+        onChange={handleChange}
+        rows={rows}
+        className={`form-control ${hasError ? 'is-invalid' : ''} ${className}`}
+        {...cleanProps}
+      />
+      {hasError && <div className="invalid-feedback">{errors[name]}</div>}
+    </>
+  );
+};
+
+export const Select = ({ 
+  name, 
+  options = [], 
+  className = '', 
+  formData, 
+  errors, 
+  touched, 
+  handleChange, 
+  children,
+  ...props
+}) => {
+  const hasError = touched?.[name] && errors?.[name];
+  const value = formData?.[name] || '';
+
+  const { formData: _, errors: __, touched: ___, validation: ____, ...cleanProps } = props;
+
+  return (
+    <>
+      <select
+        name={name}
+        value={value}
+        onChange={handleChange}
+        className={`form-select ${hasError ? 'is-invalid' : ''} ${className}`}
+        {...cleanProps}
+      >
+        {/* Render children (option elements) if provided */}
+        {children}
+        
+        {/* Render options array if provided and no children */}
+        {!children && options.map(option => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+      {hasError && <div className="invalid-feedback">{errors[name]}</div>}
+    </>
+  );
+};
+
 export const InputGroup = ({ children, className = '' }) => (
   <div className={`input-group ${className}`}>{children}</div>
 );
 
-// ✅ FIXED: Checkbox component with better prop handling
 export const Checkbox = ({ 
   id, name, label, className = '', formData, errors, touched, handleChange, ...props
 }) => {
   const hasError = touched?.[name] && errors?.[name];
-  const checked = Boolean(formData?.[name]); // Ensure boolean value
+  const checked = Boolean(formData?.[name]);
 
-  // ✅ FIXED: Remove form props before passing to DOM
   const { formData: _, errors: __, touched: ___, validation: ____, ...cleanProps } = props;
 
-  // ✅ Provide default handler if none provided
   const onChange = handleChange || (() => {
     console.warn(`No handleChange provided for checkbox: ${name}`);
   });
@@ -253,6 +319,10 @@ export const Checkbox = ({
   );
 };
 
+// =============================================================================
+// COMPOSITE COMPONENTS
+// =============================================================================
+
 export const CompleteField = ({ 
   label, name, type = 'text', required = false, helpText, floating = false, inputProps = {}, className = '', 
   formData, errors, touched, handleChange, validation, ...props
@@ -260,7 +330,6 @@ export const CompleteField = ({
   const hasError = touched?.[name] && errors?.[name];
   const value = formData?.[name] || '';
 
-  // ✅ FIXED: Remove form props before passing to DOM
   const { formData: _, errors: __, touched: ___, validation: ____, ...cleanProps } = props;
 
   if (floating) {
@@ -301,6 +370,10 @@ export const CompleteField = ({
   );
 };
 
+// =============================================================================
+// UTILITY COMPONENTS
+// =============================================================================
+
 export const FormActions = ({ children, alignment = 'left', className = '' }) => {
   const getAlignmentClass = () => {
     switch (alignment) {
@@ -318,12 +391,17 @@ export const HelpText = ({ children, size = 'normal', className = '' }) => {
   return <div className={`form-text ${sizeClass} ${className}`}>{children}</div>;
 };
 
-// Add displayNames for better component detection
+// =============================================================================
+// ADD DISPLAY NAMES FOR BETTER COMPONENT DETECTION
+// =============================================================================
+
 FormRow.displayName = 'FormRow';
 FormCol.displayName = 'FormCol';
 FormField.displayName = 'FormField';
 Label.displayName = 'Label';
 Input.displayName = 'Input';
+Textarea.displayName = 'Textarea';
+Select.displayName = 'Select';
 InputGroup.displayName = 'InputGroup';
 Checkbox.displayName = 'Checkbox';
 CompleteField.displayName = 'CompleteField';

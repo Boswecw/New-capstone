@@ -1,9 +1,9 @@
 // client/src/pages/NewsDetail.js - UPDATED with custom Button system
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Container, Row, Col, Card, Spinner, Alert, Badge } from 'react-bootstrap';
+import { Container, Row, Col, Card, Spinner, Alert, Badge, Button } from 'react-bootstrap';
 import { newsAPI } from '../services/api';
-import Button from '../components/button/Button.jsx'; // ✅ ADDED: Custom Button component
+
 
 const NewsDetail = () => {
   const { id } = useParams();

@@ -1,12 +1,11 @@
 // client/src/pages/Register.js - UPDATED with custom Button system
 import React, { useState } from 'react';
-import { Container, Row, Col, Card, Form, Alert } from 'react-bootstrap';
+import { Container, Row, Col, Card, Form, Alert, Button } from 'react-bootstrap';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { useAuth } from '../contexts/AuthContext';
 import PasswordRequirements from '../components/PasswordRequirements';
 import { validateName, validateEmail, validatePassword } from '../utils/validation';
-import Button from '../components/button/Button.jsx'; // ✅ ADDED: Custom Button component
 
 const Register = () => {
   const { user, register } = useAuth();

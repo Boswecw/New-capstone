@@ -1,4 +1,5 @@
-// client/src/pages/admin/AdminSettings.js - Enhanced with all imports implemented
+// client/src/pages/admin/AdminSettings.js - FIXED VERSION
+
 import React, { useState, useEffect, useCallback } from "react";
 import {
   Row,
@@ -63,14 +64,15 @@ const AdminSettings = () => {
   const [unsavedChanges, setUnsavedChanges] = useState(false);
   const [showPasswords, setShowPasswords] = useState({});
   const [testingConnection, setTestingConnection] = useState(false);
+  const [backupHistory, setBackupHistory] = useState([]);
 
   const showAlert = (message, variant) => {
     setAlert({ show: true, message, variant });
     setTimeout(() => setAlert({ show: false, message: "", variant: "" }), 5000);
   };
 
-  // Wrap fetchSettings in useCallback to fix dependency issue
-  const fetchSettings = useCallback(async () => {
+  // Load settings from API
+  const loadSettings = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -104,13 +106,59 @@ const AdminSettings = () => {
         }
         console.log("✅ Settings loaded from local storage or defaults");
       } else {
+        setError("Failed to load settings");
         showAlert("Failed to load settings", "danger");
-        console.log("✅ Settings loaded from system data");
+        console.log("❌ Settings failed to load");
       }
     } finally {
       setLoading(false);
     }
   }, []);
+
+  // Load configuration entries
+  const loadConfigEntries = useCallback(async () => {
+    try {
+      const response = await api.get("/admin/config");
+      if (response.data.success) {
+        console.log("Config entries loaded:", response.data.data);
+      }
+    } catch (error) {
+      console.error("Error loading config entries:", error);
+    }
+  }, []);
+
+  // Load system logs
+  const loadSystemLogs = useCallback(async () => {
+    try {
+      const response = await api.get("/admin/logs");
+      if (response.data.success) {
+        console.log("System logs loaded:", response.data.data);
+      }
+    } catch (error) {
+      console.error("Error loading system logs:", error);
+    }
+  }, []);
+
+  // Load backup history
+  const loadBackupHistory = useCallback(async () => {
+    try {
+      const response = await api.get("/admin/backups");
+      if (response.data.success) {
+        setBackupHistory(response.data.data || []);
+      }
+    } catch (error) {
+      console.error("Error loading backup history:", error);
+      setBackupHistory([]);
+    }
+  }, []);
+
+  // Load all data on component mount
+  useEffect(() => {
+    loadSettings();
+    loadConfigEntries();
+    loadSystemLogs();
+    loadBackupHistory();
+  }, [loadSettings, loadConfigEntries, loadSystemLogs, loadBackupHistory]);
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -139,6 +187,7 @@ const AdminSettings = () => {
         );
         setUnsavedChanges(false);
       } else {
+        setError("Failed to save settings");
         showAlert(
           error.response?.data?.message || "Failed to save settings",
           "danger"
@@ -188,35 +237,6 @@ const AdminSettings = () => {
     }
   };
 
-  const generateBackup = async () => {
-    try {
-      const backupData = {
-        settings,
-        timestamp: new Date().toISOString(),
-        version: "1.0"
-      };
-      
-      const blob = new Blob([JSON.stringify(backupData, null, 2)], {
-        type: "application/json"
-      });
-      
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `furbabies-backup-${new Date().toISOString().split('T')[0]}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      
-      setShowBackupModal(false);
-      showAlert("Backup file downloaded", "success");
-    } catch (error) {
-      console.error("Error generating backup:", error);
-      showAlert("Failed to generate backup", "danger");
-    }
-  };
-
   const testEmailConnection = async () => {
     setTestingConnection(true);
     try {
@@ -228,12 +248,12 @@ const AdminSettings = () => {
       });
       
       if (response.data.success) {
-        showAlert("Email connection successful", "success");
+        showAlert("Email connection test successful!", "success");
       } else {
-        showAlert("Email connection failed", "danger");
+        throw new Error(response.data.message);
       }
     } catch (error) {
-      showAlert("Email connection test failed", "danger");
+      showAlert(`Email test failed: ${error.message}`, "danger");
     } finally {
       setTestingConnection(false);
     }
@@ -246,17 +266,12 @@ const AdminSettings = () => {
     }));
   };
 
-  useEffect(() => {
-    fetchSettings();
-  }, [fetchSettings]); // Fixed dependency
-
   if (loading) {
     return (
-      <div className="text-center py-5">
+      <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '400px' }}>
         <Spinner animation="border" role="status">
           <span className="visually-hidden">Loading...</span>
         </Spinner>
-        <p className="mt-2">Loading settings...</p>
       </div>
     );
   }
@@ -348,37 +363,23 @@ const AdminSettings = () => {
       <Form onSubmit={handleSave}>
         {/* General Settings Tab */}
         {activeTab === 'general' && (
-          <Row className="g-4">
-            <Col lg={6}>
-              <Card>
-                <Card.Header>
-                  <h5 className="mb-0">
-                    <i className="fas fa-info-circle me-2"></i>Site Information
-                  </h5>
-                </Card.Header>
-                <Card.Body>
+          <Card>
+            <Card.Header>
+              <h5 className="mb-0">
+                <i className="fas fa-globe me-2"></i>General Settings
+              </h5>
+            </Card.Header>
+            <Card.Body>
+              <Row>
+                <Col md={6}>
                   <Form.Group className="mb-3">
                     <Form.Label>Site Name</Form.Label>
                     <Form.Control
                       type="text"
                       value={settings.siteName}
                       onChange={(e) => handleInputChange("siteName", e.target.value)}
+                      placeholder="FurBabies Pet Store"
                     />
-                  </Form.Group>
-
-                  <Form.Group className="mb-3">
-                    <Form.Label>Site URL</Form.Label>
-                    <InputGroup>
-                      <InputGroup.Text>
-                        <i className="fas fa-link"></i>
-                      </InputGroup.Text>
-                      <Form.Control
-                        type="url"
-                        value={settings.siteUrl}
-                        onChange={(e) => handleInputChange("siteUrl", e.target.value)}
-                        placeholder="https://yoursite.com"
-                      />
-                    </InputGroup>
                   </Form.Group>
 
                   <Form.Group className="mb-3">
@@ -388,6 +389,38 @@ const AdminSettings = () => {
                       rows={3}
                       value={settings.siteDescription}
                       onChange={(e) => handleInputChange("siteDescription", e.target.value)}
+                      placeholder="Find your perfect pet companion"
+                    />
+                  </Form.Group>
+
+                  <Form.Group className="mb-3">
+                    <Form.Label>Contact Email</Form.Label>
+                    <Form.Control
+                      type="email"
+                      value={settings.contactEmail}
+                      onChange={(e) => handleInputChange("contactEmail", e.target.value)}
+                      placeholder="info@furbabies.com"
+                    />
+                  </Form.Group>
+                </Col>
+                <Col md={6}>
+                  <Form.Group className="mb-3">
+                    <Form.Label>Contact Phone</Form.Label>
+                    <Form.Control
+                      type="tel"
+                      value={settings.contactPhone}
+                      onChange={(e) => handleInputChange("contactPhone", e.target.value)}
+                      placeholder="(555) 123-4567"
+                    />
+                  </Form.Group>
+
+                  <Form.Group className="mb-3">
+                    <Form.Label>Site URL</Form.Label>
+                    <Form.Control
+                      type="url"
+                      value={settings.siteUrl}
+                      onChange={(e) => handleInputChange("siteUrl", e.target.value)}
+                      placeholder="https://furbabies.com"
                     />
                   </Form.Group>
 
@@ -408,49 +441,10 @@ const AdminSettings = () => {
                       </Button>
                     </InputGroup>
                   </Form.Group>
-                </Card.Body>
-              </Card>
-            </Col>
-
-            <Col lg={6}>
-              <Card>
-                <Card.Header>
-                  <h5 className="mb-0">
-                    <i className="fas fa-phone me-2"></i>Contact Information
-                  </h5>
-                </Card.Header>
-                <Card.Body>
-                  <Form.Group className="mb-3">
-                    <Form.Label>Contact Email</Form.Label>
-                    <InputGroup>
-                      <InputGroup.Text>
-                        <i className="fas fa-envelope"></i>
-                      </InputGroup.Text>
-                      <Form.Control
-                        type="email"
-                        value={settings.contactEmail}
-                        onChange={(e) => handleInputChange("contactEmail", e.target.value)}
-                      />
-                    </InputGroup>
-                  </Form.Group>
-
-                  <Form.Group>
-                    <Form.Label>Contact Phone</Form.Label>
-                    <InputGroup>
-                      <InputGroup.Text>
-                        <i className="fas fa-phone"></i>
-                      </InputGroup.Text>
-                      <Form.Control
-                        type="text"
-                        value={settings.contactPhone}
-                        onChange={(e) => handleInputChange("contactPhone", e.target.value)}
-                      />
-                    </InputGroup>
-                  </Form.Group>
-                </Card.Body>
-              </Card>
-            </Col>
-          </Row>
+                </Col>
+              </Row>
+            </Card.Body>
+          </Card>
         )}
 
         {/* User Settings Tab */}
@@ -458,7 +452,7 @@ const AdminSettings = () => {
           <Card>
             <Card.Header>
               <h5 className="mb-0">
-                <i className="fas fa-users me-2"></i>User Management
+                <i className="fas fa-users me-2"></i>User Settings
               </h5>
             </Card.Header>
             <Card.Body>
@@ -467,7 +461,7 @@ const AdminSettings = () => {
                   <Form.Group className="mb-3">
                     <Form.Check
                       type="checkbox"
-                      label="Allow new user registration"
+                      label="Allow User Registration"
                       checked={settings.allowRegistration}
                       onChange={(e) => handleInputChange("allowRegistration", e.target.checked)}
                     />
@@ -476,7 +470,7 @@ const AdminSettings = () => {
                   <Form.Group className="mb-3">
                     <Form.Check
                       type="checkbox"
-                      label="Require email verification"
+                      label="Require Email Verification"
                       checked={settings.requireEmailVerification}
                       onChange={(e) => handleInputChange("requireEmailVerification", e.target.checked)}
                     />
@@ -499,12 +493,12 @@ const AdminSettings = () => {
           </Card>
         )}
 
-        {/* Pets Settings Tab */}
+        {/* Pet Settings Tab */}
         {activeTab === 'pets' && (
           <Card>
             <Card.Header>
               <h5 className="mb-0">
-                <i className="fas fa-paw me-2"></i>Pet Management
+                <i className="fas fa-paw me-2"></i>Pet Settings
               </h5>
             </Card.Header>
             <Card.Body>
@@ -523,23 +517,23 @@ const AdminSettings = () => {
                   </Form.Group>
 
                   <Form.Group className="mb-3">
+                    <Form.Check
+                      type="checkbox"
+                      label="Pet Approval Required"
+                      checked={settings.petApprovalRequired}
+                      onChange={(e) => handleInputChange("petApprovalRequired", e.target.checked)}
+                    />
+                  </Form.Group>
+                </Col>
+                <Col md={6}>
+                  <Form.Group className="mb-3">
                     <Form.Label>Max Pet Images</Form.Label>
                     <Form.Control
                       type="number"
                       value={settings.maxPetImages}
                       onChange={(e) => handleInputChange("maxPetImages", parseInt(e.target.value))}
                       min="1"
-                      max="10"
-                    />
-                  </Form.Group>
-                </Col>
-                <Col md={6}>
-                  <Form.Group className="mb-3">
-                    <Form.Check
-                      type="checkbox"
-                      label="Pet approval required"
-                      checked={settings.petApprovalRequired}
-                      onChange={(e) => handleInputChange("petApprovalRequired", e.target.checked)}
+                      max="20"
                     />
                   </Form.Group>
                 </Col>
@@ -553,7 +547,7 @@ const AdminSettings = () => {
           <Card>
             <Card.Header>
               <h5 className="mb-0">
-                <i className="fas fa-server me-2"></i>System Configuration
+                <i className="fas fa-server me-2"></i>System Settings
               </h5>
             </Card.Header>
             <Card.Body>
@@ -626,7 +620,7 @@ const AdminSettings = () => {
                   </>
                 ) : (
                   <>
-                    <i className="fas fa-plug me-2"></i>
+                    <i className="fas fa-vial me-2"></i>
                     Test Connection
                   </>
                 )}
@@ -636,18 +630,50 @@ const AdminSettings = () => {
               <Row>
                 <Col md={6}>
                   <Form.Group className="mb-3">
+                    <Form.Check
+                      type="checkbox"
+                      label="Enable Email Notifications"
+                      checked={settings.emailNotifications}
+                      onChange={(e) => handleInputChange("emailNotifications", e.target.checked)}
+                    />
+                  </Form.Group>
+
+                  <Form.Group className="mb-3">
+                    <Form.Check
+                      type="checkbox"
+                      label="Notify on New Contact"
+                      checked={settings.notifyOnNewContact}
+                      onChange={(e) => handleInputChange("notifyOnNewContact", e.target.checked)}
+                    />
+                  </Form.Group>
+
+                  <Form.Group className="mb-3">
+                    <Form.Check
+                      type="checkbox"
+                      label="Notify on New Registration"
+                      checked={settings.notifyOnNewRegistration}
+                      onChange={(e) => handleInputChange("notifyOnNewRegistration", e.target.checked)}
+                    />
+                  </Form.Group>
+
+                  <Form.Group className="mb-3">
+                    <Form.Check
+                      type="checkbox"
+                      label="Notify on Adoption"
+                      checked={settings.notifyOnAdoption}
+                      onChange={(e) => handleInputChange("notifyOnAdoption", e.target.checked)}
+                    />
+                  </Form.Group>
+                </Col>
+                <Col md={6}>
+                  <Form.Group className="mb-3">
                     <Form.Label>SMTP Host</Form.Label>
-                    <InputGroup>
-                      <InputGroup.Text>
-                        <i className="fas fa-server"></i>
-                      </InputGroup.Text>
-                      <Form.Control
-                        type="text"
-                        value={settings.smtpHost}
-                        onChange={(e) => handleInputChange("smtpHost", e.target.value)}
-                        placeholder="smtp.gmail.com"
-                      />
-                    </InputGroup>
+                    <Form.Control
+                      type="text"
+                      value={settings.smtpHost}
+                      onChange={(e) => handleInputChange("smtpHost", e.target.value)}
+                      placeholder="smtp.gmail.com"
+                    />
                   </Form.Group>
 
                   <Form.Group className="mb-3">
@@ -662,17 +688,12 @@ const AdminSettings = () => {
 
                   <Form.Group className="mb-3">
                     <Form.Label>SMTP Username</Form.Label>
-                    <InputGroup>
-                      <InputGroup.Text>
-                        <i className="fas fa-user"></i>
-                      </InputGroup.Text>
-                      <Form.Control
-                        type="text"
-                        value={settings.smtpUser}
-                        onChange={(e) => handleInputChange("smtpUser", e.target.value)}
-                        placeholder="your-email@gmail.com"
-                      />
-                    </InputGroup>
+                    <Form.Control
+                      type="text"
+                      value={settings.smtpUser}
+                      onChange={(e) => handleInputChange("smtpUser", e.target.value)}
+                      placeholder="your-email@gmail.com"
+                    />
                   </Form.Group>
 
                   <Form.Group className="mb-3">
@@ -693,61 +714,23 @@ const AdminSettings = () => {
                     </InputGroup>
                   </Form.Group>
                 </Col>
-                <Col md={6}>
-                  <h6>Notification Settings</h6>
-                  <Form.Group className="mb-3">
-                    <Form.Check
-                      type="checkbox"
-                      label="Enable email notifications"
-                      checked={settings.emailNotifications}
-                      onChange={(e) => handleInputChange("emailNotifications", e.target.checked)}
-                    />
-                  </Form.Group>
-
-                  <Form.Group className="mb-3">
-                    <Form.Check
-                      type="checkbox"
-                      label="Notify on new contact"
-                      checked={settings.notifyOnNewContact}
-                      onChange={(e) => handleInputChange("notifyOnNewContact", e.target.checked)}
-                    />
-                  </Form.Group>
-
-                  <Form.Group className="mb-3">
-                    <Form.Check
-                      type="checkbox"
-                      label="Notify on new registration"
-                      checked={settings.notifyOnNewRegistration}
-                      onChange={(e) => handleInputChange("notifyOnNewRegistration", e.target.checked)}
-                    />
-                  </Form.Group>
-
-                  <Form.Group className="mb-3">
-                    <Form.Check
-                      type="checkbox"
-                      label="Notify on adoption"
-                      checked={settings.notifyOnAdoption}
-                      onChange={(e) => handleInputChange("notifyOnAdoption", e.target.checked)}
-                    />
-                  </Form.Group>
-                </Col>
               </Row>
             </Card.Body>
           </Card>
         )}
 
         {/* Save Button */}
-        <div className="text-end mt-4">
+        <div className="d-flex justify-content-end mt-4">
           <Button
             type="submit"
             variant="primary"
-            size="lg"
             disabled={saving || !unsavedChanges}
+            size="lg"
           >
             {saving ? (
               <>
                 <Spinner size="sm" className="me-2" />
-                Saving Settings...
+                Saving...
               </>
             ) : (
               <>
@@ -760,42 +743,57 @@ const AdminSettings = () => {
       </Form>
 
       {/* Backup Modal */}
-      <Modal show={showBackupModal} onHide={() => setShowBackupModal(false)}>
+      <Modal show={showBackupModal} onHide={() => setShowBackupModal(false)} size="lg">
         <Modal.Header closeButton>
           <Modal.Title>
-            <i className="fas fa-download me-2"></i>Generate System Backup
+            <i className="fas fa-download me-2"></i>
+            System Backup
           </Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          <p>Generate a backup file containing:</p>
-          <Table striped>
-            <tbody>
-              <tr>
-                <td><i className="fas fa-cog me-2"></i>Current system settings</td>
-                <td><Badge bg="success">Included</Badge></td>
-              </tr>
-              <tr>
-                <td><i className="fas fa-chart-bar me-2"></i>Database statistics summary</td>
-                <td><Badge bg="success">Included</Badge></td>
-              </tr>
-              <tr>
-                <td><i className="fas fa-file-code me-2"></i>Configuration snapshot</td>
-                <td><Badge bg="success">Included</Badge></td>
-              </tr>
-            </tbody>
-          </Table>
-          <Alert variant="info">
-            <i className="fas fa-info-circle me-2"></i>
-            This backup contains configuration data only, not user data or images.
-          </Alert>
+          <p>Create and download a backup of your system settings and data.</p>
+          
+          {backupHistory.length > 0 && (
+            <>
+              <h6>Recent Backups</h6>
+              <Table striped bordered hover responsive size="sm">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Size</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {backupHistory.slice(0, 5).map((backup, index) => (
+                    <tr key={index}>
+                      <td>{new Date(backup.created).toLocaleString()}</td>
+                      <td>{backup.size}</td>
+                      <td>
+                        <Badge bg={backup.status === 'completed' ? 'success' : 'warning'}>
+                          {backup.status}
+                        </Badge>
+                      </td>
+                      <td>
+                        <Button variant="outline-primary" size="sm">
+                          <i className="fas fa-download"></i>
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+            </>
+          )}
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={() => setShowBackupModal(false)}>
-            Cancel
+            Close
           </Button>
-          <Button variant="primary" onClick={generateBackup}>
+          <Button variant="primary">
             <i className="fas fa-download me-2"></i>
-            Download Backup
+            Create New Backup
           </Button>
         </Modal.Footer>
       </Modal>
