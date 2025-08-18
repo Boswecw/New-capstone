@@ -1,76 +1,99 @@
 // client/src/components/ProductCard.js
-// Fixed: Removed unused Badge import
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { 
-  FaShoppingCart, 
-  FaHeart, 
-  FaStar, 
-  FaCheck, 
+import React, { useState, useMemo } from "react";
+import { Link } from "react-router-dom";
+import {
+  FaShoppingCart,
+  FaHeart,
+  FaStar,          // <- actively used below
+  FaCheck,
   FaTimes,
   FaTag,
-  FaBox
-} from 'react-icons/fa';
+  FaBox,
+} from "react-icons/fa";
 
-// Fallback image handling
+// Build URL / fallbacks
 const buildProductImageUrl = (imagePath, productName) => {
-  if (!imagePath) return `https://via.placeholder.com/300x200?text=${encodeURIComponent(productName || 'Product')}`;
-  if (imagePath.startsWith('http')) return imagePath;
+  if (!imagePath)
+    return `https://via.placeholder.com/300x200?text=${encodeURIComponent(
+      productName || "Product"
+    )}`;
+  if (imagePath.startsWith("http")) return imagePath;
   return `https://storage.googleapis.com/furbabies-petstore/${imagePath}`;
 };
 
 const FALLBACK_IMAGES = {
-  'Dog Care': 'https://via.placeholder.com/300x200?text=Dog+Care',
-  'Cat Care': 'https://via.placeholder.com/300x200?text=Cat+Care',
-  'Aquarium & Fish Care': 'https://via.placeholder.com/300x200?text=Fish+Care',
-  'Grooming & Health': 'https://via.placeholder.com/300x200?text=Grooming',
-  'Training & Behavior': 'https://via.placeholder.com/300x200?text=Training',
-  product: 'https://via.placeholder.com/300x200?text=Product'
+  "Dog Care": "https://via.placeholder.com/300x200?text=Dog+Care",
+  "Cat Care": "https://via.placeholder.com/300x200?text=Cat+Care",
+  "Aquarium & Fish Care": "https://via.placeholder.com/300x200?text=Fish+Care",
+  "Grooming & Health": "https://via.placeholder.com/300x200?text=Grooming",
+  "Training & Behavior": "https://via.placeholder.com/300x200?text=Training",
+  product: "https://via.placeholder.com/300x200?text=Product",
 };
 
-const ProductCard = ({ 
-  product, 
+// Small star rating renderer that uses FaStar
+const StarRating = ({ rating = 0, reviewCount = 0 }) => {
+  const value = Math.max(0, Math.min(5, Number(rating) || 0));
+  const full = Math.floor(value);
+  const hasHalf = value - full >= 0.5;
+
+  const stars = Array.from({ length: 5 }, (_, i) => {
+    if (i < full) {
+      return <FaStar key={i} className="text-warning" size={12} aria-hidden="true" />;
+    }
+    if (i === full && hasHalf) {
+      // visually indicate half by lowering opacity
+      return <FaStar key={i} className="text-warning" size={12} style={{ opacity: 0.5 }} aria-hidden="true" />;
+    }
+    return <FaStar key={i} className="text-muted" size={12} aria-hidden="true" />;
+  });
+
+  return (
+    <div className="star-rating">
+      <div className="stars">{stars}</div>
+      {reviewCount > 0 && <small className="review-count">({reviewCount})</small>}
+    </div>
+  );
+};
+
+const ProductCard = ({
+  product,
   showAddToCart = true,
   showFavoriteButton = false,
   showActions = true,
-  className = '',
-  variant = 'vertical',
+  className = "",
   onClick,
   onAddToCart,
-  onFavorite
+  onFavorite,
 }) => {
   const [imageError, setImageError] = useState(false);
   const [isFavorited, setIsFavorited] = useState(false);
-  const [imageLoaded, setImageLoaded] = useState(false);
   const [isAddingToCart, setIsAddingToCart] = useState(false);
 
-  const safeProduct = {
-    ...product,
-    name: String(product.name || 'Unknown Product'),
-    brand: String(product.brand || 'Generic'),
-    category: String(product.category || 'Product'),
-    price: Number(product.price) || 0,
-    description: String(product.description || 'Quality product for your pet.'),
-    inStock: Boolean(product.inStock !== false), // Default to true unless explicitly false
-    featured: Boolean(product.featured),
-    onSale: Boolean(product.onSale),
-    rating: Number(product.rating) || 0,
-    reviewCount: Number(product.reviewCount) || 0
-  };
+  const safeProduct = useMemo(
+    () => ({
+      ...product,
+      name: String(product?.name || "Unknown Product"),
+      brand: String(product?.brand || "Generic"),
+      category: String(product?.category || "Product"),
+      price: Number(product?.price) || 0,
+      description: String(product?.description || "Quality product for your pet."),
+      inStock: Boolean(product?.inStock !== false),
+      featured: Boolean(product?.featured),
+      onSale: Boolean(product?.onSale),
+      rating: Number(product?.rating) || 0,
+      reviewCount: Number(product?.reviewCount) || 0,
+    }),
+    [product]
+  );
 
-  const getImageUrl = () => buildProductImageUrl(safeProduct.image, safeProduct.name);
-  const getFallbackUrl = () => FALLBACK_IMAGES[safeProduct.category] || FALLBACK_IMAGES.product;
-
-  const imageUrl = getImageUrl();
-  const fallbackUrl = getFallbackUrl();
-
-  const getImageContainerClass = () => {
-    const category = safeProduct.category?.toLowerCase();
-    if (category?.includes('food') || category?.includes('treat')) return 'portrait';
-    if (category?.includes('tank') || category?.includes('aquarium')) return 'landscape';
-    if (category?.includes('toy') && category?.includes('large')) return 'tall';
-    return 'square';
-  };
+  const imageUrl = useMemo(
+    () => buildProductImageUrl(safeProduct.image, safeProduct.name),
+    [safeProduct.image, safeProduct.name]
+  );
+  const fallbackUrl = useMemo(
+    () => FALLBACK_IMAGES[safeProduct.category] || FALLBACK_IMAGES.product,
+    [safeProduct.category]
+  );
 
   const handleImageError = (e) => {
     if (!imageError && e.target.src !== fallbackUrl) {
@@ -79,233 +102,146 @@ const ProductCard = ({
     }
   };
 
-  const handleImageLoad = () => setImageLoaded(true);
-
   const handleFavoriteClick = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    setIsFavorited(!isFavorited);
-    if (onFavorite) onFavorite(safeProduct, !isFavorited);
+    setIsFavorited((v) => {
+      const next = !v;
+      onFavorite && onFavorite(safeProduct, next);
+      return next;
+    });
   };
 
   const handleAddToCart = async (e) => {
     e.preventDefault();
     e.stopPropagation();
     if (!safeProduct.inStock || isAddingToCart) return;
-    
     setIsAddingToCart(true);
     try {
-      if (onAddToCart) await onAddToCart(safeProduct);
+      onAddToCart && (await onAddToCart(safeProduct));
     } finally {
       setIsAddingToCart(false);
     }
   };
 
-  const handleCardClick = () => onClick && onClick(safeProduct);
-
-  const renderStarRating = (rating, reviewCount) => {
-    const stars = [];
-    const fullStars = Math.floor(rating);
-    const hasHalfStar = rating % 1 >= 0.5;
-
-    for (let i = 1; i <= 5; i++) {
-      if (i <= fullStars) {
-        stars.push(<FaStar key={i} className="text-warning" size={12} />);
-      } else if (i === fullStars + 1 && hasHalfStar) {
-        stars.push(<FaStar key={i} className="text-warning" size={12} style={{ opacity: 0.5 }} />);
-      } else {
-        stars.push(<FaStar key={i} className="text-muted" size={12} />);
-      }
-    }
-
-    return (
-      <div className="star-rating">
-        <div className="stars">
-          {stars}
-        </div>
-        {reviewCount > 0 && (
-          <small className="review-count">({reviewCount})</small>
-        )}
-      </div>
-    );
-  };
-
-  const formatPrice = (price) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
-    }).format(price);
-  };
-
-  const imageContainerClass = getImageContainerClass();
+  const formatPrice = (price) =>
+    new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(price);
 
   return (
-    <div 
+    <div
       className={`enhanced-card product-card hover-lift ${className}`}
-      onClick={handleCardClick}
-      style={{ cursor: onClick ? 'pointer' : 'default' }}
+      onClick={() => onClick && onClick(safeProduct)}
+      style={{ cursor: onClick ? "pointer" : "default" }}
     >
-      <div className={`product-img-container ${imageContainerClass}`}>
+      {/* Image */}
+      <div className="product-img-container square">
         <img
           src={imageUrl}
           alt={safeProduct.name}
-          className={`product-img img-cover ${imageLoaded ? '' : 'loading'}`}
+          className="product-img img-cover"
           onError={handleImageError}
-          onLoad={handleImageLoad}
+          loading="lazy"
+          decoding="async"
         />
 
         {/* Sale Badge */}
         {safeProduct.onSale && (
           <div className="badge-sale">
-            <FaTag className="sale-icon" />
-            <span className="sale-text">Sale!</span>
+            <FaTag className="sale-icon" aria-hidden="true" />
+            <span className="sale-text">Sale</span>
           </div>
         )}
 
-        {/* Stock Status */}
-        <div className={`badge-stock ${safeProduct.inStock ? 'in-stock' : 'out-of-stock'}`}>
+        {/* Stock Badge */}
+        <div className={`badge-stock ${safeProduct.inStock ? "in-stock" : "out-of-stock"}`}>
           {safeProduct.inStock ? (
             <>
-              <FaCheck className="stock-icon" />
-              <span className="stock-text">In Stock</span>
+              <FaCheck className="stock-icon" aria-hidden="true" /> In Stock
             </>
           ) : (
             <>
-              <FaTimes className="stock-icon" />
-              <span className="stock-text">Out of Stock</span>
+              <FaTimes className="stock-icon" aria-hidden="true" /> Out of Stock
             </>
           )}
         </div>
 
-        {/* Favorite Button */}
+        {/* Favorite */}
         {showFavoriteButton && (
           <button
-            className={`btn-favorite ${isFavorited ? 'favorited' : ''}`}
+            type="button"
+            className={`btn-favorite ${isFavorited ? "favorited" : ""}`}
             onClick={handleFavoriteClick}
-            aria-label={isFavorited ? 'Remove from favorites' : 'Add to favorites'}
+            aria-pressed={isFavorited}
+            aria-label={isFavorited ? "Remove from favorites" : "Add to favorites"}
           >
-            <FaHeart size={14} />
+            <FaHeart size={14} aria-hidden="true" />
           </button>
         )}
       </div>
 
+      {/* Body */}
       <div className="enhanced-card-body">
-        {/* Product Header */}
-        <div className="product-header mb-3">
-          <h5 className="enhanced-card-title">
-            {safeProduct.name}
-          </h5>
-          <small className="product-brand">
-            by {safeProduct.brand}
-          </small>
+        <h5 className="enhanced-card-title">{safeProduct.name}</h5>
+
+        <div className="product-price mb-2">
+          <span className="current-price">{formatPrice(safeProduct.price)}</span>
+          {safeProduct.onSale && (
+            <span className="original-price">{formatPrice(safeProduct.price * 1.2)}</span>
+          )}
         </div>
 
-        {/* Category Badge */}
-        <div className="category-container mb-3">
-          <span className="enhanced-badge badge-secondary">
-            <FaBox className="badge-icon" />
-            <span className="badge-text">{safeProduct.category}</span>
-          </span>
-        </div>
-
-        {/* Rating */}
+        {/* Rating uses FaStar (prevents no-unused-vars) */}
         {safeProduct.rating > 0 && (
           <div className="rating-container mb-3">
-            {renderStarRating(safeProduct.rating, safeProduct.reviewCount)}
+            <StarRating rating={safeProduct.rating} reviewCount={safeProduct.reviewCount} />
           </div>
         )}
 
-        {/* Description */}
         <p className="enhanced-card-text">
-          {safeProduct.description && safeProduct.description.length > 80 
+          {safeProduct.description.length > 80
             ? `${safeProduct.description.slice(0, 80)}...`
             : safeProduct.description}
         </p>
 
-        {/* Product Badges */}
-        <div className="enhanced-badges mb-3">
-          {safeProduct.featured && (
-            <span className="enhanced-badge badge-primary">
-              <FaStar className="badge-icon" />
-              <span className="badge-text">Featured</span>
-            </span>
-          )}
-          {safeProduct.inStock && (
-            <span className="enhanced-badge badge-success">
-              <FaCheck className="badge-icon" />
-              <span className="badge-text">Available</span>
-            </span>
-          )}
-          {safeProduct.rating >= 4 && (
-            <span className="enhanced-badge badge-warning">
-              <FaStar className="badge-icon" />
-              <span className="badge-text">Top Rated</span>
-            </span>
-          )}
-        </div>
-
-        {/* Price */}
-        <div className="product-price mb-3">
-          <div className="current-price">
-            {formatPrice(safeProduct.price)}
-          </div>
-          {safeProduct.onSale && (
-            <div className="original-price">
-              {formatPrice(safeProduct.price * 1.2)}
-            </div>
-          )}
+        {/* Meta */}
+        <div className="product-meta d-flex justify-content-between align-items-center mt-2">
+          <small className="text-muted">by {safeProduct.brand}</small>
+          <small className="text-muted">
+            <FaBox className="me-1" aria-hidden="true" />
+            {safeProduct.category}
+          </small>
         </div>
 
         {/* Actions */}
         {showActions && (
-          <div className="card-actions mb-3">
+          <div className="card-actions mt-3">
             {showAddToCart && (
               <button
-                className={`enhanced-button mb-2 w-100 ${
-                  safeProduct.inStock ? 'btn-success' : 'btn-secondary'
+                className={`enhanced-button w-100 ${
+                  safeProduct.inStock ? "btn-success" : "btn-secondary"
                 }`}
                 onClick={handleAddToCart}
                 disabled={!safeProduct.inStock || isAddingToCart}
               >
-                <FaShoppingCart className="me-2" />
-                <span>
-                  {isAddingToCart ? 'Adding...' : 
-                   !safeProduct.inStock ? 'Out of Stock' : 
-                   'Add to Cart'}
-                </span>
+                <FaShoppingCart className="me-2" aria-hidden="true" />
+                {isAddingToCart
+                  ? "Adding..."
+                  : !safeProduct.inStock
+                  ? "Out of Stock"
+                  : "Add to Cart"}
               </button>
             )}
-            
-            <Link 
-              to={`/products/${safeProduct._id}`} 
-              className="enhanced-button btn-outline w-100"
+
+            <Link
+              to={`/products/${safeProduct._id}`}
+              className="enhanced-button btn-outline w-100 mt-2"
               onClick={(e) => e.stopPropagation()}
             >
-              <FaBox className="me-2" />
+              <FaBox className="me-2" aria-hidden="true" />
               View Details
             </Link>
           </div>
         )}
-
-        {/* Quick Product Info */}
-        <div className="product-info-grid">
-          <div className="info-item">
-            <small className="info-label">Brand</small>
-            <small className="info-value">{safeProduct.brand}</small>
-          </div>
-          <div className="info-item">
-            <small className="info-label">Stock</small>
-            <small className={`info-value ${safeProduct.inStock ? 'text-success' : 'text-danger'}`}>
-              {safeProduct.inStock ? 'Available' : 'Out'}
-            </small>
-          </div>
-          <div className="info-item">
-            <small className="info-label">Rating</small>
-            <small className="info-value">
-              {safeProduct.rating > 0 ? `${safeProduct.rating.toFixed(1)}★` : 'New'}
-            </small>
-          </div>
-        </div>
       </div>
     </div>
   );
