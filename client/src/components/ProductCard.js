@@ -1,6 +1,6 @@
 // client/src/components/ProductCard.js
+// Fixed: Removed unused Badge import
 import React, { useState } from 'react';
-import { Card, Badge, Button } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 import { 
   FaShoppingCart, 
@@ -119,10 +119,12 @@ const ProductCard = ({
     }
 
     return (
-      <div className="d-flex align-items-center gap-1">
-        {stars}
+      <div className="star-rating">
+        <div className="stars">
+          {stars}
+        </div>
         {reviewCount > 0 && (
-          <small className="text-muted ms-1">({reviewCount})</small>
+          <small className="review-count">({reviewCount})</small>
         )}
       </div>
     );
@@ -138,8 +140,8 @@ const ProductCard = ({
   const imageContainerClass = getImageContainerClass();
 
   return (
-    <Card 
-      className={`card enhanced-card ${className}`}
+    <div 
+      className={`enhanced-card product-card hover-lift ${className}`}
       onClick={handleCardClick}
       style={{ cursor: onClick ? 'pointer' : 'default' }}
     >
@@ -147,167 +149,137 @@ const ProductCard = ({
         <img
           src={imageUrl}
           alt={safeProduct.name}
-          className={`product-img ${imageLoaded ? '' : 'loading'}`}
+          className={`product-img img-cover ${imageLoaded ? '' : 'loading'}`}
           onError={handleImageError}
           onLoad={handleImageLoad}
         />
 
         {/* Sale Badge */}
         {safeProduct.onSale && (
-          <div className="badge statusBadge" style={{ 
-            position: 'absolute', 
-            top: '8px', 
-            left: '8px', 
-            background: '#dc3545',
-            color: 'white'
-          }}>
-            <FaTag className="me-1" />
-            Sale!
+          <div className="badge-sale">
+            <FaTag className="sale-icon" />
+            <span className="sale-text">Sale!</span>
           </div>
         )}
 
         {/* Stock Status */}
-        <div className="badge statusBadge" style={{ 
-          position: 'absolute', 
-          top: '8px', 
-          right: '8px',
-          background: safeProduct.inStock ? '#28a745' : '#6c757d',
-          color: 'white'
-        }}>
+        <div className={`badge-stock ${safeProduct.inStock ? 'in-stock' : 'out-of-stock'}`}>
           {safeProduct.inStock ? (
             <>
-              <FaCheck className="me-1" />
-              In Stock
+              <FaCheck className="stock-icon" />
+              <span className="stock-text">In Stock</span>
             </>
           ) : (
             <>
-              <FaTimes className="me-1" />
-              Out of Stock
+              <FaTimes className="stock-icon" />
+              <span className="stock-text">Out of Stock</span>
             </>
           )}
         </div>
 
         {/* Favorite Button */}
         {showFavoriteButton && (
-          <Button
-            variant={isFavorited ? 'danger' : 'outline-danger'}
-            size="sm"
-            className="position-absolute bottom-0 end-0 m-2 rounded-circle"
+          <button
+            className={`btn-favorite ${isFavorited ? 'favorited' : ''}`}
             onClick={handleFavoriteClick}
-            style={{ width: '35px', height: '35px', zIndex: 10, opacity: 0.9 }}
+            aria-label={isFavorited ? 'Remove from favorites' : 'Add to favorites'}
           >
             <FaHeart size={14} />
-          </Button>
+          </button>
         )}
       </div>
 
-      <Card.Body className="card-body">
+      <div className="enhanced-card-body">
         {/* Product Header */}
-        <div className="mb-2">
-          <Card.Title 
-            className="card-title"
-            style={{ 
-              whiteSpace: 'nowrap', 
-              overflow: 'hidden', 
-              textOverflow: 'ellipsis',
-              marginBottom: '4px'
-            }}
-          >
+        <div className="product-header mb-3">
+          <h5 className="enhanced-card-title">
             {safeProduct.name}
-          </Card.Title>
-          <small className="text-muted d-block">
+          </h5>
+          <small className="product-brand">
             by {safeProduct.brand}
           </small>
         </div>
 
         {/* Category Badge */}
-        <div className="mb-2">
-          <Badge bg="secondary" className="enhanced-badge">
-            <FaBox className="me-1" />
-            {safeProduct.category}
-          </Badge>
+        <div className="category-container mb-3">
+          <span className="enhanced-badge badge-secondary">
+            <FaBox className="badge-icon" />
+            <span className="badge-text">{safeProduct.category}</span>
+          </span>
         </div>
 
         {/* Rating */}
         {safeProduct.rating > 0 && (
-          <div className="mb-2 d-flex justify-content-center">
+          <div className="rating-container mb-3">
             {renderStarRating(safeProduct.rating, safeProduct.reviewCount)}
           </div>
         )}
 
         {/* Description */}
-        <Card.Text 
-          className="card-text"
-          style={{ 
-            display: 'block', 
-            whiteSpace: 'normal', 
-            wordWrap: 'break-word',
-            fontSize: '0.9rem',
-            lineHeight: '1.4'
-          }}
-        >
+        <p className="enhanced-card-text">
           {safeProduct.description && safeProduct.description.length > 80 
             ? `${safeProduct.description.slice(0, 80)}...`
             : safeProduct.description}
-        </Card.Text>
+        </p>
 
-        {/* Badges */}
+        {/* Product Badges */}
         <div className="enhanced-badges mb-3">
           {safeProduct.featured && (
-            <Badge bg="primary" className="enhanced-badge">
-              <FaStar className="me-1" />
-              Featured
-            </Badge>
+            <span className="enhanced-badge badge-primary">
+              <FaStar className="badge-icon" />
+              <span className="badge-text">Featured</span>
+            </span>
           )}
           {safeProduct.inStock && (
-            <Badge bg="success" className="enhanced-badge">
-              <FaCheck className="me-1" />
-              Available
-            </Badge>
+            <span className="enhanced-badge badge-success">
+              <FaCheck className="badge-icon" />
+              <span className="badge-text">Available</span>
+            </span>
           )}
           {safeProduct.rating >= 4 && (
-            <Badge bg="warning" className="enhanced-badge">
-              <FaStar className="me-1" />
-              Top Rated
-            </Badge>
+            <span className="enhanced-badge badge-warning">
+              <FaStar className="badge-icon" />
+              <span className="badge-text">Top Rated</span>
+            </span>
           )}
         </div>
 
         {/* Price */}
-        <div className="text-center mb-3">
-          <div className="fw-bold text-success fs-4">
+        <div className="product-price mb-3">
+          <div className="current-price">
             {formatPrice(safeProduct.price)}
           </div>
           {safeProduct.onSale && (
-            <small className="text-muted text-decoration-line-through">
+            <div className="original-price">
               {formatPrice(safeProduct.price * 1.2)}
-            </small>
+            </div>
           )}
         </div>
 
         {/* Actions */}
         {showActions && (
-          <div className="d-grid gap-2">
+          <div className="card-actions mb-3">
             {showAddToCart && (
-              <Button
-                variant={safeProduct.inStock ? "success" : "secondary"}
-                className="enhanced-button"
+              <button
+                className={`enhanced-button mb-2 w-100 ${
+                  safeProduct.inStock ? 'btn-success' : 'btn-secondary'
+                }`}
                 onClick={handleAddToCart}
                 disabled={!safeProduct.inStock || isAddingToCart}
-                style={{ textDecoration: 'none' }}
               >
                 <FaShoppingCart className="me-2" />
-                {isAddingToCart ? 'Adding...' : 
-                 !safeProduct.inStock ? 'Out of Stock' : 
-                 'Add to Cart'}
-              </Button>
+                <span>
+                  {isAddingToCart ? 'Adding...' : 
+                   !safeProduct.inStock ? 'Out of Stock' : 
+                   'Add to Cart'}
+                </span>
+              </button>
             )}
             
             <Link 
               to={`/products/${safeProduct._id}`} 
-              className="btn btn-outline-primary enhanced-button"
+              className="enhanced-button btn-outline w-100"
               onClick={(e) => e.stopPropagation()}
-              style={{ textDecoration: 'none' }}
             >
               <FaBox className="me-2" />
               View Details
@@ -316,28 +288,26 @@ const ProductCard = ({
         )}
 
         {/* Quick Product Info */}
-        <div className="mt-3 pt-2 border-top">
-          <div className="row text-center">
-            <div className="col-4">
-              <small className="text-muted d-block">Brand</small>
-              <small className="fw-bold">{safeProduct.brand}</small>
-            </div>
-            <div className="col-4">
-              <small className="text-muted d-block">Stock</small>
-              <small className={`fw-bold ${safeProduct.inStock ? 'text-success' : 'text-danger'}`}>
-                {safeProduct.inStock ? 'Available' : 'Out'}
-              </small>
-            </div>
-            <div className="col-4">
-              <small className="text-muted d-block">Rating</small>
-              <small className="fw-bold">
-                {safeProduct.rating > 0 ? `${safeProduct.rating.toFixed(1)}★` : 'New'}
-              </small>
-            </div>
+        <div className="product-info-grid">
+          <div className="info-item">
+            <small className="info-label">Brand</small>
+            <small className="info-value">{safeProduct.brand}</small>
+          </div>
+          <div className="info-item">
+            <small className="info-label">Stock</small>
+            <small className={`info-value ${safeProduct.inStock ? 'text-success' : 'text-danger'}`}>
+              {safeProduct.inStock ? 'Available' : 'Out'}
+            </small>
+          </div>
+          <div className="info-item">
+            <small className="info-label">Rating</small>
+            <small className="info-value">
+              {safeProduct.rating > 0 ? `${safeProduct.rating.toFixed(1)}★` : 'New'}
+            </small>
           </div>
         </div>
-      </Card.Body>
-    </Card>
+      </div>
+    </div>
   );
 };
 

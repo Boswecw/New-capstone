@@ -1,6 +1,6 @@
 // client/src/components/PetCard.js
+// Fixed: Removed unused Badge import
 import React, { useState } from 'react';
-import { Card, Badge, Button } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 import { FaHeart, FaPaw, FaMars, FaVenus, FaMapMarkerAlt } from 'react-icons/fa';
 
@@ -139,8 +139,8 @@ const PetCard = ({
   const imageContainerClass = getImageContainerClass();
 
   return (
-    <Card 
-      className={`card enhanced-card modern-pet-card ${className}`}
+    <div 
+      className={`enhanced-card modern-pet-card hover-lift ${className}`}
       onClick={handleCardClick}
       style={{ cursor: onClick ? 'pointer' : 'default' }}
     >
@@ -148,67 +148,61 @@ const PetCard = ({
         <img
           src={imageUrl}
           alt={safePet.name}
-          className={`pet-img ${imageLoaded ? '' : 'loading'}`}
+          className={`pet-img img-cover ${imageLoaded ? '' : 'loading'}`}
           onError={handleImageError}
           onLoad={handleImageLoad}
         />
         
         {/* Status Badge */}
         {showAdoptionStatus && (
-          <div className={`badge statusBadge ${safePet.status}`}>
-            {statusBadge.icon} {statusBadge.text}
+          <div className={`badge-status status-${safePet.status}`}>
+            <span className="status-icon">{statusBadge.icon}</span>
+            <span className="status-text">{statusBadge.text}</span>
           </div>
         )}
 
         {/* Featured Badge */}
         {safePet.featured && (
-          <div className="badge statusBadge" style={{ 
-            position: 'absolute', 
-            top: '8px', 
-            left: '8px',
-            background: '#ff6b6b',
-            color: 'white'
-          }}>
-            ⭐ Featured
+          <div className="badge-featured">
+            <span className="featured-icon">⭐</span>
+            <span className="featured-text">Featured</span>
           </div>
         )}
 
         {/* Favorite Button */}
         {showFavoriteButton && (
-          <Button
-            variant={isFavorited ? 'danger' : 'outline-danger'}
-            size="sm"
-            className="position-absolute bottom-0 end-0 m-2 rounded-circle"
+          <button
+            className={`btn-favorite ${isFavorited ? 'favorited' : ''}`}
             onClick={handleFavoriteClick}
-            style={{ width: '35px', height: '35px', zIndex: 10, opacity: 0.9 }}
+            aria-label={isFavorited ? 'Remove from favorites' : 'Add to favorites'}
           >
             <FaHeart size={14} />
-          </Button>
+          </button>
         )}
       </div>
 
-      <Card.Body className="card-body">
-        {/* Pet Header */}
-        <div className="d-flex justify-content-between align-items-center mb-2">
-          <Card.Title className="card-title text-capitalize mb-0">
+      <div className="enhanced-card-body">
+        {/* Pet Header - Using your utilities */}
+        <div className="d-flex justify-between items-center mb-3">
+          <h5 className="enhanced-card-title text-capitalize m-0">
             {safePet.name}
-          </Card.Title>
-          <div className="d-flex align-items-center">
+          </h5>
+          <div className="gender-icon">
             {getGenderIcon(safePet.gender)}
           </div>
         </div>
 
         {/* Pet Details */}
-        <div className="mb-3">
-          <small className="text-muted text-capitalize d-block">
+        <div className="pet-details mb-3">
+          <small className="text-secondary text-capitalize">
             {safePet.breed} • {safePet.age} • {safePet.size}
           </small>
         </div>
 
         {/* Location */}
         {safePet.location && (
-          <div className="mb-2">
-            <small className="text-muted d-block">
+          <div className="pet-location mb-3">
+            <small className="text-secondary">
               <FaMapMarkerAlt className="me-1" />
               {safePet.location}
             </small>
@@ -217,54 +211,57 @@ const PetCard = ({
 
         {/* Heart Rating */}
         {safePet.heartRating > 0 && (
-          <div className="mb-3 d-flex justify-content-center">
-            <div className="d-flex align-items-center gap-1">
+          <div className="rating-container mb-3">
+            <div className="heart-rating">
               {renderHeartRating(safePet.heartRating)}
-              <small className="text-muted ms-1">({safePet.heartRating}/5)</small>
+              <small className="rating-text">({safePet.heartRating}/5)</small>
             </div>
           </div>
         )}
 
         {/* Description */}
-        <Card.Text className="card-text">
+        <p className="enhanced-card-text">
           {safePet.description && safePet.description.length > 100 
             ? `${safePet.description.slice(0, 100)}...`
             : safePet.description}
-        </Card.Text>
+        </p>
 
         {/* Pet Badges */}
         <div className="enhanced-badges mb-3">
           {safePet.isVaccinated && (
-            <Badge bg="info" className="enhanced-badge" title="Vaccinated">
-              💉 Vaccinated
-            </Badge>
+            <span className="enhanced-badge badge-info">
+              <span className="badge-icon">💉</span>
+              <span className="badge-text">Vaccinated</span>
+            </span>
           )}
           {safePet.isSpayedNeutered && (
-            <Badge bg="success" className="enhanced-badge" title="Spayed/Neutered">
-              ✂️ Fixed
-            </Badge>
+            <span className="enhanced-badge badge-success">
+              <span className="badge-icon">✂️</span>
+              <span className="badge-text">Fixed</span>
+            </span>
           )}
           {safePet.needsSpecialCare && (
-            <Badge bg="warning" className="enhanced-badge" title="Needs Special Care">
-              ⚠️ Special Care
-            </Badge>
+            <span className="enhanced-badge badge-warning">
+              <span className="badge-icon">⚠️</span>
+              <span className="badge-text">Special Care</span>
+            </span>
           )}
         </div>
 
         {/* Adoption Fee */}
-        <div className="text-center mb-3">
-          <div className="fw-bold text-success fs-5">
-            {formatAdoptionFee(safePet.adoptionFee)} Adoption Fee
+        <div className="adoption-fee mb-3">
+          <div className="fee-amount">
+            {formatAdoptionFee(safePet.adoptionFee)}
           </div>
+          <div className="fee-label">Adoption Fee</div>
         </div>
 
         {/* Action Button */}
-        <div className="d-grid">
+        <div className="card-actions mb-3">
           <Link 
             to={`/pets/${safePet._id}`} 
-            className="btn btn-primary enhanced-button"
+            className="enhanced-button btn-primary w-100"
             onClick={(e) => e.stopPropagation()}
-            style={{ textDecoration: 'none' }}
           >
             <FaPaw className="me-2" />
             Meet {safePet.name}
@@ -272,24 +269,22 @@ const PetCard = ({
         </div>
 
         {/* Quick Pet Info */}
-        <div className="mt-3 pt-2 border-top">
-          <div className="row text-center">
-            <div className="col-4">
-              <small className="text-muted d-block">Type</small>
-              <small className="fw-bold text-capitalize">{safePet.type}</small>
-            </div>
-            <div className="col-4">
-              <small className="text-muted d-block">Age</small>
-              <small className="fw-bold text-capitalize">{safePet.age}</small>
-            </div>
-            <div className="col-4">
-              <small className="text-muted d-block">Size</small>
-              <small className="fw-bold text-capitalize">{safePet.size}</small>
-            </div>
+        <div className="pet-info-grid">
+          <div className="info-item">
+            <small className="info-label">Type</small>
+            <small className="info-value text-capitalize">{safePet.type}</small>
+          </div>
+          <div className="info-item">
+            <small className="info-label">Age</small>
+            <small className="info-value text-capitalize">{safePet.age}</small>
+          </div>
+          <div className="info-item">
+            <small className="info-label">Size</small>
+            <small className="info-value text-capitalize">{safePet.size}</small>
           </div>
         </div>
-      </Card.Body>
-    </Card>
+      </div>
+    </div>
   );
 };
 

@@ -1,16 +1,18 @@
-/* App.css - Main Entry Point */
+/* App.css - Updated Main Entry Point */
 
-/* Import Order is Important */
+/* Import Order is Critical */
 @import './styles/design-tokens.css';
 @import './styles/reset.css';
 @import 'bootstrap/dist/css/bootstrap.min.css';
 @import './styles/utilities.css';
+@import './styles/components.css';
 
 /* Global Application Styles */
 .App {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  font-family: var(--font-family-primary);
 }
 
 /* Main Content Area */
@@ -65,6 +67,12 @@ main {
   animation: spin 1s ease-in-out infinite;
 }
 
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* Accessibility Improvements */
 .sr-only {
   position: absolute !important;
@@ -106,4 +114,34 @@ main {
   .btn {
     display: none !important;
   }
+}
+
+/* Bootstrap Override Utilities */
+.btn {
+  border-radius: var(--border-radius-lg) !important;
+  font-weight: var(--font-weight-medium) !important;
+  transition: var(--transition-normal) !important;
+}
+
+.card {
+  border-radius: var(--border-radius-xl) !important;
+  box-shadow: var(--shadow-sm) !important;
+  transition: var(--transition-normal) !important;
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md) !important;
+}
+
+/* Form Controls */
+.form-control {
+  border-radius: var(--border-radius-lg) !important;
+  border-color: var(--color-border) !important;
+  transition: var(--transition-normal) !important;
+}
+
+.form-control:focus {
+  border-color: var(--color-primary) !important;
+  box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25) !important;
 }
