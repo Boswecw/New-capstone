@@ -5,6 +5,7 @@ const mongoose = require("mongoose");
 const Product = require("../models/Product");
 const { protect, admin, optionalAuth } = require("../middleware/auth");
 
+<<<<<<< HEAD
 // ===== HELPER FUNCTIONS =====
 const addImageUrl = (product) => {
   if (!product) return product;
@@ -18,6 +19,85 @@ const addImageUrl = (product) => {
     stockStatus: product.inStock === false ? 'Out of Stock' : 'In Stock'
   };
 };
+=======
+// ✅ ADVANCED FILTER MAPPING for PRODUCTS
+const mapProductFiltersToQuery = (filters) => {
+  const query = { inStock: true }; // Only show in-stock products
+  const orConditions = [];
+
+  // ✅ FEATURED filtering - Handle both boolean and string
+  if (filters.featured === 'true' || filters.featured === true) {
+    orConditions.push([
+      { featured: true },
+      { featured: "true" } // Handle string version from your data
+    ]);
+  }
+
+  // ✅ CATEGORY mapping
+  if (filters.category && filters.category !== 'all') {
+    switch (filters.category.toLowerCase()) {
+      case 'food':
+        query.category = new RegExp('(dog care|cat care)', 'i');
+        query.name = new RegExp('(food|kibble)', 'i');
+        break;
+      case 'toys':
+        query.name = new RegExp('toy', 'i');
+        break;
+      case 'accessories':
+        query.category = new RegExp('(dog care|cat care)', 'i');
+        query.name = new RegExp('(harness|leash|collar|bed)', 'i');
+        break;
+      case 'health':
+        query.category = new RegExp('(grooming|health)', 'i');
+        break;
+      case 'aquarium':
+        query.category = new RegExp('aquarium', 'i');
+        break;
+      default:
+        query.category = new RegExp(filters.category, 'i');
+    }
+  }
+
+  // ✅ BRAND filtering
+  if (filters.brand && filters.brand !== 'all') {
+    query.brand = new RegExp(filters.brand, 'i');
+  }
+
+  // ✅ PRICE RANGE filtering
+  if (filters.priceRange && filters.priceRange !== 'all') {
+    const [min, max] = filters.priceRange.split('-').map(p => p.replace('+', ''));
+    if (max) {
+      query.price = { $gte: parseFloat(min), $lte: parseFloat(max) };
+    } else {
+      query.price = { $gte: parseFloat(min) };
+    }
+  }
+
+  // ✅ SEARCH across multiple fields
+  if (filters.search && filters.search.trim()) {
+    const searchRegex = new RegExp(filters.search.trim(), 'i');
+    orConditions.push([
+      { name: searchRegex },
+      { brand: searchRegex },
+      { description: searchRegex },
+      { category: searchRegex }
+    ]);
+  }
+
+  if (orConditions.length > 1) {
+    console.log('🔍 Combining featured and search filters with $and');
+  }
+
+  if (orConditions.length === 1) {
+    query.$or = orConditions[0];
+  } else if (orConditions.length > 1) {
+    query.$and = orConditions.map(cond => ({ $or: cond }));
+  }
+
+  console.log('🛍️ Mapped product filters to query:', JSON.stringify(query, null, 2));
+  return query;
+};
+>>>>>>> 17deaf0 (Handle combined featured and search filters)
 
 // ===== VALIDATION FUNCTIONS =====
 const validateProductData = (req, res, next) => {

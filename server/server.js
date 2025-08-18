@@ -1,4 +1,4 @@
-// server/server.js - UPDATED with Admin Routes
+// server/server.js - UPDATED with Admin Routes and proper CORS
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -11,61 +11,80 @@ require('dotenv').config();
 
 const app = express();
 
-// ===== MIDDLEWARE =====
-// Security middleware
-app.use(helmet({
-  crossOriginResourcePolicy: { policy: 'cross-origin' },
-  contentSecurityPolicy: false
-}));
+/**
+ * ===== CORS (must come first) =====
+ * Allow the deployed frontend + localhost for dev.
+ * Also handle preflight and caching correctness with Vary: Origin.
+ */
+const FRONTEND_ORIGIN =
+  process.env.FRONTEND_ORIGIN || 'https://furbabies-frontend.onrender.com';
 
-// CORS configuration
+const allowedOrigins = new Set([
+  'http://localhost:3000',
+  'http://localhost:5000',
+  'https://new-capstone.onrender.com',
+  FRONTEND_ORIGIN, // ✅ deployed frontend
+  // Note: you generally do NOT need to whitelist your own backend origin
+]);
+
 const corsOptions = {
-  origin: function (origin, callback) {
-    const allowedOrigins = [
-      'http://localhost:3000',
-      'http://localhost:5000',
-      'https://new-capstone.onrender.com',
-      'https://furbabies-backend.onrender.com'
-    ];
-    
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
+  origin(origin, callback) {
+    // Allow non-browser clients (no Origin header) and whitelisted origins
+    if (!origin || allowedOrigins.has(origin)) {
+      return callback(null, true);
     }
+    return callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
 };
 
 app.use(cors(corsOptions));
+app.options('*', cors(corsOptions)); // ✅ ensure preflights succeed
 
-// Compression for better performance
+// Set Vary: Origin for cache correctness
+app.use((req, res, next) => {
+  if (req.headers.origin) res.header('Vary', 'Origin');
+  next();
+});
+
+/**
+ * ===== Security middleware =====
+ * Keep CSP disabled (as you had) or customize later.
+ * crossOriginResourcePolicy set to 'cross-origin' to allow external images/CDNs.
+ */
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+    contentSecurityPolicy: false,
+  })
+);
+
+// ===== Compression for better performance =====
 app.use(compression());
 
-// Request logging
+// ===== Request logging =====
 if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 } else {
   app.use(morgan('combined'));
 }
 
-// Rate limiting
+// ===== Rate limiting =====
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: process.env.NODE_ENV === 'production' ? 100 : 1000, // Limit each IP to 100 requests per windowMs in production
+  max: process.env.NODE_ENV === 'production' ? 100 : 1000,
   message: {
     success: false,
-    message: 'Too many requests from this IP, please try again later.'
+    message: 'Too many requests from this IP, please try again later.',
   },
   standardHeaders: true,
   legacyHeaders: false,
 });
-
 app.use('/api/', limiter);
 
-// Body parsing middleware
+// ===== Body parsing middleware =====
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
@@ -76,13 +95,14 @@ const connectDB = async () => {
       useNewUrlParser: true,
       useUnifiedTopology: true,
     });
-    
+
     console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
-    
-    // Log database info
     console.log(`📁 Database: ${conn.connection.name}`);
-    console.log(`🔗 Connection State: ${conn.connection.readyState === 1 ? 'Connected' : 'Disconnected'}`);
-    
+    console.log(
+      `🔗 Connection State: ${
+        conn.connection.readyState === 1 ? 'Connected' : 'Disconnected'
+      }`
+    );
   } catch (error) {
     console.error('❌ Database connection failed:', error.message);
     process.exit(1);
@@ -112,7 +132,6 @@ const adminRoutes = require('./routes/admin'); // ✅ ADDED ADMIN ROUTES
 const newsRoutes = require('./routes/news');
 
 // ===== BASIC ROUTES =====
-// Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({
     success: true,
@@ -120,11 +139,10 @@ app.get('/api/health', (req, res) => {
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'development',
     version: '1.0.0',
-    database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
+    database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
   });
 });
 
-// Root API endpoint
 app.get('/api', (req, res) => {
   res.json({
     success: true,
@@ -139,8 +157,8 @@ app.get('/api', (req, res) => {
       auth: '/api/auth',
       contact: '/api/contact',
       admin: '/api/admin', // ✅ ADDED ADMIN ENDPOINT INFO
-      news: '/api/news'
-    }
+      news: '/api/news',
+    },
   });
 });
 
@@ -158,14 +176,14 @@ app.use('/api/news', newsRoutes);
 if (process.env.NODE_ENV === 'development') {
   app.get('/api/routes', (req, res) => {
     const routes = [];
-    
+
     function extractRoutes(stack, basePath = '') {
-      stack.forEach(layer => {
+      stack.forEach((layer) => {
         if (layer.route) {
           const methods = Object.keys(layer.route.methods).join(', ').toUpperCase();
           routes.push({
             path: basePath + layer.route.path,
-            methods
+            methods,
           });
         } else if (layer.name === 'router' && layer.handle.stack) {
           const routerPath = layer.regexp.source
@@ -176,37 +194,35 @@ if (process.env.NODE_ENV === 'development') {
         }
       });
     }
-    
+
     extractRoutes(app._router.stack);
-    
+
     const apiRoutes = routes
-      .filter(r => r.path.includes('/api'))
+      .filter((r) => r.path.includes('/api'))
       .sort((a, b) => a.path.localeCompare(b.path));
-    
+
     res.json({
       success: true,
       count: apiRoutes.length,
-      routes: apiRoutes
+      routes: apiRoutes,
     });
   });
 }
 
 // ===== STATIC FILES (Production) =====
 if (process.env.NODE_ENV === 'production') {
-  // Serve static files from React build
   app.use(express.static(path.join(__dirname, '../client/dist')));
-  
-  // Handle React routing - catch all handler
+
   app.get('*', (req, res) => {
     // Don't serve index.html for API routes
     if (req.path.startsWith('/api')) {
       return res.status(404).json({
         success: false,
         message: 'API route not found',
-        path: req.path
+        path: req.path,
       });
     }
-    
+
     res.sendFile(path.join(__dirname, '../client/dist', 'index.html'));
   });
 }
@@ -229,67 +245,67 @@ app.use('/api/*', (req, res) => {
       '/api/auth',
       '/api/contact',
       '/api/admin',
-      '/api/news'
-    ]
+      '/api/news',
+    ],
   });
 });
 
 // Global error handler
 app.use((err, req, res, next) => {
   console.error('❌ Server Error:', err);
-  
+
   // Mongoose validation errors
   if (err.name === 'ValidationError') {
-    const errors = Object.values(err.errors).map(val => val.message);
+    const errors = Object.values(err.errors).map((val) => val.message);
     return res.status(400).json({
       success: false,
       message: 'Validation Error',
-      errors
+      errors,
     });
   }
-  
+
   // Mongoose duplicate key error
   if (err.code === 11000) {
     const field = Object.keys(err.keyValue)[0];
     return res.status(400).json({
       success: false,
-      message: `${field} already exists`
+      message: `${field} already exists`,
     });
   }
-  
+
   // JWT errors
   if (err.name === 'JsonWebTokenError') {
     return res.status(401).json({
       success: false,
-      message: 'Invalid token'
+      message: 'Invalid token',
     });
   }
-  
+
   if (err.name === 'TokenExpiredError') {
     return res.status(401).json({
       success: false,
-      message: 'Token expired'
+      message: 'Token expired',
     });
   }
-  
+
   // CORS errors
   if (err.message === 'Not allowed by CORS') {
     return res.status(403).json({
       success: false,
-      message: 'CORS policy violation'
+      message: 'CORS policy violation',
     });
   }
-  
+
   const status = err.status || err.statusCode || 500;
   const message = err.message || 'Internal server error';
-  
+
   res.status(status).json({
     success: false,
     message,
-    error: process.env.NODE_ENV === 'development' ? {
-      stack: err.stack,
-      name: err.name
-    } : undefined
+    error:
+      process.env.NODE_ENV === 'development'
+        ? { stack: err.stack, name: err.name }
+        : undefined,
   });
 });
 
@@ -316,7 +332,7 @@ const server = app.listen(PORT, () => {
   console.log(`📡 Port: ${PORT}`);
   console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🔗 API Base: http://localhost:${PORT}/api`);
-  
+
   if (process.env.NODE_ENV === 'development') {
     console.log('\n📋 Available endpoints:');
     console.log('  GET  /api/health');
@@ -351,3 +367,4 @@ const server = app.listen(PORT, () => {
 });
 
 module.exports = app;
+git 
