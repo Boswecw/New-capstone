@@ -1,1004 +1,864 @@
-// server/routes/admin.js - COMPLETE ADMIN ROUTES
-const express = require("express");
+// server/routes/admin.js - Complete Fixed Admin Routes
+const express = require('express');
 const router = express.Router();
-const User = require("../models/User");
-const Pet = require("../models/Pet");
-const Contact = require("../models/Contact");
-const Product = require("../models/Product");
-const Settings = require("../models/Settings");
-const { protect, admin } = require("../middleware/auth");
-const { validateObjectId } = require("../middleware/validation");
+const mongoose = require('mongoose');
+const { body, validationResult, query } = require('express-validator');
+const { protect, admin } = require('../middleware/auth');
 
-// Helper function for async error handling
-const handleAsyncError = (fn) => (req, res, next) => {
-  Promise.resolve(fn(req, res, next)).catch(next);
+// Import models
+const User = require('../models/User');
+const Pet = require('../models/Pet');
+const Product = require('../models/Product');
+const Contact = require('../models/Contact');
+const Settings = require('../models/Settings');
+
+// Apply authentication middleware to all admin routes
+router.use(protect);
+router.use(admin);
+
+// Helper function to safely serialize data (prevent circular JSON)
+const safeSerialize = (obj) => {
+  const cache = new Set();
+  return JSON.parse(JSON.stringify(obj, (key, value) => {
+    if (typeof value === 'object' && value !== null) {
+      if (cache.has(value)) {
+        return '[Circular]';
+      }
+      cache.add(value);
+    }
+    return value;
+  }));
 };
 
-// Apply admin middleware to all routes
-router.use(protect, admin);
+// Helper function to create date range filter
+const getDateRangeFilter = (range) => {
+  const now = new Date();
+  const filters = {};
+  
+  switch (range) {
+    case '7days':
+      filters.createdAt = { $gte: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000) };
+      break;
+    case '30days':
+      filters.createdAt = { $gte: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000) };
+      break;
+    case '90days':
+      filters.createdAt = { $gte: new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000) };
+      break;
+    case '1year':
+      filters.createdAt = { $gte: new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000) };
+      break;
+    default:
+      // No filter for 'all'
+      break;
+  }
+  
+  return filters;
+};
 
-// ===== DASHBOARD ROUTE =====
-// GET /api/admin/dashboard - Get dashboard statistics and data
-router.get(
-  "/dashboard",
-  handleAsyncError(async (req, res) => {
-    console.log("📊 Admin: Fetching dashboard data");
+// =====================================
+// @route   GET /api/admin/dashboard
+// @desc    Get admin dashboard data
+// @access  Private/Admin
+// =====================================
+router.get('/dashboard', async (req, res) => {
+  console.log('📊 Admin: Fetching dashboard data');
+  
+  try {
+    // Run all queries in parallel for better performance
+    const [
+      totalPetsResult,
+      availablePetsResult,
+      adoptedPetsResult,
+      pendingPetsResult,
+      totalUsersResult,
+      totalProductsResult,
+      totalContactsResult,
+      recentPetsResult,
+      recentUsersResult,
+      recentContactsResult
+    ] = await Promise.all([
+      Pet.countDocuments(),
+      Pet.countDocuments({ status: 'available' }),
+      Pet.countDocuments({ status: 'adopted' }),
+      Pet.countDocuments({ status: 'pending' }),
+      User.countDocuments({ role: { $ne: 'admin' } }),
+      Product.countDocuments(),
+      Contact.countDocuments(),
+      Pet.find()
+        .sort({ createdAt: -1 })
+        .limit(5)
+        .select('name type breed images status createdAt')
+        .lean(),
+      User.find({ role: { $ne: 'admin' } })
+        .sort({ createdAt: -1 })
+        .limit(5)
+        .select('name username email role createdAt')
+        .lean(),
+      Contact.find()
+        .sort({ createdAt: -1 })
+        .limit(5)
+        .select('name email subject status createdAt')
+        .lean()
+    ]);
 
-    try {
-      // Get all statistics in parallel
-      const [
-        totalPets,
-        availablePets,
-        pendingPets,
-        adoptedPets,
-        totalUsers,
-        activeUsers,
-        totalContacts,
-        newContacts,
-        readContacts,
-        totalProducts,
-        inStockProducts,
-        recentPets,
-        recentUsers,
-        recentContacts
-      ] = await Promise.all([
-        Pet.countDocuments(),
-        Pet.countDocuments({ status: "available" }),
-        Pet.countDocuments({ status: "pending" }),
-        Pet.countDocuments({ status: "adopted" }),
-        User.countDocuments(),
-        User.countDocuments({ isActive: true }),
-        Contact.countDocuments(),
-        Contact.countDocuments({ status: "new" }),
-        Contact.countDocuments({ status: "read" }),
-        Product.countDocuments(),
-        Product.countDocuments({ inStock: true }),
-        Pet.find().sort({ createdAt: -1 }).limit(5).select("name type breed status createdAt image"),
-        User.find().sort({ createdAt: -1 }).limit(5).select("name email role createdAt isActive"),
-        Contact.find().sort({ createdAt: -1 }).limit(5).select("name email subject status createdAt")
-      ]);
+    // Construct clean response object
+    const dashboardData = {
+      success: true,
+      data: {
+        stats: {
+          pets: {
+            total: totalPetsResult || 0,
+            available: availablePetsResult || 0,
+            adopted: adoptedPetsResult || 0,
+            pending: pendingPetsResult || 0
+          },
+          users: {
+            total: totalUsersResult || 0
+          },
+          products: {
+            total: totalProductsResult || 0
+          },
+          contacts: {
+            total: totalContactsResult || 0
+          }
+        },
+        recentActivity: {
+          pets: recentPetsResult || [],
+          users: recentUsersResult || [],
+          contacts: recentContactsResult || []
+        },
+        alerts: [] // Add system alerts if needed
+      }
+    };
 
-      const stats = {
-        pets: {
-          total: totalPets,
-          available: availablePets,
-          pending: pendingPets,
-          adopted: adoptedPets
-        },
-        users: {
-          total: totalUsers,
-          active: activeUsers,
-          inactive: totalUsers - activeUsers
-        },
-        contacts: {
-          total: totalContacts,
-          new: newContacts,
-          read: readContacts,
-          resolved: totalContacts - newContacts - readContacts
-        },
-        products: {
-          total: totalProducts,
-          inStock: inStockProducts,
-          outOfStock: totalProducts - inStockProducts
+    console.log('✅ Dashboard data compiled successfully');
+    res.json(dashboardData);
+
+  } catch (error) {
+    console.error('❌ Dashboard error:', error.message);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch dashboard data',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// =====================================
+// @route   GET /api/admin/users
+// @desc    Get all users with pagination
+// @access  Private/Admin
+// =====================================
+router.get('/users', [
+  query('page').optional().isInt({ min: 1 }).withMessage('Page must be a positive integer'),
+  query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('Limit must be between 1 and 100'),
+  query('role').optional().isIn(['user', 'admin', 'moderator']).withMessage('Invalid role'),
+  query('status').optional().isIn(['active', 'inactive']).withMessage('Invalid status')
+], async (req, res) => {
+  console.log('🔍 Admin: Fetching users list');
+  
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid query parameters',
+        errors: errors.array().map(err => err.msg)
+      });
+    }
+
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    // Build filter
+    const filter = {};
+    if (req.query.role) filter.role = req.query.role;
+    if (req.query.status === 'active') filter.isActive = true;
+    if (req.query.status === 'inactive') filter.isActive = false;
+    if (req.query.search) {
+      filter.$or = [
+        { name: { $regex: req.query.search, $options: 'i' } },
+        { email: { $regex: req.query.search, $options: 'i' } },
+        { username: { $regex: req.query.search, $options: 'i' } }
+      ];
+    }
+
+    const [users, totalCount] = await Promise.all([
+      User.find(filter)
+        .select('-password')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      User.countDocuments(filter)
+    ]);
+
+    const totalPages = Math.ceil(totalCount / limit);
+
+    res.json({
+      success: true,
+      data: {
+        users,
+        pagination: {
+          currentPage: page,
+          totalPages,
+          totalCount,
+          hasNext: page < totalPages,
+          hasPrev: page > 1
         }
-      };
-
-      const recentActivity = {
-        pets: recentPets,
-        users: recentUsers,
-        contacts: recentContacts
-      };
-
-      res.json({
-        success: true,
-        data: {
-          stats,
-          recentActivity
-        },
-        message: "Dashboard data retrieved successfully",
-      });
-    } catch (error) {
-      console.error("❌ Dashboard error:", error);
-      res.status(500).json({
-        success: false,
-        message: "Failed to load dashboard data",
-        error: error.message
-      });
-    }
-  })
-);
-
-// ===== USER MANAGEMENT ROUTES =====
-// GET /api/admin/users - Get all users with pagination and filtering
-router.get(
-  "/users",
-  handleAsyncError(async (req, res) => {
-    const {
-      search,
-      role,
-      isActive,
-      limit = 20,
-      page = 1,
-      sort = "createdAt",
-    } = req.query;
-
-    // Build query
-    const query = {};
-
-    if (search) {
-      query.$or = [
-        { name: { $regex: search, $options: "i" } },
-        { email: { $regex: search, $options: "i" } },
-      ];
-    }
-
-    if (role && role !== 'all') {
-      query.role = role;
-    }
-
-    if (isActive !== undefined && isActive !== 'all') {
-      query.isActive = isActive === "true";
-    }
-
-    // Pagination
-    const limitNum = parseInt(limit);
-    const skip = (parseInt(page) - 1) * limitNum;
-
-    // Sort options
-    const sortOptions = {};
-    switch (sort) {
-      case "name":
-        sortOptions.name = 1;
-        break;
-      case "email":
-        sortOptions.email = 1;
-        break;
-      case "role":
-        sortOptions.role = 1;
-        break;
-      case "oldest":
-        sortOptions.createdAt = 1;
-        break;
-      default:
-        sortOptions.createdAt = -1;
-    }
-
-    const users = await User.find(query)
-      .sort(sortOptions)
-      .limit(limitNum)
-      .skip(skip)
-      .select("-password");
-
-    const totalUsers = await User.countDocuments(query);
-    const totalPages = Math.ceil(totalUsers / limitNum);
-
-    res.json({
-      success: true,
-      data: users,
-      pagination: {
-        currentPage: parseInt(page),
-        totalPages,
-        totalUsers,
-        hasNext: page < totalPages,
-        hasPrev: page > 1,
-      },
-      message: "Users retrieved successfully",
+      }
     });
-  })
-);
 
-// PUT /api/admin/users/:id - Update user
-router.put(
-  "/users/:id",
-  validateObjectId,
-  handleAsyncError(async (req, res) => {
-    const { role, isActive, name, email } = req.body;
+    console.log('✅ Users loaded:', users.length);
+
+  } catch (error) {
+    console.error('❌ Error fetching users:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch users'
+    });
+  }
+});
+
+// =====================================
+// @route   PUT /api/admin/users/:id
+// @desc    Update user (role, status, etc.)
+// @access  Private/Admin
+// =====================================
+router.put('/users/:id', [
+  body('role').optional().isIn(['user', 'admin', 'moderator']).withMessage('Invalid role'),
+  body('isActive').optional().isBoolean().withMessage('isActive must be boolean'),
+  body('name').optional().trim().isLength({ min: 2, max: 100 }).withMessage('Name must be between 2-100 characters')
+], async (req, res) => {
+  console.log('👤 Admin: Updating user', req.params.id);
+  
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: errors.array().map(err => err.msg)
+      });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid user ID'
+      });
+    }
+
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Prevent admin from deactivating themselves
+    if (req.params.id === req.user.id && req.body.isActive === false) {
+      return res.status(400).json({
+        success: false,
+        message: 'You cannot deactivate your own account'
+      });
+    }
+
+    // Update allowed fields
+    const allowedUpdates = ['role', 'isActive', 'name'];
+    const updates = {};
     
-    const updateData = {};
-    if (role !== undefined) updateData.role = role;
-    if (isActive !== undefined) updateData.isActive = isActive;
-    if (name !== undefined) updateData.name = name;
-    if (email !== undefined) updateData.email = email;
+    allowedUpdates.forEach(field => {
+      if (req.body[field] !== undefined) {
+        updates[field] = req.body[field];
+      }
+    });
 
-    const user = await User.findByIdAndUpdate(
-      req.params.id,
-      updateData,
-      { new: true, runValidators: true }
-    ).select("-password");
+    Object.assign(user, updates);
+    await user.save();
 
+    res.json({
+      success: true,
+      message: 'User updated successfully',
+      data: user
+    });
+
+  } catch (error) {
+    console.error('❌ Error updating user:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update user'
+    });
+  }
+});
+
+// =====================================
+// @route   DELETE /api/admin/users/:id
+// @desc    Delete user (soft delete)
+// @access  Private/Admin
+// =====================================
+router.delete('/users/:id', async (req, res) => {
+  console.log('🗑️ Admin: Deleting user', req.params.id);
+  
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid user ID'
+      });
+    }
+
+    // Prevent admin from deleting themselves
+    if (req.params.id === req.user.id) {
+      return res.status(400).json({
+        success: false,
+        message: 'You cannot delete your own account'
+      });
+    }
+
+    const user = await User.findById(req.params.id);
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: "User not found"
+        message: 'User not found'
       });
     }
 
+    // Soft delete by deactivating
+    user.isActive = false;
+    await user.save();
+
     res.json({
       success: true,
-      data: user,
-      message: "User updated successfully"
+      message: 'User deactivated successfully'
     });
-  })
-);
 
-// DELETE /api/admin/users/:id - Delete user
-router.delete(
-  "/users/:id",
-  validateObjectId,
-  handleAsyncError(async (req, res) => {
-    const user = await User.findByIdAndDelete(req.params.id);
+  } catch (error) {
+    console.error('❌ Error deleting user:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete user'
+    });
+  }
+});
 
-    if (!user) {
-      return res.status(404).json({
+// =====================================
+// @route   GET /api/admin/pets
+// @desc    Get all pets for admin management
+// @access  Private/Admin
+// =====================================
+router.get('/pets', [
+  query('page').optional().isInt({ min: 1 }),
+  query('limit').optional().isInt({ min: 1, max: 100 }),
+  query('status').optional().isIn(['available', 'adopted', 'pending'])
+], async (req, res) => {
+  console.log('🐕 Admin: Fetching pets list');
+  
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
         success: false,
-        message: "User not found"
+        message: 'Invalid query parameters',
+        errors: errors.array().map(err => err.msg)
       });
     }
 
-    res.json({
-      success: true,
-      message: "User deleted successfully"
-    });
-  })
-);
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const skip = (page - 1) * limit;
 
-// ===== PET MANAGEMENT ROUTES =====
-// GET /api/admin/pets - Get all pets for admin management
-router.get(
-  "/pets",
-  handleAsyncError(async (req, res) => {
-    console.log("🔍 Admin pets route hit with query:", req.query);
-
-    const {
-      search,
-      type,
-      status,
-      age,
-      size,
-      limit = 20,
-      page = 1,
-      sort = "createdAt",
-    } = req.query;
-
-    // Build query
-    const query = {};
-
-    if (search) {
-      query.$or = [
-        { name: { $regex: search, $options: "i" } },
-        { breed: { $regex: search, $options: "i" } },
-        { description: { $regex: search, $options: "i" } },
+    const filter = {};
+    if (req.query.status) filter.status = req.query.status;
+    if (req.query.search) {
+      filter.$or = [
+        { name: { $regex: req.query.search, $options: 'i' } },
+        { breed: { $regex: req.query.search, $options: 'i' } },
+        { type: { $regex: req.query.search, $options: 'i' } }
       ];
     }
 
-    if (type && type !== 'all') {
-      query.type = type;
-    }
+    const [pets, totalCount] = await Promise.all([
+      Pet.find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      Pet.countDocuments(filter)
+    ]);
 
-    if (status && status !== 'all') {
-      query.status = status;
-    }
-
-    if (age && age !== 'all') {
-      query.age = age;
-    }
-
-    if (size && size !== 'all') {
-      query.size = size;
-    }
-
-    // Pagination
-    const limitNum = parseInt(limit);
-    const skip = (parseInt(page) - 1) * limitNum;
-
-    // Sort options
-    const sortOptions = {};
-    switch (sort) {
-      case "name":
-        sortOptions.name = 1;
-        break;
-      case "type":
-        sortOptions.type = 1;
-        break;
-      case "status":
-        sortOptions.status = 1;
-        break;
-      case "oldest":
-        sortOptions.createdAt = 1;
-        break;
-      default:
-        sortOptions.createdAt = -1;
-    }
-
-    const pets = await Pet.find(query)
-      .sort(sortOptions)
-      .limit(limitNum)
-      .skip(skip);
-
-    const totalPets = await Pet.countDocuments(query);
-    const totalPages = Math.ceil(totalPets / limitNum);
-
-    console.log(`🔍 Found ${pets.length} pets (${totalPets} total)`);
+    const totalPages = Math.ceil(totalCount / limit);
 
     res.json({
       success: true,
-      data: pets,
-      pagination: {
-        currentPage: parseInt(page),
-        totalPages,
-        totalPets,
-        hasNext: page < totalPages,
-        hasPrev: page > 1,
-      },
-      message: "Pets retrieved successfully",
+      data: {
+        pets,
+        pagination: {
+          currentPage: page,
+          totalPages,
+          totalCount,
+          hasNext: page < totalPages,
+          hasPrev: page > 1
+        }
+      }
     });
-  })
-);
 
-// PUT /api/admin/pets/:id - Update pet
-router.put(
-  "/pets/:id",
-  validateObjectId,
-  handleAsyncError(async (req, res) => {
-    const pet = await Pet.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      { new: true, runValidators: true }
-    );
+  } catch (error) {
+    console.error('❌ Error fetching pets:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch pets'
+    });
+  }
+});
 
-    if (!pet) {
-      return res.status(404).json({
+// =====================================
+// @route   GET /api/admin/contacts
+// @desc    Get contact messages
+// @access  Private/Admin
+// =====================================
+router.get('/contacts', [
+  query('page').optional().isInt({ min: 1 }),
+  query('limit').optional().isInt({ min: 1, max: 100 }),
+  query('status').optional().isIn(['new', 'read', 'replied', 'resolved'])
+], async (req, res) => {
+  console.log('📧 Admin: Fetching contacts');
+  
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
         success: false,
-        message: "Pet not found"
+        message: 'Invalid query parameters',
+        errors: errors.array().map(err => err.msg)
       });
     }
 
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    const filter = {};
+    if (req.query.status && req.query.status !== '') {
+      filter.status = req.query.status;
+    }
+
+    const [contacts, totalCount] = await Promise.all([
+      Contact.find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      Contact.countDocuments(filter)
+    ]);
+
+    const totalPages = Math.ceil(totalCount / limit);
+
     res.json({
       success: true,
-      data: pet,
-      message: "Pet updated successfully"
+      data: {
+        contacts,
+        pagination: {
+          currentPage: page,
+          totalPages,
+          totalCount,
+          hasNext: page < totalPages,
+          hasPrev: page > 1
+        }
+      }
     });
-  })
-);
 
-// DELETE /api/admin/pets/:id - Delete pet
-router.delete(
-  "/pets/:id",
-  validateObjectId,
-  handleAsyncError(async (req, res) => {
-    const pet = await Pet.findByIdAndDelete(req.params.id);
+  } catch (error) {
+    console.error('❌ Error fetching contacts:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch contacts'
+    });
+  }
+});
 
-    if (!pet) {
-      return res.status(404).json({
+// =====================================
+// @route   PUT /api/admin/contacts/:id
+// @desc    Update contact status
+// @access  Private/Admin
+// =====================================
+router.put('/contacts/:id', [
+  body('status').isIn(['new', 'read', 'replied', 'resolved']).withMessage('Invalid status')
+], async (req, res) => {
+  console.log('📧 Admin: Updating contact', req.params.id);
+  
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
         success: false,
-        message: "Pet not found"
+        message: 'Invalid status',
+        errors: errors.array().map(err => err.msg)
       });
     }
 
-    res.json({
-      success: true,
-      message: "Pet deleted successfully"
-    });
-  })
-);
-
-// ===== PRODUCT MANAGEMENT ROUTES =====
-// GET /api/admin/products - Get all products for admin management
-router.get(
-  "/products",
-  handleAsyncError(async (req, res) => {
-    const {
-      search,
-      category,
-      brand,
-      inStock,
-      limit = 20,
-      page = 1,
-      sort = "createdAt",
-    } = req.query;
-
-    // Build query
-    const query = {};
-
-    if (search) {
-      query.$or = [
-        { name: { $regex: search, $options: "i" } },
-        { title: { $regex: search, $options: "i" } },
-        { description: { $regex: search, $options: "i" } },
-        { brand: { $regex: search, $options: "i" } },
-      ];
-    }
-
-    if (category && category !== 'all') {
-      query.category = category;
-    }
-
-    if (brand && brand !== 'all') {
-      query.brand = brand;
-    }
-
-    if (inStock !== undefined && inStock !== 'all') {
-      query.inStock = inStock === "true";
-    }
-
-    // Pagination
-    const limitNum = parseInt(limit);
-    const skip = (parseInt(page) - 1) * limitNum;
-
-    // Sort options
-    const sortOptions = {};
-    switch (sort) {
-      case "name":
-        sortOptions.name = 1;
-        break;
-      case "price":
-        sortOptions.price = 1;
-        break;
-      case "category":
-        sortOptions.category = 1;
-        break;
-      case "oldest":
-        sortOptions.createdAt = 1;
-        break;
-      default:
-        sortOptions.createdAt = -1;
-    }
-
-    const products = await Product.find(query)
-      .sort(sortOptions)
-      .limit(limitNum)
-      .skip(skip);
-
-    const totalProducts = await Product.countDocuments(query);
-    const totalPages = Math.ceil(totalProducts / limitNum);
-
-    res.json({
-      success: true,
-      data: products,
-      pagination: {
-        currentPage: parseInt(page),
-        totalPages,
-        totalProducts,
-        hasNext: page < totalPages,
-        hasPrev: page > 1,
-      },
-      message: "Products retrieved successfully",
-    });
-  })
-);
-
-// POST /api/admin/products - Create new product
-router.post(
-  "/products",
-  handleAsyncError(async (req, res) => {
-    const product = new Product({
-      ...req.body,
-      createdBy: req.user._id
-    });
-
-    await product.save();
-
-    res.status(201).json({
-      success: true,
-      data: product,
-      message: "Product created successfully"
-    });
-  })
-);
-
-// PUT /api/admin/products/:id - Update product
-router.put(
-  "/products/:id",
-  validateObjectId,
-  handleAsyncError(async (req, res) => {
-    const product = await Product.findByIdAndUpdate(
-      req.params.id,
-      { ...req.body, updatedBy: req.user._id, updatedAt: new Date() },
-      { new: true, runValidators: true }
-    );
-
-    if (!product) {
-      return res.status(404).json({
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({
         success: false,
-        message: "Product not found"
+        message: 'Invalid contact ID'
       });
     }
 
-    res.json({
-      success: true,
-      data: product,
-      message: "Product updated successfully"
-    });
-  })
-);
-
-// DELETE /api/admin/products/:id - Delete product
-router.delete(
-  "/products/:id",
-  validateObjectId,
-  handleAsyncError(async (req, res) => {
-    const product = await Product.findByIdAndDelete(req.params.id);
-
-    if (!product) {
-      return res.status(404).json({
-        success: false,
-        message: "Product not found"
-      });
-    }
-
-    res.json({
-      success: true,
-      message: "Product deleted successfully"
-    });
-  })
-);
-
-// ===== CONTACT MANAGEMENT ROUTES =====
-// GET /api/admin/contacts - Get all contacts with filtering
-router.get(
-  "/contacts",
-  handleAsyncError(async (req, res) => {
-    const {
-      search,
-      status,
-      limit = 20,
-      page = 1,
-      sort = "createdAt",
-    } = req.query;
-
-    // Build query
-    const query = {};
-
-    if (search) {
-      query.$or = [
-        { name: { $regex: search, $options: "i" } },
-        { email: { $regex: search, $options: "i" } },
-        { subject: { $regex: search, $options: "i" } },
-      ];
-    }
-
-    if (status && status !== 'all') {
-      query.status = status;
-    }
-
-    // Pagination
-    const limitNum = parseInt(limit);
-    const skip = (parseInt(page) - 1) * limitNum;
-
-    // Sort options
-    const sortOptions = {};
-    switch (sort) {
-      case "name":
-        sortOptions.name = 1;
-        break;
-      case "email":
-        sortOptions.email = 1;
-        break;
-      case "status":
-        sortOptions.status = 1;
-        break;
-      case "oldest":
-        sortOptions.createdAt = 1;
-        break;
-      default:
-        sortOptions.createdAt = -1;
-    }
-
-    const contacts = await Contact.find(query)
-      .sort(sortOptions)
-      .limit(limitNum)
-      .skip(skip);
-
-    const totalContacts = await Contact.countDocuments(query);
-    const totalPages = Math.ceil(totalContacts / limitNum);
-
-    res.json({
-      success: true,
-      data: contacts,
-      pagination: {
-        currentPage: parseInt(page),
-        totalPages,
-        totalContacts,
-        hasNext: page < totalPages,
-        hasPrev: page > 1,
-      },
-      message: "Contacts retrieved successfully",
-    });
-  })
-);
-
-// PUT /api/admin/contacts/:id - Update contact status
-router.put(
-  "/contacts/:id",
-  validateObjectId,
-  handleAsyncError(async (req, res) => {
     const contact = await Contact.findByIdAndUpdate(
       req.params.id,
-      req.body,
-      { new: true, runValidators: true }
+      { 
+        status: req.body.status,
+        updatedAt: new Date()
+      },
+      { new: true }
     );
 
     if (!contact) {
       return res.status(404).json({
         success: false,
-        message: "Contact not found",
+        message: 'Contact not found'
       });
     }
 
     res.json({
       success: true,
-      data: contact,
-      message: "Contact updated successfully",
+      message: 'Contact status updated successfully',
+      data: contact
     });
-  })
-);
 
-// DELETE /api/admin/contacts/:id - Delete contact
-router.delete(
-  "/contacts/:id",
-  validateObjectId,
-  handleAsyncError(async (req, res) => {
-    const contact = await Contact.findByIdAndDelete(req.params.id);
+  } catch (error) {
+    console.error('❌ Error updating contact:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update contact'
+    });
+  }
+});
 
-    if (!contact) {
-      return res.status(404).json({
+// =====================================
+// @route   GET /api/admin/analytics
+// @desc    Get analytics data
+// @access  Private/Admin
+// =====================================
+router.get('/analytics', [
+  query('range').optional().isIn(['7days', '30days', '90days', '1year', 'all']).withMessage('Invalid date range')
+], async (req, res) => {
+  console.log('📊 Admin: Fetching analytics');
+  
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
         success: false,
-        message: "Contact not found",
+        message: 'Invalid parameters',
+        errors: errors.array().map(err => err.msg)
       });
     }
 
-    res.json({
+    const range = req.query.range || '30days';
+    const dateFilter = getDateRangeFilter(range);
+
+    // Get analytics data in parallel
+    const [
+      totalPets,
+      totalUsers,
+      totalContacts,
+      totalAdoptions,
+      recentPets,
+      recentUsers,
+      recentContacts,
+      petsByType,
+      petsByStatus
+    ] = await Promise.all([
+      Pet.countDocuments(dateFilter),
+      User.countDocuments({ ...dateFilter, role: { $ne: 'admin' } }),
+      Contact.countDocuments(dateFilter),
+      Pet.countDocuments({ ...dateFilter, status: 'adopted' }),
+      Pet.find(dateFilter).sort({ createdAt: -1 }).limit(10).lean(),
+      User.find({ ...dateFilter, role: { $ne: 'admin' } }).sort({ createdAt: -1 }).limit(10).lean(),
+      Contact.find(dateFilter).sort({ createdAt: -1 }).limit(10).lean(),
+      Pet.aggregate([
+        { $match: dateFilter },
+        { $group: { _id: '$type', count: { $sum: 1 } } },
+        { $sort: { count: -1 } }
+      ]),
+      Pet.aggregate([
+        { $match: dateFilter },
+        { $group: { _id: '$status', count: { $sum: 1 } } }
+      ])
+    ]);
+
+    // Create clean analytics object
+    const analyticsData = {
       success: true,
-      message: "Contact deleted successfully",
-    });
-  })
-);
-
-// ===== ANALYTICS ROUTES =====
-// GET /api/admin/analytics - Get analytics data
-router.get(
-  "/analytics",
-  handleAsyncError(async (req, res) => {
-    const { range = "30days" } = req.query;
-    console.log("📊 Fetching analytics for range:", range);
-
-    // Calculate date range
-    const now = new Date();
-    const daysMap = {
-      "7days": 7,
-      "30days": 30,
-      "90days": 90,
-      "1year": 365
-    };
-    
-    const days = daysMap[range] || 30;
-    const startDate = new Date(now - (days * 24 * 60 * 60 * 1000));
-
-    try {
-      // Get analytics data
-      const [
-        totalStats,
-        periodStats,
-        petStats,
-        userStats,
-        contactStats,
-        productStats,
-        recentActivity
-      ] = await Promise.all([
-        // Total stats
-        Promise.all([
-          Pet.countDocuments(),
-          User.countDocuments(),
-          Contact.countDocuments(),
-          Product.countDocuments()
-        ]),
-        // Period stats
-        Promise.all([
-          Pet.countDocuments({ createdAt: { $gte: startDate } }),
-          User.countDocuments({ createdAt: { $gte: startDate } }),
-          Contact.countDocuments({ createdAt: { $gte: startDate } }),
-          Product.countDocuments({ createdAt: { $gte: startDate } })
-        ]),
-        // Pet analytics
-        Pet.aggregate([
-          {
-            $group: {
-              _id: "$status",
-              count: { $sum: 1 }
-            }
-          }
-        ]),
-        // User analytics
-        User.aggregate([
-          {
-            $group: {
-              _id: "$role",
-              count: { $sum: 1 }
-            }
-          }
-        ]),
-        // Contact analytics
-        Contact.aggregate([
-          {
-            $group: {
-              _id: "$status",
-              count: { $sum: 1 }
-            }
-          }
-        ]),
-        // Product analytics
-        Product.aggregate([
-          {
-            $group: {
-              _id: "$category",
-              count: { $sum: 1 },
-              totalValue: { $sum: "$price" }
-            }
-          }
-        ]),
-        // Recent activity
-        {
-          pets: Pet.find().sort({ createdAt: -1 }).limit(10).select("name type status createdAt"),
-          users: User.find().sort({ createdAt: -1 }).limit(10).select("name email role createdAt"),
-          contacts: Contact.find().sort({ createdAt: -1 }).limit(10).select("name email subject status createdAt")
-        }
-      ]);
-
-      const [totalPets, totalUsers, totalContacts, totalProducts] = totalStats;
-      const [newPets, newUsers, newContacts, newProducts] = periodStats;
-
-      // Format analytics data
-      const analytics = {
+      data: {
         overview: {
-          totalPets,
-          totalUsers,
-          totalContacts,
-          totalProducts,
-          newPets,
-          newUsers,
-          newContacts,
-          newProducts,
-          period: range
+          totalPets: totalPets || 0,
+          totalUsers: totalUsers || 0,
+          totalContacts: totalContacts || 0,
+          totalAdoptions: totalAdoptions || 0,
+          conversionRate: totalPets > 0 ? ((totalAdoptions / totalPets) * 100).toFixed(1) : '0.0'
         },
-        chartData: {
-          petsByStatus: petStats.reduce((acc, item) => {
-            acc[item._id] = item.count;
-            return acc;
-          }, {}),
-          usersByRole: userStats.reduce((acc, item) => {
-            acc[item._id] = item.count;
-            return acc;
-          }, {}),
-          contactsByStatus: contactStats.reduce((acc, item) => {
-            acc[item._id] = item.count;
-            return acc;
-          }, {}),
-          productsByCategory: productStats.map(item => ({
-            category: item._id,
-            count: item.count,
-            value: item.totalValue
-          }))
+        trends: {
+          petsByType: petsByType || [],
+          petsByStatus: petsByStatus || []
         },
-        recentActivity
-      };
-
-      console.log("✅ Analytics data compiled successfully");
-
-      res.json({
-        success: true,
-        data: analytics,
-        message: "Analytics data retrieved successfully"
-      });
-    } catch (error) {
-      console.error("❌ Analytics error:", error);
-      res.status(500).json({
-        success: false,
-        message: "Failed to fetch analytics data",
-        error: error.message
-      });
-    }
-  })
-);
-
-// ===== SETTINGS ROUTES =====
-// GET /api/admin/settings - Get system settings
-router.get(
-  "/settings",
-  handleAsyncError(async (req, res) => {
-    console.log("⚙️ Fetching system settings");
-
-    try {
-      // Try to get settings from database
-      let settings = await Settings.findOne();
-
-      if (!settings) {
-        // Create default settings if none exist
-        settings = new Settings({
-          siteName: "FurBabies Pet Store",
-          siteDescription: "Find your perfect pet companion",
-          contactEmail: "info@furbabies.com",
-          contactPhone: "(555) 123-4567",
-          allowRegistration: true,
-          requireEmailVerification: false,
-          maxLoginAttempts: 5,
-          defaultPetStatus: "available",
-          maxPetImages: 5,
-          petApprovalRequired: false,
-          maintenanceMode: false,
-          maxUploadSize: "5MB",
-          sessionTimeout: "30",
-          enableAnalytics: true,
-          emailNotifications: true,
-          notifyOnNewContact: true,
-          notifyOnNewRegistration: false,
-          notifyOnAdoption: true
-        });
-        
-        await settings.save();
-        console.log("✅ Created default settings");
+        recentActivity: {
+          pets: recentPets || [],
+          users: recentUsers || [],
+          contacts: recentContacts || []
+        },
+        dateRange: {
+          range,
+          applied: !!dateFilter.createdAt
+        }
       }
+    };
 
-      res.json({
-        success: true,
-        data: settings,
-        message: "Settings retrieved successfully"
-      });
-    } catch (error) {
-      console.error("❌ Settings fetch error:", error);
-      res.status(500).json({
-        success: false,
-        message: "Failed to fetch settings",
-        error: error.message
-      });
-    }
-  })
-);
+    console.log('✅ Analytics data compiled successfully');
+    res.json(analyticsData);
 
-// PUT /api/admin/settings - Update system settings
-router.put(
-  "/settings",
-  handleAsyncError(async (req, res) => {
-    console.log("⚙️ Updating system settings", req.body);
+  } catch (error) {
+    console.error('❌ Analytics error:', error.message);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch analytics data',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
 
-    try {
-      let settings = await Settings.findOne();
-
-      if (!settings) {
-        // Create new settings if none exist
-        settings = new Settings(req.body);
-      } else {
-        // Update existing settings
-        Object.assign(settings, req.body);
-        settings.updatedAt = new Date();
-      }
-
+// =====================================
+// @route   GET /api/admin/settings
+// @desc    Get system settings
+// @access  Private/Admin
+// =====================================
+router.get('/settings', async (req, res) => {
+  console.log('⚙️ Fetching system settings');
+  
+  try {
+    let settings = await Settings.findOne();
+    
+    if (!settings) {
+      // Create default settings
+      settings = new Settings({});
       await settings.save();
-
-      res.json({
-        success: true,
-        data: settings,
-        message: "Settings updated successfully"
-      });
-    } catch (error) {
-      console.error("❌ Settings update error:", error);
-      res.status(500).json({
-        success: false,
-        message: "Failed to update settings",
-        error: error.message
-      });
+      console.log('✅ Created default settings');
     }
-  })
-);
-
-// ===== REPORTS ROUTES =====
-// GET /api/admin/reports - Generate reports
-router.get(
-  "/reports",
-  handleAsyncError(async (req, res) => {
-    const { type = "all", period = "30days" } = req.query;
-    console.log(`📋 Generating ${type} report for ${period}`);
-
-    const now = new Date();
-    const daysMap = { "7days": 7, "30days": 30, "90days": 90, "1year": 365 };
-    const days = daysMap[period] || 30;
-    const startDate = new Date(now - (days * 24 * 60 * 60 * 1000));
-
-    try {
-      const reports = {};
-
-      if (type === "all" || type === "pets") {
-        reports.pets = await Pet.find({ createdAt: { $gte: startDate } })
-          .sort({ createdAt: -1 })
-          .select("name type breed status age size createdAt");
-      }
-
-      if (type === "all" || type === "users") {
-        reports.users = await User.find({ createdAt: { $gte: startDate } })
-          .sort({ createdAt: -1 })
-          .select("name email role isActive createdAt");
-      }
-
-      if (type === "all" || type === "contacts") {
-        reports.contacts = await Contact.find({ createdAt: { $gte: startDate } })
-          .sort({ createdAt: -1 })
-          .select("name email subject status createdAt");
-      }
-
-      if (type === "all" || type === "products") {
-        reports.products = await Product.find({ createdAt: { $gte: startDate } })
-          .sort({ createdAt: -1 })
-          .select("name category brand price inStock createdAt");
-      }
-
-      res.json({
-        success: true,
-        data: {
-          type,
-          period,
-          dateRange: { start: startDate, end: now },
-          reports
-        },
-        message: "Reports generated successfully"
-      });
-    } catch (error) {
-      console.error("❌ Reports error:", error);
-      res.status(500).json({
-        success: false,
-        message: "Failed to generate reports",
-        error: error.message
-      });
-    }
-  })
-);
-
-// ===== BATCH OPERATIONS =====
-// POST /api/admin/batch/delete-pets - Batch delete pets
-router.post(
-  "/batch/delete-pets",
-  handleAsyncError(async (req, res) => {
-    const { petIds } = req.body;
-
-    if (!petIds || !Array.isArray(petIds) || petIds.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: "Pet IDs array is required"
-      });
-    }
-
-    const result = await Pet.deleteMany({ _id: { $in: petIds } });
 
     res.json({
       success: true,
-      data: { deletedCount: result.deletedCount },
-      message: `${result.deletedCount} pets deleted successfully`
+      data: settings
     });
-  })
-);
 
-// POST /api/admin/batch/delete-users - Batch delete users
-router.post(
-  "/batch/delete-users",
-  handleAsyncError(async (req, res) => {
-    const { userIds } = req.body;
+  } catch (error) {
+    console.error('❌ Error fetching settings:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch settings'
+    });
+  }
+});
 
-    if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
+// =====================================
+// @route   PUT /api/admin/settings
+// @desc    Update system settings
+// @access  Private/Admin
+// =====================================
+router.put('/settings', [
+  body('siteName').optional().trim().isLength({ min: 1, max: 100 }),
+  body('siteDescription').optional().trim().isLength({ max: 500 }),
+  body('contactEmail').optional().isEmail(),
+  body('allowRegistration').optional().isBoolean(),
+  body('maintenanceMode').optional().isBoolean()
+], async (req, res) => {
+  console.log('⚙️ Updating system settings');
+  
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
       return res.status(400).json({
         success: false,
-        message: "User IDs array is required"
+        message: 'Validation failed',
+        errors: errors.array().map(err => err.msg)
       });
     }
 
-    const result = await User.deleteMany({ 
-      _id: { $in: userIds },
-      role: { $ne: "admin" } // Prevent deleting admin users
-    });
+    const settings = await Settings.updateSettings(req.body);
 
     res.json({
       success: true,
-      data: { deletedCount: result.deletedCount },
-      message: `${result.deletedCount} users deleted successfully`
+      message: 'Settings updated successfully',
+      data: settings
     });
-  })
-);
+
+  } catch (error) {
+    console.error('❌ Error updating settings:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update settings'
+    });
+  }
+});
+
+// =====================================
+// @route   GET /api/admin/reports
+// @desc    Generate various reports
+// @access  Private/Admin
+// =====================================
+router.get('/reports', [
+  query('type').isIn(['users', 'pets', 'contacts', 'adoptions']).withMessage('Invalid report type'),
+  query('range').optional().isIn(['7days', '30days', '90days', '1year', 'all'])
+], async (req, res) => {
+  console.log('📊 Admin: Generating report');
+  
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid parameters',
+        errors: errors.array().map(err => err.msg)
+      });
+    }
+
+    const { type, range = '30days' } = req.query;
+    const dateFilter = getDateRangeFilter(range);
+
+    let reportData;
+
+    switch (type) {
+      case 'users':
+        reportData = await User.aggregate([
+          { $match: { ...dateFilter, role: { $ne: 'admin' } } },
+          {
+            $group: {
+              _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
+              count: { $sum: 1 }
+            }
+          },
+          { $sort: { '_id': 1 } }
+        ]);
+        break;
+
+      case 'pets':
+        reportData = await Pet.aggregate([
+          { $match: dateFilter },
+          {
+            $group: {
+              _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
+              available: { $sum: { $cond: [{ $eq: ['$status', 'available'] }, 1, 0] } },
+              adopted: { $sum: { $cond: [{ $eq: ['$status', 'adopted'] }, 1, 0] } },
+              pending: { $sum: { $cond: [{ $eq: ['$status', 'pending'] }, 1, 0] } }
+            }
+          },
+          { $sort: { '_id': 1 } }
+        ]);
+        break;
+
+      case 'contacts':
+        reportData = await Contact.aggregate([
+          { $match: dateFilter },
+          {
+            $group: {
+              _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
+              count: { $sum: 1 }
+            }
+          },
+          { $sort: { '_id': 1 } }
+        ]);
+        break;
+
+      case 'adoptions':
+        reportData = await Pet.aggregate([
+          { $match: { ...dateFilter, status: 'adopted' } },
+          {
+            $group: {
+              _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
+              count: { $sum: 1 }
+            }
+          },
+          { $sort: { '_id': 1 } }
+        ]);
+        break;
+
+      default:
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid report type'
+        });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        type,
+        range,
+        reportData: reportData || [],
+        generatedAt: new Date().toISOString()
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error generating report:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to generate report'
+    });
+  }
+});
+
+// =====================================
+// @route   GET /api/admin/logs
+// @desc    Get system logs (placeholder)
+// @access  Private/Admin
+// =====================================
+router.get('/logs', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Logs endpoint - to be implemented',
+    data: []
+  });
+});
+
+// =====================================
+// @route   GET /api/admin/config
+// @desc    Get system configuration
+// @access  Private/Admin
+// =====================================
+router.get('/config', (req, res) => {
+  res.json({
+    success: true,
+    data: {
+      nodeEnv: process.env.NODE_ENV,
+      version: '1.0.0',
+      features: {
+        emailEnabled: !!process.env.SMTP_HOST,
+        cloudStorageEnabled: !!process.env.CLOUD_STORAGE_BUCKET,
+        analyticsEnabled: true
+      }
+    }
+  });
+});
+
+// =====================================
+// @route   GET /api/admin/backups
+// @desc    Get backup information
+// @access  Private/Admin
+// =====================================
+router.get('/backups', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Backup endpoint - to be implemented',
+    data: {
+      lastBackup: null,
+      nextScheduled: null,
+      status: 'Not configured'
+    }
+  });
+});
 
 module.exports = router;

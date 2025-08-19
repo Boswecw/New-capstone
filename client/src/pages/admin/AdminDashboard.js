@@ -1,5 +1,4 @@
-// src/pages/admin/AdminDashboard.js - FIXED VERSION
-
+// client/src/pages/admin/AdminDashboard.js - Complete Fixed Version
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../services/api';
@@ -26,21 +25,22 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // FIXED: Fetch dashboard data using configured API instance
+  // Fetch dashboard data
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
         setLoading(true);
+        setError(null);
         console.log('📊 Fetching admin dashboard data...');
         
-        // FIXED: Use api instance instead of fetch
         const response = await api.get('/admin/dashboard');
         
         console.log('✅ Dashboard response:', response.data);
         
         if (response.data.success) {
-          // FIXED: Map the backend response to frontend expected structure
           const backendData = response.data.data;
+          
+          // FIXED: Map the backend response to frontend expected structure with proper null checks
           const mappedData = {
             stats: {
               totalPets: backendData.stats?.pets?.total || 0,
@@ -51,11 +51,19 @@ const AdminDashboard = () => {
               totalUsers: backendData.stats?.users?.total || 0,
               recentAdoptions: backendData.stats?.pets?.adopted || 0
             },
-            recentPets: backendData.recentActivity?.pets || [],
-            recentUsers: backendData.recentActivity?.users || [],
-            recentContacts: backendData.recentActivity?.contacts || [],
-            alerts: backendData.alerts || []
+            // FIXED: Ensure arrays are always valid arrays, never null/undefined
+            recentPets: Array.isArray(backendData.recentActivity?.pets) 
+              ? backendData.recentActivity.pets 
+              : [],
+            recentUsers: Array.isArray(backendData.recentActivity?.users) 
+              ? backendData.recentActivity.users 
+              : [],
+            recentContacts: Array.isArray(backendData.recentActivity?.contacts) 
+              ? backendData.recentActivity.contacts 
+              : [],
+            alerts: Array.isArray(backendData.alerts) ? backendData.alerts : []
           };
+          
           console.log('🔄 Mapped dashboard data:', mappedData);
           setDashboardData(mappedData);
         } else {
@@ -63,7 +71,8 @@ const AdminDashboard = () => {
         }
       } catch (err) {
         console.error('❌ Dashboard fetch error:', err);
-        setError(err.response?.data?.message || err.message || 'Failed to load dashboard');
+        const errorMessage = err.response?.data?.message || err.message || 'Failed to load dashboard';
+        setError(errorMessage);
       } finally {
         setLoading(false);
       }
@@ -72,6 +81,7 @@ const AdminDashboard = () => {
     fetchDashboardData();
   }, []);
 
+  // Loading state
   if (loading) {
     return (
       <div className="admin-dashboard loading">
@@ -87,12 +97,13 @@ const AdminDashboard = () => {
     );
   }
 
+  // Error state
   if (error) {
     return (
       <div className="admin-dashboard error">
         <div className="container py-5">
           <div className="row justify-content-center">
-            <div className="col-md-6">
+            <div className="col-md-8">
               <div className="card border-danger">
                 <div className="card-header bg-danger text-white">
                   <h4 className="mb-0">
@@ -100,15 +111,21 @@ const AdminDashboard = () => {
                     Error Loading Dashboard
                   </h4>
                 </div>
-                <div className="card-body">
-                  <p className="card-text">{error}</p>
-                  <button 
-                    className="btn btn-primary"
-                    onClick={() => window.location.reload()}
-                  >
-                    <i className="fas fa-redo me-2"></i>
-                    Try Again
-                  </button>
+                <div className="card-body text-center">
+                  <p className="card-text mb-3">{error}</p>
+                  <div className="d-flex gap-2 justify-content-center">
+                    <button 
+                      className="btn btn-primary"
+                      onClick={() => window.location.reload()}
+                    >
+                      <i className="fas fa-redo me-2"></i>
+                      Try Again
+                    </button>
+                    <Link to="/admin" className="btn btn-outline-secondary">
+                      <i className="fas fa-arrow-left me-2"></i>
+                      Back to Admin
+                    </Link>
+                  </div>
                 </div>
               </div>
             </div>
@@ -124,268 +141,404 @@ const AdminDashboard = () => {
     <div className="admin-dashboard">
       {/* Dashboard Header */}
       <div className="dashboard-header">
-        <h1>
-          <i className="fas fa-tachometer-alt me-3"></i>
-          Admin Dashboard
-        </h1>
-        <p>Manage your pet store and monitor key metrics</p>
+        <div className="container-fluid">
+          <div className="row align-items-center">
+            <div className="col">
+              <h1 className="mb-1">
+                <i className="fas fa-tachometer-alt me-3"></i>
+                Admin Dashboard
+              </h1>
+              <p className="text-muted mb-0">
+                Welcome back! Here's what's happening with your pet store.
+              </p>
+            </div>
+            <div className="col-auto">
+              <div className="text-muted small">
+                Last updated: {new Date().toLocaleTimeString()}
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Alerts Section */}
-      {alerts && alerts.length > 0 && (
-        <div className="alerts-section">
-          <h2>System Alerts</h2>
-          <div className="alerts-list">
-            {alerts.map((alert, index) => (
-              <div key={index} className={`alert ${alert.type}`}>
-                <div className="alert-icon">
-                  <i className={`fas ${
-                    alert.type === 'warning' ? 'fa-exclamation-triangle' :
-                    alert.type === 'error' ? 'fa-times-circle' :
-                    alert.type === 'success' ? 'fa-check-circle' :
-                    'fa-info-circle'
-                  }`}></i>
+      {/* System Alerts */}
+      {alerts.length > 0 && (
+        <div className="alerts-section mb-4">
+          <div className="container-fluid">
+            <h2 className="mb-3">
+              <i className="fas fa-bell me-2"></i>
+              System Alerts
+            </h2>
+            <div className="alerts-list">
+              {alerts.map((alert, index) => (
+                <div 
+                  key={`alert-${index}-${alert.id || alert.title || index}`} 
+                  className={`alert alert-${alert.type || 'info'} alert-dismissible fade show`}
+                >
+                  <div className="d-flex align-items-start">
+                    <div className="alert-icon me-3">
+                      <i className={`fas ${
+                        alert.type === 'warning' ? 'fa-exclamation-triangle' :
+                        alert.type === 'error' || alert.type === 'danger' ? 'fa-times-circle' :
+                        alert.type === 'success' ? 'fa-check-circle' :
+                        'fa-info-circle'
+                      }`}></i>
+                    </div>
+                    <div className="flex-grow-1">
+                      <h6 className="alert-heading mb-1">{alert.title || 'System Alert'}</h6>
+                      <p className="mb-1">{alert.message || 'No details available'}</p>
+                      {alert.timestamp && (
+                        <small className="text-muted">
+                          {new Date(alert.timestamp).toLocaleString()}
+                        </small>
+                      )}
+                    </div>
+                  </div>
                 </div>
-                <div className="alert-content">
-                  <h4>{alert.title}</h4>
-                  <p>{alert.message}</p>
-                  <small>{alert.timestamp}</small>
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
       )}
 
-      {/* Stats Overview */}
-      <div className="stats-overview">
-        <h2>Overview</h2>
-        <div className="stats-grid">
-          <div className="stat-card">
-            <div className="stat-icon pets">
-              <i className="fas fa-paw"></i>
-            </div>
-            <div className="stat-info">
-              <h3>{stats.totalPets || 0}</h3>
-              <p>Total Pets</p>
-              <small>{stats.availablePets || 0} available</small>
+      <div className="container-fluid">
+        {/* Stats Overview */}
+        <div className="stats-overview mb-5">
+          <div className="row">
+            <div className="col-12 mb-3">
+              <h2>
+                <i className="fas fa-chart-bar me-2"></i>
+                Overview
+              </h2>
             </div>
           </div>
+          <div className="row g-4">
+            <div className="col-xl-3 col-md-6">
+              <div className="stat-card pets">
+                <div className="stat-icon">
+                  <i className="fas fa-paw"></i>
+                </div>
+                <div className="stat-info">
+                  <div className="stat-number">{stats.totalPets}</div>
+                  <h3>Total Pets</h3>
+                  <p className="stat-detail">
+                    <span className="badge bg-success me-2">
+                      {stats.availablePets} available
+                    </span>
+                    <span className="badge bg-warning">
+                      {stats.pendingPets} pending
+                    </span>
+                  </p>
+                  <Link to="/admin/pets" className="stat-link">
+                    View all pets <i className="fas fa-arrow-right ms-1"></i>
+                  </Link>
+                </div>
+              </div>
+            </div>
 
-          <div className="stat-card">
-            <div className="stat-icon users">
-              <i className="fas fa-users"></i>
+            <div className="col-xl-3 col-md-6">
+              <div className="stat-card users">
+                <div className="stat-icon">
+                  <i className="fas fa-users"></i>
+                </div>
+                <div className="stat-info">
+                  <div className="stat-number">{stats.totalUsers}</div>
+                  <h3>Total Users</h3>
+                  <p className="stat-detail text-muted">Registered members</p>
+                  <Link to="/admin/users" className="stat-link">
+                    Manage users <i className="fas fa-arrow-right ms-1"></i>
+                  </Link>
+                </div>
+              </div>
             </div>
-            <div className="stat-info">
-              <h3>{stats.totalUsers || 0}</h3>
-              <p>Total Users</p>
-              <small>Registered members</small>
-            </div>
-          </div>
 
-          <div className="stat-card">
-            <div className="stat-icon adoptions">
-              <i className="fas fa-heart"></i>
+            <div className="col-xl-3 col-md-6">
+              <div className="stat-card adoptions">
+                <div className="stat-icon">
+                  <i className="fas fa-heart"></i>
+                </div>
+                <div className="stat-info">
+                  <div className="stat-number">{stats.adoptedPets}</div>
+                  <h3>Successful Adoptions</h3>
+                  <p className="stat-detail text-muted">
+                    {stats.recentAdoptions} this month
+                  </p>
+                  <Link to="/admin/reports?type=adoptions" className="stat-link">
+                    View reports <i className="fas fa-arrow-right ms-1"></i>
+                  </Link>
+                </div>
+              </div>
             </div>
-            <div className="stat-info">
-              <h3>{stats.adoptedPets || 0}</h3>
-              <p>Adoptions</p>
-              <small>{stats.recentAdoptions || 0} this month</small>
-            </div>
-          </div>
 
-          <div className="stat-card">
-            <div className="stat-icon products">
-              <i className="fas fa-shopping-bag"></i>
-            </div>
-            <div className="stat-info">
-              <h3>{stats.totalProducts || 0}</h3>
-              <p>Products</p>
-              <small>In inventory</small>
+            <div className="col-xl-3 col-md-6">
+              <div className="stat-card products">
+                <div className="stat-icon">
+                  <i className="fas fa-shopping-bag"></i>
+                </div>
+                <div className="stat-info">
+                  <div className="stat-number">{stats.totalProducts}</div>
+                  <h3>Products</h3>
+                  <p className="stat-detail text-muted">In inventory</p>
+                  <Link to="/admin/products" className="stat-link">
+                    Manage products <i className="fas fa-arrow-right ms-1"></i>
+                  </Link>
+                </div>
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Recent Activity */}
-      <div className="recent-activity">
-        <div className="row">
-          {/* Recent Pets */}
-          <div className="col-lg-4 col-md-6">
-            <div className="activity-section">
-              <h3>
-                <i className="fas fa-paw me-2"></i>
-                Recent Pets
-              </h3>
-              <div className="activity-list">
-                {recentPets && recentPets.length > 0 ? (
-                  recentPets.slice(0, 5).map((pet) => (
-                    <div key={pet._id || pet.id} className="activity-item">
-                      <div className="activity-image">
-                        <SafeImage
-                          src={getOptimizedImageUrl(pet.image, 'thumbnail')}
-                          alt={pet.name}
-                          fallback="https://images.unsplash.com/photo-1601758228041-f3b2795255f1?w=60&h=60&fit=crop"
-                        />
-                      </div>
-                      <div className="activity-content">
-                        <h5>{pet.name}</h5>
-                        <p>{pet.breed} • {pet.type}</p>
-                        <small className="text-muted">
-                          Added {new Date(pet.createdAt).toLocaleDateString()}
-                        </small>
-                      </div>
-                      <div className="activity-status">
-                        <span className={`badge bg-${pet.status === 'available' ? 'success' : pet.status === 'adopted' ? 'primary' : 'warning'}`}>
-                          {pet.status}
-                        </span>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="text-center text-muted py-3">
-                    <i className="fas fa-paw fa-2x mb-2"></i>
-                    <p>No recent pets</p>
-                  </div>
-                )}
-              </div>
-              <div className="activity-footer">
-                <Link to="/admin/pets" className="btn btn-outline-primary btn-sm">
-                  <i className="fas fa-eye me-1"></i>
-                  View All Pets
-                </Link>
-              </div>
+        {/* Recent Activity */}
+        <div className="recent-activity mb-5">
+          <div className="row">
+            <div className="col-12 mb-3">
+              <h2>
+                <i className="fas fa-clock me-2"></i>
+                Recent Activity
+              </h2>
             </div>
           </div>
-
-          {/* Recent Users */}
-          <div className="col-lg-4 col-md-6">
-            <div className="activity-section">
-              <h3>
-                <i className="fas fa-users me-2"></i>
-                Recent Users
-              </h3>
-              <div className="activity-list">
-                {recentUsers && recentUsers.length > 0 ? (
-                  recentUsers.slice(0, 5).map((user) => (
-                    <div key={user._id || user.id} className="activity-item">
-                      <div className="activity-icon">
-                        <div className="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" 
-                             style={{ width: '40px', height: '40px', fontSize: '14px', fontWeight: 'bold' }}>
-                          {user.name?.charAt(0)?.toUpperCase() || 'U'}
+          <div className="row g-4">
+            {/* Recent Pets */}
+            <div className="col-lg-4">
+              <div className="activity-section">
+                <div className="activity-header">
+                  <h3>
+                    <i className="fas fa-paw me-2"></i>
+                    Recent Pets
+                  </h3>
+                </div>
+                <div className="activity-body">
+                  {recentPets.length > 0 ? (
+                    <div className="activity-list">
+                      {recentPets.slice(0, 5).map((pet, index) => (
+                        <div key={`pet-${pet._id || pet.id || index}`} className="activity-item">
+                          <div className="activity-avatar">
+                            {pet.images && pet.images.length > 0 ? (
+                              <SafeImage
+                                src={getOptimizedImageUrl(pet.images[0], 'small')}
+                                alt={pet.name || 'Pet'}
+                                className="rounded-circle"
+                                style={{ width: '40px', height: '40px', objectFit: 'cover' }}
+                              />
+                            ) : (
+                              <div className="avatar-placeholder">
+                                <i className="fas fa-paw"></i>
+                              </div>
+                            )}
+                          </div>
+                          <div className="activity-content">
+                            <h5 className="activity-title">
+                              {pet.name || 'Unnamed Pet'}
+                            </h5>
+                            <p className="activity-subtitle">
+                              {pet.breed || 'Unknown Breed'} • {pet.type || 'Pet'}
+                            </p>
+                            <small className="activity-time">
+                              Added {pet.createdAt ? new Date(pet.createdAt).toLocaleDateString() : 'recently'}
+                            </small>
+                          </div>
+                          <div className="activity-status">
+                            <span className={`badge bg-${
+                              pet.status === 'available' ? 'success' : 
+                              pet.status === 'pending' ? 'warning' : 
+                              pet.status === 'adopted' ? 'info' :
+                              'secondary'
+                            }`}>
+                              {pet.status || 'unknown'}
+                            </span>
+                          </div>
                         </div>
-                      </div>
-                      <div className="activity-content">
-                        <h5>{user.name}</h5>
-                        <p>{user.email}</p>
-                        <small className="text-muted">
-                          Joined {new Date(user.createdAt).toLocaleDateString()}
-                        </small>
-                      </div>
-                      <div className="activity-status">
-                        <span className={`badge bg-${user.role === 'admin' ? 'danger' : user.role === 'moderator' ? 'warning' : 'success'}`}>
-                          {user.role}
-                        </span>
-                      </div>
+                      ))}
                     </div>
-                  ))
-                ) : (
-                  <div className="text-center text-muted py-3">
-                    <i className="fas fa-users fa-2x mb-2"></i>
-                    <p>No recent users</p>
-                  </div>
-                )}
-              </div>
-              <div className="activity-footer">
-                <Link to="/admin/users" className="btn btn-outline-primary btn-sm">
-                  <i className="fas fa-eye me-1"></i>
-                  View All Users
-                </Link>
+                  ) : (
+                    <div className="activity-empty">
+                      <i className="fas fa-paw fa-2x mb-2"></i>
+                      <p>No recent pets</p>
+                    </div>
+                  )}
+                </div>
+                <div className="activity-footer">
+                  <Link to="/admin/pets" className="btn btn-outline-primary btn-sm w-100">
+                    <i className="fas fa-eye me-1"></i>
+                    View All Pets
+                  </Link>
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Recent Contacts */}
-          <div className="col-lg-4 col-md-12">
-            <div className="activity-section">
-              <h3>
-                <i className="fas fa-envelope me-2"></i>
-                Recent Contacts
-              </h3>
-              <div className="activity-list">
-                {recentContacts && recentContacts.length > 0 ? (
-                  recentContacts.slice(0, 5).map((contact) => (
-                    <div key={contact._id || contact.id} className="activity-item">
-                      <div className="activity-icon">
-                        <i className="fas fa-envelope text-info"></i>
-                      </div>
-                      <div className="activity-content">
-                        <h5>{contact.name}</h5>
-                        <p>{contact.subject}</p>
-                        <small className="text-muted">
-                          From {contact.email} • {new Date(contact.createdAt).toLocaleDateString()}
-                        </small>
-                      </div>
-                      <div className="activity-status">
-                        <span className={`badge bg-${contact.status === 'new' ? 'warning' : contact.status === 'read' ? 'info' : 'success'}`}>
-                          {contact.status}
-                        </span>
-                      </div>
+            {/* Recent Users */}
+            <div className="col-lg-4">
+              <div className="activity-section">
+                <div className="activity-header">
+                  <h3>
+                    <i className="fas fa-users me-2"></i>
+                    Recent Users
+                  </h3>
+                </div>
+                <div className="activity-body">
+                  {recentUsers.length > 0 ? (
+                    <div className="activity-list">
+                      {recentUsers.slice(0, 5).map((user, index) => (
+                        <div key={`user-${user._id || user.id || index}`} className="activity-item">
+                          <div className="activity-avatar">
+                            <div className="avatar-placeholder bg-primary text-white">
+                              {(user.name || user.username || 'U').charAt(0).toUpperCase()}
+                            </div>
+                          </div>
+                          <div className="activity-content">
+                            <h5 className="activity-title">
+                              {user.name || user.username || 'Unknown User'}
+                            </h5>
+                            <p className="activity-subtitle">
+                              {user.email || 'No email provided'}
+                            </p>
+                            <small className="activity-time">
+                              Joined {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'recently'}
+                            </small>
+                          </div>
+                          <div className="activity-status">
+                            <span className={`badge bg-${
+                              user.role === 'admin' ? 'danger' : 
+                              user.role === 'moderator' ? 'warning' : 
+                              'success'
+                            }`}>
+                              {user.role || 'user'}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  ))
-                ) : (
-                  <div className="text-center text-muted py-3">
-                    <i className="fas fa-envelope fa-2x mb-2"></i>
-                    <p>No recent contacts</p>
-                  </div>
-                )}
+                  ) : (
+                    <div className="activity-empty">
+                      <i className="fas fa-users fa-2x mb-2"></i>
+                      <p>No recent users</p>
+                    </div>
+                  )}
+                </div>
+                <div className="activity-footer">
+                  <Link to="/admin/users" className="btn btn-outline-primary btn-sm w-100">
+                    <i className="fas fa-eye me-1"></i>
+                    View All Users
+                  </Link>
+                </div>
               </div>
-              <div className="activity-footer">
-                <Link to="/admin/contacts" className="btn btn-outline-primary btn-sm">
-                  <i className="fas fa-eye me-1"></i>
-                  View All Contacts
-                </Link>
+            </div>
+
+            {/* Recent Contacts */}
+            <div className="col-lg-4">
+              <div className="activity-section">
+                <div className="activity-header">
+                  <h3>
+                    <i className="fas fa-envelope me-2"></i>
+                    Recent Contacts
+                  </h3>
+                </div>
+                <div className="activity-body">
+                  {recentContacts.length > 0 ? (
+                    <div className="activity-list">
+                      {recentContacts.slice(0, 5).map((contact, index) => (
+                        <div key={`contact-${contact._id || contact.id || index}`} className="activity-item">
+                          <div className="activity-avatar">
+                            <div className="avatar-placeholder bg-info text-white">
+                              <i className="fas fa-envelope"></i>
+                            </div>
+                          </div>
+                          <div className="activity-content">
+                            <h5 className="activity-title">
+                              {contact.name || 'Anonymous'}
+                            </h5>
+                            <p className="activity-subtitle">
+                              {contact.subject || 'No subject'}
+                            </p>
+                            <small className="activity-time">
+                              From {contact.email || 'unknown'} • {' '}
+                              {contact.createdAt ? new Date(contact.createdAt).toLocaleDateString() : 'recently'}
+                            </small>
+                          </div>
+                          <div className="activity-status">
+                            <span className={`badge bg-${
+                              contact.status === 'new' ? 'warning' : 
+                              contact.status === 'read' ? 'info' : 
+                              contact.status === 'replied' ? 'success' :
+                              contact.status === 'resolved' ? 'success' :
+                              'secondary'
+                            }`}>
+                              {contact.status || 'new'}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="activity-empty">
+                      <i className="fas fa-envelope fa-2x mb-2"></i>
+                      <p>No recent contacts</p>
+                    </div>
+                  )}
+                </div>
+                <div className="activity-footer">
+                  <Link to="/admin/contacts" className="btn btn-outline-primary btn-sm w-100">
+                    <i className="fas fa-eye me-1"></i>
+                    View All Contacts
+                  </Link>
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Quick Actions */}
-      <div className="quick-actions">
-        <h2>Quick Actions</h2>
-        <div className="actions-grid">
-          <Link to="/admin/pets" className="action-card">
-            <div className="action-icon">
-              <i className="fas fa-plus"></i>
+        {/* Quick Actions */}
+        <div className="quick-actions">
+          <div className="row">
+            <div className="col-12 mb-3">
+              <h2>
+                <i className="fas fa-bolt me-2"></i>
+                Quick Actions
+              </h2>
             </div>
-            <h4>Add New Pet</h4>
-            <p>Add a new pet for adoption</p>
-          </Link>
+          </div>
+          <div className="row g-4">
+            <div className="col-lg-3 col-md-6">
+              <Link to="/admin/pets/new" className="action-card">
+                <div className="action-icon text-success">
+                  <i className="fas fa-plus"></i>
+                </div>
+                <h4>Add New Pet</h4>
+                <p>Add a new pet available for adoption</p>
+              </Link>
+            </div>
 
-          <Link to="/admin/users" className="action-card">
-            <div className="action-icon">
-              <i className="fas fa-users"></i>
+            <div className="col-lg-3 col-md-6">
+              <Link to="/admin/users" className="action-card">
+                <div className="action-icon text-primary">
+                  <i className="fas fa-users-cog"></i>
+                </div>
+                <h4>Manage Users</h4>
+                <p>View and manage user accounts</p>
+              </Link>
             </div>
-            <h4>Manage Users</h4>
-            <p>View and manage user accounts</p>
-          </Link>
 
-          <Link to="/admin/contacts" className="action-card">
-            <div className="action-icon">
-              <i className="fas fa-envelope"></i>
+            <div className="col-lg-3 col-md-6">
+              <Link to="/admin/contacts" className="action-card">
+                <div className="action-icon text-info">
+                  <i className="fas fa-envelope-open"></i>
+                </div>
+                <h4>Contact Messages</h4>
+                <p>Review and respond to inquiries</p>
+              </Link>
             </div>
-            <h4>Contact Messages</h4>
-            <p>Review customer inquiries</p>
-          </Link>
 
-          <Link to="/admin/reports" className="action-card">
-            <div className="action-icon">
-              <i className="fas fa-chart-bar"></i>
+            <div className="col-lg-3 col-md-6">
+              <Link to="/admin/analytics" className="action-card">
+                <div className="action-icon text-warning">
+                  <i className="fas fa-chart-line"></i>
+                </div>
+                <h4>View Analytics</h4>
+                <p>Analyze performance and trends</p>
+              </Link>
             </div>
-            <h4>View Reports</h4>
-            <p>Analyze performance metrics</p>
-          </Link>
+          </div>
         </div>
       </div>
     </div>

@@ -27,41 +27,87 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
     setIsAuthenticated(false);
     setLoading(false);
+    // Remove auth header
+    delete api.defaults.headers.common['Authorization'];
   }, []);
 
-  // Register function - useCallback for performance
+  // FIXED: Check auth status with proper response format handling
+  const checkAuthStatus = React.useCallback(async () => {
+    try {
+      const token = localStorage.getItem('token');
+      
+      if (!token) {
+        console.log('📝 No token found - user not authenticated');
+        setLoading(false);
+        return;
+      }
+
+      console.log('🎯 Checking auth status...');
+      console.log('🔐 development Request: GET /auth/me');
+
+      // Set auth header for this request
+      api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+
+      const response = await api.get('/auth/me');
+      console.log('🔍 Auth response data:', response.data);
+      
+      // FIXED: Handle both response formats
+      let userData = null;
+      
+      if (response.data.success && response.data.user) {
+        // Format: { success: true, user: {...} }
+        userData = response.data.user;
+      } else if (response.data.success && response.data.data) {
+        // Format: { success: true, data: {...} }
+        userData = response.data.data;
+      } else {
+        console.error('❌ Invalid auth response format:', response.data);
+        throw new Error('Invalid profile response format');
+      }
+
+      if (userData) {
+        setUser(userData);
+        setIsAuthenticated(true);
+        console.log('✅ Auth check successful:', userData.name, 'Role:', userData.role);
+      } else {
+        throw new Error('No user data in response');
+      }
+      
+    } catch (error) {
+      console.error('❌ Auth check failed:', error.message);
+      
+      // Handle specific error cases
+      if (error.response?.status === 401) {
+        console.log('🚪 401 Error - Token invalid or expired');
+        logout();
+      } else if (error.response?.status === 404) {
+        console.log('🚪 404 Error - User not found');
+        logout();
+      } else {
+        console.error('❌ Unexpected auth error:', error);
+        // Don't logout on network errors, just set loading to false
+        logout(); // For now, logout on any error to be safe
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [logout]);
+
+  // Register function
   const register = React.useCallback(async (userData) => {
     try {
       console.log('📝 Attempting registration...');
       
-      // Ensure username is included if not provided
-      const registrationData = {
-        ...userData,
-        username: userData.username || userData.email?.split('@')[0] || 'user'
-      };
-      
-      const response = await api.post('/auth/register', registrationData);
+      const response = await api.post('/auth/register', userData);
       
       if (response.data.success && response.data.token) {
-        // Format from your backend: { success: true, token: "...", user: {...} }
         const { user: newUser, token } = response.data;
         
         // Store token
         localStorage.setItem('token', token);
         
-        // Update state
-        setUser(newUser);
-        setIsAuthenticated(true);
-        setLoading(false);
-        
-        console.log('✅ Registration successful:', newUser.name);
-        return { success: true, user: newUser };
-      } else if (response.data.success && response.data.data?.token) {
-        // Alternative format: { success: true, data: { token: "...", user: {...} } }
-        const { user: newUser, token } = response.data.data;
-        
-        // Store token
-        localStorage.setItem('token', token);
+        // Set auth header
+        api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
         
         // Update state
         setUser(newUser);
@@ -83,7 +129,7 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  // FIXED: Login function to handle both parameter formats
+  // Login function with flexible parameter handling
   const login = React.useCallback(async (emailOrCredentials, password, rememberMe) => {
     try {
       console.log('🔐 Attempting login...');
@@ -99,25 +145,13 @@ export const AuthProvider = ({ children }) => {
       const response = await api.post('/auth/login', credentials);
       
       if (response.data.success && response.data.token) {
-        // Format from your backend: { success: true, token: "...", user: {...} }
         const { user: userData, token } = response.data;
         
         // Store token
         localStorage.setItem('token', token);
         
-        // Update state
-        setUser(userData);
-        setIsAuthenticated(true);
-        setLoading(false);
-        
-        console.log('✅ Login successful:', userData.name);
-        return { success: true, user: userData };
-      } else if (response.data.success && response.data.data?.token) {
-        // Alternative format: { success: true, data: { token: "...", user: {...} } }
-        const { user: userData, token } = response.data.data;
-        
-        // Store token
-        localStorage.setItem('token', token);
+        // Set auth header
+        api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
         
         // Update state
         setUser(userData);
@@ -139,63 +173,18 @@ export const AuthProvider = ({ children }) => {
     }
   }, [logout]);
 
-  // FIXED: Check auth status with better response handling
-  const checkAuthStatus = React.useCallback(async () => {
-    try {
-      const token = localStorage.getItem('token');
-      
-      if (!token) {
-        console.log('📝 No token found - user not authenticated');
-        setLoading(false);
-        return;
-      }
-
-      console.log('🎯 Checking auth status...');
-      console.log('🔐 development Request: GET /auth/me');
-
-      const response = await api.get('/auth/me');
-      console.log('🔍 Auth response data:', response.data);
-      
-      if (response.data.success && response.data.user) {
-        // FIXED: Use the user data from /auth/me which includes the role
-        const userData = response.data.user;
-        setUser(userData);
-        setIsAuthenticated(true);
-        console.log('✅ Auth check successful:', userData.name, 'Role:', userData.role);
-      } else {
-        console.error('❌ Invalid auth response format:', response.data);
-        throw new Error('Invalid profile response');
-      }
-    } catch (error) {
-      console.error('❌ Auth check failed:', error.message);
-      
-      // Handle specific error cases
-      if (error.response?.status === 401) {
-        console.log('🚪 401 Error - Token invalid or expired');
-        logout();
-      } else if (error.response?.status === 404) {
-        console.log('🚪 404 Error - User not found');
-        logout();
-      } else {
-        console.error('❌ Unexpected auth error:', error);
-        // Don't logout on network errors, just set loading to false
-        setLoading(false);
-      }
-    } finally {
-      setLoading(false);
-    }
-  }, [logout]);
-
   // Update profile function
   const updateProfile = React.useCallback(async (profileData) => {
     try {
       console.log('📝 Updating profile...');
-      const response = await api.put('/users/profile', profileData);
+      const response = await api.put('/auth/profile', profileData);
       
       if (response.data.success) {
-        setUser(response.data.data);
+        // Handle both response formats
+        const updatedUser = response.data.data || response.data.user;
+        setUser(updatedUser);
         console.log('✅ Profile updated successfully');
-        return { success: true, user: response.data.data };
+        return { success: true, user: updatedUser };
       } else {
         throw new Error(response.data?.message || 'Update failed');
       }
@@ -212,7 +201,7 @@ export const AuthProvider = ({ children }) => {
   const changePassword = React.useCallback(async (passwordData) => {
     try {
       console.log('🔐 Changing password...');
-      const response = await api.put('/users/change-password', passwordData);
+      const response = await api.post('/auth/change-password', passwordData);
       
       if (response.data.success) {
         console.log('✅ Password changed successfully');
@@ -229,7 +218,7 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  // Check auth on mount with cleanup
+  // Initialize authentication on mount
   useEffect(() => {
     let isMounted = true;
     
@@ -246,10 +235,10 @@ export const AuthProvider = ({ children }) => {
     };
   }, [checkAuthStatus]);
 
-  // Add token to API requests
+  // Set up auth header when user changes
   useEffect(() => {
     const token = localStorage.getItem('token');
-    if (token) {
+    if (token && user) {
       api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
     } else {
       delete api.defaults.headers.common['Authorization'];

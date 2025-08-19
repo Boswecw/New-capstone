@@ -1,20 +1,33 @@
-// server/routes/auth.js - Complete Authentication Routes (FIXED)
+// server/routes/auth.js - Complete Fixed Authentication Routes
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const { body, validationResult } = require('express-validator');
 const User = require('../models/User');
-const { protect } = require('../middleware/auth'); // Import protect middleware
+const { protect } = require('../middleware/auth');
 
-// Generate JWT Token - FIXED: use 'id' instead of 'userId'
+// Generate JWT Token
 const generateToken = (userId) => {
-  return jwt.sign({ id: userId }, process.env.JWT_SECRET, { expiresIn: '30d' });
+  if (!process.env.JWT_SECRET) {
+    throw new Error('JWT_SECRET environment variable is not defined');
+  }
+  
+  return jwt.sign(
+    { id: userId }, 
+    process.env.JWT_SECRET, 
+    { expiresIn: '30d' }
+  );
 };
 
 // Helper function to generate username from email
 const generateUsernameFromEmail = (email) => {
-  const baseUsername = email.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '');
+  const baseUsername = email.split('@')[0]
+    .replace(/[^a-zA-Z0-9_]/g, '')
+    .toLowerCase()
+    .substring(0, 20); // Limit length
+    
   return baseUsername.length >= 3 ? baseUsername : `user_${baseUsername}`;
 };
 
@@ -24,45 +37,80 @@ const ensureUniqueUsername = async (baseUsername) => {
   let counter = 1;
   
   while (await User.findOne({ username })) {
-    username = `${baseUsername}_${counter}`;
+    username = `${baseUsername}${counter}`;
     counter++;
+    
+    // Prevent infinite loop
+    if (counter > 1000) {
+      username = `${baseUsername}_${Date.now()}`;
+      break;
+    }
   }
   
   return username;
 };
+
+// Validation middleware
+const validateRegistration = [
+  body('name')
+    .trim()
+    .isLength({ min: 2, max: 100 })
+    .withMessage('Name must be between 2 and 100 characters')
+    .matches(/^[a-zA-Z\s'-]+$/)
+    .withMessage('Name can only contain letters, spaces, hyphens, and apostrophes'),
+  
+  body('email')
+    .isEmail()
+    .normalizeEmail()
+    .withMessage('Please provide a valid email address'),
+    
+  body('password')
+    .isLength({ min: 6, max: 128 })
+    .withMessage('Password must be between 6 and 128 characters')
+    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/)
+    .withMessage('Password must contain at least one lowercase letter, one uppercase letter, and one number')
+];
+
+const validateLogin = [
+  body('email')
+    .isEmail()
+    .normalizeEmail()
+    .withMessage('Please provide a valid email address'),
+    
+  body('password')
+    .notEmpty()
+    .withMessage('Password is required')
+];
 
 // =====================================
 // @route   POST /api/auth/register
 // @desc    Register a new user
 // @access  Public
 // =====================================
-router.post('/register', [
-  body('name').notEmpty().withMessage('Name is required'),
-  body('email').isEmail().withMessage('Valid email required'),
-  body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters')
-], async (req, res) => {
+router.post('/register', validateRegistration, async (req, res) => {
   console.log('🔍 Registration attempt for:', req.body.email);
 
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    console.log('❌ Registration validation errors:', errors.array());
-    return res.status(400).json({ 
-      success: false, 
-      message: 'Validation failed',
-      errors: errors.array() 
-    });
-  }
-
-  const { name, email, password } = req.body;
-
   try {
+    // Check validation errors
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      console.log('❌ Registration validation errors:', errors.array());
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Validation failed',
+        errors: errors.array().map(err => err.msg)
+      });
+    }
+
+    const { name, email, password } = req.body;
+
     // Check if user already exists
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findByEmail(email);
     if (existingUser) {
       console.log('❌ Registration failed - email already exists:', email);
       return res.status(409).json({ 
         success: false, 
-        message: 'Email already registered' 
+        message: 'An account with this email already exists' 
       });
     }
 
@@ -73,12 +121,13 @@ router.post('/register', [
 
     // Create new user (password will be hashed by pre-save middleware)
     const user = new User({
-      name,
-      username: uniqueUsername, // FIXED: Add required username field
-      email,
-      password, // Let the model handle hashing
+      name: name.trim(),
+      username: uniqueUsername,
+      email: email.toLowerCase().trim(),
+      password,
       role: 'user',
-      isActive: true
+      isActive: true,
+      emailVerified: false
     });
 
     const savedUser = await user.save();
@@ -86,26 +135,24 @@ router.post('/register', [
 
     // Generate JWT token
     const token = generateToken(savedUser._id);
-    
-    if (!token) {
-      console.error('❌ Failed to generate JWT token');
-      return res.status(500).json({ 
-        success: false, 
-        message: 'Failed to generate authentication token' 
-      });
-    }
+
+    // Prepare response (excluding sensitive data)
+    const userResponse = {
+      id: savedUser._id,
+      name: savedUser.name,
+      username: savedUser.username,
+      email: savedUser.email,
+      role: savedUser.role,
+      isActive: savedUser.isActive,
+      emailVerified: savedUser.emailVerified,
+      createdAt: savedUser.createdAt
+    };
 
     res.status(201).json({
       success: true,
-      message: 'Registration successful',
+      message: 'Registration successful! Welcome to FurBabies.',
       token,
-      user: {
-        id: savedUser._id,
-        name: savedUser.name,
-        username: savedUser.username,
-        email: savedUser.email,
-        role: savedUser.role
-      }
+      user: userResponse
     });
 
     console.log('✅ Registration response sent successfully');
@@ -115,11 +162,14 @@ router.post('/register', [
     
     // Handle specific MongoDB errors
     if (error.code === 11000) {
-      console.error('❌ Duplicate key error - email or username already exists');
-      const field = Object.keys(error.keyPattern)[0];
+      const field = Object.keys(error.keyPattern || {})[0];
+      const message = field === 'email' 
+        ? 'An account with this email already exists' 
+        : 'This username is already taken';
+        
       return res.status(409).json({ 
         success: false, 
-        message: `${field === 'email' ? 'Email' : 'Username'} already registered` 
+        message 
       });
     }
 
@@ -128,14 +178,14 @@ router.post('/register', [
       const validationErrors = Object.values(error.errors).map(err => err.message);
       return res.status(400).json({ 
         success: false, 
-        message: 'Validation failed',
+        message: 'Please check your input and try again',
         errors: validationErrors
       });
     }
 
     res.status(500).json({ 
       success: false, 
-      message: 'Server error during registration' 
+      message: 'Registration failed. Please try again later.' 
     });
   }
 });
@@ -145,54 +195,56 @@ router.post('/register', [
 // @desc    Authenticate user and get token
 // @access  Public
 // =====================================
-router.post('/login', [
-  body('email').isEmail().withMessage('Valid email required'),
-  body('password').notEmpty().withMessage('Password is required')
-], async (req, res) => {
+router.post('/login', validateLogin, async (req, res) => {
   console.log('🔍 Login attempt for email:', req.body.email);
   
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    console.log('❌ Login validation errors:', errors.array());
-    return res.status(400).json({ 
-      success: false, 
-      message: 'Validation failed',
-      errors: errors.array() 
-    });
-  }
-
-  const { email, password } = req.body;
-
   try {
-    // Find user and include password field - FIXED: Also check for locked accounts
+    // Check validation errors
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      console.log('❌ Login validation errors:', errors.array());
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Please provide valid email and password',
+        errors: errors.array().map(err => err.msg)
+      });
+    }
+
+    const { email, password } = req.body;
+
+    // Find user and include password field
     const user = await User.findOne({ email }).select('+password');
     console.log('🔍 User lookup result:', user ? 'Found' : 'Not found');
 
     if (!user) {
-      console.log('❌ User not found:', email);
       return res.status(401).json({ 
         success: false, 
         message: 'Invalid email or password' 
       });
     }
 
-    // FIXED: Check if account is locked
+    // Check if account is locked
     if (user.isLocked) {
-      console.log('🔒 Account is locked:', email);
       return res.status(423).json({ 
         success: false, 
-        message: 'Account is temporarily locked due to multiple failed login attempts. Please try again later.' 
+        message: 'Account temporarily locked due to too many failed login attempts. Please try again later.' 
       });
     }
 
-    // Check password
+    // Check if account is active
+    if (!user.isActive) {
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Account is deactivated. Please contact support.' 
+      });
+    }
+
+    // Verify password
     const isPasswordValid = await user.comparePassword(password);
     console.log('🔐 Password validation result:', isPasswordValid);
 
     if (!isPasswordValid) {
-      console.log('❌ Invalid password for:', email);
-      
-      // FIXED: Increment login attempts on failed password
+      // Increment login attempts
       await user.incLoginAttempts();
       
       return res.status(401).json({ 
@@ -201,84 +253,227 @@ router.post('/login', [
       });
     }
 
-    if (!user.isActive) {
-      console.log('❌ Account deactivated for:', email);
-      return res.status(403).json({ 
-        success: false, 
-        message: 'Account is deactivated' 
-      });
-    }
-
-    // FIXED: Reset login attempts on successful login
+    // Reset login attempts on successful login
     if (user.loginAttempts && user.loginAttempts > 0) {
       await user.resetLoginAttempts();
     }
 
-    // FIXED: Update last login timestamp
-    await user.updateLastLogin();
+    // Update last login
+    user.lastLogin = new Date();
+    await user.save();
 
+    // Generate JWT token
     const token = generateToken(user._id);
-    console.log('✅ Login successful for:', email);
+
+    // Prepare response (excluding sensitive data)
+    const userResponse = {
+      id: user._id,
+      name: user.name,
+      username: user.username,
+      email: user.email,
+      role: user.role,
+      isActive: user.isActive,
+      emailVerified: user.emailVerified,
+      lastLogin: user.lastLogin
+    };
 
     res.json({
       success: true,
       message: 'Login successful',
       token,
-      user: {
-        id: user._id,
-        name: user.name,
-        username: user.username,
-        email: user.email,
-        role: user.role
-      }
+      user: userResponse
     });
+
+    console.log('✅ Login successful for:', user.email);
+
   } catch (error) {
     console.error('❌ Login error:', error);
     res.status(500).json({ 
       success: false, 
-      message: 'Server error during login' 
+      message: 'Login failed. Please try again later.' 
     });
   }
 });
 
 // =====================================
 // @route   GET /api/auth/me
-// @desc    Get current user profile
+// @desc    Get current authenticated user
 // @access  Private
 // =====================================
 router.get('/me', protect, async (req, res) => {
+  console.log('👤 GET /api/auth/me - Fetching current user profile');
+  
   try {
-    console.log('👤 GET /api/auth/me - Fetching current user profile');
-    
-    // req.user is set by the protect middleware
-    if (!req.user) {
-      return res.status(401).json({
+    const user = await User.findById(req.user.id)
+      .select('-password')
+      .populate('favorites', 'name images type breed')
+      .populate('adoptedPets.pet', 'name images type breed');
+
+    if (!user) {
+      return res.status(404).json({
         success: false,
-        message: 'User not found in request'
+        message: 'User not found'
       });
     }
 
-    // Return user data (password already excluded by protect middleware)
+    // Check if user is still active
+    if (!user.isActive) {
+      return res.status(401).json({
+        success: false,
+        message: 'Account has been deactivated'
+      });
+    }
+
     res.json({
       success: true,
-      user: {
-        id: req.user._id,
-        name: req.user.name,
-        username: req.user.username,
-        email: req.user.email,
-        role: req.user.role,
-        profile: req.user.profile,
-        createdAt: req.user.createdAt,
-        isActive: req.user.isActive,
-        lastLogin: req.user.lastLogin
-      }
+      data: user
     });
 
   } catch (error) {
     console.error('❌ Error fetching user profile:', error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching user profile'
+      message: 'Failed to fetch user profile'
+    });
+  }
+});
+
+// =====================================
+// @route   PUT /api/auth/profile
+// @desc    Update user profile
+// @access  Private
+// =====================================
+router.put('/profile', protect, [
+  body('name')
+    .optional()
+    .trim()
+    .isLength({ min: 2, max: 100 })
+    .withMessage('Name must be between 2 and 100 characters'),
+  
+  body('profile.bio')
+    .optional()
+    .trim()
+    .isLength({ max: 500 })
+    .withMessage('Bio cannot exceed 500 characters'),
+    
+  body('profile.phone')
+    .optional()
+    .matches(/^[\+]?[1-9][\d]{0,15}$/)
+    .withMessage('Please provide a valid phone number')
+], async (req, res) => {
+  console.log('👤 PUT /api/auth/profile - Updating user profile');
+  
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: errors.array().map(err => err.msg)
+      });
+    }
+
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Update allowed fields
+    const allowedUpdates = ['name', 'profile'];
+    const updates = {};
+    
+    allowedUpdates.forEach(field => {
+      if (req.body[field] !== undefined) {
+        if (field === 'profile') {
+          updates.profile = { ...user.profile, ...req.body.profile };
+        } else {
+          updates[field] = req.body[field];
+        }
+      }
+    });
+
+    Object.assign(user, updates);
+    await user.save();
+
+    res.json({
+      success: true,
+      message: 'Profile updated successfully',
+      data: user
+    });
+
+  } catch (error) {
+    console.error('❌ Error updating profile:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update profile'
+    });
+  }
+});
+
+// =====================================
+// @route   POST /api/auth/change-password
+// @desc    Change user password
+// @access  Private
+// =====================================
+router.post('/change-password', protect, [
+  body('currentPassword')
+    .notEmpty()
+    .withMessage('Current password is required'),
+    
+  body('newPassword')
+    .isLength({ min: 6, max: 128 })
+    .withMessage('New password must be between 6 and 128 characters')
+    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/)
+    .withMessage('New password must contain at least one lowercase letter, one uppercase letter, and one number')
+], async (req, res) => {
+  console.log('🔐 POST /api/auth/change-password');
+  
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: errors.array().map(err => err.msg)
+      });
+    }
+
+    const { currentPassword, newPassword } = req.body;
+
+    const user = await User.findById(req.user.id).select('+password');
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Verify current password
+    const isCurrentPasswordValid = await user.comparePassword(currentPassword);
+    if (!isCurrentPasswordValid) {
+      return res.status(401).json({
+        success: false,
+        message: 'Current password is incorrect'
+      });
+    }
+
+    // Update password
+    user.password = newPassword;
+    await user.save();
+
+    res.json({
+      success: true,
+      message: 'Password changed successfully'
+    });
+
+  } catch (error) {
+    console.error('❌ Error changing password:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to change password'
     });
   }
 });
@@ -286,299 +481,145 @@ router.get('/me', protect, async (req, res) => {
 // =====================================
 // @route   POST /api/auth/logout
 // @desc    Logout user (client-side token removal)
-// @access  Public
+// @access  Private
 // =====================================
-router.post('/logout', (req, res) => {
-  console.log('🚪 Logout request received');
+router.post('/logout', protect, (req, res) => {
+  console.log('🚪 POST /api/auth/logout');
   
-  // Since we're using JWT tokens, logout is handled client-side
-  // This endpoint exists for consistency but doesn't need to do much
+  // Since we're using JWT, logout is handled client-side by removing the token
+  // This endpoint exists for consistency and future token blacklisting
+  
   res.json({
     success: true,
-    message: 'Logout successful'
+    message: 'Logged out successfully'
   });
 });
 
 // =====================================
-// @route   POST /api/auth/refresh
-// @desc    Refresh JWT token
-// @access  Private
+// @route   POST /api/auth/forgot-password
+// @desc    Send password reset email
+// @access  Public
 // =====================================
-router.post('/refresh', protect, async (req, res) => {
+router.post('/forgot-password', [
+  body('email')
+    .isEmail()
+    .normalizeEmail()
+    .withMessage('Please provide a valid email address')
+], async (req, res) => {
+  console.log('📧 POST /api/auth/forgot-password');
+  
   try {
-    console.log('🔄 Token refresh request for user:', req.user.email);
-    
-    // Generate new token
-    const newToken = generateToken(req.user._id);
-    
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide a valid email address'
+      });
+    }
+
+    const { email } = req.body;
+    const user = await User.findByEmail(email);
+
+    // Don't reveal whether user exists or not for security
+    if (!user) {
+      return res.json({
+        success: true,
+        message: 'If an account with this email exists, a password reset link has been sent.'
+      });
+    }
+
+    // Generate reset token
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetTokenHashed = crypto.createHash('sha256').update(resetToken).digest('hex');
+
+    user.passwordResetToken = resetTokenHashed;
+    user.passwordResetExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    await user.save();
+
+    // TODO: Send email with reset link
+    // For now, just log the token (remove in production)
+    console.log('🔑 Reset token for', email, ':', resetToken);
+
     res.json({
       success: true,
-      message: 'Token refreshed successfully',
-      token: newToken,
-      user: {
-        id: req.user._id,
-        name: req.user.name,
-        username: req.user.username,
-        email: req.user.email,
-        role: req.user.role
-      }
+      message: 'If an account with this email exists, a password reset link has been sent.'
     });
-    
+
   } catch (error) {
-    console.error('❌ Token refresh error:', error);
+    console.error('❌ Error in forgot password:', error);
     res.status(500).json({
       success: false,
-      message: 'Error refreshing token'
+      message: 'Failed to process password reset request'
     });
   }
 });
 
 // =====================================
-// DEVELOPMENT ONLY - DEBUG ROUTES
+// @route   POST /api/auth/reset-password
+// @desc    Reset password with token
+// @access  Public
 // =====================================
-if (process.env.NODE_ENV === 'development') {
+router.post('/reset-password', [
+  body('token')
+    .notEmpty()
+    .withMessage('Reset token is required'),
+    
+  body('password')
+    .isLength({ min: 6, max: 128 })
+    .withMessage('Password must be between 6 and 128 characters')
+    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/)
+    .withMessage('Password must contain at least one lowercase letter, one uppercase letter, and one number')
+], async (req, res) => {
+  console.log('🔄 POST /api/auth/reset-password');
   
-  // Create admin user for testing
-  router.post('/create-admin', async (req, res) => {
-    try {
-      const { email = 'admin@test.com', password = 'admin123', name = 'Admin User' } = req.body;
-      
-      // Check if user already exists
-      const existingUser = await User.findOne({ email });
-      if (existingUser) {
-        return res.status(409).json({
-          success: false,
-          message: 'Admin user already exists',
-          user: {
-            id: existingUser._id,
-            name: existingUser.name,
-            email: existingUser.email,
-            role: existingUser.role
-          }
-        });
-      }
-
-      // Generate unique username
-      const baseUsername = generateUsernameFromEmail(email);
-      const uniqueUsername = await ensureUniqueUsername(baseUsername);
-
-      // Create admin user
-      const adminUser = new User({
-        name,
-        username: uniqueUsername,
-        email,
-        password, // Will be hashed by pre-save middleware
-        role: 'admin',
-        isActive: true
-      });
-
-      await adminUser.save();
-      console.log('✅ Admin user created:', email);
-
-      res.json({
-        success: true,
-        message: 'Admin user created successfully',
-        user: {
-          id: adminUser._id,
-          name: adminUser.name,
-          username: adminUser.username,
-          email: adminUser.email,
-          role: adminUser.role
-        }
-      });
-
-    } catch (error) {
-      console.error('❌ Error creating admin user:', error);
-      res.status(500).json({
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
         success: false,
-        message: 'Error creating admin user',
-        error: error.message
+        message: 'Invalid input',
+        errors: errors.array().map(err => err.msg)
       });
     }
-  });
 
-  // List all users for debugging
-  router.get('/debug-users', async (req, res) => {
-    try {
-      const users = await User.find({}).select('name username email role createdAt isActive lastLogin');
-      console.log('📊 Total users in database:', users.length);
+    const { token, password } = req.body;
+    
+    // Hash the token to compare with stored version
+    const resetTokenHashed = crypto.createHash('sha256').update(token).digest('hex');
 
-      res.json({
-        success: true,
-        count: users.length,
-        users: users.map(user => ({
-          id: user._id,
-          name: user.name,
-          username: user.username,
-          email: user.email,
-          role: user.role,
-          isActive: user.isActive,
-          createdAt: user.createdAt,
-          lastLogin: user.lastLogin
-        }))
-      });
+    const user = await User.findOne({
+      passwordResetToken: resetTokenHashed,
+      passwordResetExpires: { $gt: Date.now() }
+    });
 
-    } catch (error) {
-      console.error('❌ Error fetching users:', error);
-      res.status(500).json({
+    if (!user) {
+      return res.status(400).json({
         success: false,
-        message: 'Error fetching users',
-        error: error.message
+        message: 'Invalid or expired reset token'
       });
     }
-  });
 
-  // Debug login with detailed information
-  router.post('/debug-login', async (req, res) => {
-    try {
-      const { email, password } = req.body;
-      
-      console.log('🔍 Debug login attempt:', {
-        email,
-        passwordProvided: !!password,
-        passwordLength: password?.length
-      });
+    // Update password and clear reset fields
+    user.password = password;
+    user.passwordResetToken = undefined;
+    user.passwordResetExpires = undefined;
+    user.loginAttempts = 0;
+    user.lockUntil = undefined;
+    
+    await user.save();
 
-      // Find user with password field
-      const user = await User.findOne({ email }).select('+password');
-      
-      if (!user) {
-        console.log('❌ User not found:', email);
-        return res.json({
-          success: false,
-          userFound: false,
-          message: 'User not found'
-        });
-      }
+    res.json({
+      success: true,
+      message: 'Password has been reset successfully'
+    });
 
-      console.log('👤 User found:', {
-        id: user._id,
-        name: user.name,
-        username: user.username,
-        email: user.email,
-        role: user.role,
-        hasPassword: !!user.password,
-        isActive: user.isActive,
-        isLocked: user.isLocked,
-        loginAttempts: user.loginAttempts
-      });
-
-      // Check password
-      const isPasswordValid = await user.comparePassword(password);
-      console.log('🔐 Password valid:', isPasswordValid);
-
-      if (!isPasswordValid) {
-        return res.json({
-          success: false,
-          userFound: true,
-          passwordMatch: false,
-          message: 'Invalid password'
-        });
-      }
-
-      if (!user.isActive) {
-        return res.json({
-          success: false,
-          userFound: true,
-          passwordMatch: true,
-          accountActive: false,
-          message: 'User account is deactivated'
-        });
-      }
-
-      if (user.isLocked) {
-        return res.json({
-          success: false,
-          userFound: true,
-          passwordMatch: true,
-          accountActive: true,
-          accountLocked: true,
-          message: 'Account is temporarily locked'
-        });
-      }
-
-      // Generate token for successful debug login
-      const token = generateToken(user._id);
-      console.log('✅ Debug login successful, token generated');
-
-      res.json({
-        success: true,
-        userFound: true,
-        passwordMatch: true,
-        accountActive: true,
-        accountLocked: false,
-        message: 'Debug login successful',
-        token,
-        user: {
-          id: user._id,
-          name: user.name,
-          username: user.username,
-          email: user.email,
-          role: user.role
-        }
-      });
-
-    } catch (error) {
-      console.error('❌ Debug login error:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Debug login error',
-        error: error.message
-      });
-    }
-  });
-
-  // Test token generation
-  router.get('/test-token', (req, res) => {
-    try {
-      const testUserId = '507f1f77bcf86cd799439011'; // Sample ObjectId
-      const token = generateToken(testUserId);
-      
-      // Verify the token
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      
-      res.json({
-        success: true,
-        message: 'Token generation test successful',
-        token: token.substring(0, 20) + '...',
-        decoded: decoded,
-        jwtSecret: process.env.JWT_SECRET ? 'Present' : 'Missing'
-      });
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: 'Token generation test failed',
-        error: error.message,
-        jwtSecret: process.env.JWT_SECRET ? 'Present' : 'Missing'
-      });
-    }
-  });
-
-  // FIXED: Clean up expired locked accounts
-  router.post('/cleanup-locks', async (req, res) => {
-    try {
-      const result = await User.updateMany(
-        { 
-          lockUntil: { $lte: new Date() }
-        },
-        { 
-          $unset: { lockUntil: 1, loginAttempts: 1 }
-        }
-      );
-
-      res.json({
-        success: true,
-        message: 'Account locks cleaned up',
-        modifiedCount: result.modifiedCount
-      });
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: 'Error cleaning up locks',
-        error: error.message
-      });
-    }
-  });
-}
+  } catch (error) {
+    console.error('❌ Error resetting password:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to reset password'
+    });
+  }
+});
 
 module.exports = router;
