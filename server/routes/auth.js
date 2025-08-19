@@ -1,14 +1,15 @@
-// server/routes/auth.js - Authentication Routes
+// server/routes/auth.js - Complete Authentication Routes
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { body, validationResult } = require('express-validator');
 const User = require('../models/User');
+const { protect } = require('../middleware/auth'); // Import protect middleware
 
-// Generate JWT Token
+// Generate JWT Token - FIXED: use 'id' instead of 'userId'
 const generateToken = (userId) => {
-  return jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: '30d' });
+  return jwt.sign({ id: userId }, process.env.JWT_SECRET, { expiresIn: '30d' });
 };
 
 // =====================================
@@ -28,6 +29,7 @@ router.post('/register', [
     console.log('❌ Registration validation errors:', errors.array());
     return res.status(400).json({ 
       success: false, 
+      message: 'Validation failed',
       errors: errors.array() 
     });
   }
@@ -45,15 +47,11 @@ router.post('/register', [
       });
     }
 
-    // Hash password
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
-
-    // Create new user
+    // Create new user (password will be hashed by pre-save middleware)
     const user = new User({
       name,
       email,
-      password: hashedPassword,
+      password, // Let the model handle hashing
       role: 'user',
       isActive: true
     });
@@ -87,10 +85,7 @@ router.post('/register', [
     console.log('✅ Registration response sent successfully');
 
   } catch (error) {
-    console.error('❌ Registration error occurred:');
-    console.error('Error name:', error.name);
-    console.error('Error message:', error.message);
-    console.error('Error stack:', error.stack);
+    console.error('❌ Registration error occurred:', error);
     
     // Handle specific MongoDB errors
     if (error.code === 11000) {
@@ -134,6 +129,7 @@ router.post('/login', [
     console.log('❌ Login validation errors:', errors.array());
     return res.status(400).json({ 
       success: false, 
+      message: 'Validation failed',
       errors: errors.array() 
     });
   }
@@ -141,11 +137,24 @@ router.post('/login', [
   const { email, password } = req.body;
 
   try {
+    // Find user and include password field
     const user = await User.findOne({ email }).select('+password');
     console.log('🔍 User lookup result:', user ? 'Found' : 'Not found');
 
-    if (!user || !(await user.comparePassword(password))) {
-      console.log('❌ Invalid credentials for:', email);
+    if (!user) {
+      console.log('❌ User not found:', email);
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Invalid email or password' 
+      });
+    }
+
+    // Check password
+    const isPasswordValid = await user.comparePassword(password);
+    console.log('🔐 Password validation result:', isPasswordValid);
+
+    if (!isPasswordValid) {
+      console.log('❌ Invalid password for:', email);
       return res.status(401).json({ 
         success: false, 
         message: 'Invalid email or password' 
@@ -178,80 +187,261 @@ router.post('/login', [
     console.error('❌ Login error:', error);
     res.status(500).json({ 
       success: false, 
-      message: 'Server error' 
+      message: 'Server error during login' 
     });
   }
 });
 
-// Add these at the end of your auth.js file, before module.exports
+// =====================================
+// @route   GET /api/auth/me
+// @desc    Get current user profile
+// @access  Private
+// =====================================
+router.get('/me', protect, async (req, res) => {
+  try {
+    console.log('👤 GET /api/auth/me - Fetching current user profile');
+    
+    // req.user is set by the protect middleware
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'User not found in request'
+      });
+    }
 
+    // Return user data (password already excluded by protect middleware)
+    res.json({
+      success: true,
+      user: {
+        id: req.user._id,
+        name: req.user.name,
+        email: req.user.email,
+        role: req.user.role,
+        profile: req.user.profile,
+        createdAt: req.user.createdAt,
+        isActive: req.user.isActive
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching user profile:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching user profile'
+    });
+  }
+});
+
+// =====================================
+// @route   POST /api/auth/logout
+// @desc    Logout user (client-side token removal)
+// @access  Public
+// =====================================
+router.post('/logout', (req, res) => {
+  console.log('🚪 Logout request received');
+  
+  // Since we're using JWT tokens, logout is handled client-side
+  // This endpoint exists for consistency but doesn't need to do much
+  res.json({
+    success: true,
+    message: 'Logout successful'
+  });
+});
+
+// =====================================
+// DEVELOPMENT ONLY - DEBUG ROUTES
+// =====================================
 if (process.env.NODE_ENV === 'development') {
-  // DEBUG ROUTE 1: See all users
+  
+  // Create admin user for testing
+  router.post('/create-admin', async (req, res) => {
+    try {
+      const { email = 'admin@test.com', password = 'admin123', name = 'Admin User' } = req.body;
+      
+      // Check if user already exists
+      const existingUser = await User.findOne({ email });
+      if (existingUser) {
+        return res.status(409).json({
+          success: false,
+          message: 'Admin user already exists',
+          user: {
+            id: existingUser._id,
+            name: existingUser.name,
+            email: existingUser.email,
+            role: existingUser.role
+          }
+        });
+      }
+
+      // Create admin user
+      const adminUser = new User({
+        name,
+        email,
+        password, // Will be hashed by pre-save middleware
+        role: 'admin',
+        isActive: true
+      });
+
+      await adminUser.save();
+      console.log('✅ Admin user created:', email);
+
+      res.json({
+        success: true,
+        message: 'Admin user created successfully',
+        user: {
+          id: adminUser._id,
+          name: adminUser.name,
+          email: adminUser.email,
+          role: adminUser.role
+        }
+      });
+
+    } catch (error) {
+      console.error('❌ Error creating admin user:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error creating admin user',
+        error: error.message
+      });
+    }
+  });
+
+  // List all users for debugging
   router.get('/debug-users', async (req, res) => {
     try {
-      const users = await User.find({}).select('name email createdAt');
+      const users = await User.find({}).select('name email role createdAt isActive');
       console.log('📊 Total users in database:', users.length);
 
       res.json({
         success: true,
         count: users.length,
-        users: users.map(u => ({
-          id: u._id,
-          name: u.name,
-          email: u.email,
-          createdAt: u.createdAt
-        }))
-      });
-    } catch (error) {
-      res.status(500).json({ success: false, error: error.message });
-    }
-  });
-
-  // DEBUG ROUTE 2: Test specific login
-  router.post('/debug-login', async (req, res) => {
-    try {
-      const { email, password } = req.body;
-      console.log('🔍 Debug login for:', email);
-      console.log('📝 Password provided:', !!password, 'Length:', password?.length);
-
-      // Find user WITH password field (important!)
-      const user = await User.findOne({ email }).select('+password');
-      console.log('👤 User found:', !!user);
-
-      if (user) {
-        console.log('📊 User data:', {
+        users: users.map(user => ({
           id: user._id,
           name: user.name,
           email: user.email,
-          hasPassword: !!user.password,
-          passwordLength: user.password?.length
-        });
+          role: user.role,
+          isActive: user.isActive,
+          createdAt: user.createdAt
+        }))
+      });
 
-        // Test password comparison
-        const isMatch = await user.comparePassword(password);
-        console.log('🔐 Password match:', isMatch);
+    } catch (error) {
+      console.error('❌ Error fetching users:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error fetching users',
+        error: error.message
+      });
+    }
+  });
 
-        res.json({
-          success: true,
-          userFound: true,
-          passwordMatch: isMatch,
-          userDetails: {
-            id: user._id,
-            name: user.name,
-            email: user.email,
-            isActive: user.isActive
-          }
-        });
-      } else {
-        res.json({
+  // Debug login with detailed information
+  router.post('/debug-login', async (req, res) => {
+    try {
+      const { email, password } = req.body;
+      
+      console.log('🔍 Debug login attempt:', {
+        email,
+        passwordProvided: !!password,
+        passwordLength: password?.length
+      });
+
+      // Find user with password field
+      const user = await User.findOne({ email }).select('+password');
+      
+      if (!user) {
+        console.log('❌ User not found:', email);
+        return res.json({
           success: false,
           userFound: false,
           message: 'User not found'
         });
       }
+
+      console.log('👤 User found:', {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        hasPassword: !!user.password,
+        isActive: user.isActive
+      });
+
+      // Check password
+      const isPasswordValid = await user.comparePassword(password);
+      console.log('🔐 Password valid:', isPasswordValid);
+
+      if (!isPasswordValid) {
+        return res.json({
+          success: false,
+          userFound: true,
+          passwordMatch: false,
+          message: 'Invalid password'
+        });
+      }
+
+      if (!user.isActive) {
+        return res.json({
+          success: false,
+          userFound: true,
+          passwordMatch: true,
+          accountActive: false,
+          message: 'User account is deactivated'
+        });
+      }
+
+      // Generate token for successful debug login
+      const token = generateToken(user._id);
+      console.log('✅ Debug login successful, token generated');
+
+      res.json({
+        success: true,
+        userFound: true,
+        passwordMatch: true,
+        accountActive: true,
+        message: 'Debug login successful',
+        token,
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          role: user.role
+        }
+      });
+
     } catch (error) {
       console.error('❌ Debug login error:', error);
-      res.status(500).json({ success: false, error: error.message });
+      res.status(500).json({
+        success: false,
+        message: 'Debug login error',
+        error: error.message
+      });
+    }
+  });
+
+  // Test token generation
+  router.get('/test-token', (req, res) => {
+    try {
+      const testUserId = '507f1f77bcf86cd799439011'; // Sample ObjectId
+      const token = generateToken(testUserId);
+      
+      // Verify the token
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      
+      res.json({
+        success: true,
+        message: 'Token generation test successful',
+        token: token.substring(0, 20) + '...',
+        decoded: decoded,
+        jwtSecret: process.env.JWT_SECRET ? 'Present' : 'Missing'
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: 'Token generation test failed',
+        error: error.message,
+        jwtSecret: process.env.JWT_SECRET ? 'Present' : 'Missing'
+      });
     }
   });
 }

@@ -8,7 +8,7 @@ import { AuthProvider } from "./contexts/AuthContext";
 
 // Components
 import ErrorBoundary from "./components/ErrorBoundary";
-import AdminRoute from "./components/AdminRoute";
+import AdminRoute from "./components/admin/AdminRoute";
 import AdminLayout from "./components/admin/AdminLayout";
 import ScrollToTop from "./components/ScrollToTop";
 import Navbar from "./components/Navbar";

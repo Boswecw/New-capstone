@@ -1,8 +1,6 @@
-// ===== PROPER Environment Variable Setup =====
-// client/src/contexts/AuthContext.js - ENVIRONMENT VARIABLE DRIVEN
-
-import React, { createContext, useState, useContext, useEffect, useCallback, useMemo } from 'react';
-import axios from 'axios';
+// client/src/contexts/AuthContext.js
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import api from '../services/api';
 
 const AuthContext = createContext();
 
@@ -16,180 +14,250 @@ export const useAuth = () => {
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
-
-  // ✅ CORRECT: Let environment variables handle this automatically
-  const API_BASE_URL = process.env.REACT_APP_API_URL || 
-    (process.env.NODE_ENV === 'production' 
-      ? '/api'  // Use relative path in production - Render will handle routing
-      : 'http://localhost:5000/api'
-    );
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   console.log('🔧 Environment:', process.env.NODE_ENV);
-  console.log('🔧 API_BASE_URL:', API_BASE_URL);
+  console.log('🔧 API_BASE_URL:', process.env.REACT_APP_API_URL);
 
-  const logout = useCallback(() => {
+  // Logout function - useCallback to make it stable
+  const logout = React.useCallback(() => {
+    console.log('🚪 User logged out');
     localStorage.removeItem('token');
     setUser(null);
     setIsAuthenticated(false);
-    console.log('🚪 User logged out');
+    setLoading(false);
   }, []);
 
-  const authAPI = useMemo(() => {
-    const instance = axios.create({
-      baseURL: API_BASE_URL,
-      timeout: 30000,
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      }
-    });
-
-    // Request interceptor
-    instance.interceptors.request.use(
-      (config) => {
-        const token = localStorage.getItem('token');
-        if (token) {
-          config.headers.Authorization = `Bearer ${token}`;
-        }
-        console.log(`🔐 ${process.env.NODE_ENV} Request: ${config.method?.toUpperCase()} ${config.url}`);
-        return config;
-      },
-      (error) => Promise.reject(error)
-    );
-
-    // Response interceptor
-    instance.interceptors.response.use(
-      (response) => {
-        console.log(`✅ Response: ${response.status} ${response.config.url}`);
-        return response;
-      },
-      (error) => {
-        console.error('❌ Auth API Error:', {
-          status: error.response?.status,
-          message: error.response?.data?.message || error.message,
-          url: error.config?.url,
-          baseURL: error.config?.baseURL
-        });
-        
-        if (error.response?.status === 401) {
-          console.log('🚪 401 Error - Auto logout');
-          logout();
-        }
-        return Promise.reject(error);
-      }
-    );
-
-    return instance;
-  }, [API_BASE_URL, logout]);
-
-  const checkAuthStatus = useCallback(async () => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      setLoading(false);
-      return;
-    }
-
+  // Register function - useCallback for performance
+  const register = React.useCallback(async (userData) => {
     try {
-      console.log('🎯 Checking auth status...');
-      const response = await authAPI.get('/users/profile');
+      console.log('📝 Attempting registration...');
+      
+      // Ensure username is included if not provided
+      const registrationData = {
+        ...userData,
+        username: userData.username || userData.email?.split('@')[0] || 'user'
+      };
+      
+      const response = await api.post('/auth/register', registrationData);
+      
+      if (response.data.success && response.data.token) {
+        // Format from your backend: { success: true, token: "...", user: {...} }
+        const { user: newUser, token } = response.data;
+        
+        // Store token
+        localStorage.setItem('token', token);
+        
+        // Update state
+        setUser(newUser);
+        setIsAuthenticated(true);
+        setLoading(false);
+        
+        console.log('✅ Registration successful:', newUser.name);
+        return { success: true, user: newUser };
+      } else if (response.data.success && response.data.data?.token) {
+        // Alternative format: { success: true, data: { token: "...", user: {...} } }
+        const { user: newUser, token } = response.data.data;
+        
+        // Store token
+        localStorage.setItem('token', token);
+        
+        // Update state
+        setUser(newUser);
+        setIsAuthenticated(true);
+        setLoading(false);
+        
+        console.log('✅ Registration successful:', newUser.name);
+        return { success: true, user: newUser };
+      } else {
+        throw new Error(response.data?.message || 'Invalid response format');
+      }
+    } catch (error) {
+      console.error('❌ Registration error:', error);
+      return { 
+        success: false, 
+        message: error.response?.data?.message || error.message || 'Registration failed',
+        errors: error.response?.data?.errors || []
+      };
+    }
+  }, []);
 
-      if (response.data?.success && response.data?.data) {
+  // Login function - useCallback for performance
+  const login = React.useCallback(async (credentials) => {
+    try {
+      console.log('🔐 Attempting login...');
+      const response = await api.post('/auth/login', credentials);
+      
+      if (response.data.success && response.data.token) {
+        // Format from your backend: { success: true, token: "...", user: {...} }
+        const { user: userData, token } = response.data;
+        
+        // Store token
+        localStorage.setItem('token', token);
+        
+        // Update state
+        setUser(userData);
+        setIsAuthenticated(true);
+        setLoading(false);
+        
+        console.log('✅ Login successful:', userData.name);
+        return { success: true, user: userData };
+      } else if (response.data.success && response.data.data?.token) {
+        // Alternative format: { success: true, data: { token: "...", user: {...} } }
+        const { user: userData, token } = response.data.data;
+        
+        // Store token
+        localStorage.setItem('token', token);
+        
+        // Update state
+        setUser(userData);
+        setIsAuthenticated(true);
+        setLoading(false);
+        
+        console.log('✅ Login successful:', userData.name);
+        return { success: true, user: userData };
+      } else {
+        throw new Error(response.data?.message || 'Invalid response format');
+      }
+    } catch (error) {
+      console.error('❌ Login error:', error);
+      logout();
+      return { 
+        success: false, 
+        message: error.response?.data?.message || error.message || 'Login failed' 
+      };
+    }
+  }, [logout]);
+
+  // Check auth on mount with cleanup - useCallback to satisfy ESLint
+  const checkAuthStatus = React.useCallback(async () => {
+    try {
+      const token = localStorage.getItem('token');
+      
+      if (!token) {
+        console.log('📝 No token found - user not authenticated');
+        setLoading(false);
+        return;
+      }
+
+      console.log('🎯 Checking auth status...');
+      console.log('🔐 development Request: GET /auth/me');
+
+      const response = await api.get('/auth/me');
+      
+      if (response.data.success && response.data.user) {
+        // Format: { success: true, user: {...} }
+        setUser(response.data.user);
+        setIsAuthenticated(true);
+        console.log('✅ Auth check successful:', response.data.user.name);
+      } else if (response.data.success && response.data.data) {
+        // Alternative format: { success: true, data: {...} }
         setUser(response.data.data);
         setIsAuthenticated(true);
-        console.log('✅ User authenticated:', response.data.data?.email);
+        console.log('✅ Auth check successful:', response.data.data.name);
+      } else {
+        throw new Error('Invalid profile response');
       }
     } catch (error) {
       console.error('❌ Auth check failed:', error.message);
-      logout();
+      
+      // Handle specific error cases
+      if (error.response?.status === 401) {
+        console.log('🚪 401 Error - Token invalid or expired');
+        logout();
+      } else if (error.response?.status === 404) {
+        console.log('🚪 404 Error - User not found');
+        logout();
+      } else {
+        console.error('❌ Unexpected auth error:', error);
+        // Don't logout on network errors, just set loading to false
+        setLoading(false);
+      }
     } finally {
       setLoading(false);
     }
-  }, [authAPI, logout]);
+  }, [logout]); // Include logout as dependency since it's used inside
 
-  useEffect(() => {
-    checkAuthStatus();
-  }, [checkAuthStatus]);
-
-  const login = async (email, password, rememberMe = false) => {
+  // Update profile function
+  const updateProfile = React.useCallback(async (profileData) => {
     try {
-      console.log('🔐 Starting login for:', email);
-
-      if (!email || !password) {
-        throw new Error('Email and password are required');
+      console.log('📝 Updating profile...');
+      const response = await api.put('/users/profile', profileData);
+      
+      if (response.data.success) {
+        setUser(response.data.data);
+        console.log('✅ Profile updated successfully');
+        return { success: true, user: response.data.data };
+      } else {
+        throw new Error(response.data?.message || 'Update failed');
       }
-
-      const loginData = {
-        email: String(email).trim(),
-        password: String(password)
+    } catch (error) {
+      console.error('❌ Profile update error:', error);
+      return {
+        success: false,
+        message: error.response?.data?.message || error.message || 'Profile update failed'
       };
-
-      const response = await authAPI.post('/auth/login', loginData);
-      
-      if (response.data?.success && response.data?.token) {
-        const { token, user } = response.data;
-        
-        localStorage.setItem('token', token);
-        setUser(user);
-        setIsAuthenticated(true);
-        
-        console.log('✅ Login successful for:', user?.email);
-        return { success: true, user, token };
-      } else {
-        throw new Error(response.data?.message || 'Login failed');
-      }
-      
-    } catch (error) {
-      const errorMessage = error.response?.data?.message || 
-                          error.message || 
-                          'Login failed. Please check your credentials.';
-      console.error('❌ Login failed:', errorMessage);
-      throw new Error(errorMessage);
     }
-  };
+  }, []);
 
-  const register = async (userData) => {
+  // Change password function
+  const changePassword = React.useCallback(async (passwordData) => {
     try {
-      console.log('📝 Starting registration for:', userData.email);
+      console.log('🔐 Changing password...');
+      const response = await api.put('/users/change-password', passwordData);
       
-      const response = await authAPI.post('/auth/register', userData);
-      
-      if (response.data?.success) {
-        console.log('✅ Registration successful');
-        
-        // Auto-login after successful registration
-        if (response.data.token && response.data.user) {
-          localStorage.setItem('token', response.data.token);
-          setUser(response.data.user);
-          setIsAuthenticated(true);
-        }
-        
-        return { 
-          success: true, 
-          message: response.data.message || 'Registration successful',
-          user: response.data.user 
-        };
+      if (response.data.success) {
+        console.log('✅ Password changed successfully');
+        return { success: true, message: response.data.message };
       } else {
-        throw new Error(response.data?.message || 'Registration failed');
+        throw new Error(response.data?.message || 'Password change failed');
       }
     } catch (error) {
-      const errorMessage = error.response?.data?.message || 
-                          error.message || 
-                          'Registration failed. Please try again.';
-      console.error('❌ Registration failed:', errorMessage);
-      throw new Error(errorMessage);
+      console.error('❌ Password change error:', error);
+      return {
+        success: false,
+        message: error.response?.data?.message || error.message || 'Password change failed'
+      };
     }
-  };
+  }, []);
+
+  // Check auth on mount with cleanup
+  useEffect(() => {
+    let isMounted = true;
+    
+    const initAuth = async () => {
+      if (isMounted) {
+        await checkAuthStatus();
+      }
+    };
+
+    initAuth();
+    
+    return () => {
+      isMounted = false;
+    };
+  }, [checkAuthStatus]); // Now includes checkAuthStatus as dependency
+
+  // Add token to API requests
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    } else {
+      delete api.defaults.headers.common['Authorization'];
+    }
+  }, [user]);
 
   const value = {
     user,
-    isAuthenticated,
     loading,
+    isAuthenticated,
     login,
-    logout,
     register,
-    authAPI,
+    logout,
+    updateProfile,
+    changePassword,
     checkAuthStatus
   };
 
@@ -199,58 +267,3 @@ export const AuthProvider = ({ children }) => {
     </AuthContext.Provider>
   );
 };
-
-// ===== ENVIRONMENT VARIABLE SETUP =====
-
-// ✅ LOCAL DEVELOPMENT (client/.env.local) - OPTIONAL
-/*
-# Only set this if you want to override defaults
-# REACT_APP_API_URL=http://localhost:5000/api
-*/
-
-// ✅ RENDER ENVIRONMENT VARIABLES
-// Set these in your Render Dashboard -> Environment tab:
-/*
-For your FRONTEND service on Render:
-- REACT_APP_API_URL=https://furbabies-backend.onrender.com/api
-
-For your BACKEND service on Render:
-- NODE_ENV=production
-- JWT_SECRET=your-secret-key
-- MONGODB_URI=your-mongodb-url
-- PORT=5000
-- FRONTEND_URL=https://your-frontend.onrender.com
-*/
-
-// ===== HOW IT WORKS =====
-/*
-🏠 LOCAL DEVELOPMENT:
-- Uses: http://localhost:5000/api
-- No environment variable needed
-
-🚀 RENDER PRODUCTION:  
-- Frontend uses: process.env.REACT_APP_API_URL (set in Render dashboard)
-- Backend uses: process.env.PORT (Render sets this automatically)
-- CORS configured with: process.env.FRONTEND_URL
-*/
-
-// ===== RENDER DEPLOYMENT SETUP =====
-/*
-1. BACKEND SERVICE (furbabies-backend.onrender.com):
-   Environment Variables:
-   - NODE_ENV=production
-   - JWT_SECRET=your-super-secret-key
-   - MONGODB_URI=your-mongodb-connection-string
-   - FRONTEND_URL=https://your-frontend.onrender.com
-   
-2. FRONTEND SERVICE:
-   Environment Variables:
-   - REACT_APP_API_URL=https://furbabies-backend.onrender.com/api
-   
-3. BUILD SETTINGS:
-   Backend Build Command: npm install
-   Backend Start Command: npm start
-   
-   Frontend Build Command: npm run build  
-   Frontend Start Command: serve -s build
-*/
