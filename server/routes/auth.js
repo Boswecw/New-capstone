@@ -1,4 +1,4 @@
-// server/routes/auth.js - Complete Authentication Routes
+// server/routes/auth.js - Complete Authentication Routes (FIXED)
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
@@ -10,6 +10,25 @@ const { protect } = require('../middleware/auth'); // Import protect middleware
 // Generate JWT Token - FIXED: use 'id' instead of 'userId'
 const generateToken = (userId) => {
   return jwt.sign({ id: userId }, process.env.JWT_SECRET, { expiresIn: '30d' });
+};
+
+// Helper function to generate username from email
+const generateUsernameFromEmail = (email) => {
+  const baseUsername = email.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '');
+  return baseUsername.length >= 3 ? baseUsername : `user_${baseUsername}`;
+};
+
+// Helper function to ensure unique username
+const ensureUniqueUsername = async (baseUsername) => {
+  let username = baseUsername;
+  let counter = 1;
+  
+  while (await User.findOne({ username })) {
+    username = `${baseUsername}_${counter}`;
+    counter++;
+  }
+  
+  return username;
 };
 
 // =====================================
@@ -47,9 +66,15 @@ router.post('/register', [
       });
     }
 
+    // Generate unique username from email
+    const baseUsername = generateUsernameFromEmail(email);
+    const uniqueUsername = await ensureUniqueUsername(baseUsername);
+    console.log('📝 Generated username:', uniqueUsername);
+
     // Create new user (password will be hashed by pre-save middleware)
     const user = new User({
       name,
+      username: uniqueUsername, // FIXED: Add required username field
       email,
       password, // Let the model handle hashing
       role: 'user',
@@ -77,6 +102,7 @@ router.post('/register', [
       user: {
         id: savedUser._id,
         name: savedUser.name,
+        username: savedUser.username,
         email: savedUser.email,
         role: savedUser.role
       }
@@ -89,10 +115,11 @@ router.post('/register', [
     
     // Handle specific MongoDB errors
     if (error.code === 11000) {
-      console.error('❌ Duplicate key error - email already exists');
+      console.error('❌ Duplicate key error - email or username already exists');
+      const field = Object.keys(error.keyPattern)[0];
       return res.status(409).json({ 
         success: false, 
-        message: 'Email already registered' 
+        message: `${field === 'email' ? 'Email' : 'Username'} already registered` 
       });
     }
 
@@ -137,7 +164,7 @@ router.post('/login', [
   const { email, password } = req.body;
 
   try {
-    // Find user and include password field
+    // Find user and include password field - FIXED: Also check for locked accounts
     const user = await User.findOne({ email }).select('+password');
     console.log('🔍 User lookup result:', user ? 'Found' : 'Not found');
 
@@ -149,12 +176,25 @@ router.post('/login', [
       });
     }
 
+    // FIXED: Check if account is locked
+    if (user.isLocked) {
+      console.log('🔒 Account is locked:', email);
+      return res.status(423).json({ 
+        success: false, 
+        message: 'Account is temporarily locked due to multiple failed login attempts. Please try again later.' 
+      });
+    }
+
     // Check password
     const isPasswordValid = await user.comparePassword(password);
     console.log('🔐 Password validation result:', isPasswordValid);
 
     if (!isPasswordValid) {
       console.log('❌ Invalid password for:', email);
+      
+      // FIXED: Increment login attempts on failed password
+      await user.incLoginAttempts();
+      
       return res.status(401).json({ 
         success: false, 
         message: 'Invalid email or password' 
@@ -169,6 +209,14 @@ router.post('/login', [
       });
     }
 
+    // FIXED: Reset login attempts on successful login
+    if (user.loginAttempts && user.loginAttempts > 0) {
+      await user.resetLoginAttempts();
+    }
+
+    // FIXED: Update last login timestamp
+    await user.updateLastLogin();
+
     const token = generateToken(user._id);
     console.log('✅ Login successful for:', email);
 
@@ -179,6 +227,7 @@ router.post('/login', [
       user: {
         id: user._id,
         name: user.name,
+        username: user.username,
         email: user.email,
         role: user.role
       }
@@ -215,11 +264,13 @@ router.get('/me', protect, async (req, res) => {
       user: {
         id: req.user._id,
         name: req.user.name,
+        username: req.user.username,
         email: req.user.email,
         role: req.user.role,
         profile: req.user.profile,
         createdAt: req.user.createdAt,
-        isActive: req.user.isActive
+        isActive: req.user.isActive,
+        lastLogin: req.user.lastLogin
       }
     });
 
@@ -249,6 +300,40 @@ router.post('/logout', (req, res) => {
 });
 
 // =====================================
+// @route   POST /api/auth/refresh
+// @desc    Refresh JWT token
+// @access  Private
+// =====================================
+router.post('/refresh', protect, async (req, res) => {
+  try {
+    console.log('🔄 Token refresh request for user:', req.user.email);
+    
+    // Generate new token
+    const newToken = generateToken(req.user._id);
+    
+    res.json({
+      success: true,
+      message: 'Token refreshed successfully',
+      token: newToken,
+      user: {
+        id: req.user._id,
+        name: req.user.name,
+        username: req.user.username,
+        email: req.user.email,
+        role: req.user.role
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ Token refresh error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error refreshing token'
+    });
+  }
+});
+
+// =====================================
 // DEVELOPMENT ONLY - DEBUG ROUTES
 // =====================================
 if (process.env.NODE_ENV === 'development') {
@@ -273,9 +358,14 @@ if (process.env.NODE_ENV === 'development') {
         });
       }
 
+      // Generate unique username
+      const baseUsername = generateUsernameFromEmail(email);
+      const uniqueUsername = await ensureUniqueUsername(baseUsername);
+
       // Create admin user
       const adminUser = new User({
         name,
+        username: uniqueUsername,
         email,
         password, // Will be hashed by pre-save middleware
         role: 'admin',
@@ -291,6 +381,7 @@ if (process.env.NODE_ENV === 'development') {
         user: {
           id: adminUser._id,
           name: adminUser.name,
+          username: adminUser.username,
           email: adminUser.email,
           role: adminUser.role
         }
@@ -309,7 +400,7 @@ if (process.env.NODE_ENV === 'development') {
   // List all users for debugging
   router.get('/debug-users', async (req, res) => {
     try {
-      const users = await User.find({}).select('name email role createdAt isActive');
+      const users = await User.find({}).select('name username email role createdAt isActive lastLogin');
       console.log('📊 Total users in database:', users.length);
 
       res.json({
@@ -318,10 +409,12 @@ if (process.env.NODE_ENV === 'development') {
         users: users.map(user => ({
           id: user._id,
           name: user.name,
+          username: user.username,
           email: user.email,
           role: user.role,
           isActive: user.isActive,
-          createdAt: user.createdAt
+          createdAt: user.createdAt,
+          lastLogin: user.lastLogin
         }))
       });
 
@@ -361,10 +454,13 @@ if (process.env.NODE_ENV === 'development') {
       console.log('👤 User found:', {
         id: user._id,
         name: user.name,
+        username: user.username,
         email: user.email,
         role: user.role,
         hasPassword: !!user.password,
-        isActive: user.isActive
+        isActive: user.isActive,
+        isLocked: user.isLocked,
+        loginAttempts: user.loginAttempts
       });
 
       // Check password
@@ -390,6 +486,17 @@ if (process.env.NODE_ENV === 'development') {
         });
       }
 
+      if (user.isLocked) {
+        return res.json({
+          success: false,
+          userFound: true,
+          passwordMatch: true,
+          accountActive: true,
+          accountLocked: true,
+          message: 'Account is temporarily locked'
+        });
+      }
+
       // Generate token for successful debug login
       const token = generateToken(user._id);
       console.log('✅ Debug login successful, token generated');
@@ -399,11 +506,13 @@ if (process.env.NODE_ENV === 'development') {
         userFound: true,
         passwordMatch: true,
         accountActive: true,
+        accountLocked: false,
         message: 'Debug login successful',
         token,
         user: {
           id: user._id,
           name: user.name,
+          username: user.username,
           email: user.email,
           role: user.role
         }
@@ -441,6 +550,32 @@ if (process.env.NODE_ENV === 'development') {
         message: 'Token generation test failed',
         error: error.message,
         jwtSecret: process.env.JWT_SECRET ? 'Present' : 'Missing'
+      });
+    }
+  });
+
+  // FIXED: Clean up expired locked accounts
+  router.post('/cleanup-locks', async (req, res) => {
+    try {
+      const result = await User.updateMany(
+        { 
+          lockUntil: { $lte: new Date() }
+        },
+        { 
+          $unset: { lockUntil: 1, loginAttempts: 1 }
+        }
+      );
+
+      res.json({
+        success: true,
+        message: 'Account locks cleaned up',
+        modifiedCount: result.modifiedCount
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: 'Error cleaning up locks',
+        error: error.message
       });
     }
   });

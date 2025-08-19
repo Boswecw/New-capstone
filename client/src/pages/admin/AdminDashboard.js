@@ -1,12 +1,10 @@
-// src/pages/admin/AdminDashboard.js
+// src/pages/admin/AdminDashboard.js - FIXED VERSION
 
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import api from '../../services/api';
 import SafeImage from '../../components/SafeImage';
-import { 
-  buildProductImageUrl, 
-  getOptimizedImageUrl
-} from '../../utils/imageUtils';
+import { getOptimizedImageUrl } from '../../utils/imageUtils';
 import './AdminDashboard.css';
 
 const AdminDashboard = () => {
@@ -21,26 +19,51 @@ const AdminDashboard = () => {
       recentAdoptions: 0
     },
     recentPets: [],
-    recentAdoptions: [],
-    recentProducts: [],
+    recentUsers: [],
+    recentContacts: [],
     alerts: []
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Fetch dashboard data
+  // FIXED: Fetch dashboard data using configured API instance
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
         setLoading(true);
-        const response = await fetch('/api/admin/dashboard');
-        if (!response.ok) {
-          throw new Error('Failed to fetch dashboard data');
+        console.log('📊 Fetching admin dashboard data...');
+        
+        // FIXED: Use api instance instead of fetch
+        const response = await api.get('/admin/dashboard');
+        
+        console.log('✅ Dashboard response:', response.data);
+        
+        if (response.data.success) {
+          // FIXED: Map the backend response to frontend expected structure
+          const backendData = response.data.data;
+          const mappedData = {
+            stats: {
+              totalPets: backendData.stats?.pets?.total || 0,
+              availablePets: backendData.stats?.pets?.available || 0,
+              adoptedPets: backendData.stats?.pets?.adopted || 0,
+              pendingPets: backendData.stats?.pets?.pending || 0,
+              totalProducts: backendData.stats?.products?.total || 0,
+              totalUsers: backendData.stats?.users?.total || 0,
+              recentAdoptions: backendData.stats?.pets?.adopted || 0
+            },
+            recentPets: backendData.recentActivity?.pets || [],
+            recentUsers: backendData.recentActivity?.users || [],
+            recentContacts: backendData.recentActivity?.contacts || [],
+            alerts: backendData.alerts || []
+          };
+          console.log('🔄 Mapped dashboard data:', mappedData);
+          setDashboardData(mappedData);
+        } else {
+          throw new Error(response.data.message || 'Failed to fetch dashboard data');
         }
-        const data = await response.json();
-        setDashboardData(data);
       } catch (err) {
-        setError(err.message);
+        console.error('❌ Dashboard fetch error:', err);
+        setError(err.response?.data?.message || err.message || 'Failed to load dashboard');
       } finally {
         setLoading(false);
       }
@@ -52,7 +75,14 @@ const AdminDashboard = () => {
   if (loading) {
     return (
       <div className="admin-dashboard loading">
-        <div className="loading-spinner">Loading dashboard...</div>
+        <div className="loading-spinner">
+          <div className="text-center py-5">
+            <div className="spinner-border text-primary" role="status">
+              <span className="visually-hidden">Loading dashboard...</span>
+            </div>
+            <p className="mt-3 text-muted">Loading dashboard data...</p>
+          </div>
+        </div>
       </div>
     );
   }
@@ -60,45 +90,66 @@ const AdminDashboard = () => {
   if (error) {
     return (
       <div className="admin-dashboard error">
-        <div className="error-message">
-          <h2>Error Loading Dashboard</h2>
-          <p>{error}</p>
-          <button onClick={() => window.location.reload()}>
-            Try Again
-          </button>
+        <div className="container py-5">
+          <div className="row justify-content-center">
+            <div className="col-md-6">
+              <div className="card border-danger">
+                <div className="card-header bg-danger text-white">
+                  <h4 className="mb-0">
+                    <i className="fas fa-exclamation-triangle me-2"></i>
+                    Error Loading Dashboard
+                  </h4>
+                </div>
+                <div className="card-body">
+                  <p className="card-text">{error}</p>
+                  <button 
+                    className="btn btn-primary"
+                    onClick={() => window.location.reload()}
+                  >
+                    <i className="fas fa-redo me-2"></i>
+                    Try Again
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );
   }
 
-  const { stats, recentPets, recentAdoptions, recentProducts, alerts } = dashboardData;
+  const { stats, recentPets, recentUsers, recentContacts, alerts } = dashboardData;
 
   return (
     <div className="admin-dashboard">
+      {/* Dashboard Header */}
       <div className="dashboard-header">
-        <h1>Admin Dashboard</h1>
-        <p>Manage pets, products, and monitor activity</p>
+        <h1>
+          <i className="fas fa-tachometer-alt me-3"></i>
+          Admin Dashboard
+        </h1>
+        <p>Manage your pet store and monitor key metrics</p>
       </div>
 
       {/* Alerts Section */}
       {alerts && alerts.length > 0 && (
         <div className="alerts-section">
-          <h2>Alerts & Notifications</h2>
+          <h2>System Alerts</h2>
           <div className="alerts-list">
             {alerts.map((alert, index) => (
               <div key={index} className={`alert ${alert.type}`}>
                 <div className="alert-icon">
-                  {alert.type === 'warning' && '⚠️'}
-                  {alert.type === 'error' && '❌'}
-                  {alert.type === 'info' && 'ℹ️'}
-                  {alert.type === 'success' && '✅'}
+                  <i className={`fas ${
+                    alert.type === 'warning' ? 'fa-exclamation-triangle' :
+                    alert.type === 'error' ? 'fa-times-circle' :
+                    alert.type === 'success' ? 'fa-check-circle' :
+                    'fa-info-circle'
+                  }`}></i>
                 </div>
                 <div className="alert-content">
                   <h4>{alert.title}</h4>
                   <p>{alert.message}</p>
-                  {alert.timestamp && (
-                    <small>{new Date(alert.timestamp).toLocaleString()}</small>
-                  )}
+                  <small>{alert.timestamp}</small>
                 </div>
               </div>
             ))}
@@ -110,47 +161,191 @@ const AdminDashboard = () => {
       <div className="stats-overview">
         <h2>Overview</h2>
         <div className="stats-grid">
-          <div className="stat-card pets">
-            <div className="stat-icon">🐾</div>
-            <div className="stat-content">
-              <h3>Total Pets</h3>
-              <div className="stat-number">{stats.totalPets}</div>
-              <div className="stat-breakdown">
-                <span className="available">{stats.availablePets} Available</span>
-                <span className="pending">{stats.pendingPets} Pending</span>
-                <span className="adopted">{stats.adoptedPets} Adopted</span>
+          <div className="stat-card">
+            <div className="stat-icon pets">
+              <i className="fas fa-paw"></i>
+            </div>
+            <div className="stat-info">
+              <h3>{stats.totalPets || 0}</h3>
+              <p>Total Pets</p>
+              <small>{stats.availablePets || 0} available</small>
+            </div>
+          </div>
+
+          <div className="stat-card">
+            <div className="stat-icon users">
+              <i className="fas fa-users"></i>
+            </div>
+            <div className="stat-info">
+              <h3>{stats.totalUsers || 0}</h3>
+              <p>Total Users</p>
+              <small>Registered members</small>
+            </div>
+          </div>
+
+          <div className="stat-card">
+            <div className="stat-icon adoptions">
+              <i className="fas fa-heart"></i>
+            </div>
+            <div className="stat-info">
+              <h3>{stats.adoptedPets || 0}</h3>
+              <p>Adoptions</p>
+              <small>{stats.recentAdoptions || 0} this month</small>
+            </div>
+          </div>
+
+          <div className="stat-card">
+            <div className="stat-icon products">
+              <i className="fas fa-shopping-bag"></i>
+            </div>
+            <div className="stat-info">
+              <h3>{stats.totalProducts || 0}</h3>
+              <p>Products</p>
+              <small>In inventory</small>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Recent Activity */}
+      <div className="recent-activity">
+        <div className="row">
+          {/* Recent Pets */}
+          <div className="col-lg-4 col-md-6">
+            <div className="activity-section">
+              <h3>
+                <i className="fas fa-paw me-2"></i>
+                Recent Pets
+              </h3>
+              <div className="activity-list">
+                {recentPets && recentPets.length > 0 ? (
+                  recentPets.slice(0, 5).map((pet) => (
+                    <div key={pet._id || pet.id} className="activity-item">
+                      <div className="activity-image">
+                        <SafeImage
+                          src={getOptimizedImageUrl(pet.image, 'thumbnail')}
+                          alt={pet.name}
+                          fallback="https://images.unsplash.com/photo-1601758228041-f3b2795255f1?w=60&h=60&fit=crop"
+                        />
+                      </div>
+                      <div className="activity-content">
+                        <h5>{pet.name}</h5>
+                        <p>{pet.breed} • {pet.type}</p>
+                        <small className="text-muted">
+                          Added {new Date(pet.createdAt).toLocaleDateString()}
+                        </small>
+                      </div>
+                      <div className="activity-status">
+                        <span className={`badge bg-${pet.status === 'available' ? 'success' : pet.status === 'adopted' ? 'primary' : 'warning'}`}>
+                          {pet.status}
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center text-muted py-3">
+                    <i className="fas fa-paw fa-2x mb-2"></i>
+                    <p>No recent pets</p>
+                  </div>
+                )}
+              </div>
+              <div className="activity-footer">
+                <Link to="/admin/pets" className="btn btn-outline-primary btn-sm">
+                  <i className="fas fa-eye me-1"></i>
+                  View All Pets
+                </Link>
               </div>
             </div>
           </div>
 
-          <div className="stat-card products">
-            <div className="stat-icon">🛍️</div>
-            <div className="stat-content">
-              <h3>Products</h3>
-              <div className="stat-number">{stats.totalProducts}</div>
-              <Link to="/admin/products" className="stat-link">
-                Manage Products →
-              </Link>
+          {/* Recent Users */}
+          <div className="col-lg-4 col-md-6">
+            <div className="activity-section">
+              <h3>
+                <i className="fas fa-users me-2"></i>
+                Recent Users
+              </h3>
+              <div className="activity-list">
+                {recentUsers && recentUsers.length > 0 ? (
+                  recentUsers.slice(0, 5).map((user) => (
+                    <div key={user._id || user.id} className="activity-item">
+                      <div className="activity-icon">
+                        <div className="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" 
+                             style={{ width: '40px', height: '40px', fontSize: '14px', fontWeight: 'bold' }}>
+                          {user.name?.charAt(0)?.toUpperCase() || 'U'}
+                        </div>
+                      </div>
+                      <div className="activity-content">
+                        <h5>{user.name}</h5>
+                        <p>{user.email}</p>
+                        <small className="text-muted">
+                          Joined {new Date(user.createdAt).toLocaleDateString()}
+                        </small>
+                      </div>
+                      <div className="activity-status">
+                        <span className={`badge bg-${user.role === 'admin' ? 'danger' : user.role === 'moderator' ? 'warning' : 'success'}`}>
+                          {user.role}
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center text-muted py-3">
+                    <i className="fas fa-users fa-2x mb-2"></i>
+                    <p>No recent users</p>
+                  </div>
+                )}
+              </div>
+              <div className="activity-footer">
+                <Link to="/admin/users" className="btn btn-outline-primary btn-sm">
+                  <i className="fas fa-eye me-1"></i>
+                  View All Users
+                </Link>
+              </div>
             </div>
           </div>
 
-          <div className="stat-card users">
-            <div className="stat-icon">👥</div>
-            <div className="stat-content">
-              <h3>Users</h3>
-              <div className="stat-number">{stats.totalUsers}</div>
-              <Link to="/admin/users" className="stat-link">
-                Manage Users →
-              </Link>
-            </div>
-          </div>
-
-          <div className="stat-card adoptions">
-            <div className="stat-icon">❤️</div>
-            <div className="stat-content">
-              <h3>Recent Adoptions</h3>
-              <div className="stat-number">{stats.recentAdoptions}</div>
-              <small>Last 30 days</small>
+          {/* Recent Contacts */}
+          <div className="col-lg-4 col-md-12">
+            <div className="activity-section">
+              <h3>
+                <i className="fas fa-envelope me-2"></i>
+                Recent Contacts
+              </h3>
+              <div className="activity-list">
+                {recentContacts && recentContacts.length > 0 ? (
+                  recentContacts.slice(0, 5).map((contact) => (
+                    <div key={contact._id || contact.id} className="activity-item">
+                      <div className="activity-icon">
+                        <i className="fas fa-envelope text-info"></i>
+                      </div>
+                      <div className="activity-content">
+                        <h5>{contact.name}</h5>
+                        <p>{contact.subject}</p>
+                        <small className="text-muted">
+                          From {contact.email} • {new Date(contact.createdAt).toLocaleDateString()}
+                        </small>
+                      </div>
+                      <div className="activity-status">
+                        <span className={`badge bg-${contact.status === 'new' ? 'warning' : contact.status === 'read' ? 'info' : 'success'}`}>
+                          {contact.status}
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center text-muted py-3">
+                    <i className="fas fa-envelope fa-2x mb-2"></i>
+                    <p>No recent contacts</p>
+                  </div>
+                )}
+              </div>
+              <div className="activity-footer">
+                <Link to="/admin/contacts" className="btn btn-outline-primary btn-sm">
+                  <i className="fas fa-eye me-1"></i>
+                  View All Contacts
+                </Link>
+              </div>
             </div>
           </div>
         </div>
@@ -160,159 +355,38 @@ const AdminDashboard = () => {
       <div className="quick-actions">
         <h2>Quick Actions</h2>
         <div className="actions-grid">
-          <Link to="/admin/pets/new" className="action-card">
-            <div className="action-icon">➕</div>
-            <h3>Add New Pet</h3>
-            <p>Add a new pet to the database</p>
+          <Link to="/admin/pets" className="action-card">
+            <div className="action-icon">
+              <i className="fas fa-plus"></i>
+            </div>
+            <h4>Add New Pet</h4>
+            <p>Add a new pet for adoption</p>
           </Link>
 
-          <Link to="/admin/products/new" className="action-card">
-            <div className="action-icon">🛒</div>
-            <h3>Add Product</h3>
-            <p>Add a new product to the store</p>
+          <Link to="/admin/users" className="action-card">
+            <div className="action-icon">
+              <i className="fas fa-users"></i>
+            </div>
+            <h4>Manage Users</h4>
+            <p>View and manage user accounts</p>
           </Link>
 
-          <Link to="/admin/adoptions" className="action-card">
-            <div className="action-icon">📋</div>
-            <h3>View Applications</h3>
-            <p>Review adoption applications</p>
+          <Link to="/admin/contacts" className="action-card">
+            <div className="action-icon">
+              <i className="fas fa-envelope"></i>
+            </div>
+            <h4>Contact Messages</h4>
+            <p>Review customer inquiries</p>
           </Link>
 
           <Link to="/admin/reports" className="action-card">
-            <div className="action-icon">📊</div>
-            <h3>Generate Reports</h3>
-            <p>View analytics and reports</p>
-          </Link>
-        </div>
-      </div>
-
-      {/* Recent Activity */}
-      <div className="recent-activity">
-        <div className="activity-section">
-          <h2>Recently Added Pets</h2>
-          {recentPets.length === 0 ? (
-            <p className="no-data">No recent pets added</p>
-          ) : (
-            <div className="pets-list">
-              {recentPets.map(pet => (
-                <RecentPetCard key={pet.id} pet={pet} />
-              ))}
+            <div className="action-icon">
+              <i className="fas fa-chart-bar"></i>
             </div>
-          )}
-          <Link to="/admin/pets" className="view-all-link">
-            View All Pets →
+            <h4>View Reports</h4>
+            <p>Analyze performance metrics</p>
           </Link>
         </div>
-
-        <div className="activity-section">
-          <h2>Recent Adoptions</h2>
-          {recentAdoptions.length === 0 ? (
-            <p className="no-data">No recent adoptions</p>
-          ) : (
-            <div className="adoptions-list">
-              {recentAdoptions.map(adoption => (
-                <RecentAdoptionCard key={adoption.id} adoption={adoption} />
-              ))}
-            </div>
-          )}
-          <Link to="/admin/adoptions" className="view-all-link">
-            View All Adoptions →
-          </Link>
-        </div>
-
-        <div className="activity-section">
-          <h2>Recent Products</h2>
-          {recentProducts.length === 0 ? (
-            <p className="no-data">No recent products added</p>
-          ) : (
-            <div className="products-list">
-              {recentProducts.map(product => (
-                <RecentProductCard key={product.id} product={product} />
-              ))}
-            </div>
-          )}
-          <Link to="/admin/products" className="view-all-link">
-            View All Products →
-          </Link>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// Recent Pet Card Component
-const RecentPetCard = ({ pet }) => {
-  const imageUrl = getOptimizedImageUrl(pet.image, { width: 80, height: 80 });
-  
-  return (
-    <div className="recent-pet-card">
-      <div className="pet-image">
-        <SafeImage
-          src={imageUrl}
-          alt={pet.name}
-          isPet={true}
-        />
-      </div>
-      <div className="pet-info">
-        <h4>{pet.name}</h4>
-        <p>{pet.breed} • {pet.species}</p>
-        <span className={`status ${pet.status}`}>{pet.status}</span>
-      </div>
-      <div className="pet-actions">
-        <Link to={`/admin/pets/${pet.id}`} className="btn btn-sm">
-          Edit
-        </Link>
-      </div>
-    </div>
-  );
-};
-
-// Recent Adoption Card Component
-const RecentAdoptionCard = ({ adoption }) => {
-  const petImageUrl = getOptimizedImageUrl(adoption.pet?.image, { width: 60, height: 60 });
-  
-  return (
-    <div className="recent-adoption-card">
-      <div className="adoption-pet-image">
-        <SafeImage
-          src={petImageUrl}
-          alt={adoption.pet?.name || 'Pet'}
-          isPet={true}
-        />
-      </div>
-      <div className="adoption-info">
-        <h4>{adoption.pet?.name}</h4>
-        <p>Adopted by {adoption.adopter?.name}</p>
-        <small>{new Date(adoption.adoptionDate).toLocaleDateString()}</small>
-      </div>
-      <div className="adoption-status">
-        <span className={`status ${adoption.status}`}>
-          {adoption.status}
-        </span>
-      </div>
-    </div>
-  );
-};
-
-// Recent Product Card Component
-const RecentProductCard = ({ product }) => {
-  return (
-    <div className="recent-product-card">
-      <div className="product-image">
-        <SafeImage
-          src={buildProductImageUrl(product.image)}
-          alt={product.name}
-        />
-      </div>
-      <div className="product-info">
-        <h4>{product.name}</h4>
-        <p>${product.price}</p>
-        <small>Stock: {product.stock || 0}</small>
-      </div>
-      <div className="product-actions">
-        <Link to={`/admin/products/${product.id}`} className="btn btn-sm">
-          Edit
-        </Link>
       </div>
     </div>
   );

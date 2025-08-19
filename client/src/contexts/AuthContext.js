@@ -1,4 +1,4 @@
-// client/src/contexts/AuthContext.js
+// client/src/contexts/AuthContext.js - FIXED VERSION
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import api from '../services/api';
 
@@ -83,10 +83,19 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  // Login function - useCallback for performance
-  const login = React.useCallback(async (credentials) => {
+  // FIXED: Login function to handle both parameter formats
+  const login = React.useCallback(async (emailOrCredentials, password, rememberMe) => {
     try {
       console.log('🔐 Attempting login...');
+      
+      // Handle both formats: login(email, password) and login({email, password})
+      let credentials;
+      if (typeof emailOrCredentials === 'string') {
+        credentials = { email: emailOrCredentials, password, rememberMe };
+      } else {
+        credentials = emailOrCredentials;
+      }
+      
       const response = await api.post('/auth/login', credentials);
       
       if (response.data.success && response.data.token) {
@@ -130,7 +139,7 @@ export const AuthProvider = ({ children }) => {
     }
   }, [logout]);
 
-  // Check auth on mount with cleanup - useCallback to satisfy ESLint
+  // FIXED: Check auth status with better response handling
   const checkAuthStatus = React.useCallback(async () => {
     try {
       const token = localStorage.getItem('token');
@@ -145,18 +154,16 @@ export const AuthProvider = ({ children }) => {
       console.log('🔐 development Request: GET /auth/me');
 
       const response = await api.get('/auth/me');
+      console.log('🔍 Auth response data:', response.data);
       
       if (response.data.success && response.data.user) {
-        // Format: { success: true, user: {...} }
-        setUser(response.data.user);
+        // FIXED: Use the user data from /auth/me which includes the role
+        const userData = response.data.user;
+        setUser(userData);
         setIsAuthenticated(true);
-        console.log('✅ Auth check successful:', response.data.user.name);
-      } else if (response.data.success && response.data.data) {
-        // Alternative format: { success: true, data: {...} }
-        setUser(response.data.data);
-        setIsAuthenticated(true);
-        console.log('✅ Auth check successful:', response.data.data.name);
+        console.log('✅ Auth check successful:', userData.name, 'Role:', userData.role);
       } else {
+        console.error('❌ Invalid auth response format:', response.data);
         throw new Error('Invalid profile response');
       }
     } catch (error) {
@@ -177,7 +184,7 @@ export const AuthProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  }, [logout]); // Include logout as dependency since it's used inside
+  }, [logout]);
 
   // Update profile function
   const updateProfile = React.useCallback(async (profileData) => {
@@ -237,7 +244,7 @@ export const AuthProvider = ({ children }) => {
     return () => {
       isMounted = false;
     };
-  }, [checkAuthStatus]); // Now includes checkAuthStatus as dependency
+  }, [checkAuthStatus]);
 
   // Add token to API requests
   useEffect(() => {
